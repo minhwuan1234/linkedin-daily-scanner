@@ -59,11 +59,6 @@ def create_browser_context(
         },
         locale="en-US",
         timezone_id="Asia/Ho_Chi_Minh",
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/126.0.0.0 Safari/537.36"
-        ),
     )
 
 
