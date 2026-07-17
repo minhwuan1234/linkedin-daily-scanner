@@ -38,13 +38,19 @@ def main() -> None:
             "quay lại terminal và nhấn Enter..."
         )
 
-        page.goto(
-            "https://www.linkedin.com/feed/",
-            wait_until="domcontentloaded",
-            timeout=60_000,
-        )
-
         page.wait_for_timeout(3_000)
+
+current_url = page.url
+
+if (
+    "/login" in current_url
+    or "/authwall" in current_url
+    or "/checkpoint" in current_url
+):
+    raise RuntimeError(
+        f"LinkedIn session chưa đăng nhập thành công. "
+        f"Current URL: {current_url}"
+    )
 
         if "/login" in page.url or "/authwall" in page.url:
             raise RuntimeError(
