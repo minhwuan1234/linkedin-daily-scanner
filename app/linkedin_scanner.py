@@ -1,16 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-from playwright.sync_api import (
-    Browser,
-    BrowserContext,
-    Page,
-    sync_playwright,
-)
+from playwright.sync_api import Page, sync_playwright
 from supabase import Client, create_client
 
 from app.settings import Settings
+
+
+LINKEDIN_PROFILE_DIR = Path("linkedin_browser_profile")
 
 
 @dataclass
@@ -49,17 +48,43 @@ def get_one_enabled_source(
     return response.data[0]
 
 
-def create_browser_context(
-    browser: Browser,
-) -> BrowserContext:
-    return browser.new_context(
-        viewport={
-            "width": 1440,
-            "height": 1000,
-        },
-        locale="en-US",
-        timezone_id="Asia/Ho_Chi_Minh",
+def is_blocked_linkedin_url(url: str) -> bool:
+    blocked_paths = (
+        "/login",
+        "/authwall",
+        "/checkpoint",
     )
+
+    return any(
+        path in url.lower()
+        for path in blocked_paths
+    )
+
+
+def accept_cookie_banner(page: Page) -> bool:
+    possible_buttons = (
+        "button:has-text('Accept cookies')",
+        "button:has-text('Accept all')",
+        "button:has-text('Allow all cookies')",
+        "button:has-text('Agree')",
+        "button[action-type='ACCEPT']",
+    )
+
+    for selector in possible_buttons:
+        try:
+            button = page.locator(selector).first
+
+            if button.is_visible(timeout=1_000):
+                button.click(timeout=3_000)
+                page.wait_for_timeout(1_000)
+
+                print("Accepted LinkedIn cookie banner.")
+                return True
+
+        except Exception:
+            continue
+
+    return False
 
 
 def probe_linkedin_source(
@@ -72,6 +97,12 @@ def probe_linkedin_source(
             "No enabled LinkedIn source found in Supabase."
         )
 
+    if not LINKEDIN_PROFILE_DIR.exists():
+        raise RuntimeError(
+            "LinkedIn browser profile does not exist. "
+            "Run create_linkedin_session.py first."
+        )
+
     source_id = int(source["id"])
     linkedin_url = str(source["linkedin_url"])
 
@@ -80,12 +111,24 @@ def probe_linkedin_source(
     )
 
     with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            headless=True,
+        context = playwright.chromium.launch_persistent_context(
+            user_data_dir=str(
+                LINKEDIN_PROFILE_DIR.resolve()
+            ),
+            headless=False,
+            viewport={
+                "width": 1440,
+                "height": 1000,
+            },
+            locale="en-US",
+            timezone_id="Asia/Ho_Chi_Minh",
         )
 
-        context = create_browser_context(browser)
-        page: Page = context.new_page()
+        page: Page = (
+            context.pages[0]
+            if context.pages
+            else context.new_page()
+        )
 
         try:
             page.goto(
@@ -94,10 +137,20 @@ def probe_linkedin_source(
                 timeout=60_000,
             )
 
-            page.wait_for_timeout(5_000)
+            page.wait_for_timeout(4_000)
+
+            accept_cookie_banner(page)
+
+            page.wait_for_timeout(2_000)
 
             final_url = page.url
             page_title = page.title()
+
+            if is_blocked_linkedin_url(final_url):
+                raise RuntimeError(
+                    "LINKEDIN_SESSION_BLOCKED: "
+                    f"LinkedIn redirected to {final_url}"
+                )
 
             body_text = page.locator("body").inner_text(
                 timeout=15_000
@@ -117,4 +170,3 @@ def probe_linkedin_source(
 
         finally:
             context.close()
-            browser.close()
