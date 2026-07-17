@@ -5,24 +5,29 @@ from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 
-OUTPUT_FILE = Path("linkedin_storage_state.json")
+PROFILE_DIR = Path("linkedin_browser_profile")
 
 
 def main() -> None:
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch(
-            headless=False,
-        )
+    PROFILE_DIR.mkdir(exist_ok=True)
 
-        context = browser.new_context(
+    with sync_playwright() as playwright:
+        context = playwright.chromium.launch_persistent_context(
+            user_data_dir=str(PROFILE_DIR),
+            headless=False,
             viewport={
                 "width": 1440,
                 "height": 1000,
             },
             locale="en-US",
+            timezone_id="Asia/Ho_Chi_Minh",
         )
 
-        page = context.new_page()
+        page = (
+            context.pages[0]
+            if context.pages
+            else context.new_page()
+        )
 
         try:
             page.goto(
@@ -32,20 +37,15 @@ def main() -> None:
             )
 
             print("")
-            print(
-                "Hãy đăng nhập LinkedIn trong cửa sổ trình duyệt."
-            )
-            print(
-                "Hoàn thành OTP/CAPTCHA nếu LinkedIn yêu cầu."
-            )
+            print("Đăng nhập LinkedIn trong cửa sổ trình duyệt.")
+            print("Accept cookies và hoàn thành OTP nếu có.")
+            print("Mở thử một profile LinkedIn.")
             print("")
 
             input(
-                "Khi đã vào được trang chủ LinkedIn, "
-                "quay lại terminal và nhấn Enter..."
+                "Khi profile đã mở bình thường, "
+                "quay lại PowerShell và nhấn Enter..."
             )
-
-            page.wait_for_timeout(3_000)
 
             current_url = page.url
 
@@ -60,29 +60,16 @@ def main() -> None:
                 for path in blocked_paths
             ):
                 raise RuntimeError(
-                    "LinkedIn session chưa đăng nhập "
-                    "thành công. "
+                    "Session chưa hoạt động. "
                     f"Current URL: {current_url}"
                 )
 
-            context.storage_state(
-                path=str(OUTPUT_FILE),
-                indexed_db=True,
-            )
-
             print("")
-            print(
-                "Đã tạo session tại:"
-            )
-            print(OUTPUT_FILE.resolve())
-            print("")
-            print(
-                "Không upload file này lên GitHub."
-            )
+            print("Đã lưu browser profile tại:")
+            print(PROFILE_DIR.resolve())
 
         finally:
             context.close()
-            browser.close()
 
 
 if __name__ == "__main__":
