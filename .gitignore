@@ -1,5 +1,7 @@
 linkedin_browser_profile/
 linkedin_storage_state.json
 
+output/
+
 __pycache__/
 *.pyc
