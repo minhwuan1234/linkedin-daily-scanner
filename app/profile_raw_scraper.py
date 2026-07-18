@@ -1083,10 +1083,10 @@ def find_experience_items(
     return page.locator("main li.pvs-list__paged-list-item")
 
 
-def scrape_experiences(
+def scrape_experience_raw_text(
     page: Page,
     profile_url: str,
-) -> list[dict[str, Any]]:
+) -> str:
     experience_url = build_detail_url(
         profile_url,
         "details/experience",
@@ -1109,64 +1109,65 @@ def scrape_experiences(
     except Exception:
         pass
 
-    for _ in range(8):
-        page.mouse.wheel(0, 1_200)
-        page.wait_for_timeout(600)
+    previous_height = 0
 
-    page.mouse.wheel(0, -10_000)
-    page.wait_for_timeout(1_000)
+    for _ in range(12):
+        current_height = page.evaluate(
+            "document.body.scrollHeight"
+        )
 
-    cards = find_experience_items(page)
+        page.mouse.wheel(0, 1_500)
+        page.wait_for_timeout(700)
 
-    experiences: list[dict[str, Any]] = []
+        if current_height == previous_height:
+            break
 
-    seen_keys: set[str] = set()
+        previous_height = current_height
+
+    page.mouse.wheel(0, -20_000)
+    page.wait_for_timeout(800)
+
+    main = page.locator("main")
 
     try:
-        count = min(
-            cards.count(),
-            100,
+        raw_text = clean_text(
+            main.inner_text(timeout=15_000)
         )
     except Exception:
-        count = 0
+        return ""
 
-    for index in range(count):
-        card = cards.nth(index)
+    lines = unique_lines(raw_text)
 
-        try:
-            card_text = clean_text(card.inner_text(timeout=2_000))
-        except Exception:
+    ignored_exact_lines = {
+        "experience",
+        "back",
+        "home",
+        "my network",
+        "jobs",
+        "messaging",
+        "notifications",
+        "me",
+        "for business",
+        "try premium",
+        "show all",
+        "see more",
+        "show more",
+    }
+
+    filtered_lines: list[str] = []
+
+    for line in lines:
+        normalized = line.casefold()
+
+        if normalized in ignored_exact_lines:
             continue
 
-        if not card_text:
+        if normalized.startswith("skip to "):
             continue
 
-        if not (
-            DATE_RANGE_PATTERN.search(card_text)
-            or card.locator("a[href*='/company/']").count() > 0
-        ):
-            continue
+        filtered_lines.append(line)
 
-        parsed = parse_experience_card(card)
-
-        if not parsed:
-            continue
-
-        duplicate_key = "|".join(
-            (
-                parsed["job_title"].casefold(),
-                parsed["company_name"].casefold(),
-                parsed["date_text"].casefold(),
-            )
-        )
-
-        if duplicate_key in seen_keys:
-            continue
-
-        seen_keys.add(duplicate_key)
-        experiences.append(parsed)
-
-    return experiences
+    return "\n".join(filtered_lines).strip()
 
 
 def scrape_profile_raw(
@@ -1233,21 +1234,36 @@ def scrape_profile_raw(
                 )
 
             try:
-                experiences = scrape_experiences(
-                    page,
-                    profile_url,
-                )
-                if not experiences:
-                    errors.append(
-                        {
-                            "section": "experiences",
-                            "message": (
-                                "No experience cards were "
-                                "parsed from the LinkedIn "
-                                "experience detail page."
-                            ),
-                        }
-                    )
+    experience_raw_text = (
+        scrape_experience_raw_text(
+            page,
+            profile_url,
+        )
+    )
+
+    if not experience_raw_text:
+        errors.append(
+            {
+                "section": "experience",
+                "message": (
+                    "Experience page returned "
+                    "no usable text."
+                ),
+            }
+        )
+
+except Exception as exc:
+    experience_raw_text = ""
+
+    errors.append(
+        {
+            "section": "experience",
+            "message": (
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            ),
+        }
+    )
             except Exception as exc:
                 experiences = []
 
@@ -1258,13 +1274,17 @@ def scrape_profile_raw(
                     }
                 )
 
-            return {
-                "source_id": source_id,
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
-                "profile": profile,
-                "experiences": experiences,
-                "errors": errors,
-            }
+           return {
+    "source_id": source_id,
+    "scraped_at": datetime.now(
+        timezone.utc
+    ).isoformat(),
+    "profile": profile,
+    "experience_raw_text": (
+        experience_raw_text
+    ),
+    "errors": errors,
+}
 
         finally:
             context.close()
