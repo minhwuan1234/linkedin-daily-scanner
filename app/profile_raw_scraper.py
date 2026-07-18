@@ -474,94 +474,159 @@ def scrape_profile_overview(
 
 
 def scrape_about(page: Page) -> str:
-    section = find_section_by_heading(
-        page,
-        ("About",),
+    about_heading = page.get_by_text(
+        "About",
+        exact=True,
     )
 
-    if section is None:
+    try:
+        heading_count = about_heading.count()
+    except Exception:
         return ""
 
-    click_see_more_inside(section)
-    page.wait_for_timeout(500)
-
-    preferred_selectors = (
-        "div.display-flex.ph5.pv3 span[aria-hidden='true']",
-        "div.full-width span[aria-hidden='true']",
-        "span.visually-hidden + span[aria-hidden='true']",
-    )
-
-    for selector in preferred_selectors:
-        candidates = section.locator(selector)
+    for index in range(heading_count):
+        heading = about_heading.nth(index)
 
         try:
-            count = min(candidates.count(), 20)
+            if not heading.is_visible(timeout=500):
+                continue
         except Exception:
             continue
 
-        values: list[str] = []
+        section = heading.locator(
+            "xpath=ancestor::section[1]"
+        )
 
-        for index in range(count):
-            text = clean_text(
-                safe_text(candidates.nth(index))
+        try:
+            if section.count() == 0:
+                continue
+        except Exception:
+            continue
+
+        click_see_more_inside(section)
+        page.wait_for_timeout(700)
+
+        text_candidates = section.locator(
+            "div.display-flex.ph5.pv3 "
+            "span[aria-hidden='true'], "
+            "div.full-width "
+            "span[aria-hidden='true'], "
+            "span[aria-hidden='true']"
+        )
+
+        candidate_values: list[str] = []
+
+        try:
+            candidate_count = min(
+                text_candidates.count(),
+                50,
             )
+        except Exception:
+            candidate_count = 0
+
+        for candidate_index in range(
+            candidate_count
+        ):
+            candidate = text_candidates.nth(
+                candidate_index
+            )
+
+            try:
+                if not candidate.is_visible(
+                    timeout=300
+                ):
+                    continue
+
+                text = clean_text(
+                    candidate.inner_text(
+                        timeout=1_500
+                    )
+                )
+            except Exception:
+                continue
 
             if not text:
                 continue
 
-            lower = text.casefold()
+            normalized = text.casefold()
 
-            if lower in {
+            if normalized in {
                 "about",
                 "see more",
                 "show more",
+                "… more",
+                "... more",
             }:
                 continue
 
-            values.append(text)
+            if len(text) < 30:
+                continue
 
-        if values:
-            longest = max(
-                values,
+            candidate_values.append(text)
+
+        if candidate_values:
+            about_text = max(
+                candidate_values,
                 key=len,
             )
 
-            if len(longest) >= 20:
-                return longest.replace(
-                    "… more",
-                    "",
-                ).replace(
-                    "... more",
-                    "",
-                ).strip()
+            return (
+                about_text
+                .replace("… more", "")
+                .replace("... more", "")
+                .strip()
+            )
 
-    raw_text = clean_text(
-        section.inner_text(timeout=5_000)
-    )
+        try:
+            raw_section_text = clean_text(
+                section.inner_text(
+                    timeout=5_000
+                )
+            )
+        except Exception:
+            continue
 
-    lines = unique_lines(raw_text)
+        lines = unique_lines(
+            raw_section_text
+        )
 
-    ignored_lines = {
-        "about",
-        "see more",
-        "show more",
-        "…see more",
-        "...see more",
-    }
+        filtered_lines: list[str] = []
 
-    filtered = [
-        line
-        for line in lines
-        if line.casefold() not in ignored_lines
-    ]
+        for line in lines:
+            normalized = line.casefold()
 
-    return "\n".join(filtered).replace(
-        "… more",
-        "",
-    ).replace(
-        "... more",
-        "",
-    ).strip()
+            if normalized in {
+                "about",
+                "see more",
+                "show more",
+                "… more",
+                "... more",
+            }:
+                continue
+
+            if normalized in {
+                "featured",
+                "activity",
+                "experience",
+                "education",
+            }:
+                break
+
+            filtered_lines.append(line)
+
+        about_text = "\n".join(
+            filtered_lines
+        ).strip()
+
+        if about_text:
+            return (
+                about_text
+                .replace("… more", "")
+                .replace("... more", "")
+                .strip()
+            )
+
+    return ""
 
 
 def is_date_line(value: str) -> bool:
@@ -874,7 +939,9 @@ def parse_experience_card(
 ) -> dict[str, Any] | None:
     try:
         raw_text = clean_text(
-            card.inner_text(timeout=5_000)
+            card.inner_text(
+                timeout=5_000
+            )
         )
     except Exception:
         return None
@@ -882,17 +949,7 @@ def parse_experience_card(
     if not raw_text:
         return None
 
-    visible_elements = (
-        extract_visible_line_elements(card)
-    )
-
-    lines = [
-        item["text"]
-        for item in visible_elements
-    ]
-
-    if not lines:
-        lines = unique_lines(raw_text)
+    raw_lines = unique_lines(raw_text)
 
     ignored_lines = {
         "experience",
@@ -901,37 +958,201 @@ def parse_experience_card(
         "show more",
     }
 
-    lines = [
+    raw_lines = [
         line
-        for line in lines
-        if line.casefold() not in ignored_lines
+        for line in raw_lines
+        if line.casefold()
+        not in ignored_lines
     ]
 
-    if not lines:
+    if not raw_lines:
         return None
 
-    company_linkedin_url = get_company_url(
-        card
+    company_linkedin_url = (
+        get_company_url(card)
     )
 
-    company_from_link = (
+    company_name = (
         get_company_name_from_link(card)
     )
 
-    parsed = classify_experience_lines(
-        lines=lines,
-        company_from_link=company_from_link,
-    )
+    date_text = ""
+    duration_text = ""
+    employment_type = ""
+    location = ""
 
-    if not parsed["job_title"]:
+    for line in raw_lines:
+        if (
+            not date_text
+            and is_date_line(line)
+        ):
+            date_text = line
+
+            duration_match = (
+                DURATION_PATTERN.search(line)
+            )
+
+            if duration_match:
+                duration_text = (
+                    duration_match.group(0)
+                )
+
+            continue
+
+        if (
+            not employment_type
+            and is_employment_type(line)
+        ):
+            employment_type = line
+            continue
+
+        if (
+            not location
+            and is_probable_location(line)
+        ):
+            location = line
+
+    semantic_lines: list[str] = []
+
+    for line in raw_lines:
+        if line == date_text:
+            continue
+
+        if (
+            duration_text
+            and line == duration_text
+        ):
+            continue
+
+        if (
+            employment_type
+            and line == employment_type
+        ):
+            continue
+
+        if location and line == location:
+            continue
+
+        if is_date_line(line):
+            continue
+
+        if is_duration_line(line):
+            continue
+
+        semantic_lines.append(line)
+
+    job_title = ""
+
+    if semantic_lines:
+        job_title = semantic_lines[0]
+
+    if not company_name:
+        for candidate in semantic_lines[1:5]:
+            if candidate == job_title:
+                continue
+
+            if is_date_line(candidate):
+                continue
+
+            if is_duration_line(candidate):
+                continue
+
+            if is_employment_type(candidate):
+                continue
+
+            if is_probable_location(candidate):
+                continue
+
+            if len(candidate) > 180:
+                continue
+
+            company_name = candidate
+            break
+
+    description_lines: list[str] = []
+
+    for line in semantic_lines:
+        if line == job_title:
+            continue
+
+        if (
+            company_name
+            and line == company_name
+        ):
+            continue
+
+        if len(line) >= 25:
+            description_lines.append(line)
+
+    warnings: list[str] = []
+
+    if (
+        company_name
+        and is_date_line(company_name)
+    ):
+        warnings.append(
+            "company_name matched a date "
+            "and was removed"
+        )
+        company_name = ""
+
+    if (
+        employment_type
+        and is_duration_line(
+            employment_type
+        )
+    ):
+        warnings.append(
+            "employment_type matched a "
+            "duration and was removed"
+        )
+        employment_type = ""
+
+    confidence_score = 0
+
+    if job_title:
+        confidence_score += 35
+
+    if company_name:
+        confidence_score += 25
+
+    if date_text:
+        confidence_score += 20
+
+    if location:
+        confidence_score += 10
+
+    if description_lines:
+        confidence_score += 10
+
+    if not job_title:
         return None
 
     return {
-        **parsed,
+        "job_title": job_title,
+        "company_name": company_name,
+        "employment_type": employment_type,
+        "date_text": date_text,
+        "duration_text": duration_text,
+        "location": location,
+        "description": "\n".join(
+            description_lines
+        ).strip(),
+        "is_current": bool(
+            re.search(
+                r"\b(present|current)\b",
+                date_text,
+                re.IGNORECASE,
+            )
+        ),
+        "confidence_score": (
+            confidence_score
+        ),
+        "warnings": warnings,
         "company_linkedin_url": (
             company_linkedin_url
         ),
-        "raw_lines": lines,
+        "raw_lines": raw_lines,
         "raw_text": raw_text,
     }
 
@@ -961,6 +1182,88 @@ def get_experience_cards(page: Page) -> Locator:
         "'profile-component-entity']"
     )
 
+def find_experience_items(
+    page: Page,
+) -> Locator:
+    selectors = (
+        "main "
+        "li.pvs-list__paged-list-item",
+
+        "main "
+        "div[data-view-name="
+        "'profile-component-entity']",
+
+        "main "
+        "ul.pvs-list > li",
+
+        "main "
+        "section "
+        "ul > li",
+    )
+
+    best_locator: Locator | None = None
+    best_score = 0
+
+    for selector in selectors:
+        locator = page.locator(selector)
+
+        try:
+            count = min(
+                locator.count(),
+                100,
+            )
+        except Exception:
+            continue
+
+        if count == 0:
+            continue
+
+        valid_count = 0
+
+        for index in range(count):
+            item = locator.nth(index)
+
+            try:
+                text = clean_text(
+                    item.inner_text(
+                        timeout=1_500
+                    )
+                )
+            except Exception:
+                continue
+
+            if not text:
+                continue
+
+            has_date = bool(
+                DATE_RANGE_PATTERN.search(text)
+            )
+
+            has_company_link = False
+
+            try:
+                has_company_link = (
+                    item.locator(
+                        "a[href*='/company/']"
+                    ).count()
+                    > 0
+                )
+            except Exception:
+                pass
+
+            if has_date or has_company_link:
+                valid_count += 1
+
+        if valid_count > best_score:
+            best_score = valid_count
+            best_locator = locator
+
+    if best_locator is not None:
+        return best_locator
+
+    return page.locator(
+        "main li.pvs-list__paged-list-item"
+    )
 
 def scrape_experiences(
     page: Page,
@@ -980,34 +1283,81 @@ def scrape_experiences(
     wait_for_page(page)
     ensure_linkedin_page_available(page)
 
-    for _ in range(6):
+    try:
+        page.wait_for_selector(
+            "main",
+            timeout=20_000,
+        )
+    except Exception:
+        pass
+
+    for _ in range(8):
         page.mouse.wheel(0, 1_200)
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(600)
 
-    cards = get_experience_cards(page)
+    page.mouse.wheel(0, -10_000)
+    page.wait_for_timeout(1_000)
 
-    experiences: list[dict[str, Any]] = []
+    cards = find_experience_items(page)
+
+    experiences: list[
+        dict[str, Any]
+    ] = []
+
     seen_keys: set[str] = set()
 
     try:
-        count = min(cards.count(), 100)
+        count = min(
+            cards.count(),
+            100,
+        )
     except Exception:
         count = 0
 
     for index in range(count):
+        card = cards.nth(index)
+
+        try:
+            card_text = clean_text(
+                card.inner_text(
+                    timeout=2_000
+                )
+            )
+        except Exception:
+            continue
+
+        if not card_text:
+            continue
+
+        if not (
+            DATE_RANGE_PATTERN.search(
+                card_text
+            )
+            or card.locator(
+                "a[href*='/company/']"
+            ).count()
+            > 0
+        ):
+            continue
+
         parsed = parse_experience_card(
-            cards.nth(index)
+            card
         )
 
         if not parsed:
             continue
 
         duplicate_key = "|".join(
-            [
-                parsed["job_title"].casefold(),
-                parsed["company_name"].casefold(),
-                parsed["date_text"].casefold(),
-            ]
+            (
+                parsed["job_title"]
+                .casefold(),
+
+                parsed["company_name"]
+                .casefold(),
+
+                parsed["date_text"]
+                .casefold(),
+            )
         )
 
         if duplicate_key in seen_keys:
@@ -1016,7 +1366,7 @@ def scrape_experiences(
         seen_keys.add(duplicate_key)
         experiences.append(parsed)
 
-    return experiences
+    return experiencess
 
 
 def scrape_profile_raw(
@@ -1104,6 +1454,17 @@ def scrape_profile_raw(
                     page,
                     profile_url,
                 )
+                if not experiences:
+    errors.append(
+        {
+            "section": "experiences",
+            "message": (
+                "No experience cards were "
+                "parsed from the LinkedIn "
+                "experience detail page."
+            ),
+        }
+    ) 
             except Exception as exc:
                 experiences = []
 
