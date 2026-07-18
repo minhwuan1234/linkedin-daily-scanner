@@ -38,9 +38,9 @@ def main() -> int:
         )
 
         profile = result.get("profile", {})
-        experiences = result.get(
-            "experiences",
-            [],
+        experience_raw_text = result.get(
+        "experience_raw_text",
+        "",
         )
         errors = result.get("errors", [])
 
@@ -65,19 +65,12 @@ def main() -> int:
             f"{len(profile.get('about_text', ''))}"
         )
         print(
-            f"Experiences: {len(experiences)}"
+            "Experience raw length: "
+            f"{len(experience_raw_text)}"
         )
         print(
             f"Section errors: {len(errors)}"
         )
-
-        print("")
-        print("Experience validation:")
-
-        for index, experience in enumerate(
-            experiences,
-            start=1,
-        ):
             print(
                 f"[{index}] "
                 f"{experience.get('job_title', '')}"
