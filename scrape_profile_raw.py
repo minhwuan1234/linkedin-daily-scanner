@@ -14,7 +14,6 @@ from app.settings import load_settings
 def main() -> int:
     try:
         settings = load_settings()
-
         result = scrape_profile_raw(settings)
 
         OUTPUT_DIR.mkdir(
@@ -46,16 +45,20 @@ def main() -> int:
         errors = result.get("errors", [])
 
         print("")
-        print("LinkedIn raw profile scrape completed.")
+        print(
+            "LinkedIn raw profile scrape completed."
+        )
         print(f"Source ID: {source_id}")
         print(
             f"Name: {profile.get('name', '')}"
         )
         print(
-            f"Headline: {profile.get('headline', '')}"
+            "Headline: "
+            f"{profile.get('headline', '')}"
         )
         print(
-            f"Location: {profile.get('location', '')}"
+            "Location: "
+            f"{profile.get('location', '')}"
         )
         print(
             "About length: "
@@ -67,6 +70,54 @@ def main() -> int:
         print(
             f"Section errors: {len(errors)}"
         )
+
+        print("")
+        print("Experience validation:")
+
+        for index, experience in enumerate(
+            experiences,
+            start=1,
+        ):
+            print(
+                f"[{index}] "
+                f"{experience.get('job_title', '')}"
+            )
+            print(
+                "    Company: "
+                f"{experience.get('company_name', '')}"
+            )
+            print(
+                "    Employment type: "
+                f"{experience.get('employment_type', '')}"
+            )
+            print(
+                "    Date: "
+                f"{experience.get('date_text', '')}"
+            )
+            print(
+                "    Duration: "
+                f"{experience.get('duration_text', '')}"
+            )
+            print(
+                "    Location: "
+                f"{experience.get('location', '')}"
+            )
+            print(
+                "    Confidence: "
+                f"{experience.get('confidence_score', 0)}"
+            )
+
+            warnings = experience.get(
+                "warnings",
+                [],
+            )
+
+            for warning in warnings:
+                print(
+                    f"    Warning: {warning}"
+                )
+
+        print("")
         print(
             f"Output: {output_path.resolve()}"
         )
