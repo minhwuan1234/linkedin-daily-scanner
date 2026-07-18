@@ -1112,9 +1112,7 @@ def scrape_experience_raw_text(
     previous_height = 0
 
     for _ in range(12):
-        current_height = page.evaluate(
-            "document.body.scrollHeight"
-        )
+        current_height = page.evaluate("document.body.scrollHeight")
 
         page.mouse.wheel(0, 1_500)
         page.wait_for_timeout(700)
@@ -1130,9 +1128,7 @@ def scrape_experience_raw_text(
     main = page.locator("main")
 
     try:
-        raw_text = clean_text(
-            main.inner_text(timeout=15_000)
-        )
+        raw_text = clean_text(main.inner_text(timeout=15_000))
     except Exception:
         return ""
 
@@ -1234,57 +1230,37 @@ def scrape_profile_raw(
                 )
 
             try:
-    experience_raw_text = (
-        scrape_experience_raw_text(
-            page,
-            profile_url,
-        )
-    )
+                experience_raw_text = scrape_experience_raw_text(
+                    page,
+                    profile_url,
+                )
 
-    if not experience_raw_text:
-        errors.append(
-            {
-                "section": "experience",
-                "message": (
-                    "Experience page returned "
-                    "no usable text."
-                ),
-            }
-        )
-
-except Exception as exc:
-    experience_raw_text = ""
-
-    errors.append(
-        {
-            "section": "experience",
-            "message": (
-                f"{type(exc).__name__}: "
-                f"{exc}"
-            ),
-        }
-    )
+                if not experience_raw_text:
+                    errors.append(
+                        {
+                            "section": "experience",
+                            "message": (
+                                "Experience page returned " "no usable text."
+                            ),
+                        }
+                    )
             except Exception as exc:
-                experiences = []
+                experience_raw_text = ""
 
                 errors.append(
                     {
-                        "section": "experiences",
+                        "section": "experience",
                         "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
 
-           return {
-    "source_id": source_id,
-    "scraped_at": datetime.now(
-        timezone.utc
-    ).isoformat(),
-    "profile": profile,
-    "experience_raw_text": (
-        experience_raw_text
-    ),
-    "errors": errors,
-}
+            return {
+                "source_id": source_id,
+                "scraped_at": datetime.now(timezone.utc).isoformat(),
+                "profile": profile,
+                "experience_raw_text": experience_raw_text,
+                "errors": errors,
+            }
 
         finally:
             context.close()
