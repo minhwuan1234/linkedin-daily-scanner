@@ -21,7 +21,6 @@ from app.linkedin_scanner import (
 )
 from app.settings import Settings
 
-
 OUTPUT_DIR = Path("output")
 
 BLOCKED_URL_PARTS = (
@@ -86,16 +85,9 @@ def clean_text(value: str | None) -> str:
     if not value:
         return ""
 
-    lines = [
-        " ".join(line.split())
-        for line in value.splitlines()
-    ]
+    lines = [" ".join(line.split()) for line in value.splitlines()]
 
-    return "\n".join(
-        line
-        for line in lines
-        if line
-    ).strip()
+    return "\n".join(line for line in lines if line).strip()
 
 
 def clean_single_line(value: str | None) -> str:
@@ -162,16 +154,11 @@ def build_detail_url(
 def ensure_linkedin_page_available(page: Page) -> None:
     current_url = page.url.lower()
 
-    if (
-        is_blocked_linkedin_url(current_url)
-        or any(
-            part in current_url
-            for part in BLOCKED_URL_PARTS
-        )
+    if is_blocked_linkedin_url(current_url) or any(
+        part in current_url for part in BLOCKED_URL_PARTS
     ):
         raise RuntimeError(
-            "LINKEDIN_SESSION_BLOCKED: "
-            f"LinkedIn redirected to {page.url}"
+            "LINKEDIN_SESSION_BLOCKED: " f"LinkedIn redirected to {page.url}"
         )
 
 
@@ -195,9 +182,7 @@ def safe_text(
         if locator.count() == 0:
             return ""
 
-        return clean_single_line(
-            locator.first.inner_text(timeout=timeout)
-        )
+        return clean_single_line(locator.first.inner_text(timeout=timeout))
 
     except Exception:
         return ""
@@ -211,9 +196,7 @@ def safe_attribute(
         if locator.count() == 0:
             return ""
 
-        return clean_single_line(
-            locator.first.get_attribute(attribute)
-        )
+        return clean_single_line(locator.first.get_attribute(attribute))
 
     except Exception:
         return ""
@@ -238,9 +221,7 @@ def first_visible_text(
                 if not item.is_visible(timeout=500):
                     continue
 
-                value = clean_single_line(
-                    item.inner_text(timeout=2_000)
-                )
+                value = clean_single_line(item.inner_text(timeout=2_000))
 
                 if value:
                     return value
@@ -275,10 +256,7 @@ def find_section_by_heading(
     page: Page,
     heading_names: tuple[str, ...],
 ) -> Locator | None:
-    normalized_names = {
-        name.casefold()
-        for name in heading_names
-    }
+    normalized_names = {name.casefold() for name in heading_names}
 
     sections = page.locator("main section")
 
@@ -291,8 +269,7 @@ def find_section_by_heading(
         section = sections.nth(index)
 
         heading_candidates = section.locator(
-            "h2, h3, div[role='heading'], "
-            "span[aria-hidden='true']"
+            "h2, h3, div[role='heading'], " "span[aria-hidden='true']"
         )
 
         try:
@@ -304,11 +281,7 @@ def find_section_by_heading(
             continue
 
         for heading_index in range(heading_count):
-            text = safe_text(
-                heading_candidates.nth(
-                    heading_index
-                )
-            )
+            text = safe_text(heading_candidates.nth(heading_index))
 
             if text.casefold() in normalized_names:
                 return section
@@ -329,9 +302,7 @@ def scrape_profile_overview(
     wait_for_page(page)
     ensure_linkedin_page_available(page)
 
-    top_card = page.locator(
-        "main section"
-    ).first
+    top_card = page.locator("main section").first
 
     name = first_visible_text(
         page,
@@ -347,31 +318,24 @@ def scrape_profile_overview(
         (
             "main .text-body-medium.break-words",
             "main div.text-body-medium.break-words",
-            "main .pv-text-details__left-panel "
-            ".text-body-medium",
-            "main section:first-of-type "
-            "div.text-body-medium",
+            "main .pv-text-details__left-panel " ".text-body-medium",
+            "main section:first-of-type " "div.text-body-medium",
         ),
     )
 
     location = first_visible_text(
         page,
         (
-            "main .text-body-small.inline."
-            "t-black--light.break-words",
-            "main .pv-text-details__left-panel "
-            ".text-body-small",
-            "main section:first-of-type "
-            "span.text-body-small.inline",
+            "main .text-body-small.inline." "t-black--light.break-words",
+            "main .pv-text-details__left-panel " ".text-body-small",
+            "main section:first-of-type " "span.text-body-small.inline",
         ),
     )
 
     top_card_text = ""
 
     try:
-        top_card_text = clean_text(
-            top_card.inner_text(timeout=10_000)
-        )
+        top_card_text = clean_text(top_card.inner_text(timeout=10_000))
     except Exception:
         pass
 
@@ -390,8 +354,7 @@ def scrape_profile_overview(
     filtered_top_lines = [
         line
         for line in top_lines
-        if line.casefold()
-        not in ignored_overview_lines
+        if line.casefold() not in ignored_overview_lines
     ]
 
     if not name:
@@ -416,9 +379,7 @@ def scrape_profile_overview(
             name_index = -1
 
         if name_index >= 0:
-            for line in filtered_top_lines[
-                name_index + 1:
-            ]:
+            for line in filtered_top_lines[name_index + 1 :]:
                 lower = line.casefold()
 
                 if (
@@ -438,36 +399,22 @@ def scrape_profile_overview(
                 location = line
                 break
 
-    main_text = clean_text(
-        page.locator("main").inner_text(
-            timeout=15_000
-        )
-    )
+    main_text = clean_text(page.locator("main").inner_text(timeout=15_000))
 
-    followers_match = FOLLOWERS_PATTERN.search(
-        main_text
-    )
+    followers_match = FOLLOWERS_PATTERN.search(main_text)
 
-    connections_match = (
-        CONNECTIONS_PATTERN.search(main_text)
-    )
+    connections_match = CONNECTIONS_PATTERN.search(main_text)
 
     return {
         "name": name,
-        "linkedin_url": normalize_profile_url(
-            profile_url
-        ),
+        "linkedin_url": normalize_profile_url(profile_url),
         "headline": headline,
         "location": location,
         "followers_count_text": (
-            followers_match.group(1)
-            if followers_match
-            else None
+            followers_match.group(1) if followers_match else None
         ),
         "connections_count_text": (
-            connections_match.group(1)
-            if connections_match
-            else None
+            connections_match.group(1) if connections_match else None
         ),
         "overview_raw_text": top_card_text,
     }
@@ -493,9 +440,7 @@ def scrape_about(page: Page) -> str:
         except Exception:
             continue
 
-        section = heading.locator(
-            "xpath=ancestor::section[1]"
-        )
+        section = heading.locator("xpath=ancestor::section[1]")
 
         try:
             if section.count() == 0:
@@ -524,24 +469,14 @@ def scrape_about(page: Page) -> str:
         except Exception:
             candidate_count = 0
 
-        for candidate_index in range(
-            candidate_count
-        ):
-            candidate = text_candidates.nth(
-                candidate_index
-            )
+        for candidate_index in range(candidate_count):
+            candidate = text_candidates.nth(candidate_index)
 
             try:
-                if not candidate.is_visible(
-                    timeout=300
-                ):
+                if not candidate.is_visible(timeout=300):
                     continue
 
-                text = clean_text(
-                    candidate.inner_text(
-                        timeout=1_500
-                    )
-                )
+                text = clean_text(candidate.inner_text(timeout=1_500))
             except Exception:
                 continue
 
@@ -571,24 +506,17 @@ def scrape_about(page: Page) -> str:
             )
 
             return (
-                about_text
-                .replace("… more", "")
+                about_text.replace("… more", "")
                 .replace("... more", "")
                 .strip()
             )
 
         try:
-            raw_section_text = clean_text(
-                section.inner_text(
-                    timeout=5_000
-                )
-            )
+            raw_section_text = clean_text(section.inner_text(timeout=5_000))
         except Exception:
             continue
 
-        lines = unique_lines(
-            raw_section_text
-        )
+        lines = unique_lines(raw_section_text)
 
         filtered_lines: list[str] = []
 
@@ -614,14 +542,11 @@ def scrape_about(page: Page) -> str:
 
             filtered_lines.append(line)
 
-        about_text = "\n".join(
-            filtered_lines
-        ).strip()
+        about_text = "\n".join(filtered_lines).strip()
 
         if about_text:
             return (
-                about_text
-                .replace("… more", "")
+                about_text.replace("… more", "")
                 .replace("... more", "")
                 .strip()
             )
@@ -630,15 +555,11 @@ def scrape_about(page: Page) -> str:
 
 
 def is_date_line(value: str) -> bool:
-    return bool(
-        DATE_RANGE_PATTERN.search(value)
-    )
+    return bool(DATE_RANGE_PATTERN.search(value))
 
 
 def is_duration_line(value: str) -> bool:
-    return bool(
-        DURATION_PATTERN.search(value)
-    )
+    return bool(DURATION_PATTERN.search(value))
 
 
 def is_employment_type(value: str) -> bool:
@@ -663,10 +584,7 @@ def is_probable_location(value: str) -> bool:
     if len(value) > 160:
         return False
 
-    return bool(
-        "," in value
-        or LOCATION_HINT_PATTERN.search(value)
-    )
+    return bool("," in value or LOCATION_HINT_PATTERN.search(value))
 
 
 def extract_visible_line_elements(
@@ -746,9 +664,7 @@ def get_company_url(card: Locator) -> str:
 def get_company_name_from_link(
     card: Locator,
 ) -> str:
-    links = card.locator(
-        "a[href*='/company/']"
-    )
+    links = card.locator("a[href*='/company/']")
 
     try:
         count = min(links.count(), 10)
@@ -764,24 +680,14 @@ def get_company_name_from_link(
         )
 
         for selector in candidate_selectors:
-            text = safe_text(
-                link.locator(selector)
-            )
+            text = safe_text(link.locator(selector))
 
-            if (
-                text
-                and not is_date_line(text)
-                and not is_duration_line(text)
-            ):
+            if text and not is_date_line(text) and not is_duration_line(text):
                 return text
 
         text = safe_text(link)
 
-        if (
-            text
-            and not is_date_line(text)
-            and not is_duration_line(text)
-        ):
+        if text and not is_date_line(text) and not is_duration_line(text):
             return text
 
     return ""
@@ -804,14 +710,10 @@ def classify_experience_lines(
         if not date_text and is_date_line(line):
             date_text = line
 
-            duration_match = (
-                DURATION_PATTERN.search(line)
-            )
+            duration_match = DURATION_PATTERN.search(line)
 
             if duration_match:
-                duration_text = (
-                    duration_match.group(0)
-                )
+                duration_text = duration_match.group(0)
 
             continue
 
@@ -823,17 +725,11 @@ def classify_experience_lines(
             duration_text = line
             continue
 
-        if (
-            not employment_type
-            and is_employment_type(line)
-        ):
+        if not employment_type and is_employment_type(line):
             employment_type = line
             continue
 
-        if (
-            not location
-            and is_probable_location(line)
-        ):
+        if not location and is_probable_location(line):
             location = line
             continue
 
@@ -880,15 +776,11 @@ def classify_experience_lines(
 
     if company_name and is_date_line(company_name):
         warnings.append(
-            "Rejected company_name because "
-            "it matched a date pattern."
+            "Rejected company_name because " "it matched a date pattern."
         )
         company_name = ""
 
-    if (
-        employment_type
-        and is_duration_line(employment_type)
-    ):
+    if employment_type and is_duration_line(employment_type):
         warnings.append(
             "Rejected employment_type because "
             "it matched a duration pattern."
@@ -919,9 +811,7 @@ def classify_experience_lines(
         "date_text": date_text,
         "duration_text": duration_text,
         "location": location,
-        "description": "\n".join(
-            description_lines
-        ).strip(),
+        "description": "\n".join(description_lines).strip(),
         "is_current": bool(
             re.search(
                 r"\b(present|current)\b",
@@ -938,11 +828,7 @@ def parse_experience_card(
     card: Locator,
 ) -> dict[str, Any] | None:
     try:
-        raw_text = clean_text(
-            card.inner_text(
-                timeout=5_000
-            )
-        )
+        raw_text = clean_text(card.inner_text(timeout=5_000))
     except Exception:
         return None
 
@@ -959,22 +845,15 @@ def parse_experience_card(
     }
 
     raw_lines = [
-        line
-        for line in raw_lines
-        if line.casefold()
-        not in ignored_lines
+        line for line in raw_lines if line.casefold() not in ignored_lines
     ]
 
     if not raw_lines:
         return None
 
-    company_linkedin_url = (
-        get_company_url(card)
-    )
+    company_linkedin_url = get_company_url(card)
 
-    company_name = (
-        get_company_name_from_link(card)
-    )
+    company_name = get_company_name_from_link(card)
 
     date_text = ""
     duration_text = ""
@@ -982,34 +861,21 @@ def parse_experience_card(
     location = ""
 
     for line in raw_lines:
-        if (
-            not date_text
-            and is_date_line(line)
-        ):
+        if not date_text and is_date_line(line):
             date_text = line
 
-            duration_match = (
-                DURATION_PATTERN.search(line)
-            )
+            duration_match = DURATION_PATTERN.search(line)
 
             if duration_match:
-                duration_text = (
-                    duration_match.group(0)
-                )
+                duration_text = duration_match.group(0)
 
             continue
 
-        if (
-            not employment_type
-            and is_employment_type(line)
-        ):
+        if not employment_type and is_employment_type(line):
             employment_type = line
             continue
 
-        if (
-            not location
-            and is_probable_location(line)
-        ):
+        if not location and is_probable_location(line):
             location = line
 
     semantic_lines: list[str] = []
@@ -1018,16 +884,10 @@ def parse_experience_card(
         if line == date_text:
             continue
 
-        if (
-            duration_text
-            and line == duration_text
-        ):
+        if duration_text and line == duration_text:
             continue
 
-        if (
-            employment_type
-            and line == employment_type
-        ):
+        if employment_type and line == employment_type:
             continue
 
         if location and line == location:
@@ -1075,10 +935,7 @@ def parse_experience_card(
         if line == job_title:
             continue
 
-        if (
-            company_name
-            and line == company_name
-        ):
+        if company_name and line == company_name:
             continue
 
         if len(line) >= 25:
@@ -1086,25 +943,13 @@ def parse_experience_card(
 
     warnings: list[str] = []
 
-    if (
-        company_name
-        and is_date_line(company_name)
-    ):
-        warnings.append(
-            "company_name matched a date "
-            "and was removed"
-        )
+    if company_name and is_date_line(company_name):
+        warnings.append("company_name matched a date " "and was removed")
         company_name = ""
 
-    if (
-        employment_type
-        and is_duration_line(
-            employment_type
-        )
-    ):
+    if employment_type and is_duration_line(employment_type):
         warnings.append(
-            "employment_type matched a "
-            "duration and was removed"
+            "employment_type matched a " "duration and was removed"
         )
         employment_type = ""
 
@@ -1135,9 +980,7 @@ def parse_experience_card(
         "date_text": date_text,
         "duration_text": duration_text,
         "location": location,
-        "description": "\n".join(
-            description_lines
-        ).strip(),
+        "description": "\n".join(description_lines).strip(),
         "is_current": bool(
             re.search(
                 r"\b(present|current)\b",
@@ -1145,13 +988,9 @@ def parse_experience_card(
                 re.IGNORECASE,
             )
         ),
-        "confidence_score": (
-            confidence_score
-        ),
+        "confidence_score": (confidence_score),
         "warnings": warnings,
-        "company_linkedin_url": (
-            company_linkedin_url
-        ),
+        "company_linkedin_url": (company_linkedin_url),
         "raw_lines": raw_lines,
         "raw_text": raw_text,
     }
@@ -1159,10 +998,8 @@ def parse_experience_card(
 
 def get_experience_cards(page: Page) -> Locator:
     selectors = (
-        "main div[data-view-name="
-        "'profile-component-entity']",
-        "main li.pvs-list__paged-list-item "
-        "> div",
+        "main div[data-view-name=" "'profile-component-entity']",
+        "main li.pvs-list__paged-list-item " "> div",
         "main li.pvs-list__paged-list-item",
     )
 
@@ -1178,27 +1015,18 @@ def get_experience_cards(page: Page) -> Locator:
             return locator
 
     return page.locator(
-        "main div[data-view-name="
-        "'profile-component-entity']"
+        "main div[data-view-name=" "'profile-component-entity']"
     )
+
 
 def find_experience_items(
     page: Page,
 ) -> Locator:
     selectors = (
-        "main "
-        "li.pvs-list__paged-list-item",
-
-        "main "
-        "div[data-view-name="
-        "'profile-component-entity']",
-
-        "main "
-        "ul.pvs-list > li",
-
-        "main "
-        "section "
-        "ul > li",
+        "main " "li.pvs-list__paged-list-item",
+        "main " "div[data-view-name=" "'profile-component-entity']",
+        "main " "ul.pvs-list > li",
+        "main " "section " "ul > li",
     )
 
     best_locator: Locator | None = None
@@ -1224,29 +1052,20 @@ def find_experience_items(
             item = locator.nth(index)
 
             try:
-                text = clean_text(
-                    item.inner_text(
-                        timeout=1_500
-                    )
-                )
+                text = clean_text(item.inner_text(timeout=1_500))
             except Exception:
                 continue
 
             if not text:
                 continue
 
-            has_date = bool(
-                DATE_RANGE_PATTERN.search(text)
-            )
+            has_date = bool(DATE_RANGE_PATTERN.search(text))
 
             has_company_link = False
 
             try:
                 has_company_link = (
-                    item.locator(
-                        "a[href*='/company/']"
-                    ).count()
-                    > 0
+                    item.locator("a[href*='/company/']").count() > 0
                 )
             except Exception:
                 pass
@@ -1261,9 +1080,8 @@ def find_experience_items(
     if best_locator is not None:
         return best_locator
 
-    return page.locator(
-        "main li.pvs-list__paged-list-item"
-    )
+    return page.locator("main li.pvs-list__paged-list-item")
+
 
 def scrape_experiences(
     page: Page,
@@ -1300,9 +1118,7 @@ def scrape_experiences(
 
     cards = find_experience_items(page)
 
-    experiences: list[
-        dict[str, Any]
-    ] = []
+    experiences: list[dict[str, Any]] = []
 
     seen_keys: set[str] = set()
 
@@ -1318,11 +1134,7 @@ def scrape_experiences(
         card = cards.nth(index)
 
         try:
-            card_text = clean_text(
-                card.inner_text(
-                    timeout=2_000
-                )
-            )
+            card_text = clean_text(card.inner_text(timeout=2_000))
         except Exception:
             continue
 
@@ -1330,33 +1142,21 @@ def scrape_experiences(
             continue
 
         if not (
-            DATE_RANGE_PATTERN.search(
-                card_text
-            )
-            or card.locator(
-                "a[href*='/company/']"
-            ).count()
-            > 0
+            DATE_RANGE_PATTERN.search(card_text)
+            or card.locator("a[href*='/company/']").count() > 0
         ):
             continue
 
-        parsed = parse_experience_card(
-            card
-        )
+        parsed = parse_experience_card(card)
 
         if not parsed:
             continue
 
         duplicate_key = "|".join(
             (
-                parsed["job_title"]
-                .casefold(),
-
-                parsed["company_name"]
-                .casefold(),
-
-                parsed["date_text"]
-                .casefold(),
+                parsed["job_title"].casefold(),
+                parsed["company_name"].casefold(),
+                parsed["date_text"].casefold(),
             )
         )
 
@@ -1366,7 +1166,7 @@ def scrape_experiences(
         seen_keys.add(duplicate_key)
         experiences.append(parsed)
 
-    return experiencess
+    return experiences
 
 
 def scrape_profile_raw(
@@ -1375,9 +1175,7 @@ def scrape_profile_raw(
     source = get_one_enabled_source(settings)
 
     if not source:
-        raise RuntimeError(
-            "No enabled LinkedIn source found."
-        )
+        raise RuntimeError("No enabled LinkedIn source found.")
 
     if not LINKEDIN_PROFILE_DIR.exists():
         raise RuntimeError(
@@ -1392,11 +1190,8 @@ def scrape_profile_raw(
 
     with sync_playwright() as playwright:
         context: BrowserContext = (
-            playwright.chromium
-            .launch_persistent_context(
-                user_data_dir=str(
-                    LINKEDIN_PROFILE_DIR.resolve()
-                ),
+            playwright.chromium.launch_persistent_context(
+                user_data_dir=str(LINKEDIN_PROFILE_DIR.resolve()),
                 headless=False,
                 viewport={
                     "width": 1440,
@@ -1407,11 +1202,7 @@ def scrape_profile_raw(
             )
         )
 
-        page = (
-            context.pages[0]
-            if context.pages
-            else context.new_page()
-        )
+        page = context.pages[0] if context.pages else context.new_page()
 
         try:
             profile: dict[str, Any] = {}
@@ -1425,27 +1216,19 @@ def scrape_profile_raw(
                 errors.append(
                     {
                         "section": "profile_overview",
-                        "message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
+                        "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
 
             try:
-                profile["about_text"] = (
-                    scrape_about(page)
-                )
+                profile["about_text"] = scrape_about(page)
             except Exception as exc:
                 profile["about_text"] = ""
 
                 errors.append(
                     {
                         "section": "about",
-                        "message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
+                        "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
 
@@ -1455,34 +1238,29 @@ def scrape_profile_raw(
                     profile_url,
                 )
                 if not experiences:
-    errors.append(
-        {
-            "section": "experiences",
-            "message": (
-                "No experience cards were "
-                "parsed from the LinkedIn "
-                "experience detail page."
-            ),
-        }
-    ) 
+                    errors.append(
+                        {
+                            "section": "experiences",
+                            "message": (
+                                "No experience cards were "
+                                "parsed from the LinkedIn "
+                                "experience detail page."
+                            ),
+                        }
+                    )
             except Exception as exc:
                 experiences = []
 
                 errors.append(
                     {
                         "section": "experiences",
-                        "message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
+                        "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
 
             return {
                 "source_id": source_id,
-                "scraped_at": datetime.now(
-                    timezone.utc
-                ).isoformat(),
+                "scraped_at": datetime.now(timezone.utc).isoformat(),
                 "profile": profile,
                 "experiences": experiences,
                 "errors": errors,
