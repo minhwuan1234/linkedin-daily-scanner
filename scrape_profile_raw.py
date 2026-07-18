@@ -38,17 +38,24 @@ def main() -> int:
         )
 
         profile = result.get("profile", {})
+
         experience_raw_text = result.get(
-        "experience_raw_text",
-        "",
+            "experience_raw_text",
+            "",
         )
-        errors = result.get("errors", [])
+
+        errors = result.get(
+            "errors",
+            [],
+        )
 
         print("")
         print(
             "LinkedIn raw profile scrape completed."
         )
-        print(f"Source ID: {source_id}")
+        print(
+            f"Source ID: {source_id}"
+        )
         print(
             f"Name: {profile.get('name', '')}"
         )
@@ -71,44 +78,6 @@ def main() -> int:
         print(
             f"Section errors: {len(errors)}"
         )
-            print(
-                f"[{index}] "
-                f"{experience.get('job_title', '')}"
-            )
-            print(
-                "    Company: "
-                f"{experience.get('company_name', '')}"
-            )
-            print(
-                "    Employment type: "
-                f"{experience.get('employment_type', '')}"
-            )
-            print(
-                "    Date: "
-                f"{experience.get('date_text', '')}"
-            )
-            print(
-                "    Duration: "
-                f"{experience.get('duration_text', '')}"
-            )
-            print(
-                "    Location: "
-                f"{experience.get('location', '')}"
-            )
-            print(
-                "    Confidence: "
-                f"{experience.get('confidence_score', 0)}"
-            )
-
-            warnings = experience.get(
-                "warnings",
-                [],
-            )
-
-            for warning in warnings:
-                print(
-                    f"    Warning: {warning}"
-                )
 
         print("")
         print(
