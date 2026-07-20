@@ -47,6 +47,25 @@ def get_one_enabled_source(
 
     return response.data[0]
 
+def get_enabled_source_by_id(
+    settings: Settings,
+    source_id: int,
+) -> dict | None:
+    client = create_supabase_client(settings)
+
+    response = (
+        client.table("linkedin_sources")
+        .select("id,name,linkedin_url,source_type")
+        .eq("id", source_id)
+        .eq("enabled", True)
+        .limit(1)
+        .execute()
+    )
+
+    if not response.data:
+        return None
+
+    return response.data[0]
 
 def is_blocked_linkedin_url(url: str) -> bool:
     blocked_paths = (
