@@ -47,10 +47,9 @@ def save_profile_snapshot(
         "source_id": result["source_id"],
         "scraped_at": result["scraped_at"],
 
-        # Cột cũ vẫn gửi để tương thích schema hiện tại.
+        # Giữ cột cũ để tương thích schema hiện tại.
         "profile_data": profile,
 
-        # Các cột mới đã tách riêng.
         "name": normalize_optional_text(
             profile.get("name")
         ),
@@ -76,9 +75,7 @@ def save_profile_snapshot(
             result.get("experience_raw_text")
         ),
 
-        # Bản raw dự phòng.
         "raw_profile_data": profile,
-
         "errors": errors,
     }
 
@@ -124,11 +121,12 @@ def save_profile_snapshot(
 
     return int(snapshot_id)
 
-    def mark_source_scanned(
+
+def mark_source_scanned(
     settings: Settings,
     source_id: int,
     scanned_at: str,
-    ) -> None:
+) -> None:
     client = create_supabase_client(settings)
 
     response = (
