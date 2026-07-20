@@ -16,6 +16,7 @@ from playwright.sync_api import (
 
 from app.linkedin_scanner import (
     LINKEDIN_PROFILE_DIR,
+    get_enabled_source_by_id,
     get_one_enabled_source,
     is_blocked_linkedin_url,
 )
@@ -1173,8 +1174,10 @@ def scrape_profile_raw(
     if source_id is None:
         source = get_one_enabled_source(settings)
     else:
-        client = create_supabase_client(settings)
-
+        source = get_enabled_source_by_id(
+            settings=settings,
+            source_id=source_id,
+        )
         response = (
             client.table("linkedin_sources")
             .select(
