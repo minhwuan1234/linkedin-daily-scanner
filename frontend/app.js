@@ -1,1 +1,375 @@
-const c=window.APP_CONFIG||{};const e={status:document.querySelector('#connectionStatus'),refresh:document.querySelector('#refreshButton'),total:document.querySelector('#totalProfiles'),today:document.querySelector('#scannedToday'),errors:document.querySelector('#profilesWithErrors'),last:document.querySelector('#lastUpdated'),search:document.querySelector('#searchInput'),filter:document.querySelector('#statusFilter'),sort:document.querySelector('#sortSelect'),loading:document.querySelector('#loadingState'),error:document.querySelector('#errorState'),empty:document.querySelector('#emptyState'),grid:document.querySelector('#profileGrid'),backdrop:document.querySelector('#drawerBackdrop'),drawer:document.querySelector('#detailDrawer'),drawerName:document.querySelector('#drawerName'),drawerContent:document.querySelector('#drawerContent'),close:document.querySelector('#closeDrawerButton')};if(!c.supabaseUrl||!c.supabasePublishableKey||c.supabasePublishableKey.includes('YOUR_'))throw new Error('Chưa cấu hình config.js');const sb=window.supabase.createClient(c.supabaseUrl,c.supabasePublishableKey);const state={profiles:[]};const esc=v=>String(v??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');const fmt=v=>{if(!v)return'—';const d=new Date(v);return isNaN(d)?v:new Intl.DateTimeFormat('vi-VN',{dateStyle:'medium',timeStyle:'short'}).format(d)};const hasErr=p=>Array.isArray(p.errors)&&p.errors.length>0;function latest(rows){const m=new Map();for(const r of rows)if(!m.has(r.source_id))m.set(r.source_id,r);return[...m.values()]}async function load(){e.loading.hidden=false;e.error.hidden=true;e.grid.hidden=true;const{data,error}=await sb.from('linkedin_profile_snapshots').select('id,source_id,scraped_at,created_at,name,linkedin_url,headline,location,followers_count_text,connections_count_text,about_text,experience_raw_text,errors').order('scraped_at',{ascending:false}).limit(500);e.loading.hidden=true;if(error){e.status.textContent='Lỗi kết nối';e.error.textContent='Không thể tải dữ liệu: '+error.message;e.error.hidden=false;return}state.profiles=latest(data||[]);e.status.textContent='Đã kết nối';e.status.classList.add('is-connected');stats();render()}function stats(){const p=state.profiles;const now=new Date();e.total.textContent=p.length;e.today.textContent=p.filter(x=>{const d=new Date(x.scraped_at);return d.toDateString()===now.toDateString()}).length;e.errors.textContent=p.filter(hasErr).length;e.last.textContent=fmt(p.map(x=>x.scraped_at).filter(Boolean).sort().at(-1))}function render(){const q=e.search.value.trim().toLowerCase(),f=e.filter.value,s=e.sort.value;let rows=state.profiles.filter(p=>{const text=[p.name,p.headline,p.location,p.linkedin_url].filter(Boolean).join(' ').toLowerCase();return(!q||text.includes(q))&&(f==='all'||(f==='clean'&&!hasErr(p))||(f==='error'&&hasErr(p)))});rows.sort((a,b)=>s==='name'?(a.name||'').localeCompare(b.name||'','vi'):s==='oldest'?new Date(a.scraped_at)-new Date(b.scraped_at):new Date(b.scraped_at)-new Date(a.scraped_at));e.empty.hidden=rows.length>0;e.grid.hidden=rows.length===0;e.grid.innerHTML=rows.map(p=>`<article class="profile-card"><div class="card-topline"><div class="profile-identity"><h3 class="profile-name">${esc(p.name||'Chưa có tên')}</h3><p class="profile-headline">${esc(p.headline||'Chưa có headline')}</p></div><span class="badge ${hasErr(p)?'badge-error':''}">${hasErr(p)?'Có lỗi':'OK'}</span></div><dl class="profile-meta"><div class="meta-row"><dt>Location</dt><dd>${esc(p.location||'—')}</dd></div><div class="meta-row"><dt>Followers</dt><dd>${esc(p.followers_count_text||'—')}</dd></div><div class="meta-row"><dt>Connections</dt><dd>${esc(p.connections_count_text||'—')}</dd></div><div class="meta-row"><dt>Last scan</dt><dd>${esc(fmt(p.scraped_at))}</dd></div></dl><div class="card-actions"><button class="card-button" data-id="${p.id}">Xem chi tiết</button>${p.linkedin_url?`<a class="card-button" href="${esc(p.linkedin_url)}" target="_blank" rel="noreferrer">LinkedIn</a>`:''}</div></article>`).join('');document.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>open(state.profiles.find(p=>p.id===Number(b.dataset.id))))}function open(p){e.drawerName.textContent=p.name||'Chưa có tên';e.drawerContent.innerHTML=`<section class="detail-section"><h3>Thông tin chính</h3><p>${esc(p.headline||'—')}<br>${esc(p.location||'—')}</p></section><section class="detail-section"><h3>About</h3><p class="detail-pre">${esc(p.about_text||'Không có dữ liệu.')}</p></section><section class="detail-section"><h3>Experience raw text</h3><p class="detail-pre">${esc(p.experience_raw_text||'Không có dữ liệu.')}</p></section><section class="detail-section"><h3>Trạng thái scan</h3><p>Source ID: ${esc(p.source_id)}<br>Snapshot ID: ${esc(p.id)}<br>Scraped at: ${esc(fmt(p.scraped_at))}</p></section><section class="detail-section"><h3>Errors</h3>${hasErr(p)?`<ul class="error-list">${p.errors.map(x=>`<li>${esc((x.section?x.section+': ':'')+(x.message||'Unknown error'))}</li>`).join('')}</ul>`:'<p>Không có lỗi.</p>'}</section>`;e.backdrop.hidden=false;e.drawer.classList.add('is-open');document.body.style.overflow='hidden'}function close(){e.backdrop.hidden=true;e.drawer.classList.remove('is-open');document.body.style.overflow=''}e.refresh.onclick=load;e.search.oninput=render;e.filter.onchange=render;e.sort.onchange=render;e.close.onclick=close;e.backdrop.onclick=close;document.addEventListener('keydown',x=>{if(x.key==='Escape')close()});load();
+const config = window.APP_CONFIG || {};
+
+const els = {
+  refreshButton: document.querySelector("#refreshButton"),
+  sidebarConnectionText: document.querySelector("#sidebarConnectionText"),
+  sidebarFooter: document.querySelector(".sidebar-footer"),
+  totalProfiles: document.querySelector("#totalProfiles"),
+  scannedToday: document.querySelector("#scannedToday"),
+  completeProfiles: document.querySelector("#completeProfiles"),
+  lastUpdated: document.querySelector("#lastUpdated"),
+  resultSummary: document.querySelector("#resultSummary"),
+  searchInput: document.querySelector("#searchInput"),
+  sortSelect: document.querySelector("#sortSelect"),
+  loadingState: document.querySelector("#loadingState"),
+  errorState: document.querySelector("#errorState"),
+  emptyState: document.querySelector("#emptyState"),
+  tableWrap: document.querySelector("#tableWrap"),
+  profileTableBody: document.querySelector("#profileTableBody"),
+  drawerBackdrop: document.querySelector("#drawerBackdrop"),
+  detailDrawer: document.querySelector("#detailDrawer"),
+  drawerName: document.querySelector("#drawerName"),
+  drawerContent: document.querySelector("#drawerContent"),
+  closeDrawerButton: document.querySelector("#closeDrawerButton")
+};
+
+const state = {
+  profiles: [],
+  filteredProfiles: []
+};
+
+function assertConfig() {
+  const validUrl =
+    typeof config.supabaseUrl === "string" &&
+    config.supabaseUrl.startsWith("https://");
+
+  const validKey =
+    typeof config.supabasePublishableKey === "string" &&
+    !config.supabasePublishableKey.includes("YOUR_");
+
+  if (!validUrl || !validKey) {
+    throw new Error(
+      "Missing Supabase URL or publishable/anon key in config.js."
+    );
+  }
+}
+
+assertConfig();
+
+const client = window.supabase.createClient(
+  config.supabaseUrl,
+  config.supabasePublishableKey
+);
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return new Intl.DateTimeFormat("vi-VN", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function isToday(value) {
+  if (!value) return false;
+
+  const date = new Date(value);
+  const now = new Date();
+
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function isComplete(profile) {
+  return Boolean(
+    profile.name &&
+    profile.headline &&
+    profile.location
+  );
+}
+
+function getInitials(name) {
+  const cleaned = String(name || "").trim();
+
+  if (!cleaned) return "—";
+
+  return cleaned
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("");
+}
+
+function getLatestSnapshots(rows) {
+  const latestBySource = new Map();
+
+  for (const row of rows) {
+    if (!latestBySource.has(row.source_id)) {
+      latestBySource.set(row.source_id, row);
+    }
+  }
+
+  return Array.from(latestBySource.values());
+}
+
+function setLoading(isLoading) {
+  els.loadingState.hidden = !isLoading;
+  els.refreshButton.disabled = isLoading;
+
+  if (isLoading) {
+    els.errorState.hidden = true;
+    els.emptyState.hidden = true;
+    els.tableWrap.hidden = true;
+  }
+}
+
+function setConnected(isConnected) {
+  els.sidebarFooter.classList.toggle("is-connected", isConnected);
+  els.sidebarConnectionText.textContent = isConnected
+    ? "Connected to Supabase"
+    : "Connection unavailable";
+}
+
+function showError(message) {
+  setConnected(false);
+  els.errorState.textContent = `Unable to load data: ${message}`;
+  els.errorState.hidden = false;
+  els.tableWrap.hidden = true;
+  els.resultSummary.textContent = "Could not load scanned profiles.";
+}
+
+async function loadProfiles() {
+  setLoading(true);
+
+  const { data, error } = await client
+    .from("linkedin_profile_snapshots")
+    .select(
+      [
+        "id",
+        "source_id",
+        "scraped_at",
+        "created_at",
+        "name",
+        "linkedin_url",
+        "headline",
+        "location",
+        "followers_count_text",
+        "connections_count_text",
+        "about_text",
+        "experience_raw_text"
+      ].join(",")
+    )
+    .not("name", "is", null)
+    .order("scraped_at", { ascending: false })
+    .limit(1000);
+
+  if (error) {
+    setLoading(false);
+    showError(error.message);
+    return;
+  }
+
+  state.profiles = getLatestSnapshots(data || []);
+  setConnected(true);
+  updateMetrics();
+  applyFilters();
+  setLoading(false);
+}
+
+function updateMetrics() {
+  const profiles = state.profiles;
+  const latestDate = profiles
+    .map((profile) => profile.scraped_at)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+
+  els.totalProfiles.textContent =
+    profiles.length.toLocaleString("vi-VN");
+
+  els.scannedToday.textContent =
+    profiles
+      .filter((profile) => isToday(profile.scraped_at))
+      .length.toLocaleString("vi-VN");
+
+  els.completeProfiles.textContent =
+    profiles
+      .filter(isComplete)
+      .length.toLocaleString("vi-VN");
+
+  els.lastUpdated.textContent = formatDate(latestDate);
+}
+
+function applyFilters() {
+  const query = els.searchInput.value.trim().toLowerCase();
+  const sort = els.sortSelect.value;
+
+  const filtered = state.profiles.filter((profile) => {
+    const searchable = [
+      profile.name,
+      profile.headline,
+      profile.location,
+      profile.linkedin_url
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return !query || searchable.includes(query);
+  });
+
+  filtered.sort((a, b) => {
+    if (sort === "name") {
+      return (a.name || "").localeCompare(b.name || "", "vi");
+    }
+
+    const first = new Date(a.scraped_at || 0).getTime();
+    const second = new Date(b.scraped_at || 0).getTime();
+
+    return sort === "oldest" ? first - second : second - first;
+  });
+
+  state.filteredProfiles = filtered;
+  renderTable();
+}
+
+function renderTable() {
+  const profiles = state.filteredProfiles;
+
+  els.resultSummary.textContent =
+    `${profiles.length.toLocaleString("vi-VN")} scanned profiles`;
+
+  els.emptyState.hidden = profiles.length > 0;
+  els.tableWrap.hidden = profiles.length === 0;
+
+  els.profileTableBody.innerHTML = profiles
+    .map((profile) => {
+      return `
+        <tr>
+          <td>
+            <div class="profile-cell">
+              <div class="avatar">${escapeHtml(getInitials(profile.name))}</div>
+              <div class="profile-copy">
+                <p class="profile-name">${escapeHtml(profile.name)}</p>
+                <p class="profile-headline">${escapeHtml(profile.headline || "No headline")}</p>
+              </div>
+            </div>
+          </td>
+
+          <td>${escapeHtml(profile.location || "—")}</td>
+          <td>${escapeHtml(profile.followers_count_text || "—")}</td>
+          <td>${escapeHtml(profile.connections_count_text || "—")}</td>
+          <td class="muted-cell">${escapeHtml(formatDate(profile.scraped_at))}</td>
+
+          <td class="action-cell">
+            <button
+              class="row-button"
+              type="button"
+              data-profile-id="${profile.id}"
+              aria-label="Open ${escapeHtml(profile.name)}"
+            >
+              ⋯
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  els.profileTableBody
+    .querySelectorAll("[data-profile-id]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const profileId = Number(button.dataset.profileId);
+        const profile = state.profiles.find(
+          (item) => item.id === profileId
+        );
+
+        if (profile) openDrawer(profile);
+      });
+    });
+}
+
+function openDrawer(profile) {
+  els.drawerName.textContent = profile.name || "Unnamed profile";
+
+  const linkedInBlock = profile.linkedin_url
+    ? `
+      <a
+        class="detail-link"
+        href="${escapeHtml(profile.linkedin_url)}"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Open LinkedIn profile
+      </a>
+    `
+    : "<p>No LinkedIn URL available.</p>";
+
+  els.drawerContent.innerHTML = `
+    <section class="detail-section">
+      <h3>Overview</h3>
+      <dl class="detail-grid">
+        <dt>Headline</dt>
+        <dd>${escapeHtml(profile.headline || "—")}</dd>
+
+        <dt>Location</dt>
+        <dd>${escapeHtml(profile.location || "—")}</dd>
+
+        <dt>Followers</dt>
+        <dd>${escapeHtml(profile.followers_count_text || "—")}</dd>
+
+        <dt>Connections</dt>
+        <dd>${escapeHtml(profile.connections_count_text || "—")}</dd>
+
+        <dt>Last scanned</dt>
+        <dd>${escapeHtml(formatDate(profile.scraped_at))}</dd>
+      </dl>
+    </section>
+
+    <section class="detail-section">
+      <h3>LinkedIn</h3>
+      ${linkedInBlock}
+    </section>
+
+    <section class="detail-section">
+      <h3>About</h3>
+      <p class="detail-pre">${escapeHtml(profile.about_text || "No About data available.")}</p>
+    </section>
+
+    <section class="detail-section">
+      <h3>Experience</h3>
+      <p class="detail-pre">${escapeHtml(profile.experience_raw_text || "No Experience data available.")}</p>
+    </section>
+  `;
+
+  els.drawerBackdrop.hidden = false;
+  els.detailDrawer.classList.add("is-open");
+  els.detailDrawer.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeDrawer() {
+  els.drawerBackdrop.hidden = true;
+  els.detailDrawer.classList.remove("is-open");
+  els.detailDrawer.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+els.refreshButton.addEventListener("click", loadProfiles);
+els.searchInput.addEventListener("input", applyFilters);
+els.sortSelect.addEventListener("change", applyFilters);
+els.closeDrawerButton.addEventListener("click", closeDrawer);
+els.drawerBackdrop.addEventListener("click", closeDrawer);
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeDrawer();
+});
+
+loadProfiles();

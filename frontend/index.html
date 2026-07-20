@@ -8,46 +8,149 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <div>
-        <p class="eyebrow">LinkedIn Scanner</p>
-        <h1>Profile Database</h1>
-      </div>
-      <div class="topbar-actions">
-        <span id="connectionStatus" class="status-pill">Chưa kết nối</span>
-        <button id="refreshButton" class="button button-primary" type="button">Làm mới</button>
-      </div>
-    </header>
-
-    <main>
-      <section class="stats-grid">
-        <article class="stat-card"><span>Profiles</span><strong id="totalProfiles">—</strong><small>Snapshot mới nhất</small></article>
-        <article class="stat-card"><span>Đã scan hôm nay</span><strong id="scannedToday">—</strong><small>Theo thời gian local</small></article>
-        <article class="stat-card"><span>Có lỗi</span><strong id="profilesWithErrors">—</strong><small>Snapshot có errors</small></article>
-        <article class="stat-card"><span>Lần cập nhật gần nhất</span><strong id="lastUpdated">—</strong><small>Toàn hệ thống</small></article>
-      </section>
-
-      <section class="content-panel">
-        <div class="toolbar">
-          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Tìm tên, headline, location..." /></label>
-          <select id="statusFilter"><option value="all">Tất cả trạng thái</option><option value="clean">Không lỗi</option><option value="error">Có lỗi</option></select>
-          <select id="sortSelect"><option value="newest">Mới scan gần nhất</option><option value="oldest">Cũ nhất</option><option value="name">Tên A–Z</option></select>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">L</div>
+        <div>
+          <strong>LinkedIn Scanner</strong>
+          <span>Profile database</span>
         </div>
-        <div id="loadingState" class="state-card">Đang tải dữ liệu...</div>
-        <div id="errorState" class="state-card state-error" hidden></div>
-        <div id="emptyState" class="state-card" hidden>Không tìm thấy profile phù hợp.</div>
-        <div id="profileGrid" class="profile-grid" hidden></div>
-      </section>
-    </main>
+      </div>
+
+      <nav class="nav">
+        <a class="nav-item is-active" href="#profiles">
+          <span class="nav-icon">◫</span>
+          Profiles
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="connection-dot"></span>
+        <span id="sidebarConnectionText">Checking connection</span>
+      </div>
+    </aside>
+
+    <div class="main-shell">
+      <header class="topbar">
+        <div>
+          <div class="breadcrumb">
+            <span>Database</span>
+            <span>/</span>
+            <strong>Profiles</strong>
+          </div>
+          <h1>Scanned profiles</h1>
+          <p>View the latest successful LinkedIn profile snapshots.</p>
+        </div>
+
+        <button id="refreshButton" class="button button-primary" type="button">
+          Refresh data
+        </button>
+      </header>
+
+      <main class="page-content">
+        <section class="metrics">
+          <article class="metric-card">
+            <span class="metric-label">Total profiles</span>
+            <strong id="totalProfiles">—</strong>
+            <small>Latest snapshot per source</small>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-label">Scanned today</span>
+            <strong id="scannedToday">—</strong>
+            <small>Based on local timezone</small>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-label">Complete profiles</span>
+            <strong id="completeProfiles">—</strong>
+            <small>Name, headline and location available</small>
+          </article>
+
+          <article class="metric-card">
+            <span class="metric-label">Latest scan</span>
+            <strong id="lastUpdated">—</strong>
+            <small>Most recent snapshot</small>
+          </article>
+        </section>
+
+        <section class="panel" id="profiles">
+          <div class="panel-header">
+            <div>
+              <h2>Profiles</h2>
+              <p id="resultSummary">Loading data...</p>
+            </div>
+
+            <div class="panel-actions">
+              <label class="search-field">
+                <span>⌕</span>
+                <input
+                  id="searchInput"
+                  type="search"
+                  placeholder="Search name, headline, location"
+                  autocomplete="off"
+                />
+              </label>
+
+              <select id="sortSelect" aria-label="Sort profiles">
+                <option value="newest">Newest scan</option>
+                <option value="oldest">Oldest scan</option>
+                <option value="name">Name A–Z</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="loadingState" class="state">
+            <span class="spinner"></span>
+            Loading scanned profiles...
+          </div>
+
+          <div id="errorState" class="state state-error" hidden></div>
+
+          <div id="emptyState" class="state" hidden>
+            No scanned profiles found.
+          </div>
+
+          <div id="tableWrap" class="table-wrap" hidden>
+            <table>
+              <thead>
+                <tr>
+                  <th>Profile</th>
+                  <th>Location</th>
+                  <th>Followers</th>
+                  <th>Connections</th>
+                  <th>Last scan</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="profileTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+    </div>
   </div>
 
   <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
   <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
     <div class="drawer-header">
-      <div><p class="eyebrow">Profile detail</p><h2 id="drawerName">—</h2></div>
-      <button id="closeDrawerButton" class="icon-button" type="button">×</button>
+      <div>
+        <span class="drawer-kicker">Profile detail</span>
+        <h2 id="drawerName">—</h2>
+      </div>
+
+      <button
+        id="closeDrawerButton"
+        class="icon-button"
+        type="button"
+        aria-label="Close profile detail"
+      >
+        ×
+      </button>
     </div>
+
     <div id="drawerContent" class="drawer-content"></div>
   </aside>
 
