@@ -231,17 +231,11 @@ function renderTable() {
   els.profileTableBody.innerHTML = profiles
     .map((profile) => {
       return `
-        <tr
-          class="profile-row"
-          data-profile-id="${escapeHtml(profile.id)}"
-          tabindex="0"
-        >
+        <tr>
           <td>
             <div class="profile-cell">
               <div class="avatar">
-                ${escapeHtml(
-                  getInitials(profile.name)
-                )}
+                ${escapeHtml(getInitials(profile.name))}
               </div>
 
               <div class="profile-copy">
@@ -250,106 +244,52 @@ function renderTable() {
                 </p>
 
                 <p class="profile-headline">
-                  ${escapeHtml(
-                    profile.headline ||
-                    "Không có headline"
-                  )}
+                  ${escapeHtml(profile.headline || "Không có headline")}
                 </p>
               </div>
             </div>
           </td>
 
-          <td>
-            ${escapeHtml(
-              profile.location || "—"
-            )}
-          </td>
-
-          <td>
-            ${escapeHtml(
-              profile.followers_count_text ||
-              "—"
-            )}
-          </td>
-
-          <td>
-            ${escapeHtml(
-              profile.connections_count_text ||
-              "—"
-            )}
-          </td>
-
+          <td>${escapeHtml(profile.location || "—")}</td>
+          <td>${escapeHtml(profile.followers_count_text || "—")}</td>
+          <td>${escapeHtml(profile.connections_count_text || "—")}</td>
           <td class="muted-cell">
-            ${escapeHtml(
-              formatDate(profile.scraped_at)
-            )}
+            ${escapeHtml(formatDate(profile.scraped_at))}
+          </td>
+
+          <td class="action-cell">
+            <button
+              class="row-button"
+              type="button"
+              data-profile-id="${profile.id}"
+              aria-label="Xem ${escapeHtml(profile.name)}"
+            >
+              ⋯
+            </button>
           </td>
         </tr>
       `;
     })
     .join("");
+
+  els.profileTableBody
+    .querySelectorAll("[data-profile-id]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const profileId = Number(
+          button.dataset.profileId
+        );
+
+        const profile = state.profiles.find(
+          (item) => item.id === profileId
+        );
+
+        if (profile) {
+          openDrawer(profile);
+        }
+      });
+    });
 }
-
-function openProfileFromRow(row) {
-  const profileId = String(
-    row.dataset.profileId
-  );
-
-  const profile = state.profiles.find(
-    (item) => String(item.id) === profileId
-  );
-
-  if (!profile) {
-    console.error(
-      "Không tìm thấy profile:",
-      profileId
-    );
-
-    return;
-  }
-
-  openDrawer(profile);
-}
-
-
-els.profileTableBody.addEventListener(
-  "click",
-  (event) => {
-    const row = event.target.closest(
-      ".profile-row"
-    );
-
-    if (!row) {
-      return;
-    }
-
-    openProfileFromRow(row);
-  }
-);
-
-
-els.profileTableBody.addEventListener(
-  "keydown",
-  (event) => {
-    if (
-      event.key !== "Enter" &&
-      event.key !== " "
-    ) {
-      return;
-    }
-
-    const row = event.target.closest(
-      ".profile-row"
-    );
-
-    if (!row) {
-      return;
-    }
-
-    event.preventDefault();
-    openProfileFromRow(row);
-  }
-);
 
 function openDrawer(profile) {
   els.drawerName.textContent =

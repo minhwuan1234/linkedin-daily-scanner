@@ -298,6 +298,27 @@ tbody tr:last-child td {
 
 .muted-cell {
   color: var(--faint);
+}
+
+.action-cell {
+  width: 52px;
+  text-align: right;
+}
+
+.row-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--faint);
+}
+
+.row-button:hover {
+  border-color: var(--border);
+  background: #0d1014;
+  color: var(--text);
+}
 
 .state {
   display: grid;
@@ -452,32 +473,4 @@ tbody tr:last-child td {
   .stats-grid {
     grid-template-columns: 1fr;
   }
-}
-
-.profile-row {
-  cursor: pointer;
-  outline: none;
-}
-
-.profile-row td {
-  cursor: pointer;
-}
-
-.profile-row:hover {
-  background: var(--panel-hover);
-}
-
-.profile-row:focus-visible {
-  background: var(--panel-hover);
-  box-shadow:
-    inset 3px 0 0 var(--accent);
-}
-
-.detail-drawer {
-  pointer-events: none;
-}
-
-.detail-drawer.is-open {
-  pointer-events: auto;
-  transform: translateX(0);
 }
