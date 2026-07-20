@@ -14,6 +14,7 @@ from app.profile_snapshot_store import (
 )
 from app.settings import load_settings
 
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -33,15 +34,16 @@ def parse_args() -> argparse.Namespace:
 
     return parser.parse_args()
 
+
 def main() -> int:
     try:
         args = parse_args()
-settings = load_settings()
+        settings = load_settings()
 
-result = scrape_profile_raw(
-    settings=settings,
-    source_id=args.source_id,
-)
+        result = scrape_profile_raw(
+            settings=settings,
+            source_id=args.source_id,
+        )
 
         OUTPUT_DIR.mkdir(
             parents=True,
