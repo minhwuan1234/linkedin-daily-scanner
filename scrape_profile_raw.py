@@ -67,9 +67,15 @@ def main() -> int:
         )
 
         snapshot_id = save_profile_snapshot(
-            settings=settings,
-            result=result,
+        settings=settings,
+        result=result,
         )
+
+       mark_source_scanned(
+       settings=settings,
+       source_id=source_id,
+       scanned_at=result["scraped_at"],
+       )
 
         profile = result.get(
             "profile",
