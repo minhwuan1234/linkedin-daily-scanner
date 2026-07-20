@@ -38,10 +38,19 @@ def save_profile_snapshot(
         {},
     )
 
+    errors = result.get(
+        "errors",
+        [],
+    )
+
     payload = {
         "source_id": result["source_id"],
         "scraped_at": result["scraped_at"],
 
+        # Cột cũ vẫn gửi để tương thích schema hiện tại.
+        "profile_data": profile,
+
+        # Các cột mới đã tách riêng.
         "name": normalize_optional_text(
             profile.get("name")
         ),
@@ -63,20 +72,31 @@ def save_profile_snapshot(
         "about_text": normalize_optional_text(
             profile.get("about_text")
         ),
-
         "experience_raw_text": normalize_optional_text(
             result.get("experience_raw_text")
         ),
 
-        # Giữ nguyên toàn bộ profile object
-        # để debug hoặc xử lý lại sau này.
+        # Bản raw dự phòng.
         "raw_profile_data": profile,
 
-        "errors": result.get(
-            "errors",
-            [],
-        ),
+        "errors": errors,
     }
+
+    print("")
+    print("Supabase snapshot payload:")
+    print(
+        f"Source ID: {payload['source_id']}"
+    )
+    print(
+        f"Name: {payload['name']}"
+    )
+    print(
+        f"LinkedIn URL: {payload['linkedin_url']}"
+    )
+    print(
+        "Experience length: "
+        f"{len(payload['experience_raw_text'] or '')}"
+    )
 
     response = (
         client.table(
@@ -88,11 +108,12 @@ def save_profile_snapshot(
 
     if not response.data:
         raise RuntimeError(
-            "Supabase did not return the "
-            "inserted profile snapshot."
+            "Supabase insert returned no data."
         )
 
-    snapshot_id = response.data[0].get(
+    inserted_row = response.data[0]
+
+    snapshot_id = inserted_row.get(
         "id"
     )
 
