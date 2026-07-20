@@ -459,6 +459,10 @@ tbody tr:last-child td {
   outline: none;
 }
 
+.profile-row td {
+  cursor: pointer;
+}
+
 .profile-row:hover {
   background: var(--panel-hover);
 }
@@ -469,7 +473,11 @@ tbody tr:last-child td {
     inset 3px 0 0 var(--accent);
 }
 
+.detail-drawer {
+  pointer-events: none;
+}
 
-.profile-row td {
-  cursor: pointer;
+.detail-drawer.is-open {
+  pointer-events: auto;
+  transform: translateX(0);
 }
