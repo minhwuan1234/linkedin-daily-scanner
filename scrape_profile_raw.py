@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -13,11 +14,34 @@ from app.profile_snapshot_store import (
 )
 from app.settings import load_settings
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Scrape raw LinkedIn profile data."
+        )
+    )
+
+    parser.add_argument(
+        "--source-id",
+        type=int,
+        default=None,
+        help=(
+            "Specific linkedin_sources ID "
+            "to scrape."
+        ),
+    )
+
+    return parser.parse_args()
 
 def main() -> int:
     try:
-        settings = load_settings()
-        result = scrape_profile_raw(settings)
+        args = parse_args()
+settings = load_settings()
+
+result = scrape_profile_raw(
+    settings=settings,
+    source_id=args.source_id,
+)
 
         OUTPUT_DIR.mkdir(
             parents=True,
