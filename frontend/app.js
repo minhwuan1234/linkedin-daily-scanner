@@ -231,64 +231,95 @@ function renderTable() {
   els.profileTableBody.innerHTML = profiles
     .map((profile) => {
       return `
-        <tr>
-          <td>
-            <div class="profile-cell">
-              <div class="avatar">
-                ${escapeHtml(getInitials(profile.name))}
-              </div>
+<tr
+  class="profile-row"
+  data-profile-id="${profile.id}"
+  tabindex="0"
+  role="button"
+  aria-label="Xem chi tiết ${escapeHtml(profile.name)}"
+>
+  <td>
+    <div class="profile-cell">
+      <div class="avatar">
+        ${escapeHtml(getInitials(profile.name))}
+      </div>
 
-              <div class="profile-copy">
-                <p class="profile-name">
-                  ${escapeHtml(profile.name)}
-                </p>
+      <div class="profile-copy">
+        <p class="profile-name">
+          ${escapeHtml(profile.name)}
+        </p>
 
-                <p class="profile-headline">
-                  ${escapeHtml(profile.headline || "Không có headline")}
-                </p>
-              </div>
-            </div>
-          </td>
+        <p class="profile-headline">
+          ${escapeHtml(
+            profile.headline ||
+            "Không có headline"
+          )}
+        </p>
+      </div>
+    </div>
+  </td>
 
-          <td>${escapeHtml(profile.location || "—")}</td>
-          <td>${escapeHtml(profile.followers_count_text || "—")}</td>
-          <td>${escapeHtml(profile.connections_count_text || "—")}</td>
-          <td class="muted-cell">
-            ${escapeHtml(formatDate(profile.scraped_at))}
-          </td>
+  <td>
+    ${escapeHtml(profile.location || "—")}
+  </td>
 
-          <td class="action-cell">
-            <button
-              class="row-button"
-              type="button"
-              data-profile-id="${profile.id}"
-              aria-label="Xem ${escapeHtml(profile.name)}"
-            >
-              ⋯
-            </button>
-          </td>
-        </tr>
+  <td>
+    ${escapeHtml(
+      profile.followers_count_text || "—"
+    )}
+  </td>
+
+  <td>
+    ${escapeHtml(
+      profile.connections_count_text || "—"
+    )}
+  </td>
+
+  <td class="muted-cell">
+    ${escapeHtml(
+      formatDate(profile.scraped_at)
+    )}
+  </td>
+</tr>
       `;
     })
     .join("");
 
-  els.profileTableBody
-    .querySelectorAll("[data-profile-id]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const profileId = Number(
-          button.dataset.profileId
-        );
+els.profileTableBody
+  .querySelectorAll(".profile-row")
+  .forEach((row) => {
+    const openProfile = () => {
+      const profileId = Number(
+        row.dataset.profileId
+      );
 
-        const profile = state.profiles.find(
-          (item) => item.id === profileId
-        );
+      const profile = state.profiles.find(
+        (item) => item.id === profileId
+      );
 
-        if (profile) {
-          openDrawer(profile);
+      if (profile) {
+        openDrawer(profile);
+      }
+    };
+
+    row.addEventListener(
+      "click",
+      openProfile
+    );
+
+    row.addEventListener(
+      "keydown",
+      (event) => {
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
+          event.preventDefault();
+          openProfile();
         }
-      });
-    });
+      }
+    );
+  });
 }
 
 function openDrawer(profile) {
