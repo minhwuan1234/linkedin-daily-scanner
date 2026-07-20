@@ -66,9 +66,9 @@ def main() -> int:
             encoding="utf-8",
         )
 
-      snapshot_id = save_profile_snapshot(
-      settings=settings,
-      result=result,
+       snapshot_id = save_profile_snapshot(
+       settings=settings,
+       result=result,
        )
 
        mark_source_scanned(
