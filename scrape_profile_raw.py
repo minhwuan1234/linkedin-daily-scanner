@@ -10,6 +10,7 @@ from app.profile_raw_scraper import (
     scrape_profile_raw,
 )
 from app.profile_snapshot_store import (
+    mark_source_scanned,
     save_profile_snapshot,
 )
 from app.settings import load_settings
@@ -66,16 +67,16 @@ def main() -> int:
             encoding="utf-8",
         )
 
-       snapshot_id = save_profile_snapshot(
-       settings=settings,
-       result=result,
-       )
+        snapshot_id = save_profile_snapshot(
+            settings=settings,
+            result=result,
+        )
 
-       mark_source_scanned(
-       settings=settings,
-       source_id=source_id,
-       scanned_at=result["scraped_at"],
-       )
+        mark_source_scanned(
+            settings=settings,
+            source_id=source_id,
+            scanned_at=result["scraped_at"],
+        )
 
         profile = result.get(
             "profile",
