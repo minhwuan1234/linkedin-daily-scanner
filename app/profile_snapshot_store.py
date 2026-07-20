@@ -123,3 +123,27 @@ def save_profile_snapshot(
         )
 
     return int(snapshot_id)
+
+    def mark_source_scanned(
+    settings: Settings,
+    source_id: int,
+    scanned_at: str,
+    ) -> None:
+    client = create_supabase_client(settings)
+
+    response = (
+        client.table("linkedin_sources")
+        .update(
+            {
+                "last_scanned_at": scanned_at,
+            }
+        )
+        .eq("id", source_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise RuntimeError(
+            "Failed to update last_scanned_at "
+            f"for source {source_id}."
+        )
