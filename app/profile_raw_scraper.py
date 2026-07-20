@@ -1168,8 +1168,29 @@ def scrape_experience_raw_text(
 
 def scrape_profile_raw(
     settings: Settings,
+    source_id: int | None = None,
 ) -> dict[str, Any]:
-    source = get_one_enabled_source(settings)
+    if source_id is None:
+        source = get_one_enabled_source(settings)
+    else:
+        client = create_supabase_client(settings)
+
+        response = (
+            client.table("linkedin_sources")
+            .select(
+                "id,name,linkedin_url,source_type"
+            )
+            .eq("id", source_id)
+            .eq("enabled", True)
+            .limit(1)
+            .execute()
+        )
+
+        source = (
+            response.data[0]
+            if response.data
+            else None
+        )
 
     if not source:
         raise RuntimeError("No enabled LinkedIn source found.")
