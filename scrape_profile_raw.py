@@ -8,6 +8,9 @@ from app.profile_raw_scraper import (
     OUTPUT_DIR,
     scrape_profile_raw,
 )
+from app.profile_snapshot_store import (
+    save_profile_snapshot,
+)
 from app.settings import load_settings
 
 
@@ -37,7 +40,15 @@ def main() -> int:
             encoding="utf-8",
         )
 
-        profile = result.get("profile", {})
+        snapshot_id = save_profile_snapshot(
+            settings=settings,
+            result=result,
+        )
+
+        profile = result.get(
+            "profile",
+            {},
+        )
 
         experience_raw_text = result.get(
             "experience_raw_text",
@@ -55,6 +66,9 @@ def main() -> int:
         )
         print(
             f"Source ID: {source_id}"
+        )
+        print(
+            f"Snapshot ID: {snapshot_id}"
         )
         print(
             f"Name: {profile.get('name', '')}"
