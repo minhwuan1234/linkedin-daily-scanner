@@ -233,12 +233,8 @@ function renderTable() {
       return `
         <tr
           class="profile-row"
-          data-profile-id="${profile.id}"
+          data-profile-id="${escapeHtml(profile.id)}"
           tabindex="0"
-          role="button"
-          aria-label="Xem chi tiết ${escapeHtml(
-            profile.name
-          )}"
         >
           <td>
             <div class="profile-cell">
@@ -292,52 +288,68 @@ function renderTable() {
       `;
     })
     .join("");
+}
 
-  const rows = els.profileTableBody.querySelectorAll(
-    ".profile-row"
+function openProfileFromRow(row) {
+  const profileId = String(
+    row.dataset.profileId
   );
 
-  rows.forEach((row) => {
-    const openProfile = () => {
-      const profileId = Number(
-        row.dataset.profileId
-      );
+  const profile = state.profiles.find(
+    (item) => String(item.id) === profileId
+  );
 
-      const profile = state.profiles.find(
-        (item) => Number(item.id) === profileId
-      );
-
-      if (!profile) {
-        console.error(
-          "Profile not found:",
-          profileId
-        );
-
-        return;
-      }
-
-      openDrawer(profile);
-    };
-
-    row.addEventListener(
-      "click",
-      openProfile
+  if (!profile) {
+    console.error(
+      "Không tìm thấy profile:",
+      profileId
     );
 
-    row.addEventListener(
-      "keydown",
-      (event) => {
-        if (
-          event.key === "Enter" ||
-          event.key === " "
-        ) {
-          event.preventDefault();
-          openProfile();
-        }
-      }
-    );
-  });
+    return;
+  }
+
+  openDrawer(profile);
 }
+
+
+els.profileTableBody.addEventListener(
+  "click",
+  (event) => {
+    const row = event.target.closest(
+      ".profile-row"
+    );
+
+    if (!row) {
+      return;
+    }
+
+    openProfileFromRow(row);
+  }
+);
+
+
+els.profileTableBody.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      event.key !== "Enter" &&
+      event.key !== " "
+    ) {
+      return;
+    }
+
+    const row = event.target.closest(
+      ".profile-row"
+    );
+
+    if (!row) {
+      return;
+    }
+
+    event.preventDefault();
+    openProfileFromRow(row);
+  }
+);
 
 function openDrawer(profile) {
   els.drawerName.textContent =
