@@ -3,6 +3,9 @@ from __future__ import annotations
 import sys
 from datetime import datetime
 
+from app.google_sheets import (
+    load_linkedin_sources,
+)
 from app.settings import load_settings
 from app.source_sync import (
     sync_sources_to_supabase,
@@ -31,19 +34,50 @@ def main() -> int:
     try:
         settings = load_settings()
 
+        # -------------------------------------------------
+        # Bước 1: đọc danh sách URL từ Google Sheet
+        # -------------------------------------------------
+
+        print_separator()
+        print("Starting: Google Sheet source loading")
+        print_separator()
+
+        sources = load_linkedin_sources(
+            settings
+        )
+
+        print("")
+        print(
+            "Completed: Google Sheet source loading"
+        )
+        print(
+            f"Sources loaded: {len(sources)}"
+        )
+
+        # -------------------------------------------------
+        # Bước 2: sync URL từ Sheet sang Supabase
+        # -------------------------------------------------
+
         print_separator()
         print("Starting: Google Sheet source sync")
         print_separator()
 
         sync_result = sync_sources_to_supabase(
-            settings
+            settings,
+            sources,
         )
 
         print("")
-        print("Completed: Google Sheet source sync")
+        print(
+            "Completed: Google Sheet source sync"
+        )
         print(
             f"Sync result: {sync_result}"
         )
+
+        # -------------------------------------------------
+        # Bước 3: scan các source chưa từng scan
+        # -------------------------------------------------
 
         print_separator()
         print(
