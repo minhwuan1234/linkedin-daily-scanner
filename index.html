@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>LinkedIn Scanner Dashboard</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">LinkedIn Scanner</p>
+        <h1>Profile Database</h1>
+      </div>
+      <div class="topbar-actions">
+        <span id="connectionStatus" class="status-pill">Chưa kết nối</span>
+        <button id="refreshButton" class="button button-primary" type="button">Làm mới</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="stats-grid">
+        <article class="stat-card"><span>Profiles</span><strong id="totalProfiles">—</strong><small>Snapshot mới nhất</small></article>
+        <article class="stat-card"><span>Đã scan hôm nay</span><strong id="scannedToday">—</strong><small>Theo thời gian local</small></article>
+        <article class="stat-card"><span>Có lỗi</span><strong id="profilesWithErrors">—</strong><small>Snapshot có errors</small></article>
+        <article class="stat-card"><span>Lần cập nhật gần nhất</span><strong id="lastUpdated">—</strong><small>Toàn hệ thống</small></article>
+      </section>
+
+      <section class="content-panel">
+        <div class="toolbar">
+          <label class="search-box"><span>⌕</span><input id="searchInput" type="search" placeholder="Tìm tên, headline, location..." /></label>
+          <select id="statusFilter"><option value="all">Tất cả trạng thái</option><option value="clean">Không lỗi</option><option value="error">Có lỗi</option></select>
+          <select id="sortSelect"><option value="newest">Mới scan gần nhất</option><option value="oldest">Cũ nhất</option><option value="name">Tên A–Z</option></select>
+        </div>
+        <div id="loadingState" class="state-card">Đang tải dữ liệu...</div>
+        <div id="errorState" class="state-card state-error" hidden></div>
+        <div id="emptyState" class="state-card" hidden>Không tìm thấy profile phù hợp.</div>
+        <div id="profileGrid" class="profile-grid" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+  <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div><p class="eyebrow">Profile detail</p><h2 id="drawerName">—</h2></div>
+      <button id="closeDrawerButton" class="icon-button" type="button">×</button>
+    </div>
+    <div id="drawerContent" class="drawer-content"></div>
+  </aside>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
