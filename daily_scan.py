@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import subprocess
 import sys
 from datetime import datetime
-from pathlib import Path
 
-
-PROJECT_ROOT = Path(__file__).resolve().parent
-
-# Đổi đúng tên file nếu runner sync Sheet hiện tại
-# của bạn có tên khác.
-SHEET_SYNC_SCRIPT = PROJECT_ROOT / "sync_sources.py"
-
-UNSCANNED_SCAN_SCRIPT = (
-    PROJECT_ROOT / "scan_unscanned_profiles.py"
+from app.settings import load_settings
+from app.source_sync import (
+    sync_sources_to_supabase,
+)
+from scan_unscanned_profiles import (
+    main as scan_unscanned_main,
 )
 
 
@@ -21,40 +16,6 @@ def print_separator() -> None:
     print("")
     print("=" * 70)
     print("")
-
-
-def run_python_script(
-    script_path: Path,
-    step_name: str,
-) -> None:
-    if not script_path.exists():
-        raise FileNotFoundError(
-            f"{step_name} script does not exist: "
-            f"{script_path}"
-        )
-
-    print_separator()
-    print(f"Starting: {step_name}")
-    print(f"Script: {script_path.name}")
-    print_separator()
-
-    process = subprocess.run(
-        [
-            sys.executable,
-            str(script_path),
-        ],
-        cwd=str(PROJECT_ROOT),
-        check=False,
-    )
-
-    if process.returncode != 0:
-        raise RuntimeError(
-            f"{step_name} failed with exit code "
-            f"{process.returncode}."
-        )
-
-    print("")
-    print(f"Completed: {step_name}")
 
 
 def main() -> int:
@@ -68,21 +29,35 @@ def main() -> int:
     )
 
     try:
-        # Bước 1:
-        # Đọc Google Sheet và đồng bộ URL mới
-        # sang bảng linkedin_sources.
-        run_python_script(
-            script_path=SHEET_SYNC_SCRIPT,
-            step_name="Google Sheet source sync",
+        settings = load_settings()
+
+        print_separator()
+        print("Starting: Google Sheet source sync")
+        print_separator()
+
+        sync_result = sync_sources_to_supabase(
+            settings
         )
 
-        # Bước 2:
-        # Lấy các source enabled có
-        # last_scanned_at IS NULL rồi xử lý.
-        run_python_script(
-            script_path=UNSCANNED_SCAN_SCRIPT,
-            step_name="Unscanned LinkedIn profiles",
+        print("")
+        print("Completed: Google Sheet source sync")
+        print(
+            f"Sync result: {sync_result}"
         )
+
+        print_separator()
+        print(
+            "Starting: Unscanned LinkedIn profiles"
+        )
+        print_separator()
+
+        scan_exit_code = scan_unscanned_main()
+
+        if scan_exit_code != 0:
+            raise RuntimeError(
+                "Unscanned profile scan completed "
+                f"with exit code {scan_exit_code}."
+            )
 
         finished_at = datetime.now()
         duration = finished_at - started_at
@@ -94,8 +69,7 @@ def main() -> int:
             f"{finished_at.isoformat(timespec='seconds')}"
         )
         print(
-            "Duration: "
-            f"{duration}"
+            f"Duration: {duration}"
         )
 
         return 0
