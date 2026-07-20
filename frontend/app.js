@@ -2,8 +2,6 @@ const config = window.APP_CONFIG || {};
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
-  sidebarConnectionText: document.querySelector("#sidebarConnectionText"),
-  sidebarFooter: document.querySelector(".sidebar-footer"),
   totalProfiles: document.querySelector("#totalProfiles"),
   scannedToday: document.querySelector("#scannedToday"),
   completeProfiles: document.querySelector("#completeProfiles"),
@@ -11,7 +9,6 @@ const els = {
   resultSummary: document.querySelector("#resultSummary"),
   searchInput: document.querySelector("#searchInput"),
   sortSelect: document.querySelector("#sortSelect"),
-  loadingState: document.querySelector("#loadingState"),
   errorState: document.querySelector("#errorState"),
   emptyState: document.querySelector("#emptyState"),
   tableWrap: document.querySelector("#tableWrap"),
@@ -39,7 +36,7 @@ function assertConfig() {
 
   if (!validUrl || !validKey) {
     throw new Error(
-      "Missing Supabase URL or publishable/anon key in config.js."
+      "Thiếu Supabase URL hoặc publishable/anon key trong config.js."
     );
   }
 }
@@ -95,11 +92,11 @@ function isComplete(profile) {
 }
 
 function getInitials(name) {
-  const cleaned = String(name || "").trim();
+  const text = String(name || "").trim();
 
-  if (!cleaned) return "—";
+  if (!text) return "—";
 
-  return cleaned
+  return text
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || "")
@@ -118,34 +115,9 @@ function getLatestSnapshots(rows) {
   return Array.from(latestBySource.values());
 }
 
-function setLoading(isLoading) {
-  els.loadingState.hidden = !isLoading;
-  els.refreshButton.disabled = isLoading;
-
-  if (isLoading) {
-    els.errorState.hidden = true;
-    els.emptyState.hidden = true;
-    els.tableWrap.hidden = true;
-  }
-}
-
-function setConnected(isConnected) {
-  els.sidebarFooter.classList.toggle("is-connected", isConnected);
-  els.sidebarConnectionText.textContent = isConnected
-    ? "Connected to Supabase"
-    : "Connection unavailable";
-}
-
-function showError(message) {
-  setConnected(false);
-  els.errorState.textContent = `Unable to load data: ${message}`;
-  els.errorState.hidden = false;
-  els.tableWrap.hidden = true;
-  els.resultSummary.textContent = "Could not load scanned profiles.";
-}
-
 async function loadProfiles() {
-  setLoading(true);
+  els.refreshButton.disabled = true;
+  els.errorState.hidden = true;
 
   const { data, error } = await client
     .from("linkedin_profile_snapshots")
@@ -154,7 +126,6 @@ async function loadProfiles() {
         "id",
         "source_id",
         "scraped_at",
-        "created_at",
         "name",
         "linkedin_url",
         "headline",
@@ -169,21 +140,25 @@ async function loadProfiles() {
     .order("scraped_at", { ascending: false })
     .limit(1000);
 
+  els.refreshButton.disabled = false;
+
   if (error) {
-    setLoading(false);
-    showError(error.message);
+    els.errorState.textContent =
+      `Không thể tải dữ liệu: ${error.message}`;
+    els.errorState.hidden = false;
+    els.tableWrap.hidden = true;
+    els.resultSummary.textContent = "Không tải được dữ liệu.";
     return;
   }
 
   state.profiles = getLatestSnapshots(data || []);
-  setConnected(true);
-  updateMetrics();
+  updateStats();
   applyFilters();
-  setLoading(false);
 }
 
-function updateMetrics() {
+function updateStats() {
   const profiles = state.profiles;
+
   const latestDate = profiles
     .map((profile) => profile.scraped_at)
     .filter(Boolean)
@@ -226,13 +201,18 @@ function applyFilters() {
 
   filtered.sort((a, b) => {
     if (sort === "name") {
-      return (a.name || "").localeCompare(b.name || "", "vi");
+      return (a.name || "").localeCompare(
+        b.name || "",
+        "vi"
+      );
     }
 
     const first = new Date(a.scraped_at || 0).getTime();
     const second = new Date(b.scraped_at || 0).getTime();
 
-    return sort === "oldest" ? first - second : second - first;
+    return sort === "oldest"
+      ? first - second
+      : second - first;
   });
 
   state.filteredProfiles = filtered;
@@ -243,7 +223,7 @@ function renderTable() {
   const profiles = state.filteredProfiles;
 
   els.resultSummary.textContent =
-    `${profiles.length.toLocaleString("vi-VN")} scanned profiles`;
+    `${profiles.length.toLocaleString("vi-VN")} profiles`;
 
   els.emptyState.hidden = profiles.length > 0;
   els.tableWrap.hidden = profiles.length === 0;
@@ -254,10 +234,18 @@ function renderTable() {
         <tr>
           <td>
             <div class="profile-cell">
-              <div class="avatar">${escapeHtml(getInitials(profile.name))}</div>
+              <div class="avatar">
+                ${escapeHtml(getInitials(profile.name))}
+              </div>
+
               <div class="profile-copy">
-                <p class="profile-name">${escapeHtml(profile.name)}</p>
-                <p class="profile-headline">${escapeHtml(profile.headline || "No headline")}</p>
+                <p class="profile-name">
+                  ${escapeHtml(profile.name)}
+                </p>
+
+                <p class="profile-headline">
+                  ${escapeHtml(profile.headline || "Không có headline")}
+                </p>
               </div>
             </div>
           </td>
@@ -265,14 +253,16 @@ function renderTable() {
           <td>${escapeHtml(profile.location || "—")}</td>
           <td>${escapeHtml(profile.followers_count_text || "—")}</td>
           <td>${escapeHtml(profile.connections_count_text || "—")}</td>
-          <td class="muted-cell">${escapeHtml(formatDate(profile.scraped_at))}</td>
+          <td class="muted-cell">
+            ${escapeHtml(formatDate(profile.scraped_at))}
+          </td>
 
           <td class="action-cell">
             <button
               class="row-button"
               type="button"
               data-profile-id="${profile.id}"
-              aria-label="Open ${escapeHtml(profile.name)}"
+              aria-label="Xem ${escapeHtml(profile.name)}"
             >
               ⋯
             </button>
@@ -286,18 +276,24 @@ function renderTable() {
     .querySelectorAll("[data-profile-id]")
     .forEach((button) => {
       button.addEventListener("click", () => {
-        const profileId = Number(button.dataset.profileId);
+        const profileId = Number(
+          button.dataset.profileId
+        );
+
         const profile = state.profiles.find(
           (item) => item.id === profileId
         );
 
-        if (profile) openDrawer(profile);
+        if (profile) {
+          openDrawer(profile);
+        }
       });
     });
 }
 
 function openDrawer(profile) {
-  els.drawerName.textContent = profile.name || "Unnamed profile";
+  els.drawerName.textContent =
+    profile.name || "Chưa có tên";
 
   const linkedInBlock = profile.linkedin_url
     ? `
@@ -307,14 +303,15 @@ function openDrawer(profile) {
         target="_blank"
         rel="noreferrer"
       >
-        Open LinkedIn profile
+        Mở LinkedIn profile
       </a>
     `
-    : "<p>No LinkedIn URL available.</p>";
+    : "<p>Không có LinkedIn URL.</p>";
 
   els.drawerContent.innerHTML = `
     <section class="detail-section">
-      <h3>Overview</h3>
+      <h3>Thông tin chính</h3>
+
       <dl class="detail-grid">
         <dt>Headline</dt>
         <dd>${escapeHtml(profile.headline || "—")}</dd>
@@ -328,7 +325,7 @@ function openDrawer(profile) {
         <dt>Connections</dt>
         <dd>${escapeHtml(profile.connections_count_text || "—")}</dd>
 
-        <dt>Last scanned</dt>
+        <dt>Last scan</dt>
         <dd>${escapeHtml(formatDate(profile.scraped_at))}</dd>
       </dl>
     </section>
@@ -340,36 +337,67 @@ function openDrawer(profile) {
 
     <section class="detail-section">
       <h3>About</h3>
-      <p class="detail-pre">${escapeHtml(profile.about_text || "No About data available.")}</p>
+      <p class="detail-pre">
+        ${escapeHtml(profile.about_text || "Không có dữ liệu About.")}
+      </p>
     </section>
 
     <section class="detail-section">
       <h3>Experience</h3>
-      <p class="detail-pre">${escapeHtml(profile.experience_raw_text || "No Experience data available.")}</p>
+      <p class="detail-pre">
+        ${escapeHtml(profile.experience_raw_text || "Không có dữ liệu Experience.")}
+      </p>
     </section>
   `;
 
   els.drawerBackdrop.hidden = false;
   els.detailDrawer.classList.add("is-open");
-  els.detailDrawer.setAttribute("aria-hidden", "false");
+  els.detailDrawer.setAttribute(
+    "aria-hidden",
+    "false"
+  );
   document.body.style.overflow = "hidden";
 }
 
 function closeDrawer() {
   els.drawerBackdrop.hidden = true;
   els.detailDrawer.classList.remove("is-open");
-  els.detailDrawer.setAttribute("aria-hidden", "true");
+  els.detailDrawer.setAttribute(
+    "aria-hidden",
+    "true"
+  );
   document.body.style.overflow = "";
 }
 
-els.refreshButton.addEventListener("click", loadProfiles);
-els.searchInput.addEventListener("input", applyFilters);
-els.sortSelect.addEventListener("change", applyFilters);
-els.closeDrawerButton.addEventListener("click", closeDrawer);
-els.drawerBackdrop.addEventListener("click", closeDrawer);
+els.refreshButton.addEventListener(
+  "click",
+  loadProfiles
+);
+
+els.searchInput.addEventListener(
+  "input",
+  applyFilters
+);
+
+els.sortSelect.addEventListener(
+  "change",
+  applyFilters
+);
+
+els.closeDrawerButton.addEventListener(
+  "click",
+  closeDrawer
+);
+
+els.drawerBackdrop.addEventListener(
+  "click",
+  closeDrawer
+);
 
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") closeDrawer();
+  if (event.key === "Escape") {
+    closeDrawer();
+  }
 });
 
 loadProfiles();

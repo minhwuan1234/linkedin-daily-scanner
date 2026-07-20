@@ -8,145 +8,105 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <div class="app">
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-mark">L</div>
+  <main class="dashboard-shell">
+    <header class="dashboard-header">
+      <div>
+        <p class="eyebrow">LinkedIn Scanner</p>
+        <h1>Profile Dashboard</h1>
+        <p class="subtitle">Dữ liệu profile đã scan từ Supabase.</p>
+      </div>
+
+      <button id="refreshButton" class="refresh-button" type="button">
+        Làm mới
+      </button>
+    </header>
+
+    <section class="stats-grid" aria-label="Tổng quan">
+      <article class="stat-card">
+        <span>Tổng profile</span>
+        <strong id="totalProfiles">—</strong>
+        <small>Snapshot mới nhất mỗi source</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Scan hôm nay</span>
+        <strong id="scannedToday">—</strong>
+        <small>Theo múi giờ local</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Đủ dữ liệu chính</span>
+        <strong id="completeProfiles">—</strong>
+        <small>Có tên, headline, location</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Cập nhật gần nhất</span>
+        <strong id="lastUpdated">—</strong>
+        <small>Snapshot mới nhất</small>
+      </article>
+    </section>
+
+    <section class="data-panel">
+      <div class="panel-toolbar">
         <div>
-          <strong>LinkedIn Scanner</strong>
-          <span>Profile database</span>
+          <h2>Profiles đã scan</h2>
+          <p id="resultSummary">—</p>
+        </div>
+
+        <div class="toolbar-actions">
+          <label class="search-field">
+            <span>⌕</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Tìm tên, headline, location"
+              autocomplete="off"
+            />
+          </label>
+
+          <select id="sortSelect" aria-label="Sắp xếp">
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="name">Tên A–Z</option>
+          </select>
         </div>
       </div>
 
-      <nav class="nav">
-        <a class="nav-item is-active" href="#profiles">
-          <span class="nav-icon">◫</span>
-          Profiles
-        </a>
-      </nav>
+      <div id="errorState" class="state state-error" hidden></div>
 
-      <div class="sidebar-footer">
-        <span class="connection-dot"></span>
-        <span id="sidebarConnectionText">Checking connection</span>
+      <div id="emptyState" class="state" hidden>
+        Không có profile đã scan.
       </div>
-    </aside>
 
-    <div class="main-shell">
-      <header class="topbar">
-        <div>
-          <div class="breadcrumb">
-            <span>Database</span>
-            <span>/</span>
-            <strong>Profiles</strong>
-          </div>
-          <h1>Scanned profiles</h1>
-          <p>View the latest successful LinkedIn profile snapshots.</p>
-        </div>
-
-        <button id="refreshButton" class="button button-primary" type="button">
-          Refresh data
-        </button>
-      </header>
-
-      <main class="page-content">
-        <section class="metrics">
-          <article class="metric-card">
-            <span class="metric-label">Total profiles</span>
-            <strong id="totalProfiles">—</strong>
-            <small>Latest snapshot per source</small>
-          </article>
-
-          <article class="metric-card">
-            <span class="metric-label">Scanned today</span>
-            <strong id="scannedToday">—</strong>
-            <small>Based on local timezone</small>
-          </article>
-
-          <article class="metric-card">
-            <span class="metric-label">Complete profiles</span>
-            <strong id="completeProfiles">—</strong>
-            <small>Name, headline and location available</small>
-          </article>
-
-          <article class="metric-card">
-            <span class="metric-label">Latest scan</span>
-            <strong id="lastUpdated">—</strong>
-            <small>Most recent snapshot</small>
-          </article>
-        </section>
-
-        <section class="panel" id="profiles">
-          <div class="panel-header">
-            <div>
-              <h2>Profiles</h2>
-              <p id="resultSummary">Loading data...</p>
-            </div>
-
-            <div class="panel-actions">
-              <label class="search-field">
-                <span>⌕</span>
-                <input
-                  id="searchInput"
-                  type="search"
-                  placeholder="Search name, headline, location"
-                  autocomplete="off"
-                />
-              </label>
-
-              <select id="sortSelect" aria-label="Sort profiles">
-                <option value="newest">Newest scan</option>
-                <option value="oldest">Oldest scan</option>
-                <option value="name">Name A–Z</option>
-              </select>
-            </div>
-          </div>
-
-          <div id="loadingState" class="state">
-            <span class="spinner"></span>
-            Loading scanned profiles...
-          </div>
-
-          <div id="errorState" class="state state-error" hidden></div>
-
-          <div id="emptyState" class="state" hidden>
-            No scanned profiles found.
-          </div>
-
-          <div id="tableWrap" class="table-wrap" hidden>
-            <table>
-              <thead>
-                <tr>
-                  <th>Profile</th>
-                  <th>Location</th>
-                  <th>Followers</th>
-                  <th>Connections</th>
-                  <th>Last scan</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="profileTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-      </main>
-    </div>
-  </div>
+      <div id="tableWrap" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Location</th>
+              <th>Followers</th>
+              <th>Connections</th>
+              <th>Last scan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="profileTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
 
   <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
 
   <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
     <div class="drawer-header">
       <div>
-        <span class="drawer-kicker">Profile detail</span>
+        <p class="eyebrow">Profile detail</p>
         <h2 id="drawerName">—</h2>
       </div>
 
-      <button
-        id="closeDrawerButton"
-        class="icon-button"
-        type="button"
-        aria-label="Close profile detail"
-      >
+      <button id="closeDrawerButton" class="close-button" type="button">
         ×
       </button>
     </div>

@@ -1,42 +1,22 @@
-# LinkedIn Scanner Dashboard v2
+# LinkedIn Dashboard v3
 
-Minimal dark dashboard focused only on profiles that were successfully scanned.
+Bản dashboard tối giản, tập trung vào dữ liệu đã scan.
 
-## Replace files
+## Thay file
 
-Copy these files into the existing `frontend/` directory:
+Copy đè 3 file sau vào thư mục `frontend/`:
 
 - `index.html`
 - `styles.css`
 - `app.js`
 
-Keep your existing `config.js` if it already contains the correct Supabase URL and publishable/anon key.
+Giữ nguyên `config.js` hiện tại.
 
-## Run
+## Fix chính
 
-```powershell
-cd C:\Users\Admin\linkedin-daily-scanner\frontend
-python -m http.server 8080
-```
-
-Open:
-
-```text
-http://localhost:8080
-```
-
-Or, if the server is running from the repository root:
-
-```text
-http://localhost:8080/frontend/
-```
-
-## Data behavior
-
-The dashboard:
-
-- reads from `linkedin_profile_snapshots`
-- only loads rows where `name` is not null
-- takes the latest snapshot for each `source_id`
-- does not display matching, errors, failed scans, or unscanned sources
-- shows details in a side drawer
+- bỏ sidebar
+- bỏ trạng thái Loading scanned profiles
+- thêm `[hidden] { display: none !important; }`
+- metric cards rõ hơn
+- table full width
+- drawer chi tiết giữ nguyên
