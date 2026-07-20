@@ -1178,23 +1178,7 @@ def scrape_profile_raw(
             settings=settings,
             source_id=source_id,
         )
-        response = (
-            client.table("linkedin_sources")
-            .select(
-                "id,name,linkedin_url,source_type"
-            )
-            .eq("id", source_id)
-            .eq("enabled", True)
-            .limit(1)
-            .execute()
-        )
-
-        source = (
-            response.data[0]
-            if response.data
-            else None
-        )
-
+        
     if not source:
         raise RuntimeError("No enabled LinkedIn source found.")
 
