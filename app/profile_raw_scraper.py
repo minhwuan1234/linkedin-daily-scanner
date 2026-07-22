@@ -1796,12 +1796,41 @@ def scrape_profile_raw(
                         "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
+              
+                        try:
+                recent_post_captions = (
+                    scrape_recent_post_captions(
+                        page=page,
+                        profile_url=profile_url,
+                        limit=POST_LIMIT,
+                    )
+                )
 
+            except Exception as exc:
+                recent_post_captions = []
+
+                errors.append(
+                    {
+                        "section": "recent_posts",
+                        "message": (
+                            f"{type(exc).__name__}: "
+                            f"{exc}"
+                        ),
+                    }
+                )
+            
             return {
                 "source_id": source_id,
-                "scraped_at": datetime.now(timezone.utc).isoformat(),
+                "scraped_at": datetime.now(
+                    timezone.utc
+                ).isoformat(),
                 "profile": profile,
-                "experience_raw_text": experience_raw_text,
+                "experience_raw_text": (
+                    experience_raw_text
+                ),
+                "recent_post_captions": (
+                    recent_post_captions
+                ),
                 "errors": errors,
             }
 
