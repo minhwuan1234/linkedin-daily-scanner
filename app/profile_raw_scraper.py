@@ -1771,11 +1771,13 @@ def scrape_profile_raw(
                         "message": (f"{type(exc).__name__}: " f"{exc}"),
                     }
                 )
-
+                
             try:
-                experience_raw_text = scrape_experience_raw_text(
-                    page,
-                    profile_url,
+                experience_raw_text = (
+                    scrape_experience_raw_text(
+                        page,
+                        profile_url,
+                    )
                 )
 
                 if not experience_raw_text:
@@ -1783,21 +1785,26 @@ def scrape_profile_raw(
                         {
                             "section": "experience",
                             "message": (
-                                "Experience page returned " "no usable text."
+                                "Experience page returned "
+                                "no usable text."
                             ),
                         }
                     )
+
             except Exception as exc:
                 experience_raw_text = ""
 
                 errors.append(
                     {
                         "section": "experience",
-                        "message": (f"{type(exc).__name__}: " f"{exc}"),
+                        "message": (
+                            f"{type(exc).__name__}: "
+                            f"{exc}"
+                        ),
                     }
                 )
-              
-                        try:
+
+            try:
                 recent_post_captions = (
                     scrape_recent_post_captions(
                         page=page,
@@ -1818,7 +1825,7 @@ def scrape_profile_raw(
                         ),
                     }
                 )
-            
+
             return {
                 "source_id": source_id,
                 "scraped_at": datetime.now(
