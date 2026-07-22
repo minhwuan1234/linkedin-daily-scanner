@@ -91,6 +91,18 @@ function isComplete(profile) {
   );
 }
 
+function getPostCaptions(profile) {
+  return [
+    profile.post_1_caption,
+    profile.post_2_caption,
+    profile.post_3_caption,
+    profile.post_4_caption,
+    profile.post_5_caption
+  ]
+    .map((caption) => String(caption || "").trim())
+    .filter(Boolean);
+}
+
 function getInitials(name) {
   const text = String(name || "").trim();
 
@@ -133,7 +145,12 @@ async function loadProfiles() {
         "followers_count_text",
         "connections_count_text",
         "about_text",
-        "experience_raw_text"
+        "experience_raw_text",
+        "post_1_caption",
+        "post_2_caption",
+        "post_3_caption",
+        "post_4_caption",
+        "post_5_caption"
       ].join(",")
     )
     .not("name", "is", null)
@@ -145,13 +162,18 @@ async function loadProfiles() {
   if (error) {
     els.errorState.textContent =
       `Không thể tải dữ liệu: ${error.message}`;
+
     els.errorState.hidden = false;
     els.tableWrap.hidden = true;
-    els.resultSummary.textContent = "Không tải được dữ liệu.";
+    els.resultSummary.textContent =
+      "Không tải được dữ liệu.";
+
     return;
   }
 
-  state.profiles = getLatestSnapshots(data || []);
+  state.profiles =
+    getLatestSnapshots(data || []);
+
   updateStats();
   applyFilters();
 }
@@ -170,7 +192,9 @@ function updateStats() {
 
   els.scannedToday.textContent =
     profiles
-      .filter((profile) => isToday(profile.scraped_at))
+      .filter((profile) =>
+        isToday(profile.scraped_at)
+      )
       .length.toLocaleString("vi-VN");
 
   els.completeProfiles.textContent =
@@ -178,26 +202,36 @@ function updateStats() {
       .filter(isComplete)
       .length.toLocaleString("vi-VN");
 
-  els.lastUpdated.textContent = formatDate(latestDate);
+  els.lastUpdated.textContent =
+    formatDate(latestDate);
 }
 
 function applyFilters() {
-  const query = els.searchInput.value.trim().toLowerCase();
-  const sort = els.sortSelect.value;
-
-  const filtered = state.profiles.filter((profile) => {
-    const searchable = [
-      profile.name,
-      profile.headline,
-      profile.location,
-      profile.linkedin_url
-    ]
-      .filter(Boolean)
-      .join(" ")
+  const query =
+    els.searchInput.value
+      .trim()
       .toLowerCase();
 
-    return !query || searchable.includes(query);
-  });
+  const sort = els.sortSelect.value;
+
+  const filtered =
+    state.profiles.filter((profile) => {
+      const searchable = [
+        profile.name,
+        profile.headline,
+        profile.location,
+        profile.linkedin_url,
+        ...getPostCaptions(profile)
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        !query ||
+        searchable.includes(query)
+      );
+    });
 
   filtered.sort((a, b) => {
     if (sort === "name") {
@@ -207,8 +241,13 @@ function applyFilters() {
       );
     }
 
-    const first = new Date(a.scraped_at || 0).getTime();
-    const second = new Date(b.scraped_at || 0).getTime();
+    const first = new Date(
+      a.scraped_at || 0
+    ).getTime();
+
+    const second = new Date(
+      b.scraped_at || 0
+    ).getTime();
 
     return sort === "oldest"
       ? first - second
@@ -216,78 +255,136 @@ function applyFilters() {
   });
 
   state.filteredProfiles = filtered;
+
   renderTable();
 }
 
 function renderTable() {
-  const profiles = state.filteredProfiles;
+  const profiles =
+    state.filteredProfiles;
 
   els.resultSummary.textContent =
-    `${profiles.length.toLocaleString("vi-VN")} profiles`;
+    `${profiles.length.toLocaleString(
+      "vi-VN"
+    )} profiles`;
 
-  els.emptyState.hidden = profiles.length > 0;
-  els.tableWrap.hidden = profiles.length === 0;
+  els.emptyState.hidden =
+    profiles.length > 0;
 
-  els.profileTableBody.innerHTML = profiles
-    .map((profile) => {
-      return `
-        <tr>
-          <td>
-            <div class="profile-cell">
-              <div class="avatar">
-                ${escapeHtml(getInitials(profile.name))}
+  els.tableWrap.hidden =
+    profiles.length === 0;
+
+  els.profileTableBody.innerHTML =
+    profiles
+      .map((profile) => {
+        const postCount =
+          getPostCaptions(profile).length;
+
+        return `
+          <tr>
+            <td>
+              <div class="profile-cell">
+                <div class="avatar">
+                  ${escapeHtml(
+                    getInitials(profile.name)
+                  )}
+                </div>
+
+                <div class="profile-copy">
+                  <p class="profile-name">
+                    ${escapeHtml(
+                      profile.name
+                    )}
+                  </p>
+
+                  <p class="profile-headline">
+                    ${escapeHtml(
+                      profile.headline ||
+                      "Không có headline"
+                    )}
+                  </p>
+                </div>
               </div>
+            </td>
 
-              <div class="profile-copy">
-                <p class="profile-name">
-                  ${escapeHtml(profile.name)}
-                </p>
+            <td>
+              ${escapeHtml(
+                profile.location || "—"
+              )}
+            </td>
 
-                <p class="profile-headline">
-                  ${escapeHtml(profile.headline || "Không có headline")}
-                </p>
-              </div>
-            </div>
-          </td>
+            <td>
+              ${escapeHtml(
+                profile.followers_count_text ||
+                "—"
+              )}
+            </td>
 
-          <td>${escapeHtml(profile.location || "—")}</td>
-          <td>${escapeHtml(profile.followers_count_text || "—")}</td>
-          <td>${escapeHtml(profile.connections_count_text || "—")}</td>
-          <td class="muted-cell">
-            ${escapeHtml(formatDate(profile.scraped_at))}
-          </td>
+            <td>
+              ${escapeHtml(
+                profile.connections_count_text ||
+                "—"
+              )}
+            </td>
 
-          <td class="action-cell">
-            <button
-              class="row-button"
-              type="button"
-              data-profile-id="${profile.id}"
-              aria-label="Xem ${escapeHtml(profile.name)}"
-            >
-              ⋯
-            </button>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
+            <td>
+              <span class="post-count-badge">
+                ${postCount}
+              </span>
+            </td>
+
+            <td class="muted-cell">
+              ${escapeHtml(
+                formatDate(
+                  profile.scraped_at
+                )
+              )}
+            </td>
+
+            <td class="action-cell">
+              <button
+                class="row-button"
+                type="button"
+                data-profile-id="${escapeHtml(
+                  profile.id
+                )}"
+                aria-label="Xem ${escapeHtml(
+                  profile.name
+                )}"
+              >
+                ⋯
+              </button>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
 
   els.profileTableBody
-    .querySelectorAll("[data-profile-id]")
+    .querySelectorAll(
+      "[data-profile-id]"
+    )
     .forEach((button) => {
-      button.addEventListener("click", () => {
-        const profileId = Number(
-          button.dataset.profileId
-        );
+      button.addEventListener(
+        "click",
+        () => {
+          const profileId =
+            String(
+              button.dataset.profileId
+            );
 
-        const profile = state.profiles.find(
-          (item) => item.id === profileId
-        );
+          const profile =
+            state.profiles.find(
+              (item) =>
+                String(item.id) ===
+                profileId
+            );
 
-        if (profile) {
-          openDrawer(profile);
+          if (profile) {
+            openDrawer(profile);
+          }
         }
-      });
+      );
     });
 }
 
@@ -295,18 +392,67 @@ function openDrawer(profile) {
   els.drawerName.textContent =
     profile.name || "Chưa có tên";
 
-  const linkedInBlock = profile.linkedin_url
-    ? `
-      <a
-        class="detail-link"
-        href="${escapeHtml(profile.linkedin_url)}"
-        target="_blank"
-        rel="noreferrer"
-      >
-        Mở LinkedIn profile
-      </a>
-    `
-    : "<p>Không có LinkedIn URL.</p>";
+  const linkedInBlock =
+    profile.linkedin_url
+      ? `
+        <a
+          class="detail-link"
+          href="${escapeHtml(
+            profile.linkedin_url
+          )}"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Mở LinkedIn profile
+        </a>
+      `
+      : `
+        <p>
+          Không có LinkedIn URL.
+        </p>
+      `;
+
+  const postCaptions =
+    getPostCaptions(profile);
+
+  const recentPostsBlock =
+    postCaptions.length
+      ? `
+        <div class="recent-posts-list">
+          ${postCaptions
+            .map(
+              (
+                caption,
+                index
+              ) => `
+                <article
+                  class="recent-post-card"
+                >
+                  <div
+                    class="recent-post-meta"
+                  >
+                    <span>
+                      Post ${index + 1}
+                    </span>
+                  </div>
+
+                  <p>
+                    ${escapeHtml(
+                      caption
+                    )}
+                  </p>
+                </article>
+              `
+            )
+            .join("")}
+        </div>
+      `
+      : `
+        <p class="detail-empty">
+          Không có bài viết trong
+          30 ngày gần nhất.
+        </p>
+      `;
 
   els.drawerContent.innerHTML = `
     <section class="detail-section">
@@ -314,19 +460,48 @@ function openDrawer(profile) {
 
       <dl class="detail-grid">
         <dt>Headline</dt>
-        <dd>${escapeHtml(profile.headline || "—")}</dd>
+        <dd>
+          ${escapeHtml(
+            profile.headline || "—"
+          )}
+        </dd>
 
         <dt>Location</dt>
-        <dd>${escapeHtml(profile.location || "—")}</dd>
+        <dd>
+          ${escapeHtml(
+            profile.location || "—"
+          )}
+        </dd>
 
         <dt>Followers</dt>
-        <dd>${escapeHtml(profile.followers_count_text || "—")}</dd>
+        <dd>
+          ${escapeHtml(
+            profile.followers_count_text ||
+            "—"
+          )}
+        </dd>
 
         <dt>Connections</dt>
-        <dd>${escapeHtml(profile.connections_count_text || "—")}</dd>
+        <dd>
+          ${escapeHtml(
+            profile.connections_count_text ||
+            "—"
+          )}
+        </dd>
+
+        <dt>Posts</dt>
+        <dd>
+          ${postCaptions.length}
+        </dd>
 
         <dt>Last scan</dt>
-        <dd>${escapeHtml(formatDate(profile.scraped_at))}</dd>
+        <dd>
+          ${escapeHtml(
+            formatDate(
+              profile.scraped_at
+            )
+          )}
+        </dd>
       </dl>
     </section>
 
@@ -337,35 +512,68 @@ function openDrawer(profile) {
 
     <section class="detail-section">
       <h3>About</h3>
+
       <p class="detail-pre">
-        ${escapeHtml(profile.about_text || "Không có dữ liệu About.")}
+        ${escapeHtml(
+          profile.about_text ||
+          "Không có dữ liệu About."
+        )}
       </p>
     </section>
 
     <section class="detail-section">
+      <div
+        class="detail-section-heading"
+      >
+        <h3>Recent posts</h3>
+
+        <span class="detail-count">
+          ${postCaptions.length}
+        </span>
+      </div>
+
+      ${recentPostsBlock}
+    </section>
+
+    <section class="detail-section">
       <h3>Experience</h3>
+
       <p class="detail-pre">
-        ${escapeHtml(profile.experience_raw_text || "Không có dữ liệu Experience.")}
+        ${escapeHtml(
+          profile.experience_raw_text ||
+          "Không có dữ liệu Experience."
+        )}
       </p>
     </section>
   `;
 
   els.drawerBackdrop.hidden = false;
-  els.detailDrawer.classList.add("is-open");
+
+  els.detailDrawer.classList.add(
+    "is-open"
+  );
+
   els.detailDrawer.setAttribute(
     "aria-hidden",
     "false"
   );
-  document.body.style.overflow = "hidden";
+
+  document.body.style.overflow =
+    "hidden";
 }
 
 function closeDrawer() {
   els.drawerBackdrop.hidden = true;
-  els.detailDrawer.classList.remove("is-open");
+
+  els.detailDrawer.classList.remove(
+    "is-open"
+  );
+
   els.detailDrawer.setAttribute(
     "aria-hidden",
     "true"
   );
+
   document.body.style.overflow = "";
 }
 
@@ -394,10 +602,13 @@ els.drawerBackdrop.addEventListener(
   closeDrawer
 );
 
-document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") {
-    closeDrawer();
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (event.key === "Escape") {
+      closeDrawer();
+    }
   }
-});
+);
 
 loadProfiles();
