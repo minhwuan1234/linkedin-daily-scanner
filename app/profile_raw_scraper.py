@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
@@ -28,6 +28,31 @@ BLOCKED_URL_PARTS = (
     "/login",
     "/authwall",
     "/checkpoint",
+)
+
+POST_MAX_AGE_DAYS = 30
+POST_LIMIT = 5
+
+POST_CARD_SELECTORS = (
+    "main div[data-urn*='urn:li:activity:']",
+    "main div.feed-shared-update-v2",
+    "main div[data-view-name='feed-full-update']",
+    "main article",
+)
+
+POST_CAPTION_SELECTORS = (
+    ".update-components-text",
+    ".feed-shared-update-v2__description",
+    ".feed-shared-text",
+    "div[data-test-id='main-feed-activity-card__commentary']",
+    "span.break-words",
+)
+
+POST_TIME_SELECTORS = (
+    "time",
+    ".update-components-actor__sub-description",
+    ".feed-shared-actor__sub-description",
+    "span[aria-hidden='true']",
 )
 
 EMPLOYMENT_TYPES = {
@@ -1166,6 +1191,516 @@ def scrape_experience_raw_text(
 
     return "\n".join(filtered_lines).strip()
 
+def build_recent_activity_url(
+    profile_url: str,
+) -> str:
+    profile_url = normalize_profile_url(
+        profile_url
+    )
+
+    parts = urlsplit(profile_url)
+    base_path = parts.path.rstrip("/")
+
+    return urlunsplit(
+        (
+            parts.scheme,
+            parts.netloc,
+            f"{base_path}/recent-activity/all/",
+            "",
+            "",
+        )
+    )
+
+
+def click_posts_filter(page: Page) -> None:
+    selectors = (
+        "button:has-text('Posts')",
+        "a:has-text('Posts')",
+        "[role='tab']:has-text('Posts')",
+        "button:has-text('Bài viết')",
+        "a:has-text('Bài viết')",
+        "[role='tab']:has-text('Bài viết')",
+    )
+
+    for selector in selectors:
+        candidates = page.locator(selector)
+
+        try:
+            count = min(
+                candidates.count(),
+                20,
+            )
+        except Exception:
+            continue
+
+        for index in range(count):
+            candidate = candidates.nth(index)
+
+            try:
+                if not candidate.is_visible(
+                    timeout=500
+                ):
+                    continue
+
+                label = clean_single_line(
+                    candidate.inner_text(
+                        timeout=1_500
+                    )
+                ).casefold()
+
+                if label not in {
+                    "posts",
+                    "bài viết",
+                }:
+                    continue
+
+                candidate.click(
+                    timeout=4_000
+                )
+
+                page.wait_for_timeout(
+                    2_500
+                )
+
+                return
+
+            except Exception:
+                continue
+
+
+def parse_relative_post_age_days(
+    value: str,
+) -> float | None:
+    text = clean_single_line(
+        value
+    ).casefold()
+
+    if not text:
+        return None
+
+    text = text.replace(
+        "•",
+        " ",
+    )
+
+    if any(
+        phrase in text
+        for phrase in (
+            "just now",
+            "now",
+            "vừa xong",
+            "vừa mới",
+        )
+    ):
+        return 0
+
+    patterns = (
+        (
+            r"\b(\d+)\s*(?:s|sec|secs|second|seconds)\b",
+            1 / 86_400,
+        ),
+        (
+            r"\b(\d+)\s*(?:m|min|mins|minute|minutes)\b",
+            1 / 1_440,
+        ),
+        (
+            r"\b(\d+)\s*(?:h|hr|hrs|hour|hours)\b",
+            1 / 24,
+        ),
+        (
+            r"\b(\d+)\s*(?:d|day|days)\b",
+            1,
+        ),
+        (
+            r"\b(\d+)\s*(?:w|wk|wks|week|weeks)\b",
+            7,
+        ),
+        (
+            r"\b(\d+)\s*(?:mo|mos|month|months)\b",
+            30,
+        ),
+        (
+            r"\b(\d+)\s*(?:y|yr|yrs|year|years)\b",
+            365,
+        ),
+    )
+
+    for pattern, multiplier in patterns:
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            return (
+                float(match.group(1))
+                * multiplier
+            )
+
+    vietnamese_patterns = (
+        (
+            r"\b(\d+)\s*giây\b",
+            1 / 86_400,
+        ),
+        (
+            r"\b(\d+)\s*phút\b",
+            1 / 1_440,
+        ),
+        (
+            r"\b(\d+)\s*giờ\b",
+            1 / 24,
+        ),
+        (
+            r"\b(\d+)\s*ngày\b",
+            1,
+        ),
+        (
+            r"\b(\d+)\s*tuần\b",
+            7,
+        ),
+        (
+            r"\b(\d+)\s*tháng\b",
+            30,
+        ),
+        (
+            r"\b(\d+)\s*năm\b",
+            365,
+        ),
+    )
+
+    for pattern, multiplier in vietnamese_patterns:
+        match = re.search(
+            pattern,
+            text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            return (
+                float(match.group(1))
+                * multiplier
+            )
+
+    return None
+
+
+def extract_post_time_text(
+    card: Locator,
+) -> str:
+    for selector in POST_TIME_SELECTORS:
+        candidates = card.locator(
+            selector
+        )
+
+        try:
+            count = min(
+                candidates.count(),
+                30,
+            )
+        except Exception:
+            continue
+
+        for index in range(count):
+            candidate = candidates.nth(
+                index
+            )
+
+            text = safe_text(
+                candidate
+            )
+
+            if not text:
+                continue
+
+            if (
+                parse_relative_post_age_days(
+                    text
+                )
+                is not None
+            ):
+                return text
+
+            datetime_value = safe_attribute(
+                candidate,
+                "datetime",
+            )
+
+            if datetime_value:
+                return datetime_value
+
+    return ""
+
+
+def post_is_within_last_month(
+    time_text: str,
+) -> bool:
+    if not time_text:
+        return False
+
+    age_days = parse_relative_post_age_days(
+        time_text
+    )
+
+    if age_days is not None:
+        return age_days <= POST_MAX_AGE_DAYS
+
+    try:
+        published_at = datetime.fromisoformat(
+            time_text.replace(
+                "Z",
+                "+00:00",
+            )
+        )
+
+        if published_at.tzinfo is None:
+            published_at = published_at.replace(
+                tzinfo=timezone.utc
+            )
+
+        cutoff = datetime.now(
+            timezone.utc
+        ) - timedelta(
+            days=POST_MAX_AGE_DAYS
+        )
+
+        return published_at >= cutoff
+
+    except ValueError:
+        return False
+
+
+def clean_post_caption(
+    value: str,
+) -> str:
+    caption = clean_text(
+        value
+    )
+
+    removable_lines = {
+        "see more",
+        "show more",
+        "… more",
+        "... more",
+        "like",
+        "comment",
+        "repost",
+        "send",
+        "celebrate",
+        "support",
+        "love",
+        "insightful",
+        "funny",
+    }
+
+    output: list[str] = []
+
+    for line in caption.splitlines():
+        normalized = clean_single_line(
+            line
+        )
+
+        if not normalized:
+            continue
+
+        if (
+            normalized.casefold()
+            in removable_lines
+        ):
+            continue
+
+        output.append(
+            normalized
+        )
+
+    return "\n".join(
+        output
+    ).strip()
+
+
+def extract_post_caption(
+    card: Locator,
+) -> str:
+    for selector in POST_CAPTION_SELECTORS:
+        candidates = card.locator(
+            selector
+        )
+
+        try:
+            count = min(
+                candidates.count(),
+                20,
+            )
+        except Exception:
+            continue
+
+        values: list[str] = []
+
+        for index in range(count):
+            candidate = candidates.nth(
+                index
+            )
+
+            try:
+                if not candidate.is_visible(
+                    timeout=300
+                ):
+                    continue
+            except Exception:
+                continue
+
+            caption = clean_post_caption(
+                safe_text(candidate)
+            )
+
+            if len(caption) < 2:
+                continue
+
+            values.append(
+                caption
+            )
+
+        if values:
+            return max(
+                values,
+                key=len,
+            )
+
+    return ""
+
+
+def get_post_cards(
+    page: Page,
+) -> Locator:
+    best_locator: Locator | None = None
+    best_count = 0
+
+    for selector in POST_CARD_SELECTORS:
+        locator = page.locator(
+            selector
+        )
+
+        try:
+            count = locator.count()
+        except Exception:
+            continue
+
+        if count > best_count:
+            best_locator = locator
+            best_count = count
+
+    if best_locator is not None:
+        return best_locator
+
+    return page.locator(
+        "main div[data-urn*='urn:li:activity:']"
+    )
+
+
+def scrape_recent_post_captions(
+    page: Page,
+    profile_url: str,
+    limit: int = POST_LIMIT,
+) -> list[str]:
+    activity_url = build_recent_activity_url(
+        profile_url
+    )
+
+    page.goto(
+        activity_url,
+        wait_until="domcontentloaded",
+        timeout=60_000,
+    )
+
+    wait_for_page(page)
+    ensure_linkedin_page_available(page)
+
+    click_posts_filter(page)
+
+    previous_height = 0
+
+    for _ in range(8):
+        current_height = page.evaluate(
+            "document.body.scrollHeight"
+        )
+
+        page.mouse.wheel(
+            0,
+            1_400,
+        )
+
+        page.wait_for_timeout(
+            700
+        )
+
+        if current_height == previous_height:
+            break
+
+        previous_height = current_height
+
+    page.mouse.wheel(
+        0,
+        -20_000,
+    )
+
+    page.wait_for_timeout(
+        700
+    )
+
+    cards = get_post_cards(
+        page
+    )
+
+    captions: list[str] = []
+    seen: set[str] = set()
+
+    try:
+        card_count = min(
+            cards.count(),
+            50,
+        )
+    except Exception:
+        card_count = 0
+
+    for index in range(card_count):
+        card = cards.nth(
+            index
+        )
+
+        time_text = extract_post_time_text(
+            card
+        )
+
+        if not post_is_within_last_month(
+            time_text
+        ):
+            continue
+
+        caption = extract_post_caption(
+            card
+        )
+
+        # Bỏ post ảnh/video nhưng không có caption.
+        if not caption:
+            continue
+
+        normalized = caption.casefold()
+
+        if normalized in seen:
+            continue
+
+        seen.add(
+            normalized
+        )
+
+        captions.append(
+            caption
+        )
+
+        if len(captions) >= limit:
+            break
+
+    return captions
 
 def scrape_profile_raw(
     settings: Settings,
