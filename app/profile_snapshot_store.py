@@ -1,88 +1,3 @@
-from __future__ import annotations
-
-from typing import Any
-
-from supabase import Client, create_client
-
-from app.settings import Settings
-
-
-def create_supabase_client(
-    settings: Settings,
-) -> Client:
-    return create_client(
-        settings.supabase_url,
-        settings.supabase_secret_key,
-    )
-
-
-def normalize_optional_text(
-    value: Any,
-) -> str | None:
-    if value is None:
-        return None
-
-    normalized = str(value).strip()
-
-    return normalized or None
-
-
-def normalize_recent_post_captions(
-    value: Any,
-) -> list[str]:
-    if not isinstance(value, list):
-        return []
-
-    captions: list[str] = []
-
-    for item in value:
-        caption = normalize_optional_text(
-            item
-        )
-
-        if caption is None:
-            continue
-
-        captions.append(caption)
-
-        if len(captions) >= 5:
-            break
-
-    return captions
-
-
-def build_post_caption_fields(
-    captions: list[str],
-) -> dict[str, str | None]:
-    return {
-        "post_1_caption": (
-            captions[0]
-            if len(captions) >= 1
-            else None
-        ),
-        "post_2_caption": (
-            captions[1]
-            if len(captions) >= 2
-            else None
-        ),
-        "post_3_caption": (
-            captions[2]
-            if len(captions) >= 3
-            else None
-        ),
-        "post_4_caption": (
-            captions[3]
-            if len(captions) >= 4
-            else None
-        ),
-        "post_5_caption": (
-            captions[4]
-            if len(captions) >= 5
-            else None
-        ),
-    }
-
-
 def save_profile_snapshot(
     settings: Settings,
     result: dict,
@@ -126,7 +41,6 @@ def save_profile_snapshot(
         "source_id": result["source_id"],
         "scraped_at": result["scraped_at"],
 
-        # Giữ cột cũ để tương thích schema hiện tại.
         "profile_data": profile,
 
         "name": normalize_optional_text(
@@ -192,9 +106,7 @@ def save_profile_snapshot(
             ]
         ),
 
-        # Lưu toàn bộ kết quả scraper để debug.
         "raw_profile_data": result,
-
         "errors": errors,
     }
 
@@ -207,31 +119,60 @@ def save_profile_snapshot(
         f"Name: {payload['name']}"
     )
     print(
-        f"LinkedIn URL: "
-        f"{payload['linkedin_url']}"
-    )
-    print(
-        "Experience length: "
-        f"{len(payload['experience_raw_text'] or '')}"
-    )
-    print(
         "Recent post captions: "
         f"{len(recent_post_captions)}"
     )
 
-    for index in range(1, 6):
-        field_name = (
-            f"post_{index}_caption"
+    existing_response = (
+        client.table(
+            "linkedin_profile_snapshots"
+        )
+        .select("id")
+        .eq(
+            "source_id",
+            result["source_id"],
+        )
+        .order(
+            "scraped_at",
+            desc=True,
+        )
+        .limit(1)
+        .execute()
+    )
+
+    if existing_response.data:
+        existing_row = (
+            existing_response.data[0]
         )
 
-        caption = payload[
-            field_name
-        ]
-
-        print(
-            f"{field_name}: "
-            f"{'yes' if caption else 'null'}"
+        snapshot_id = existing_row.get(
+            "id"
         )
+
+        if snapshot_id is None:
+            raise RuntimeError(
+                "Existing snapshot has no id."
+            )
+
+        response = (
+            client.table(
+                "linkedin_profile_snapshots"
+            )
+            .update(payload)
+            .eq(
+                "id",
+                snapshot_id,
+            )
+            .execute()
+        )
+
+        if not response.data:
+            raise RuntimeError(
+                "Supabase update returned "
+                "no data."
+            )
+
+        return int(snapshot_id)
 
     response = (
         client.table(
@@ -258,36 +199,3 @@ def save_profile_snapshot(
         )
 
     return int(snapshot_id)
-
-
-def mark_source_scanned(
-    settings: Settings,
-    source_id: int,
-    scanned_at: str,
-) -> None:
-    client = create_supabase_client(
-        settings
-    )
-
-    response = (
-        client.table(
-            "linkedin_sources"
-        )
-        .update(
-            {
-                "last_scanned_at": scanned_at,
-            }
-        )
-        .eq(
-            "id",
-            source_id,
-        )
-        .execute()
-    )
-
-    if not response.data:
-        raise RuntimeError(
-            "Failed to update "
-            "last_scanned_at "
-            f"for source {source_id}."
-        )
