@@ -1,3 +1,514 @@
+
+mới chạy lệnh đầu, lỗi này có quá nghiêm trọng koi
+
+
+
+
+ok nhưng có vẻ đang lấy sai mốc thơi gian thì phải, bài hiện tại đang lấy những bài từ tận 2 tháng trước thay vì bài mới nhất ?
+
+
+
+Văn bản đã dán (1)(18).txt
+Tài liệu
+
+
+
+
+ok đã có bảng supabase và đã link rồi
+
+như này là dã được chưa
+
+
+ok được rồi đó tổng hợp logic từ đầu tới cuối nhé mỗi lần cron chạy sẽ xảy ra những điều gì nhỉ
+
+
+
+THẾ thì update theo các column đang có sẵn ở đây nhé
+
+làm đang có blocker nhỉ, bỏ cái này đi kiểu gì
+
+vào chõ nào, phải bỏ policy đi không thì access sheet kiểu gì ????
+
+
+
+đây à ?
+
+
+dm kko hiểu gì cả xong làm gì tiếp ?
+
+
+
+linkedin-daily-scanner-2f94c93367e6.json
+Tệp
+ok được rồi next step đi
+
+thiếu quyền gì đây ?
+
+D
+
+
+lỗi 404
+
+ok done rồi next step 
+
+
+
+same lỗi
+
+
+
+]
+
+
+vch lại lỗi gì đây ?
+
+
+
+vẫn phải accept cookies là sao nhỉ ? file sáng nay by pass đống này như thế nào ?
+
+này là đã update real time chưa nhỉ
+
+vẫn bị cookies đây ? file đầu tiên đang làm kiểu gì nhỉ? áp dụng sang file này xem nào
+
+
+
+
+update lại logic 1 chút nhé, đây là những phần data (thô) cần extract ra từ profile của từng user 1, theo bạn thì từ đoạn demand này thì cần extract những thông tin gì --> sửa logic và flow hiện tại
+
+ồ ổn đấy vậy next step là gì, đẩy data này sang supabase à (correct tôi nếu tôi vội)
+
+
+Văn bản đã dán (1)(19).txt
+Tài liệu
+xem hộ tôi đây là raw data trả ra, giờ data sẽ trả ra dưới dạng raw như này nhỉ 
+
+
+
+Văn bản đã dán (1)(20).txt
+Tài liệu
+ output sau khi fix nhé, check xem được chưa và next step
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from app.profile_raw_scraper import (
+    OUTPUT_DIR,
+    scrape_profile_raw,
+)
+from app.profile_snapshot_store import (
+    save_profile_snapshot,
+)
+from app.settings import load_settings
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=(
+            "Scrape raw LinkedIn profile data."
+        )
+    )
+
+    parser.add_argument(
+        "--source-id",
+        type=int,
+        default=None,
+        help=(
+            "Specific linkedin_sources ID "
+            "to scrape."
+        ),
+    )
+
+    return parser.parse_args()
+
+def main() -> int:
+    try:
+        args = parse_args()
+settings = load_settings()
+
+result = scrape_profile_raw(
+    settings=settings,
+    source_id=args.source_id,
+)
+
+        OUTPUT_DIR.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        source_id = result["source_id"]
+
+        output_path = Path(
+            OUTPUT_DIR,
+            f"profile_{source_id}.json",
+        )
+
+        output_path.write_text(
+            json.dumps(
+                result,
+                ensure_ascii=False,
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        snapshot_id = save_profile_snapshot(
+            settings=settings,
+            result=result,
+        )
+
+        profile = result.get(
+            "profile",
+            {},
+        )
+
+        experience_raw_text = result.get(
+            "experience_raw_text",
+            "",
+        )
+
+        errors = result.get(
+            "errors",
+            [],
+        )
+
+        print("")
+        print(
+            "LinkedIn raw profile scrape completed."
+        )
+        print(
+            f"Source ID: {source_id}"
+        )
+        print(
+            f"Snapshot ID: {snapshot_id}"
+        )
+        print(
+            f"Name: {profile.get('name', '')}"
+        )
+        print(
+            "Headline: "
+            f"{profile.get('headline', '')}"
+        )
+        print(
+            "Location: "
+            f"{profile.get('location', '')}"
+        )
+        print(
+            "About length: "
+            f"{len(profile.get('about_text', ''))}"
+        )
+        print(
+            "Experience raw length: "
+            f"{len(experience_raw_text)}"
+        )
+        print(
+            f"Section errors: {len(errors)}"
+        )
+
+        print("")
+        print(
+            f"Output: {output_path.resolve()}"
+        )
+
+        return 0
+
+    except Exception as exc:
+        print(
+            "LinkedIn raw profile scrape failed: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+Văn bản đã dán (1)(21).txt
+Tài liệu
+
+chạy được rồi nhưng chưa đẩy data sang supabase 
+
+from __future__ import annotations
+
+from typing import Any
+
+from supabase import Client, create_client
+
+from app.settings import Settings
+
+
+def create_supabase_client(
+    settings: Settings,
+) -> Client:
+    return create_client(
+        settings.supabase_url,
+        settings.supabase_secret_key,
+    )
+
+
+def normalize_optional_text(
+    value: Any,
+) -> str | None:
+    if value is None:
+        return None
+
+    normalized = str(value).strip()
+
+    return normalized or None
+
+
+def save_profile_snapshot(
+    settings: Settings,
+    result: dict,
+) -> int:
+    client = create_supabase_client(settings)
+
+    profile = result.get(
+        "profile",
+        {},
+    )
+
+    errors = result.get(
+        "errors",
+        [],
+    )
+
+    payload = {
+        "source_id": result["source_id"],
+        "scraped_at": result["scraped_at"],
+
+        # Cột cũ vẫn gửi để tương thích schema hiện tại.
+        "profile_data": profile,
+
+        # Các cột mới đã tách riêng.
+        "name": normalize_optional_text(
+            profile.get("name")
+        ),
+        "linkedin_url": normalize_optional_text(
+            profile.get("linkedin_url")
+        ),
+        "headline": normalize_optional_text(
+            profile.get("headline")
+        ),
+        "location": normalize_optional_text(
+            profile.get("location")
+        ),
+        "followers_count_text": normalize_optional_text(
+            profile.get("followers_count_text")
+        ),
+        "connections_count_text": normalize_optional_text(
+            profile.get("connections_count_text")
+        ),
+        "about_text": normalize_optional_text(
+            profile.get("about_text")
+        ),
+        "experience_raw_text": normalize_optional_text(
+            result.get("experience_raw_text")
+        ),
+
+        # Bản raw dự phòng.
+        "raw_profile_data": profile,
+
+        "errors": errors,
+    }
+
+    print("")
+    print("Supabase snapshot payload:")
+    print(
+        f"Source ID: {payload['source_id']}"
+    )
+    print(
+        f"Name: {payload['name']}"
+    )
+    print(
+        f"LinkedIn URL: {payload['linkedin_url']}"
+    )
+    print(
+        "Experience length: "
+        f"{len(payload['experience_raw_text'] or '')}"
+    )
+
+    response = (
+        client.table(
+            "linkedin_profile_snapshots"
+        )
+        .insert(payload)
+        .execute()
+    )
+
+    if not response.data:
+        raise RuntimeError(
+            "Supabase insert returned no data."
+        )
+
+    inserted_row = response.data[0]
+
+    snapshot_id = inserted_row.get(
+        "id"
+    )
+
+    if snapshot_id is None:
+        raise RuntimeError(
+            "Inserted snapshot has no id."
+        )
+
+    return int(snapshot_id)
+
+    def mark_source_scanned(
+    settings: Settings,
+    source_id: int,
+    scanned_at: str,
+    ) -> None:
+    client = create_supabase_client(settings)
+
+    response = (
+        client.table("linkedin_sources")
+        .update(
+            {
+                "last_scanned_at": scanned_at,
+            }
+        )
+        .eq("id", source_id)
+        .execute()
+    )
+
+    if not response.data:
+        raise RuntimeError(
+            "Failed to update last_scanned_at "
+            f"for source {source_id}."
+        )
+
+
+
+
+lại sai lỗi căn dòng à 
+
+from __future__ import annotations
+
+import sys
+from datetime import datetime
+
+from app.settings import load_settings
+from app.source_sync import (
+    sync_sources_to_supabase,
+)
+from scan_unscanned_profiles import (
+    main as scan_unscanned_main,
+)
+
+
+def print_separator() -> None:
+    print("")
+    print("=" * 70)
+    print("")
+
+
+def main() -> int:
+    started_at = datetime.now()
+
+    print("")
+    print("LinkedIn daily pipeline started.")
+    print(
+        "Started at: "
+        f"{started_at.isoformat(timespec='seconds')}"
+    )
+
+    try:
+        settings = load_settings()
+
+        print_separator()
+        print("Starting: Google Sheet source sync")
+        print_separator()
+
+        sync_result = sync_sources_to_supabase(
+            settings
+        )
+
+        print("")
+        print("Completed: Google Sheet source sync")
+        print(
+            f"Sync result: {sync_result}"
+        )
+
+        print_separator()
+        print(
+            "Starting: Unscanned LinkedIn profiles"
+        )
+        print_separator()
+
+        scan_exit_code = scan_unscanned_main()
+
+        if scan_exit_code != 0:
+            raise RuntimeError(
+                "Unscanned profile scan completed "
+                f"with exit code {scan_exit_code}."
+            )
+
+        finished_at = datetime.now()
+        duration = finished_at - started_at
+
+        print_separator()
+        print("LinkedIn daily pipeline completed.")
+        print(
+            "Finished at: "
+            f"{finished_at.isoformat(timespec='seconds')}"
+        )
+        print(
+            f"Duration: {duration}"
+        )
+
+        return 0
+
+    except Exception as exc:
+        finished_at = datetime.now()
+        duration = finished_at - started_at
+
+        print_separator()
+        print(
+            "LinkedIn daily pipeline failed: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            "Finished at: "
+            f"{finished_at.isoformat(timespec='seconds')}",
+            file=sys.stderr,
+        )
+        print(
+            f"Duration: {duration}",
+            file=sys.stderr,
+        )
+
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+
+
+
+
+ cấu trúc nnay chuẩn chưa nhỉ ?
+
+tách rồi đó
+
+
+image(395).png
+image(396).png
+update lại UI dưới dạng dashboard dễ quan sát hơn đi, và hiện tại frontend chỉ tập trung vào việc show những data đã scan đưuọc thôi nhé, nên bỏ cái phần matching đi, style UI follow theo style của Supabase https://supabase.com/blog/supabase-ui-library
+
+đùa trông chán chưa, back lại style tối giản đi,  và bỏ cái phần Loading scanned profiles... có đang load cái gì đâ, focus vào phần dashboard cho t 
+
+
+Văn bản đã dán (1)(22).txt
+Tài liệu
+đùa à chưa được đâu, check lại xem nào, lõi cơ bản quá
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -87,6 +598,228 @@
               <th>Location</th>
               <th>Followers</th>
               <th>Connections</th>
+            <th>Last scan</th>
+            </tr>
+          </thead>
+          <tbody id="profileTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
+  <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div>
+        <p class="eyebrow">Profile detail</p>
+        <h2 id="drawerName">—</h2>
+      </div>
+
+      <button id="closeDrawerButton" class="close-button" type="button">
+        ×
+      </button>
+    </div>
+
+    <div id="drawerContent" class="drawer-content"></div>
+  </aside>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
+
+image(398).png
+url là phần nào nhỉ
+
+image(399).png
+
+image(400).png
+cái này là cái nào ?
+
+image(401).png
+
+image(402).png
+hiện tại đang bị thêm 1 list mới nữa, cái tôi muốn là ghi đè lên toàn bộ data hiện tại í, vì posts là data mới mà
+
+Được. Nhưng để update đúng UI hiện tại mà không làm mất logic drawer, scroll và click row, tôi cần đúng 3 file frontend đang chạy trên máy Windows:
+
+C:\Users\Admin\linkedin-daily-scanner\frontend\app.js
+C:\Users\Admin\linkedin-daily-scanner\frontend\index.html
+C:\Users\Admin\linkedin-daily-scanner\frontend\styles.css
+Gửi cả 3 file lên đây. Tôi sẽ update full để:
+
+Query thêm post_1_caption → post_5_caption
+
+Hiện số bài post trong bảng profile
+
+Thêm mục Recent Posts trong drawer chi tiết
+
+Chỉ hiện caption có dữ liệu, tự ẩn ô NULL
+
+Giữ nguyên toàn bộ logic click row, đóng drawer và scroll hiện tại
+
+Không nên sửa dựa trên bản cũ vì README xác nhận frontend local hiện tại mới là source of truth; bản trước đó chỉ là gói ổn định tại một thời điểm. 
+
+
+
+
+styles.css
+Tệp
+
+app.js
+JavaScript
+
+index (2).html
+Tệp
+
+
+
+styles.css
+Tệp
+
+app.js
+JavaScript
+
+index (2).html
+Tệp
+đây
+
+Đã update đủ 3 file để UI đọc và hiển thị post_1_caption đến post_5_caption.
+
+Các thay đổi chính:
+
+Thêm cột Posts trong bảng.
+
+Hiện số post của từng profile.
+
+Thêm phần Recent posts trong drawer chi tiết.
+
+Tự ẩn các post đang NULL.
+
+Search được cả nội dung post.
+
+Giữ nguyên cấu trúc drawer hiện tại; CSS gốc dùng biến màu và layout dark hiện có. 
+
+
+Query Supabase cũ đã được mở rộng từ nhóm field profile hiện tại. 
+
+
+Table HTML cũ đã được thêm cột Posts ngay trước Last scan. 
+
+
+Tải 3 file rồi thay vào folder:
+
+C:\Users\Admin\linkedin-daily-scanner\frontend
+app.js
+
+styles.css
+
+index.html
+
+Sau khi replace, chạy frontend:
+
+cd C:\Users\Admin\linkedin-daily-scanner\frontend
+python -m http.server 8080
+Mở:
+
+http://localhost:8080
+Sau đó nhấn:
+
+Ctrl + F5
+để tránh browser dùng lại JS/CSS cũ. 
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>LinkedIn Scanner Dashboard</title>
+  <link rel="stylesheet" href="./styles.css?v=2" />
+</head>
+<body>
+  <main class="dashboard-shell">
+    <header class="dashboard-header">
+      <div>
+        <p class="eyebrow">LinkedIn Scanner</p>
+        <h1>Profile Dashboard</h1>
+        <p class="subtitle">Dữ liệu profile đã scan từ Supabase.</p>
+      </div>
+
+      <button id="refreshButton" class="refresh-button" type="button">
+        Làm mới
+      </button>
+    </header>
+
+    <section class="stats-grid" aria-label="Tổng quan">
+      <article class="stat-card">
+        <span>Tổng profile</span>
+        <strong id="totalProfiles">—</strong>
+        <small>Snapshot mới nhất mỗi source</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Scan hôm nay</span>
+        <strong id="scannedToday">—</strong>
+        <small>Theo múi giờ local</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Đủ dữ liệu chính</span>
+        <strong id="completeProfiles">—</strong>
+        <small>Có tên, headline, location</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Cập nhật gần nhất</span>
+        <strong id="lastUpdated">—</strong>
+        <small>Snapshot mới nhất</small>
+      </article>
+    </section>
+
+    <section class="data-panel">
+      <div class="panel-toolbar">
+        <div>
+          <h2>Profiles đã scan</h2>
+          <p id="resultSummary">—</p>
+        </div>
+
+        <div class="toolbar-actions">
+          <label class="search-field">
+            <span>⌕</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Tìm tên, headline, location, post"
+              autocomplete="off"
+            />
+          </label>
+
+          <select id="sortSelect" aria-label="Sắp xếp">
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="name">Tên A–Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="errorState" class="state state-error" hidden></div>
+
+      <div id="emptyState" class="state" hidden>
+        Không có profile đã scan.
+      </div>
+
+      <div id="tableWrap" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Location</th>
+              <th>Followers</th>
+              <th>Connections</th>
+              <th>Posts</th>
               <th>Last scan</th>
               <th></th>
             </tr>
@@ -116,6 +849,140 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=2"></script>
+</body>
+</html>
+
+index.html
+
+
+
+
+
+index.html
+
+
+
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark" />
+  <title>LinkedIn Scanner Dashboard</title>
+  <link rel="stylesheet" href="./styles.css?v=2" />
+</head>
+<body>
+  <main class="dashboard-shell">
+    <header class="dashboard-header">
+      <div>
+        <p class="eyebrow">LinkedIn Scanner</p>
+        <h1>Profile Dashboard</h1>
+        <p class="subtitle">Dữ liệu profile đã scan từ Supabase.</p>
+      </div>
+
+      <button id="refreshButton" class="refresh-button" type="button">
+        Làm mới
+      </button>
+    </header>
+
+    <section class="stats-grid" aria-label="Tổng quan">
+      <article class="stat-card">
+        <span>Tổng profile</span>
+        <strong id="totalProfiles">—</strong>
+        <small>Snapshot mới nhất mỗi source</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Scan hôm nay</span>
+        <strong id="scannedToday">—</strong>
+        <small>Theo múi giờ local</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Đủ dữ liệu chính</span>
+        <strong id="completeProfiles">—</strong>
+        <small>Có tên, headline, location</small>
+      </article>
+
+      <article class="stat-card">
+        <span>Cập nhật gần nhất</span>
+        <strong id="lastUpdated">—</strong>
+        <small>Snapshot mới nhất</small>
+      </article>
+    </section>
+
+    <section class="data-panel">
+      <div class="panel-toolbar">
+        <div>
+          <h2>Profiles đã scan</h2>
+          <p id="resultSummary">—</p>
+        </div>
+
+        <div class="toolbar-actions">
+          <label class="search-field">
+            <span>⌕</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Tìm tên, headline, location, post"
+              autocomplete="off"
+            />
+          </label>
+
+          <select id="sortSelect" aria-label="Sắp xếp">
+            <option value="newest">Mới nhất</option>
+            <option value="oldest">Cũ nhất</option>
+            <option value="name">Tên A–Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="errorState" class="state state-error" hidden></div>
+
+      <div id="emptyState" class="state" hidden>
+        Không có profile đã scan.
+      </div>
+
+      <div id="tableWrap" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>Profile</th>
+              <th>Location</th>
+              <th>Followers</th>
+              <th>Connections</th>
+              <th>Posts</th>
+              <th>Last scan</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="profileTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
+
+  <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
+    <div class="drawer-header">
+      <div>
+        <p class="eyebrow">Profile detail</p>
+        <h2 id="drawerName">—</h2>
+      </div>
+
+      <button id="closeDrawerButton" class="close-button" type="button">
+        ×
+      </button>
+    </div>
+
+    <div id="drawerContent" class="drawer-content"></div>
+  </aside>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js?v=2"></script>
 </body>
 </html>
