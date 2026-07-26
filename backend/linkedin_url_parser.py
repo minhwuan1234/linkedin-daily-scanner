@@ -11,50 +11,52 @@ LINKEDIN_URL_PATTERN = re.compile(
 
 def normalize_linkedin_url(raw_url: str) -> str | None:
     """
-    Chuẩn hóa LinkedIn profile/company URL.
+    Chuẩn hóa LinkedIn profile hoặc company URL.
 
     Ví dụ:
-    https://linkedin.com/in/tony?trk=test
-    ->
-    https://www.linkedin.com/in/tony/
+    https://linkedin.com/in/example?trk=abc
+
+    Thành:
+    https://www.linkedin.com/in/example/
     """
     cleaned_url = raw_url.strip().rstrip(
         ".,;:!?)]}>\"'"
     )
 
     try:
-        parts = urlsplit(cleaned_url)
+        parsed_url = urlsplit(cleaned_url)
     except ValueError:
         return None
 
-    hostname = (parts.hostname or "").lower()
+    hostname = (parsed_url.hostname or "").lower()
 
-    if not (
+    valid_hostname = (
         hostname == "linkedin.com"
         or hostname.endswith(".linkedin.com")
-    ):
+    )
+
+    if not valid_hostname:
         return None
 
     path_parts = [
-        part
-        for part in parts.path.split("/")
-        if part
+        part.strip()
+        for part in parsed_url.path.split("/")
+        if part.strip()
     ]
 
     if len(path_parts) < 2:
         return None
 
-    source_type = path_parts[0].lower()
+    linkedin_type = path_parts[0].lower()
+    slug = path_parts[1]
 
-    if source_type not in {"in", "company"}:
+    if linkedin_type not in {"in", "company"}:
         return None
-
-    slug = path_parts[1].strip()
 
     if not slug:
         return None
 
-    normalized_path = f"/{source_type}/{slug}/"
+    normalized_path = f"/{linkedin_type}/{slug}/"
 
     return urlunsplit(
         (
@@ -69,12 +71,12 @@ def normalize_linkedin_url(raw_url: str) -> str | None:
 
 def extract_linkedin_urls(text: str) -> list[str]:
     """
-    Tìm tất cả LinkedIn profile/company URL trong text,
-    chuẩn hóa và loại URL trùng.
+    Tách, chuẩn hóa và loại bỏ LinkedIn URL trùng nhau.
+    Giữ nguyên thứ tự URL xuất hiện trong tin nhắn.
     """
     matches = LINKEDIN_URL_PATTERN.findall(text or "")
 
-    results: list[str] = []
+    urls: list[str] = []
     seen: set[str] = set()
 
     for raw_url in matches:
@@ -87,14 +89,14 @@ def extract_linkedin_urls(text: str) -> list[str]:
             continue
 
         seen.add(normalized_url)
-        results.append(normalized_url)
+        urls.append(normalized_url)
 
-    return results
+    return urls
 
 
 def detect_linkedin_source_type(url: str) -> str | None:
     """
-    Trả về profile hoặc company.
+    Xác định URL là profile hay company.
     """
     path = urlsplit(url).path.lower()
 
