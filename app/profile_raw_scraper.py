@@ -7,19 +7,18 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from playwright.sync_api import (
-    BrowserContext,
     Locator,
     Page,
     TimeoutError as PlaywrightTimeoutError,
-    sync_playwright,
 )
 
 from app.linkedin_scanner import (
-    LINKEDIN_PROFILE_DIR,
     get_enabled_source_by_id,
     get_one_enabled_source,
     is_blocked_linkedin_url,
 )
+from app.linkedin_browser import LinkedInBrowserManager
+from app.post_scraper import scan_recent_post_captions
 from app.settings import Settings
 
 OUTPUT_DIR = Path("output")
@@ -1705,7 +1704,20 @@ def scrape_recent_post_captions(
 def scrape_profile_raw(
     settings: Settings,
     source_id: int | None = None,
+    browser: LinkedInBrowserManager | None = None,
 ) -> dict[str, Any]:
+    """
+    Scrape một LinkedIn profile bằng browser persistent dùng chung.
+
+    Browser lifecycle:
+    - Nếu caller truyền LinkedInBrowserManager vào, hàm tái sử dụng browser đó.
+    - Hàm không đóng browser sau khi scan.
+    - Worker bên ngoài sẽ chịu trách nhiệm đóng browser khi worker dừng.
+
+    Post logic:
+    - Chỉ lấy tối đa N caption gần nhất.
+    - Không lấy reaction, comment, repost hoặc post URL.
+    """
     if source_id is None:
         source = get_one_enabled_source(settings)
     else:
@@ -1713,133 +1725,130 @@ def scrape_profile_raw(
             settings=settings,
             source_id=source_id,
         )
-        
-    if not source:
-        raise RuntimeError("No enabled LinkedIn source found.")
 
-    if not LINKEDIN_PROFILE_DIR.exists():
+    if not source:
         raise RuntimeError(
-            "LinkedIn browser profile does not exist. "
-            "Run create_linkedin_session.py first."
+            "No enabled LinkedIn source found."
         )
 
-    source_id = int(source["id"])
+    resolved_source_id = int(source["id"])
     profile_url = str(source["linkedin_url"])
 
     errors: list[dict[str, str]] = []
 
-    with sync_playwright() as playwright:
-        context: BrowserContext = (
-            playwright.chromium.launch_persistent_context(
-                user_data_dir=str(LINKEDIN_PROFILE_DIR.resolve()),
-                headless=False,
-                viewport={
-                    "width": 1440,
-                    "height": 1000,
-                },
-                locale="en-US",
-                timezone_id="Asia/Ho_Chi_Minh",
+    browser_manager = (
+        browser
+        if browser is not None
+        else LinkedInBrowserManager()
+    )
+
+    browser_manager.start()
+    page = browser_manager.ensure_page()
+
+    profile: dict[str, Any] = {}
+
+    try:
+        profile = scrape_profile_overview(
+            page,
+            profile_url,
+        )
+    except Exception as exc:
+        errors.append(
+            {
+                "section": "profile_overview",
+                "message": (
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            }
+        )
+
+    try:
+        profile["about_text"] = scrape_about(
+            page
+        )
+    except Exception as exc:
+        profile["about_text"] = ""
+
+        errors.append(
+            {
+                "section": "about",
+                "message": (
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            }
+        )
+
+    try:
+        experience_raw_text = (
+            scrape_experience_raw_text(
+                page,
+                profile_url,
             )
         )
 
-        page = context.pages[0] if context.pages else context.new_page()
+        if not experience_raw_text:
+            errors.append(
+                {
+                    "section": "experience",
+                    "message": (
+                        "Experience page returned "
+                        "no usable text."
+                    ),
+                }
+            )
 
-        try:
-            profile: dict[str, Any] = {}
+    except Exception as exc:
+        experience_raw_text = ""
 
-            try:
-                profile = scrape_profile_overview(
-                    page,
-                    profile_url,
-                )
-            except Exception as exc:
-                errors.append(
-                    {
-                        "section": "profile_overview",
-                        "message": (f"{type(exc).__name__}: " f"{exc}"),
-                    }
-                )
-
-            try:
-                profile["about_text"] = scrape_about(page)
-            except Exception as exc:
-                profile["about_text"] = ""
-
-                errors.append(
-                    {
-                        "section": "about",
-                        "message": (f"{type(exc).__name__}: " f"{exc}"),
-                    }
-                )
-                
-            try:
-                experience_raw_text = (
-                    scrape_experience_raw_text(
-                        page,
-                        profile_url,
-                    )
-                )
-
-                if not experience_raw_text:
-                    errors.append(
-                        {
-                            "section": "experience",
-                            "message": (
-                                "Experience page returned "
-                                "no usable text."
-                            ),
-                        }
-                    )
-
-            except Exception as exc:
-                experience_raw_text = ""
-
-                errors.append(
-                    {
-                        "section": "experience",
-                        "message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
-                    }
-                )
-
-            try:
-                recent_post_captions = (
-                    scrape_recent_post_captions(
-                        page=page,
-                        profile_url=profile_url,
-                        limit=POST_LIMIT,
-                    )
-                )
-
-            except Exception as exc:
-                recent_post_captions = []
-
-                errors.append(
-                    {
-                        "section": "recent_posts",
-                        "message": (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
-                    }
-                )
-
-            return {
-                "source_id": source_id,
-                "scraped_at": datetime.now(
-                    timezone.utc
-                ).isoformat(),
-                "profile": profile,
-                "experience_raw_text": (
-                    experience_raw_text
+        errors.append(
+            {
+                "section": "experience",
+                "message": (
+                    f"{type(exc).__name__}: {exc}"
                 ),
-                "recent_post_captions": (
-                    recent_post_captions
-                ),
-                "errors": errors,
             }
+        )
 
-        finally:
-            context.close()
+    try:
+        recent_post_captions = (
+            scan_recent_post_captions(
+                browser=browser_manager,
+                profile_url=profile_url,
+            )
+        )
+
+    except Exception as exc:
+        recent_post_captions = []
+
+        errors.append(
+            {
+                "section": "recent_posts",
+                "message": (
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            }
+        )
+
+    return {
+        "source_id": resolved_source_id,
+        "scraped_at": datetime.now(
+            timezone.utc
+        ).isoformat(),
+        "profile": profile,
+        "experience_raw_text": (
+            experience_raw_text
+        ),
+        "recent_post_captions": (
+            recent_post_captions
+        ),
+        "raw_profile_data": {
+            "profile": profile,
+            "experience_raw_text": (
+                experience_raw_text
+            ),
+            "recent_post_captions": (
+                recent_post_captions
+            ),
+        },
+        "errors": errors,
+    }
