@@ -7,6 +7,11 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from backend.linkedin_url_parser import (
+    detect_linkedin_source_type,
+    extract_linkedin_urls,
+)
+
 
 # =========================================================
 # LOGGING
@@ -40,7 +45,7 @@ LARK_ENCRYPT_KEY = os.getenv("LARK_ENCRYPT_KEY", "").strip()
 app = FastAPI(
     title="LinkedIn Daily Scanner API",
     description="Railway backend for Lark webhook and LinkedIn scan jobs.",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -58,12 +63,6 @@ def root() -> dict[str, str]:
 
 @app.get("/health")
 def health_check() -> dict[str, Any]:
-    """
-    Kiểm tra Railway backend có đang hoạt động không.
-
-    Chỉ trả true/false cho cấu hình Lark,
-    không trả secret thật ra ngoài.
-    """
     return {
         "status": "ok",
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -87,24 +86,25 @@ async def receive_lark_event(
     request: Request,
 ) -> JSONResponse:
     """
-    Nhận event từ Lark.
+    Nhận event từ Lark và tách LinkedIn URL từ text message.
 
-    Hiện tại endpoint này thực hiện:
-    1. Nhận JSON payload.
-    2. Log toàn bộ payload trên Railway.
-    3. Trả challenge khi Lark verify webhook.
-    4. Nhận event im.message.receive_v1.
-    5. Lấy open_id, message_id, chat_id và nội dung text.
-    6. Trả HTTP 200 cho Lark.
+    Step 3:
+    - Nhận event.
+    - Trả URL verification challenge.
+    - Lấy open_id, message_id, chat_id.
+    - Parse nội dung text.
+    - Tách LinkedIn URL.
+    - Chuẩn hóa URL.
+    - Loại URL trùng.
 
     Chưa:
-    - Chạy LinkedIn scraper.
     - Ghi job vào Supabase.
-    - Gửi tin nhắn trả lại user.
+    - Chạy LinkedIn scraper.
+    - Gửi kết quả về Lark.
     """
 
     # -----------------------------------------------------
-    # 1. ĐỌC REQUEST JSON
+    # 1. ĐỌC PAYLOAD
     # -----------------------------------------------------
 
     try:
@@ -120,10 +120,6 @@ async def receive_lark_event(
             },
         )
 
-    # -----------------------------------------------------
-    # 2. LOG TOÀN BỘ PAYLOAD
-    # -----------------------------------------------------
-
     logger.info(
         "LARK EVENT RECEIVED:\n%s",
         json.dumps(
@@ -134,17 +130,13 @@ async def receive_lark_event(
     )
 
     # -----------------------------------------------------
-    # 3. XỬ LÝ URL VERIFICATION
+    # 2. URL VERIFICATION
     # -----------------------------------------------------
 
     if payload.get("type") == "url_verification":
         challenge = payload.get("challenge")
 
         if not challenge:
-            logger.warning(
-                "Lark URL verification request has no challenge"
-            )
-
             return JSONResponse(
                 status_code=400,
                 content={
@@ -161,7 +153,7 @@ async def receive_lark_event(
             and incoming_token != LARK_VERIFICATION_TOKEN
         ):
             logger.warning(
-                "Invalid Lark verification token during URL verification"
+                "Invalid Lark verification token"
             )
 
             return JSONResponse(
@@ -172,9 +164,7 @@ async def receive_lark_event(
                 },
             )
 
-        logger.info(
-            "Lark URL verification successful"
-        )
+        logger.info("Lark URL verification successful")
 
         return JSONResponse(
             status_code=200,
@@ -184,21 +174,15 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 4. XÁC ĐỊNH EVENT TYPE
+    # 3. KIỂM TRA EVENT TYPE
     # -----------------------------------------------------
 
     header = payload.get("header") or {}
     event_type = header.get("event_type")
 
-    logger.info(
-        "Lark event type: %s",
-        event_type or "unknown",
-    )
-
-    # Bỏ qua các event chưa được support.
     if event_type != "im.message.receive_v1":
         logger.info(
-            "Ignored unsupported Lark event: %s",
+            "Ignored unsupported event: %s",
             event_type,
         )
 
@@ -212,7 +196,7 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 5. LẤY EVENT DATA
+    # 4. LẤY MESSAGE DATA
     # -----------------------------------------------------
 
     event = payload.get("event") or {}
@@ -228,12 +212,12 @@ async def receive_lark_event(
     message_type = message.get("message_type")
 
     # -----------------------------------------------------
-    # 6. BỎ QUA MESSAGE KHÔNG PHẢI TỪ USER
+    # 5. BỎ QUA EVENT KHÔNG PHẢI USER
     # -----------------------------------------------------
 
     if sender_type and sender_type != "user":
         logger.info(
-            "Ignored message from non-user sender: %s",
+            "Ignored sender type: %s",
             sender_type,
         )
 
@@ -247,12 +231,12 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 7. CHỈ XỬ LÝ TEXT MESSAGE
+    # 6. CHỈ NHẬN TEXT MESSAGE
     # -----------------------------------------------------
 
     if message_type != "text":
         logger.info(
-            "Ignored unsupported message type: %s",
+            "Ignored message type: %s",
             message_type,
         )
 
@@ -262,12 +246,11 @@ async def receive_lark_event(
                 "ok": True,
                 "ignored": True,
                 "reason": "unsupported_message_type",
-                "message_type": message_type,
             },
         )
 
     # -----------------------------------------------------
-    # 8. PARSE NỘI DUNG TEXT
+    # 7. PARSE TEXT
     # -----------------------------------------------------
 
     raw_content = message.get("content") or "{}"
@@ -283,27 +266,46 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 9. LOG MESSAGE ĐÃ PARSE
+    # 8. TÁCH LINKEDIN URL
+    # -----------------------------------------------------
+
+    linkedin_urls = extract_linkedin_urls(text)
+
+    url_results = [
+        {
+            "url": url,
+            "source_type": detect_linkedin_source_type(url),
+        }
+        for url in linkedin_urls
+    ]
+
+    # -----------------------------------------------------
+    # 9. LOG KẾT QUẢ
     # -----------------------------------------------------
 
     logger.info(
         (
-            "LARK MESSAGE RECEIVED | "
+            "LARK MESSAGE PARSED | "
             "open_id=%s | "
             "message_id=%s | "
             "chat_id=%s | "
             "chat_type=%s | "
-            "text=%r"
+            "url_count=%s | "
+            "urls=%s"
         ),
         open_id,
         message_id,
         chat_id,
         chat_type,
-        text,
+        len(linkedin_urls),
+        json.dumps(
+            url_results,
+            ensure_ascii=False,
+        ),
     )
 
     # -----------------------------------------------------
-    # 10. RESPONSE CHO LARK
+    # 10. RESPONSE
     # -----------------------------------------------------
 
     return JSONResponse(
@@ -316,5 +318,7 @@ async def receive_lark_event(
             "open_id": open_id,
             "chat_id": chat_id,
             "text": text,
+            "url_count": len(linkedin_urls),
+            "urls": url_results,
         },
     )
