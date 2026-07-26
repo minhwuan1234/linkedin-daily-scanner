@@ -2,6 +2,7 @@ import logging
 import os
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 from supabase import Client, create_client
 
@@ -35,7 +36,7 @@ class SourceInsertResult:
 
 def get_supabase_client() -> Client:
     """
-    Tạo Supabase client dùng cho Railway backend.
+    Tạo Supabase client dành cho Railway backend.
     """
     if not SUPABASE_URL:
         raise RuntimeError(
@@ -53,15 +54,65 @@ def get_supabase_client() -> Client:
     )
 
 
+def get_source_metadata_from_url(
+    linkedin_url: str,
+) -> dict[str, str]:
+    """
+    Tạo dữ liệu tối thiểu bắt buộc từ LinkedIn URL.
+
+    Ví dụ:
+    https://www.linkedin.com/in/test-user/
+    ->
+    {
+        "name": "test-user",
+        "source_type": "profile"
+    }
+
+    Giá trị name chỉ là placeholder kỹ thuật.
+    Scraper sẽ update name thật sau.
+    """
+    parsed_url = urlsplit(linkedin_url)
+
+    path_parts = [
+        unquote(part).strip()
+        for part in parsed_url.path.split("/")
+        if part.strip()
+    ]
+
+    if len(path_parts) < 2:
+        raise ValueError(
+            f"Invalid LinkedIn URL: {linkedin_url}"
+        )
+
+    linkedin_path_type = path_parts[0].lower()
+    slug = path_parts[1].strip()
+
+    if not slug:
+        raise ValueError(
+            f"LinkedIn URL has no slug: {linkedin_url}"
+        )
+
+    if linkedin_path_type == "in":
+        source_type = "profile"
+    elif linkedin_path_type == "company":
+        source_type = "company"
+    else:
+        raise ValueError(
+            f"Unsupported LinkedIn URL type: {linkedin_url}"
+        )
+
+    return {
+        "name": slug,
+        "source_type": source_type,
+    }
+
+
 def find_existing_urls(
     client: Client,
     urls: list[str],
 ) -> set[str]:
     """
     Kiểm tra URL nào đã tồn tại trong linkedin_sources.
-
-    Query từng URL để không phụ thuộc cú pháp IN filter
-    hoặc unique constraint hiện tại của database.
     """
     existing_urls: set[str] = set()
 
@@ -85,18 +136,16 @@ def insert_new_linkedin_urls(
     urls: list[str],
 ) -> SourceInsertResult:
     """
-    Chỉ insert các LinkedIn URL chưa tồn tại.
+    Insert các LinkedIn URL chưa tồn tại.
 
-    Payload chỉ chứa:
-        linkedin_url
+    Vì bảng linkedin_sources bắt buộc cột name,
+    payload sẽ gồm:
 
-    Không update:
-        email_1
-        email_2
-        role
-        company
-        source_type
-        hoặc bất kỳ cột nào khác.
+    - linkedin_url
+    - name: tạm lấy từ slug URL
+    - source_type: profile hoặc company
+
+    Không update hoặc ghi đè các row đã tồn tại.
     """
     cleaned_urls: list[str] = []
     seen: set[str] = set()
@@ -143,12 +192,23 @@ def insert_new_linkedin_urls(
             existing_urls=sorted(existing_urls),
         )
 
-    payloads = [
-        {
-            URL_COLUMN: url,
-        }
-        for url in new_urls
-    ]
+    payloads: list[dict[str, Any]] = []
+
+    for url in new_urls:
+        metadata = get_source_metadata_from_url(url)
+
+        payloads.append(
+            {
+                "linkedin_url": url,
+                "name": metadata["name"],
+                "source_type": metadata["source_type"],
+            }
+        )
+
+    logger.info(
+        "Preparing LinkedIn source payloads: %s",
+        payloads,
+    )
 
     response = (
         client
