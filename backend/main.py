@@ -8,7 +8,9 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from backend.linkedin_url_parser import (
-    extract_linkedin_urls,
+    LinkedInUrlLimitError,
+    extract_linkedin_urls_with_limit,
+    get_max_urls_per_request,
 )
 from backend.supabase_sources import (
     insert_new_linkedin_urls,
@@ -74,7 +76,7 @@ app = FastAPI(
         "Railway backend for receiving LinkedIn URLs "
         "from Lark and storing them in Supabase."
     ),
-    version="0.4.0",
+    version="0.5.0",
 )
 
 
@@ -136,12 +138,13 @@ async def receive_lark_event(
     2. Lấy nội dung text.
     3. Tách LinkedIn URL.
     4. Chuẩn hóa và loại URL trùng.
-    5. Thêm URL chưa tồn tại vào:
+    5. Reject toàn bộ request nếu vượt gateway.
+    6. Thêm URL chưa tồn tại vào:
        public.linkedin_sources.linkedin_url
 
     Chưa thực hiện:
-    - Chạy LinkedIn scraper.
-    - Gửi phản hồi về Lark.
+    - Chạy LinkedIn scraper trên Railway.
+    - Gửi outbound message phản hồi về Lark.
     - Update các cột dữ liệu profile.
     """
 
@@ -310,10 +313,74 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 7. EXTRACT LINKEDIN URLS
+    # 7. EXTRACT LINKEDIN URLS + APPLY GATEWAY
     # -----------------------------------------------------
 
-    linkedin_urls = extract_linkedin_urls(text)
+    try:
+        max_urls_per_request = (
+            get_max_urls_per_request()
+        )
+
+        linkedin_urls = (
+            extract_linkedin_urls_with_limit(
+                text
+            )
+        )
+
+    except LinkedInUrlLimitError as exc:
+        logger.warning(
+            (
+                "LINKEDIN URL REQUEST REJECTED | "
+                "open_id=%s | "
+                "message_id=%s | "
+                "found_count=%s | "
+                "max_count=%s"
+            ),
+            open_id,
+            message_id,
+            exc.found_count,
+            exc.max_count,
+        )
+
+        # Trả HTTP 200 để Lark không retry cùng một event.
+        # Request bị reject toàn bộ trước bước Supabase insert.
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": False,
+                "message_received": True,
+                "urls_inserted": False,
+                "reason": (
+                    "linkedin_url_limit_exceeded"
+                ),
+                "message_id": message_id,
+                "open_id": open_id,
+                "found_count": exc.found_count,
+                "max_count": exc.max_count,
+                "error": (
+                    "Too many LinkedIn URLs in "
+                    "one message."
+                ),
+            },
+        )
+
+    except ValueError as exc:
+        logger.exception(
+            "Invalid LinkedIn URL gateway configuration"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "message_received": True,
+                "urls_inserted": False,
+                "reason": (
+                    "invalid_url_gateway_configuration"
+                ),
+                "error": str(exc),
+            },
+        )
 
     logger.info(
         (
@@ -323,6 +390,7 @@ async def receive_lark_event(
             "chat_id=%s | "
             "chat_type=%s | "
             "url_count=%s | "
+            "max_urls_per_request=%s | "
             "urls=%s"
         ),
         open_id,
@@ -330,6 +398,7 @@ async def receive_lark_event(
         chat_id,
         chat_type,
         len(linkedin_urls),
+        max_urls_per_request,
         json.dumps(
             linkedin_urls,
             ensure_ascii=False,
@@ -349,6 +418,9 @@ async def receive_lark_event(
                 "message_id": message_id,
                 "open_id": open_id,
                 "url_count": 0,
+                "max_urls_per_request": (
+                    max_urls_per_request
+                ),
             },
         )
 
@@ -415,6 +487,9 @@ async def receive_lark_event(
             "open_id": open_id,
             "received_url_count": len(
                 linkedin_urls
+            ),
+            "max_urls_per_request": (
+                max_urls_per_request
             ),
             "inserted_count": (
                 result.inserted_count
