@@ -9,6 +9,7 @@ from app.settings import Settings
 
 SNAPSHOT_TABLE = "linkedin_profile_snapshots"
 SOURCE_TABLE = "linkedin_sources"
+POST_CAPTION_LIMIT = 5
 
 
 def _as_text(value: Any) -> str | None:
@@ -45,43 +46,115 @@ def _as_list(value: Any) -> list[Any]:
     return []
 
 
-def _extract_post_caption(
-    posts: list[Any],
+def _normalize_post_captions(
+    value: Any,
+) -> list[str]:
+    """
+    Chuẩn hóa danh sách caption.
+
+    Chỉ giữ:
+    - caption dạng string hợp lệ
+    - tối đa 5 caption
+    - không giữ caption rỗng
+    - không giữ caption trùng nhau
+
+    Không dùng AI để suy luận hoặc tạo caption.
+    """
+    raw_items = _as_list(value)
+
+    captions: list[str] = []
+    seen: set[str] = set()
+
+    for item in raw_items:
+        caption: str | None = None
+
+        if isinstance(item, str):
+            caption = _as_text(item)
+
+        elif isinstance(item, dict):
+            for key in (
+                "caption",
+                "text",
+                "content",
+                "post_text",
+                "description",
+            ):
+                caption = _as_text(
+                    item.get(key)
+                )
+
+                if caption:
+                    break
+
+        if not caption:
+            continue
+
+        normalized = caption.casefold()
+
+        if normalized in seen:
+            continue
+
+        seen.add(normalized)
+        captions.append(caption)
+
+        if len(captions) >= POST_CAPTION_LIMIT:
+            break
+
+    return captions
+
+
+def _get_post_caption(
+    captions: list[str],
     index: int,
 ) -> str | None:
     """
-    Lấy caption của post theo vị trí.
+    Lấy caption theo vị trí.
 
-    Hỗ trợ cả hai dạng:
-    - post là string
-    - post là dictionary
+    Trả None nếu không có caption tương ứng.
     """
-    if index >= len(posts):
+    if index < 0:
         return None
 
-    post = posts[index]
-
-    if isinstance(post, str):
-        return _as_text(post)
-
-    if not isinstance(post, dict):
+    if index >= len(captions):
         return None
 
-    possible_keys = (
-        "caption",
-        "text",
-        "content",
-        "post_text",
-        "description",
+    return _as_text(captions[index])
+
+
+def _extract_recent_post_captions(
+    *,
+    result: dict[str, Any],
+    profile: dict[str, Any],
+    raw_profile_data: dict[str, Any],
+) -> list[str]:
+    """
+    Lấy recent post captions theo thứ tự ưu tiên.
+
+    Output mới của profile_raw_scraper:
+        result["recent_post_captions"]
+
+    Các fallback được giữ lại để tương thích dữ liệu cũ.
+    """
+    candidates = (
+        result.get("recent_post_captions"),
+        result.get("posts"),
+        profile.get("recent_post_captions"),
+        profile.get("recent_posts"),
+        raw_profile_data.get(
+            "recent_post_captions"
+        ),
+        raw_profile_data.get("posts"),
     )
 
-    for key in possible_keys:
-        value = _as_text(post.get(key))
+    for candidate in candidates:
+        captions = _normalize_post_captions(
+            candidate
+        )
 
-        if value:
-            return value
+        if captions:
+            return captions
 
-    return None
+    return []
 
 
 def build_snapshot_payload(
@@ -103,14 +176,19 @@ def build_snapshot_payload(
 
     source_id = int(source_id_raw)
 
-    scraped_at = _as_text(result.get("scraped_at"))
+    scraped_at = _as_text(
+        result.get("scraped_at")
+    )
 
     if not scraped_at:
         raise ValueError(
             "Scrape result is missing scraped_at"
         )
 
-    profile = _as_dict(result.get("profile"))
+    profile = _as_dict(
+        result.get("profile")
+    )
+
     raw_profile_data = _as_dict(
         result.get("raw_profile_data")
     )
@@ -120,38 +198,54 @@ def build_snapshot_payload(
             result.get("profile_data")
         )
 
-    posts = _as_list(result.get("posts"))
-
-    if not posts:
-        posts = _as_list(
-            profile.get("recent_posts")
+    recent_post_captions = (
+        _extract_recent_post_captions(
+            result=result,
+            profile=profile,
+            raw_profile_data=(
+                raw_profile_data
+            ),
         )
+    )
 
-    if not posts:
-        posts = _as_list(
-            raw_profile_data.get("posts")
-        )
-
-    errors = _as_list(result.get("errors"))
-
-    profile_data = {
-        "profile": profile,
-        "posts": posts,
-    }
+    errors = _as_list(
+        result.get("errors")
+    )
 
     experience_raw_text = _as_text(
         result.get("experience_raw_text")
     )
 
+    if not experience_raw_text:
+        experience_raw_text = _as_text(
+            raw_profile_data.get(
+                "experience_raw_text"
+            )
+        )
+
     linkedin_url = (
-        _as_text(profile.get("linkedin_url"))
-        or _as_text(result.get("linkedin_url"))
-        or _as_text(raw_profile_data.get("linkedin_url"))
+        _as_text(
+            profile.get("linkedin_url")
+        )
+        or _as_text(
+            result.get("linkedin_url")
+        )
+        or _as_text(
+            raw_profile_data.get(
+                "linkedin_url"
+            )
+        )
     )
 
     followers_count_text = (
-        _as_text(profile.get("followers_count_text"))
-        or _as_text(profile.get("followers"))
+        _as_text(
+            profile.get(
+                "followers_count_text"
+            )
+        )
+        or _as_text(
+            profile.get("followers")
+        )
         or _as_text(
             raw_profile_data.get(
                 "followers_count_text"
@@ -160,8 +254,14 @@ def build_snapshot_payload(
     )
 
     connections_count_text = (
-        _as_text(profile.get("connections_count_text"))
-        or _as_text(profile.get("connections"))
+        _as_text(
+            profile.get(
+                "connections_count_text"
+            )
+        )
+        or _as_text(
+            profile.get("connections")
+        )
         or _as_text(
             raw_profile_data.get(
                 "connections_count_text"
@@ -169,56 +269,118 @@ def build_snapshot_payload(
         )
     )
 
+    profile_data: dict[str, Any] = {
+        "profile": profile,
+        "experience_raw_text": (
+            experience_raw_text
+        ),
+        "recent_post_captions": (
+            recent_post_captions
+        ),
+    }
+
+    normalized_raw_profile_data = {
+        **raw_profile_data,
+        "profile": (
+            raw_profile_data.get("profile")
+            or profile
+        ),
+        "experience_raw_text": (
+            raw_profile_data.get(
+                "experience_raw_text"
+            )
+            or experience_raw_text
+        ),
+        "recent_post_captions": (
+            raw_profile_data.get(
+                "recent_post_captions"
+            )
+            or recent_post_captions
+        ),
+    }
+
     payload: dict[str, Any] = {
         "source_id": source_id,
         "scraped_at": scraped_at,
         "profile_data": profile_data,
-        "experience_raw_text": experience_raw_text,
+        "experience_raw_text": (
+            experience_raw_text
+        ),
         "errors": errors,
         "name": (
-            _as_text(profile.get("name"))
-            or _as_text(result.get("name"))
+            _as_text(
+                profile.get("name")
+            )
+            or _as_text(
+                result.get("name")
+            )
         ),
         "linkedin_url": linkedin_url,
         "headline": (
-            _as_text(profile.get("headline"))
-            or _as_text(result.get("headline"))
+            _as_text(
+                profile.get("headline")
+            )
+            or _as_text(
+                result.get("headline")
+            )
         ),
         "location": (
-            _as_text(profile.get("location"))
-            or _as_text(result.get("location"))
+            _as_text(
+                profile.get("location")
+            )
+            or _as_text(
+                result.get("location")
+            )
         ),
-        "followers_count_text": followers_count_text,
+        "followers_count_text": (
+            followers_count_text
+        ),
         "connections_count_text": (
             connections_count_text
         ),
         "about_text": (
-            _as_text(profile.get("about_text"))
-            or _as_text(profile.get("about"))
-            or _as_text(result.get("about_text"))
+            _as_text(
+                profile.get("about_text")
+            )
+            or _as_text(
+                profile.get("about")
+            )
+            or _as_text(
+                result.get("about_text")
+            )
         ),
         "raw_profile_data": (
-            raw_profile_data or result
+            normalized_raw_profile_data
         ),
-        "post_1_caption": _extract_post_caption(
-            posts,
-            0,
+        "post_1_caption": (
+            _get_post_caption(
+                recent_post_captions,
+                0,
+            )
         ),
-        "post_2_caption": _extract_post_caption(
-            posts,
-            1,
+        "post_2_caption": (
+            _get_post_caption(
+                recent_post_captions,
+                1,
+            )
         ),
-        "post_3_caption": _extract_post_caption(
-            posts,
-            2,
+        "post_3_caption": (
+            _get_post_caption(
+                recent_post_captions,
+                2,
+            )
         ),
-        "post_4_caption": _extract_post_caption(
-            posts,
-            3,
+        "post_4_caption": (
+            _get_post_caption(
+                recent_post_captions,
+                3,
+            )
         ),
-        "post_5_caption": _extract_post_caption(
-            posts,
-            4,
+        "post_5_caption": (
+            _get_post_caption(
+                recent_post_captions,
+                4,
+            )
         ),
     }
 
@@ -240,9 +402,13 @@ def save_profile_snapshot(
     - source chưa từng scan: tạo row mới
     - source đã scan: update row cũ
     """
-    client = create_supabase_client(settings)
+    client = create_supabase_client(
+        settings
+    )
 
-    payload = build_snapshot_payload(result)
+    payload = build_snapshot_payload(
+        result
+    )
 
     response = (
         client
@@ -254,7 +420,9 @@ def save_profile_snapshot(
         .execute()
     )
 
-    rows = list(response.data or [])
+    rows = list(
+        response.data or []
+    )
 
     if not rows:
         raise RuntimeError(
@@ -283,23 +451,31 @@ def mark_source_scanned(
     Không ghi dữ liệu profile vào linkedin_sources.
     Bảng này chỉ giữ URL đầu vào và trạng thái scan.
     """
-    client = create_supabase_client(settings)
+    client = create_supabase_client(
+        settings
+    )
 
     response = (
         client
         .table(SOURCE_TABLE)
         .update(
             {
-                "last_scanned_at": scanned_at,
+                "last_scanned_at": (
+                    scanned_at
+                ),
             }
         )
-        .eq("id", int(source_id))
+        .eq(
+            "id",
+            int(source_id),
+        )
         .execute()
     )
 
     if response.data is None:
         raise RuntimeError(
-            f"Could not mark source {source_id} as scanned"
+            f"Could not mark source "
+            f"{source_id} as scanned"
         )
 
 
@@ -307,10 +483,14 @@ def debug_snapshot_payload(
     result: dict[str, Any],
 ) -> str:
     """
-    Dùng khi cần xem payload trước khi ghi Supabase.
-    Không được gọi trong production nếu raw data nhạy cảm.
+    Xem payload trước khi ghi Supabase.
+
+    Không gọi trong production nếu raw data
+    chứa thông tin nhạy cảm.
     """
-    payload = build_snapshot_payload(result)
+    payload = build_snapshot_payload(
+        result
+    )
 
     return json.dumps(
         payload,
