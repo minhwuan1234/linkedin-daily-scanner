@@ -430,8 +430,11 @@ async def receive_lark_event(
 
     try:
         result = insert_new_linkedin_urls(
-            linkedin_urls
-        )
+    linkedin_urls,
+    chat_id=chat_id,
+    message_id=message_id,
+    sender_open_id=open_id,
+)
     except Exception as exc:
         logger.exception(
             (
