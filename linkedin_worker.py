@@ -6,11 +6,19 @@ import signal
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
+from app.lark_client import (
+    LarkClient,
+    LarkClientError,
+)
 from app.linkedin_browser import (
     LinkedInBrowserManager,
     LinkedInSessionError,
+)
+from app.linkedin_scanner import (
+    create_supabase_client,
 )
 from app.profile_raw_scraper import (
     scrape_profile_raw,
@@ -28,10 +36,11 @@ from scan_unscanned_profiles import (
     get_batch_size,
     get_result_post_count,
     get_scan_delay_range,
-    get_unscanned_sources,
     save_local_output,
 )
 
+
+SOURCE_TABLE = "linkedin_sources"
 
 DEFAULT_IDLE_POLL_SECONDS = 30
 DEFAULT_ERROR_RETRY_SECONDS = 60
@@ -121,19 +130,320 @@ def _read_int_env(
     return value
 
 
+def _clean_text(
+    value: Any,
+) -> str:
+    if value is None:
+        return ""
+
+    return str(value).strip()
+
+
+def get_pending_sources(
+    *,
+    settings: Settings,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """
+    Lấy tối đa N profile source đang chờ scan.
+
+    Lấy luôn metadata Lark để worker có thể gửi kết quả
+    về đúng chat sau khi scan.
+    """
+    if limit < 1:
+        raise ValueError(
+            "limit must be at least 1"
+        )
+
+    if limit > MAX_BATCH_SIZE:
+        raise ValueError(
+            f"limit cannot exceed {MAX_BATCH_SIZE}"
+        )
+
+    client = create_supabase_client(
+        settings
+    )
+
+    response = (
+        client
+        .table(SOURCE_TABLE)
+        .select(
+            "id,"
+            "name,"
+            "linkedin_url,"
+            "source_type,"
+            "enabled,"
+            "last_scanned_at,"
+            "lark_chat_id,"
+            "lark_message_id,"
+            "lark_sender_open_id,"
+            "lark_result_sent_at,"
+            "lark_result_error"
+        )
+        .eq(
+            "enabled",
+            True,
+        )
+        .eq(
+            "source_type",
+            "profile",
+        )
+        .is_(
+            "last_scanned_at",
+            "null",
+        )
+        .order(
+            "id",
+            desc=False,
+        )
+        .limit(
+            limit
+        )
+        .execute()
+    )
+
+    return list(
+        response.data or []
+    )
+
+
+def update_lark_delivery_status(
+    *,
+    settings: Settings,
+    source_id: int,
+    sent_at: str | None,
+    error: str | None,
+) -> None:
+    """
+    Lưu trạng thái gửi kết quả về Lark.
+
+    Gửi thành công:
+        lark_result_sent_at = timestamp
+        lark_result_error = null
+
+    Gửi lỗi:
+        lark_result_sent_at = null
+        lark_result_error = error text
+    """
+    client = create_supabase_client(
+        settings
+    )
+
+    payload = {
+        "lark_result_sent_at": sent_at,
+        "lark_result_error": error,
+    }
+
+    response = (
+        client
+        .table(SOURCE_TABLE)
+        .update(
+            payload
+        )
+        .eq(
+            "id",
+            int(source_id),
+        )
+        .execute()
+    )
+
+    if response.data is None:
+        raise RuntimeError(
+            "Could not update Lark delivery status "
+            f"for source {source_id}"
+        )
+
+
+def build_lark_result_message(
+    *,
+    source: dict[str, Any],
+    result: dict[str, Any],
+    snapshot_id: int,
+) -> str:
+    """
+    Tạo message kết quả gửi về Lark.
+
+    Chỉ gửi summary, không gửi toàn bộ raw profile data.
+    """
+    source_id = int(
+        result["source_id"]
+    )
+
+    profile = result.get(
+        "profile",
+        {},
+    )
+
+    if not isinstance(
+        profile,
+        dict,
+    ):
+        profile = {}
+
+    name = (
+        _clean_text(
+            profile.get("name")
+        )
+        or _clean_text(
+            source.get("name")
+        )
+        or "Unknown"
+    )
+
+    headline = (
+        _clean_text(
+            profile.get("headline")
+        )
+        or "Not found"
+    )
+
+    location = (
+        _clean_text(
+            profile.get("location")
+        )
+        or "Not found"
+    )
+
+    linkedin_url = (
+        _clean_text(
+            profile.get("linkedin_url")
+        )
+        or _clean_text(
+            source.get("linkedin_url")
+        )
+    )
+
+    captions = result.get(
+        "recent_post_captions",
+        [],
+    )
+
+    if not isinstance(
+        captions,
+        list,
+    ):
+        captions = []
+
+    errors = result.get(
+        "errors",
+        [],
+    )
+
+    if not isinstance(
+        errors,
+        list,
+    ):
+        errors = []
+
+    lines = [
+        "LinkedIn scan completed",
+        "",
+        f"Name: {name}",
+        f"Headline: {headline}",
+        f"Location: {location}",
+        f"Recent post captions: {len(captions)}",
+        f"Source ID: {source_id}",
+        f"Snapshot ID: {snapshot_id}",
+        "Status: Saved successfully",
+    ]
+
+    if linkedin_url:
+        lines.append(
+            f"LinkedIn: {linkedin_url}"
+        )
+
+    if errors:
+        lines.append(
+            f"Section warnings: {len(errors)}"
+        )
+
+    if captions:
+        lines.extend(
+            [
+                "",
+                "Recent captions:",
+            ]
+        )
+
+        for index, caption in enumerate(
+            captions[:5],
+            start=1,
+        ):
+            caption_text = _clean_text(
+                caption
+            )
+
+            caption_preview = (
+                caption_text.replace(
+                    "\n",
+                    " ",
+                )
+            )
+
+            if len(caption_preview) > 300:
+                caption_preview = (
+                    caption_preview[:297]
+                    + "..."
+                )
+
+            lines.append(
+                f"{index}. {caption_preview}"
+            )
+
+    return "\n".join(lines)
+
+
+def build_lark_failure_message(
+    *,
+    source: dict[str, Any],
+    error: Exception,
+) -> str:
+    """
+    Tạo message báo lỗi scan.
+
+    Hiện worker chỉ dùng hàm này khi còn đủ thông tin
+    để gửi về chat.
+    """
+    source_id = source.get(
+        "id",
+        "unknown",
+    )
+
+    linkedin_url = _clean_text(
+        source.get("linkedin_url")
+    )
+
+    lines = [
+        "LinkedIn scan failed",
+        "",
+        f"Source ID: {source_id}",
+        (
+            "Error: "
+            f"{type(error).__name__}: {error}"
+        ),
+    ]
+
+    if linkedin_url:
+        lines.insert(
+            2,
+            f"LinkedIn: {linkedin_url}",
+        )
+
+    return "\n".join(lines)
+
+
 class LinkedInWorker:
     """
     Worker chạy liên tục trên Mac.
 
-    Một browser persistent được dùng chung cho:
-    - nhiều source trong cùng batch
-    - nhiều batch liên tiếp
+    Một browser persistent dùng chung cho nhiều source và
+    nhiều batch.
 
     Browser chỉ đóng khi:
-    - worker nhận Ctrl+C
-    - process nhận SIGTERM
-    - LinkedIn session cần login/checkpoint
-    - lỗi browser không thể tiếp tục
+    - Ctrl+C
+    - SIGTERM
+    - LinkedIn login/checkpoint
+    - process dừng
     """
 
     def __init__(
@@ -145,7 +455,13 @@ class LinkedInWorker:
         self.settings = settings
         self.worker_settings = worker_settings
 
-        self.browser = LinkedInBrowserManager()
+        self.browser = (
+            LinkedInBrowserManager()
+        )
+
+        self.lark_client: (
+            LarkClient | None
+        ) = None
 
         self._stop_requested = False
         self._batch_number = 0
@@ -155,9 +471,6 @@ class LinkedInWorker:
         signum: int | None = None,
         frame: Any = None,
     ) -> None:
-        """
-        Yêu cầu worker dừng an toàn sau thao tác hiện tại.
-        """
         del frame
 
         self._stop_requested = True
@@ -173,9 +486,6 @@ class LinkedInWorker:
         )
 
     def run_forever(self) -> int:
-        """
-        Chạy worker cho tới khi bị dừng.
-        """
         self._register_signal_handlers()
 
         print("")
@@ -203,6 +513,30 @@ class LinkedInWorker:
 
         try:
             self.browser.start()
+
+            # Chỉ khởi tạo Lark client một lần.
+            # Token sẽ được cache trong process.
+            try:
+                self.lark_client = LarkClient()
+
+                print(
+                    "Lark outbound client: ready"
+                )
+
+            except Exception as exc:
+                self.lark_client = None
+
+                print(
+                    "Lark outbound client unavailable: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+
+                print(
+                    "Worker will continue scanning, "
+                    "but cannot send results to Lark.",
+                    file=sys.stderr,
+                )
 
             while not self._stop_requested:
                 try:
@@ -262,10 +596,6 @@ class LinkedInWorker:
                         .idle_poll_seconds
                     )
 
-                # Nếu vừa xử lý đủ một batch, query ngay
-                # batch tiếp theo. Delay từng profile đã
-                # được áp dụng trong run_one_batch().
-
             return 0
 
         except KeyboardInterrupt:
@@ -281,16 +611,14 @@ class LinkedInWorker:
             )
 
     def run_one_batch(self) -> int:
-        """
-        Query và xử lý tối đa một batch source pending.
-
-        Trả về số source đã được load trong batch.
-        """
         self._batch_number += 1
 
-        sources = get_unscanned_sources(
+        sources = get_pending_sources(
             settings=self.settings,
-            limit=self.worker_settings.batch_size,
+            limit=(
+                self.worker_settings
+                .batch_size
+            ),
         )
 
         total = len(sources)
@@ -329,13 +657,11 @@ class LinkedInWorker:
                 source["id"]
             )
 
-            linkedin_url = str(
+            linkedin_url = _clean_text(
                 source.get(
-                    "linkedin_url",
-                    "",
+                    "linkedin_url"
                 )
-                or ""
-            ).strip()
+            )
 
             print("")
             print(
@@ -367,7 +693,7 @@ class LinkedInWorker:
 
             try:
                 self._process_source(
-                    source_id=source_id,
+                    source=source,
                 )
 
                 success_count += 1
@@ -384,9 +710,13 @@ class LinkedInWorker:
                     file=sys.stderr,
                 )
 
-                # Không mark source scanned.
-                # Row vẫn last_scanned_at = null
-                # để retry trong batch sau.
+                self._try_send_failure_message(
+                    source=source,
+                    error=exc,
+                )
+
+                # Không mark source scanned nếu profile
+                # scan hoặc snapshot save thất bại.
 
             self._wait_between_profiles(
                 index=index,
@@ -398,7 +728,8 @@ class LinkedInWorker:
             "=" * 70
         )
         print(
-            f"Worker batch {self._batch_number} completed."
+            f"Worker batch "
+            f"{self._batch_number} completed."
         )
         print(
             f"Loaded: {total}"
@@ -415,20 +746,25 @@ class LinkedInWorker:
     def _process_source(
         self,
         *,
-        source_id: int,
+        source: dict[str, Any],
     ) -> None:
         """
-        Scan và persist một source.
+        Scan và lưu một source.
 
-        Thứ tự cố định:
+        Thứ tự:
         1. Scrape.
-        2. Validate source_id.
-        3. Lưu JSON local.
-        4. Upsert snapshot.
-        5. Mark source scanned.
+        2. Lưu JSON local.
+        3. Upsert snapshot.
+        4. Mark source scanned.
+        5. Gửi kết quả Lark.
+        6. Ghi trạng thái gửi Lark.
 
-        Không mark scanned nếu bước 3 hoặc 4 lỗi.
+        Lark lỗi không làm mất kết quả scan.
         """
+        source_id = int(
+            source["id"]
+        )
+
         result = scrape_profile_raw(
             settings=self.settings,
             source_id=source_id,
@@ -447,13 +783,11 @@ class LinkedInWorker:
                 f"received {result_source_id}."
             )
 
-        scraped_at = str(
+        scraped_at = _clean_text(
             result.get(
-                "scraped_at",
-                "",
+                "scraped_at"
             )
-            or ""
-        ).strip()
+        )
 
         if not scraped_at:
             raise RuntimeError(
@@ -469,6 +803,8 @@ class LinkedInWorker:
             result=result,
         )
 
+        # Sau bước này profile không cần scan lại,
+        # kể cả Lark gửi message thất bại.
         mark_source_scanned(
             settings=self.settings,
             source_id=source_id,
@@ -517,36 +853,213 @@ class LinkedInWorker:
             f"Output: {output_path.resolve()}"
         )
 
-        if errors:
+        self._send_success_message(
+            source=source,
+            result=result,
+            snapshot_id=snapshot_id,
+        )
+
+    def _send_success_message(
+        self,
+        *,
+        source: dict[str, Any],
+        result: dict[str, Any],
+        snapshot_id: int,
+    ) -> None:
+        source_id = int(
+            source["id"]
+        )
+
+        chat_id = _clean_text(
+            source.get(
+                "lark_chat_id"
+            )
+        )
+
+        if not chat_id:
             print(
-                "Section warnings:"
+                "Lark result skipped: "
+                "source has no lark_chat_id."
             )
 
-            for error in errors:
-                if isinstance(
-                    error,
-                    dict,
-                ):
-                    section = (
-                        error.get("section")
-                        or error.get("stage")
-                        or "unknown"
-                    )
+            return
 
-                    message = str(
-                        error.get(
-                            "message",
-                            "",
-                        )
-                    )
+        if self.lark_client is None:
+            error_message = (
+                "Lark client is not available."
+            )
 
-                    print(
-                        f"  - {section}: {message}"
-                    )
-                else:
-                    print(
-                        f"  - {error}"
-                    )
+            self._record_lark_error(
+                source_id=source_id,
+                error_message=error_message,
+            )
+
+            print(
+                f"Lark result failed: {error_message}",
+                file=sys.stderr,
+            )
+
+            return
+
+        message_text = (
+            build_lark_result_message(
+                source=source,
+                result=result,
+                snapshot_id=snapshot_id,
+            )
+        )
+
+        deduplication_key = (
+            f"linkedin-result:"
+            f"{source_id}:"
+            f"{result.get('scraped_at', '')}"
+        )
+
+        try:
+            message_result = (
+                self.lark_client
+                .send_text_to_chat(
+                    chat_id=chat_id,
+                    text=message_text,
+                    deduplication_key=(
+                        deduplication_key
+                    ),
+                )
+            )
+
+            sent_at = datetime.now(
+                timezone.utc
+            ).isoformat()
+
+            update_lark_delivery_status(
+                settings=self.settings,
+                source_id=source_id,
+                sent_at=sent_at,
+                error=None,
+            )
+
+            print(
+                "Lark result sent successfully."
+            )
+            print(
+                "Lark outbound message ID: "
+                f"{message_result.message_id}"
+            )
+
+        except Exception as exc:
+            error_message = (
+                f"{type(exc).__name__}: {exc}"
+            )
+
+            self._record_lark_error(
+                source_id=source_id,
+                error_message=error_message,
+            )
+
+            print(
+                "Profile was saved, but Lark "
+                "result delivery failed: "
+                f"{error_message}",
+                file=sys.stderr,
+            )
+
+    def _try_send_failure_message(
+        self,
+        *,
+        source: dict[str, Any],
+        error: Exception,
+    ) -> None:
+        """
+        Cố gửi thông báo scan lỗi.
+
+        Không raise thêm lỗi nếu Lark cũng đang lỗi.
+        """
+        source_id_raw = source.get(
+            "id"
+        )
+
+        if source_id_raw is None:
+            return
+
+        source_id = int(
+            source_id_raw
+        )
+
+        chat_id = _clean_text(
+            source.get(
+                "lark_chat_id"
+            )
+        )
+
+        if not chat_id:
+            return
+
+        if self.lark_client is None:
+            return
+
+        message_text = (
+            build_lark_failure_message(
+                source=source,
+                error=error,
+            )
+        )
+
+        deduplication_key = (
+            f"linkedin-failure:"
+            f"{source_id}:"
+            f"{source.get('lark_message_id', '')}"
+        )
+
+        try:
+            self.lark_client.send_text_to_chat(
+                chat_id=chat_id,
+                text=message_text,
+                deduplication_key=(
+                    deduplication_key
+                ),
+            )
+
+            print(
+                "Lark failure notification sent."
+            )
+
+        except Exception as lark_exc:
+            print(
+                "Could not send Lark failure "
+                "notification: "
+                f"{type(lark_exc).__name__}: "
+                f"{lark_exc}",
+                file=sys.stderr,
+            )
+
+    def _record_lark_error(
+        self,
+        *,
+        source_id: int,
+        error_message: str,
+    ) -> None:
+        """
+        Lưu lỗi gửi Lark mà không làm worker crash.
+        """
+        safe_error = (
+            error_message[:2000]
+        )
+
+        try:
+            update_lark_delivery_status(
+                settings=self.settings,
+                source_id=source_id,
+                sent_at=None,
+                error=safe_error,
+            )
+
+        except Exception as status_exc:
+            print(
+                "Could not save Lark delivery error: "
+                f"{type(status_exc).__name__}: "
+                f"{status_exc}",
+                file=sys.stderr,
+            )
 
     def _wait_between_profiles(
         self,
@@ -554,11 +1067,6 @@ class LinkedInWorker:
         index: int,
         total: int,
     ) -> None:
-        """
-        Delay ngẫu nhiên giữa các profile.
-
-        Không delay sau source cuối của batch.
-        """
         if self._stop_requested:
             return
 
@@ -596,9 +1104,6 @@ class LinkedInWorker:
         self,
         seconds: int,
     ) -> None:
-        """
-        Sleep theo từng giây để Ctrl+C/SIGTERM dừng nhanh.
-        """
         remaining = max(
             0,
             int(seconds),
@@ -614,9 +1119,6 @@ class LinkedInWorker:
     def _register_signal_handlers(
         self,
     ) -> None:
-        """
-        Đăng ký tín hiệu dừng an toàn.
-        """
         signal.signal(
             signal.SIGINT,
             self.request_stop,
