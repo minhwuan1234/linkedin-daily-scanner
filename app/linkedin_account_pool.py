@@ -125,14 +125,6 @@ class LinkedInAccount:
     def create_browser_settings(
         self,
     ) -> LinkedInBrowserSettings:
-        """
-        Tạo browser settings riêng cho account này.
-
-        Các setting khác vẫn đọc từ environment như:
-        - LINKEDIN_HEADLESS
-        - LINKEDIN_NAVIGATION_TIMEOUT_MS
-        - LINKEDIN_OPERATION_TIMEOUT_MS
-        """
         base_settings = (
             LinkedInBrowserSettings
             .from_environment()
@@ -165,10 +157,6 @@ class LinkedInAccount:
     def create_browser_manager(
         self,
     ) -> LinkedInBrowserManager:
-        """
-        Tạo browser manager sử dụng session riêng
-        của account hiện tại.
-        """
         return LinkedInBrowserManager(
             settings=(
                 self.create_browser_settings()
@@ -226,14 +214,8 @@ class LinkedInAccountPool:
     """
     Quản lý danh sách browser sessions LinkedIn.
 
-    Pool không thao tác database.
-    Pool không claim source.
-    Pool không scan profile.
-
-    Nhiệm vụ duy nhất:
-    - tạo danh sách account
-    - giữ thứ tự round-robin
-    - trả browser manager đúng session
+    _next_index giữ account sẽ được sử dụng ở lượt tiếp theo.
+    Worker có thể khôi phục vị trí này từ Supabase.
     """
 
     def __init__(
@@ -273,15 +255,15 @@ class LinkedInAccountPool:
 
         self._next_index = 0
 
+    @property
+    def next_account_id(self) -> str:
+        return self.accounts[
+            self._next_index
+        ].account_id
+
     def validate_profiles(
         self,
     ) -> list[str]:
-        """
-        Trả danh sách lỗi browser profile.
-
-        Không tự tạo session mới vì user phải login
-        thủ công cho từng account.
-        """
         errors: list[str] = []
 
         for account in self.accounts:
@@ -290,7 +272,6 @@ class LinkedInAccountPool:
                     f"{account.account_id}: "
                     "profile directory does not exist"
                 )
-
                 continue
 
             try:
@@ -332,14 +313,33 @@ class LinkedInAccountPool:
             f"{cleaned_account_id}"
         )
 
+    def get_account_index(
+        self,
+        account_id: str,
+    ) -> int:
+        cleaned_account_id = str(
+            account_id or ""
+        ).strip()
+
+        for index, account in enumerate(
+            self.accounts
+        ):
+            if (
+                account.account_id
+                == cleaned_account_id
+            ):
+                return index
+
+        raise KeyError(
+            "LinkedIn account not found: "
+            f"{cleaned_account_id}"
+        )
+
     def get_next_account(
         self,
     ) -> LinkedInAccount:
         """
-        Lấy account tiếp theo theo round-robin.
-
-        Ví dụ:
-        01 → 02 → 03 → 04 → 05 → 01
+        Lấy account hiện tại và dịch con trỏ sang account sau.
         """
         account = self.accounts[
             self._next_index
@@ -351,14 +351,49 @@ class LinkedInAccountPool:
 
         return account
 
+    def set_next_account(
+        self,
+        account_id: str,
+    ) -> None:
+        """
+        Đặt account sẽ chạy ở lượt tiếp theo.
+        """
+        self._next_index = (
+            self.get_account_index(
+                account_id
+            )
+        )
+
+    def set_next_after(
+        self,
+        account_id: str | None,
+    ) -> None:
+        """
+        Khôi phục con trỏ từ account vừa chạy gần nhất.
+
+        Ví dụ:
+        last_account_id=account_02
+        → account tiếp theo là account_03.
+        """
+        if not account_id:
+            self._next_index = 0
+            return
+
+        try:
+            last_index = self.get_account_index(
+                account_id
+            )
+        except KeyError:
+            self._next_index = 0
+            return
+
+        self._next_index = (
+            last_index + 1
+        ) % len(self.accounts)
+
     def iter_round_robin(
         self,
     ) -> Iterator[LinkedInAccount]:
-        """
-        Iterator vô hạn theo thứ tự round-robin.
-
-        Worker phải tự dừng khi queue hết URL.
-        """
         while True:
             yield self.get_next_account()
 
