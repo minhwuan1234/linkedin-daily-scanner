@@ -1,11 +1,13 @@
 import json
 import logging
 import os
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.lark_command_router import (
     handle_lark_command,
@@ -81,6 +83,30 @@ app = FastAPI(
     ),
     version="0.6.0",
 )
+
+
+
+# =========================================================
+# FRONTEND DASHBOARD
+# =========================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+
+if FRONTEND_DIR.exists():
+    app.mount(
+        "/dashboard",
+        StaticFiles(
+            directory=str(FRONTEND_DIR),
+            html=True,
+        ),
+        name="dashboard",
+    )
+else:
+    logger.warning(
+        "Frontend directory not found: %s",
+        FRONTEND_DIR,
+    )
 
 
 # =========================================================
