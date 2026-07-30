@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.lark_command_router import (
@@ -114,11 +114,14 @@ else:
 # =========================================================
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {
-        "service": "linkedin-daily-scanner-api",
-        "status": "running",
-    }
+def root() -> RedirectResponse:
+    """
+    Open the dashboard from the Railway root domain.
+    """
+    return RedirectResponse(
+        url="/dashboard/",
+        status_code=307,
+    )
 
 
 @app.get("/health")
