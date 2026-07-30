@@ -10,6 +10,8 @@ class Settings:
     supabase_secret_key: str
     google_sheet_id: str
     google_service_account_json: str
+    linkedin_worker_idle_poll_seconds: int
+    linkedin_worker_error_retry_seconds: int
 
 
 def get_required_env(name: str) -> str:
