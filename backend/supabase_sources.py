@@ -26,7 +26,7 @@ SUPABASE_SECRET_KEY = os.getenv(
 TABLE_NAME = "linkedin_sources"
 URL_COLUMN = "linkedin_url"
 
-HARD_MAX_URLS_PER_INSERT = 10
+HARD_MAX_URLS_PER_INSERT = 100
 
 
 @dataclass(frozen=True)
@@ -372,13 +372,19 @@ def update_existing_source_request(
     ).strip().lower()
 
     update_payload = {
-        **build_lark_metadata(
-            chat_id=chat_id,
-            message_id=message_id,
-            sender_open_id=sender_open_id,
-        ),
-        "last_scanned_at": None,
-    }
+    **build_lark_metadata(
+        chat_id=chat_id,
+        message_id=message_id,
+        sender_open_id=sender_open_id,
+    ),
+    "last_scanned_at": None,
+    "job_status": "pending",
+    "assigned_account_id": None,
+    "processing_started_at": None,
+    "processing_heartbeat_at": None,
+    "completed_at": None,
+    "last_error": None,
+}
 
     # Profile được đưa trở lại queue.
     # Company vẫn disabled cho đến khi có company scraper.
