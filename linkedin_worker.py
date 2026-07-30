@@ -408,7 +408,7 @@ class RoundRobinLinkedInWorker:
           xử lý batch, lưu account vừa dùng và chuyển sang account kế tiếp.
 
         - Không có source:
-          giữ nguyên account hiện tại và trả về 0 để worker đi vào idle sleep.
+          giữ nguyên account hiện tại và trả về 0 để worker đi vào idle polling.
 
         Cách này tránh việc worker chạy vòng qua cả 5 account
         liên tục khi queue đang trống.
@@ -431,9 +431,6 @@ class RoundRobinLinkedInWorker:
         )
 
         if claimed_count <= 0:
-            # get_next_account() đã tăng con trỏ.
-            # Queue trống nên đặt lại account hiện tại,
-            # tránh đổi account sau mỗi lần poll rỗng.
             self.account_pool.set_next_account(
                 account.account_id
             )
@@ -451,7 +448,6 @@ class RoundRobinLinkedInWorker:
 
             return 0
 
-        # Chỉ ghi scheduler khi account thực sự claim được source.
         self._save_scheduler_position(
             account_id=account.account_id
         )
@@ -482,7 +478,7 @@ class RoundRobinLinkedInWorker:
                 self.account_cooldown_seconds
             )
 
-        return claimed_count  
+        return claimed_count
 
     def run_account_turn(
         self,
