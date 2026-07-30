@@ -1298,3 +1298,66 @@ tbody tr:last-child td {
     gap: 5px;
   }
 }
+
+
+/* =========================================================
+   WORKER CONTROLS
+   ========================================================= */
+
+.control-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.control-button:hover {
+  transform: translateY(-1px);
+}
+
+.control-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+  transform: none;
+}
+
+.control-button-danger {
+  border-color: rgba(255, 107, 122, 0.34);
+  background: var(--red-soft);
+  color: #ff9ba6;
+}
+
+.control-button-danger:hover {
+  background: rgba(255, 107, 122, 0.18);
+}
+
+.control-button-warning {
+  border-color: rgba(244, 183, 64, 0.34);
+  background: var(--amber-soft);
+  color: #f8ca72;
+}
+
+.control-button-warning:hover {
+  background: rgba(244, 183, 64, 0.18);
+}
+
+.control-button.is-resume {
+  border-color: rgba(35, 196, 131, 0.34);
+  background: var(--green-soft);
+  color: #79e4b7;
+}
+
+@media (max-width: 900px) {
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
