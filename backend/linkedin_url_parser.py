@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
 
 
-DEFAULT_MAX_URLS_PER_REQUEST = 10
-HARD_MAX_URLS_PER_REQUEST = 10
+DEFAULT_MAX_URLS_PER_REQUEST = 100
+HARD_MAX_URLS_PER_REQUEST = 100
 
 
 LINKEDIN_URL_PATTERN = re.compile(
