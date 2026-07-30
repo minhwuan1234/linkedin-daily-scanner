@@ -21,6 +21,7 @@ from app.linkedin_browser import (
 from app.linkedin_scanner import create_supabase_client
 from app.profile_raw_scraper import scrape_profile_raw
 from app.profile_snapshot_store import save_profile_snapshot
+from app.scan_event_store import LinkedInScanEventStore
 from app.settings import Settings, load_settings
 from app.source_queue import (
     LinkedInSourceQueue,
@@ -41,7 +42,7 @@ DEFAULT_STALE_JOB_MINUTES = 20
 DEFAULT_ACCOUNT_COOLDOWN_SECONDS = 60
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30
 
-WORKER_VERSION = "2.2.0-background-heartbeat"
+WORKER_VERSION = "2.3.0-realtime-events"
 
 
 def _read_int_env(
@@ -193,6 +194,11 @@ class RoundRobinLinkedInWorker:
             worker_version=WORKER_VERSION,
         )
 
+        self.events = LinkedInScanEventStore(
+            settings=settings,
+            worker_id=self.health.worker_id,
+        )
+
         try:
             self.lark_client: LarkClient | None = (
                 LarkClient()
@@ -218,6 +224,20 @@ class RoundRobinLinkedInWorker:
         )
         self._start_background_heartbeat()
 
+        self.events.emit(
+            event_type="worker",
+            step_name="worker_started",
+            status="processing",
+            message="LinkedIn worker started.",
+            progress_percent=0,
+            metadata={
+                "worker_version": WORKER_VERSION,
+                "account_count": len(
+                    self.account_pool.accounts
+                ),
+            },
+        )
+
         profile_errors = (
             self.account_pool
             .validate_profiles()
@@ -227,6 +247,13 @@ class RoundRobinLinkedInWorker:
             error_text = "; ".join(profile_errors)
             self.health.mark_error(
                 error=error_text
+            )
+            self.events.emit(
+                event_type="worker",
+                step_name="account_profiles_invalid",
+                status="error",
+                message=error_text,
+                progress_percent=0,
             )
 
             print(
@@ -351,6 +378,14 @@ class RoundRobinLinkedInWorker:
                     file=sys.stderr,
                 )
 
+            self.events.emit(
+                event_type="worker",
+                step_name="worker_stopped",
+                status="warning",
+                message="LinkedIn worker stopped.",
+                progress_percent=0,
+            )
+
             print("")
             print(
                 "LinkedIn round-robin worker stopped."
@@ -424,6 +459,17 @@ class RoundRobinLinkedInWorker:
         self.health.mark_account_scanning(
             account_id=account.account_id
         )
+        self.events.emit(
+            event_type="account",
+            step_name="account_turn_started",
+            status="processing",
+            message=(
+                f"{account.account_id} started "
+                "a queue turn."
+            ),
+            progress_percent=0,
+            account_id=account.account_id,
+        )
 
         sources = self.queue.claim_sources(
             account_id=account.account_id,
@@ -431,6 +477,17 @@ class RoundRobinLinkedInWorker:
         )
 
         if not sources:
+            self.events.emit(
+                event_type="account",
+                step_name="queue_empty_for_account",
+                status="info",
+                message=(
+                    f"No pending sources for "
+                    f"{account.account_id}."
+                ),
+                progress_percent=0,
+                account_id=account.account_id,
+            )
             self.health.mark_account_available(
                 account_id=account.account_id
             )
@@ -447,10 +504,54 @@ class RoundRobinLinkedInWorker:
             f"claimed {len(sources)} source(s)."
         )
 
+        for claimed_source in sources:
+            self.events.emit(
+                event_type="queue",
+                step_name="source_claimed",
+                status="queued",
+                message=(
+                    f"Source {claimed_source.id} "
+                    f"claimed by {account.account_id}."
+                ),
+                progress_percent=5,
+                source_id=claimed_source.id,
+                account_id=account.account_id,
+                metadata={
+                    "linkedin_url": (
+                        claimed_source.linkedin_url
+                    ),
+                    "batch_size": len(sources),
+                },
+            )
+
         browser = account.create_browser_manager()
+        account_terminal_status = "available"
+        account_terminal_error: Exception | None = None
 
         try:
+            self.events.emit(
+                event_type="browser",
+                step_name="browser_starting",
+                status="processing",
+                message=(
+                    f"Opening persistent browser "
+                    f"session for {account.account_id}."
+                ),
+                progress_percent=8,
+                account_id=account.account_id,
+            )
             browser.start()
+            self.events.emit(
+                event_type="browser",
+                step_name="browser_started",
+                status="success",
+                message=(
+                    f"Browser session ready for "
+                    f"{account.account_id}."
+                ),
+                progress_percent=10,
+                account_id=account.account_id,
+            )
 
             for index, source in enumerate(
                 sources,
@@ -501,6 +602,19 @@ class RoundRobinLinkedInWorker:
                     )
 
                 except LinkedInSessionError as exc:
+                    account_terminal_status = "needs_login"
+                    account_terminal_error = exc
+                    self.events.emit(
+                        event_type="source",
+                        step_name="linkedin_session_invalid",
+                        status="error",
+                        message=(
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        progress_percent=10,
+                        source_id=source.id,
+                        account_id=account.account_id,
+                    )
                     self.health.mark_account_needs_login(
                         account_id=account.account_id,
                         error=exc,
@@ -550,6 +664,19 @@ class RoundRobinLinkedInWorker:
                     break
 
                 except Exception as exc:
+                    account_terminal_status = "error"
+                    account_terminal_error = exc
+                    self.events.emit(
+                        event_type="source",
+                        step_name="source_failed",
+                        status="error",
+                        message=(
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        progress_percent=0,
+                        source_id=source.id,
+                        account_id=account.account_id,
+                    )
                     self.health.mark_account_error(
                         account_id=account.account_id,
                         error=exc,
@@ -587,14 +714,59 @@ class RoundRobinLinkedInWorker:
                     self._wait_between_profiles()
 
         finally:
+            self.events.emit(
+                event_type="browser",
+                step_name="browser_stopping",
+                status="info",
+                message=(
+                    f"Closing browser session for "
+                    f"{account.account_id}."
+                ),
+                progress_percent=100,
+                account_id=account.account_id,
+            )
             browser.stop()
 
             try:
-                self.health.mark_account_available(
-                    account_id=account.account_id,
-                    success=True,
-                )
+                if account_terminal_status == "available":
+                    self.health.mark_account_available(
+                        account_id=account.account_id,
+                        success=True,
+                    )
+                    self.events.emit(
+                        event_type="account",
+                        step_name="account_turn_completed",
+                        status="success",
+                        message=(
+                            f"{account.account_id} "
+                            "completed its turn."
+                        ),
+                        progress_percent=100,
+                        account_id=account.account_id,
+                    )
+                elif account_terminal_status == "needs_login":
+                    self.health.mark_account_needs_login(
+                        account_id=account.account_id,
+                        error=(
+                            account_terminal_error
+                            or RuntimeError(
+                                "LinkedIn login required"
+                            )
+                        ),
+                    )
+                else:
+                    self.health.mark_account_error(
+                        account_id=account.account_id,
+                        error=(
+                            account_terminal_error
+                            or RuntimeError(
+                                "Account turn failed"
+                            )
+                        ),
+                    )
+
                 self.health.mark_batch_completed()
+
             except Exception as exc:
                 print(
                     "Could not update account health: "
@@ -611,7 +783,42 @@ class RoundRobinLinkedInWorker:
         source: QueueSource,
         browser: LinkedInBrowserManager,
     ) -> None:
+        self.events.emit(
+            event_type="source",
+            step_name="source_processing_started",
+            status="processing",
+            message="Starting LinkedIn profile scan.",
+            progress_percent=12,
+            source_id=source.id,
+            account_id=account.account_id,
+            metadata={
+                "linkedin_url": source.linkedin_url,
+            },
+        )
+
         self.queue.heartbeat_source(
+            source_id=source.id,
+            account_id=account.account_id,
+        )
+        self.events.emit(
+            event_type="source",
+            step_name="source_heartbeat_updated",
+            status="processing",
+            message="Processing heartbeat updated.",
+            progress_percent=15,
+            source_id=source.id,
+            account_id=account.account_id,
+        )
+
+        self.events.emit(
+            event_type="scraper",
+            step_name="profile_scrape_started",
+            status="processing",
+            message=(
+                "Opening LinkedIn profile and "
+                "extracting raw profile data."
+            ),
+            progress_percent=20,
             source_id=source.id,
             account_id=account.account_id,
         )
@@ -620,6 +827,24 @@ class RoundRobinLinkedInWorker:
             settings=self.settings,
             source_id=source.id,
             browser=browser,
+        )
+
+        self.events.emit(
+            event_type="scraper",
+            step_name="profile_scrape_completed",
+            status="success",
+            message=(
+                "Profile, experience and recent "
+                "post extraction completed."
+            ),
+            progress_percent=70,
+            source_id=source.id,
+            account_id=account.account_id,
+            metadata={
+                "post_count": get_result_post_count(
+                    result
+                ),
+            },
         )
 
         result_source_id = int(
@@ -644,16 +869,63 @@ class RoundRobinLinkedInWorker:
         output_path = save_local_output(
             result
         )
+        self.events.emit(
+            event_type="storage",
+            step_name="local_output_saved",
+            status="success",
+            message=(
+                f"Raw output saved to "
+                f"{output_path.resolve()}."
+            ),
+            progress_percent=78,
+            source_id=source.id,
+            account_id=account.account_id,
+        )
+
+        self.events.emit(
+            event_type="storage",
+            step_name="snapshot_saving",
+            status="processing",
+            message="Saving profile snapshot to Supabase.",
+            progress_percent=82,
+            source_id=source.id,
+            account_id=account.account_id,
+        )
 
         snapshot_id = save_profile_snapshot(
             settings=self.settings,
             result=result,
         )
 
+        self.events.emit(
+            event_type="storage",
+            step_name="snapshot_saved",
+            status="success",
+            message=(
+                f"Snapshot {snapshot_id} saved."
+            ),
+            progress_percent=90,
+            source_id=source.id,
+            account_id=account.account_id,
+            metadata={
+                "snapshot_id": snapshot_id,
+            },
+        )
+
         self.queue.complete_source(
             source_id=source.id,
             account_id=account.account_id,
             scanned_at=scraped_at,
+        )
+
+        self.events.emit(
+            event_type="queue",
+            step_name="source_completed",
+            status="success",
+            message="Source marked completed in queue.",
+            progress_percent=94,
+            source_id=source.id,
+            account_id=account.account_id,
         )
 
         self.health.mark_success(
@@ -680,6 +952,16 @@ class RoundRobinLinkedInWorker:
         )
         print(
             f"Output: {output_path.resolve()}"
+        )
+
+        self.events.emit(
+            event_type="lark",
+            step_name="lark_delivery_started",
+            status="processing",
+            message="Preparing scan result for Lark.",
+            progress_percent=96,
+            source_id=source.id,
+            account_id=account.account_id,
         )
 
         self._send_success_message(
@@ -797,6 +1079,21 @@ class RoundRobinLinkedInWorker:
                 error=None,
             )
 
+            self.events.emit(
+                event_type="lark",
+                step_name="lark_delivery_completed",
+                status="success",
+                message="Scan result sent to Lark.",
+                progress_percent=100,
+                source_id=source.id,
+                account_id=account.account_id,
+                metadata={
+                    "lark_message_id": (
+                        message_result.message_id
+                    ),
+                },
+            )
+
             print(
                 "Lark result sent successfully."
             )
@@ -814,6 +1111,16 @@ class RoundRobinLinkedInWorker:
                 source_id=source.id,
                 sent_at=None,
                 error=error_text,
+            )
+
+            self.events.emit(
+                event_type="lark",
+                step_name="lark_delivery_failed",
+                status="warning",
+                message=error_text,
+                progress_percent=100,
+                source_id=source.id,
+                account_id=account.account_id,
             )
 
             print(
