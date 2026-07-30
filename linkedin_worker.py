@@ -400,7 +400,7 @@ class RoundRobinLinkedInWorker:
                 "LinkedIn round-robin worker stopped."
             )
 
-        def run_one_round(self) -> int:
+    def run_one_round(self) -> int:
         """
         Mỗi round chỉ chạy đúng một account.
 
