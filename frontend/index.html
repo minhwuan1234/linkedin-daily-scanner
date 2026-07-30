@@ -37,6 +37,26 @@
           <span id="systemBadgeText">Đang kiểm tra hệ thống</span>
         </div>
 
+        <button
+          id="killProcessButton"
+          class="control-button control-button-danger"
+          type="button"
+          title="Dừng ngay lượt quét hiện tại và trả job về queue"
+        >
+          <span class="button-icon">■</span>
+          <span>Kill process</span>
+        </button>
+
+        <button
+          id="stopScanButton"
+          class="control-button control-button-warning"
+          type="button"
+          title="Tạm dừng nhận batch mới sau source hiện tại"
+        >
+          <span class="button-icon">Ⅱ</span>
+          <span id="stopScanButtonText">Stop scan</span>
+        </button>
+
         <button id="refreshButton" class="primary-button" type="button">
           <span class="button-icon">↻</span>
           <span>Làm mới</span>
