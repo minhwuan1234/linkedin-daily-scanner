@@ -28,6 +28,7 @@ from app.source_queue import (
     QueueSource,
 )
 from app.worker_health import LinkedInWorkerHealth
+from app.worker_command_store import WorkerCommandStore
 from scan_unscanned_profiles import (
     get_result_post_count,
     save_local_output,
@@ -50,7 +51,7 @@ DEFAULT_STALE_JOB_MINUTES = 20
 DEFAULT_ACCOUNT_COOLDOWN_SECONDS = 60
 DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30
 
-WORKER_VERSION = "2.3.0-realtime-events"
+WORKER_VERSION = "2.4.0-worker-controls"
 
 
 def _read_int_env(
@@ -206,6 +207,20 @@ class RoundRobinLinkedInWorker:
             settings=settings,
             worker_id=self.health.worker_id,
         )
+
+        self.commands = WorkerCommandStore(
+            settings=settings,
+            worker_id=self.health.worker_id,
+        )
+
+        self._scan_paused = False
+        self._kill_current_requested = threading.Event()
+        self._active_browser_lock = threading.Lock()
+        self._active_browser: LinkedInBrowserManager | None = None
+        self._active_account_id: str | None = None
+        self._command_stop_event = threading.Event()
+        self._command_thread: threading.Thread | None = None
+
         self._restore_scheduler_position()
 
         try:
@@ -232,6 +247,7 @@ class RoundRobinLinkedInWorker:
             source_id=None,
         )
         self._start_background_heartbeat()
+        self._start_command_listener()
 
         self.events.emit(
             event_type="worker",
@@ -324,6 +340,18 @@ class RoundRobinLinkedInWorker:
 
             while not self._stop_requested:
                 try:
+                    if self._scan_paused:
+                        self._set_live_health_state(
+                            status="paused",
+                            account_id=None,
+                            source_id=None,
+                        )
+                        self.health.heartbeat(
+                            status="paused"
+                        )
+                        self._sleep_interruptibly(2)
+                        continue
+
                     self._set_live_health_state(
                         status="idle",
                         account_id=None,
@@ -371,6 +399,7 @@ class RoundRobinLinkedInWorker:
             return 0
 
         finally:
+            self._stop_command_listener()
             self._stop_background_heartbeat()
 
             try:
@@ -568,6 +597,11 @@ class RoundRobinLinkedInWorker:
             )
 
         browser = account.create_browser_manager()
+        self._active_account_id = account.account_id
+
+        with self._active_browser_lock:
+            self._active_browser = browser
+
         account_terminal_status = "available"
         account_terminal_error: Exception | None = None
 
@@ -600,6 +634,27 @@ class RoundRobinLinkedInWorker:
                 sources,
                 start=1,
             ):
+                if self._kill_current_requested.is_set():
+                    self.queue.release_account_sources(
+                        account_id=account.account_id,
+                        reason=(
+                            "Current scan was killed from "
+                            "the operations dashboard."
+                        ),
+                    )
+                    self._kill_current_requested.clear()
+                    break
+
+                if self._scan_paused:
+                    self.queue.release_account_sources(
+                        account_id=account.account_id,
+                        reason=(
+                            "Scanner paused from the "
+                            "operations dashboard."
+                        ),
+                    )
+                    break
+
                 if self._stop_requested:
                     self.queue.release_account_sources(
                         account_id=account.account_id,
@@ -644,69 +699,85 @@ class RoundRobinLinkedInWorker:
                         browser=browser,
                     )
 
-                except LinkedInSessionError as exc:
-                    account_terminal_status = "needs_login"
-                    account_terminal_error = exc
-                    self.events.emit(
-                        event_type="source",
-                        step_name="linkedin_session_invalid",
-                        status="error",
-                        message=(
-                            f"{type(exc).__name__}: {exc}"
-                        ),
-                        progress_percent=10,
-                        source_id=source.id,
-                        account_id=account.account_id,
-                    )
-                    self.health.mark_account_needs_login(
-                        account_id=account.account_id,
-                        error=exc,
-                    )
-                    self.health.mark_error(
-                        error=exc,
-                        account_id=account.account_id,
-                        source_id=source.id,
-                    )
-
-                    print(
-                        f"{account.account_id} requires "
-                        "login or verification.",
-                        file=sys.stderr,
-                    )
-
-                    self.queue.fail_source(
-                        source_id=source.id,
-                        account_id=account.account_id,
-                        error=exc,
-                        retryable=True,
-                    )
-
-                    released_count = (
-                        self.queue
-                        .release_account_sources(
-                            account_id=(
-                                account.account_id
-                            ),
+                except Exception as exc:
+                    if self._kill_current_requested.is_set():
+                        self.queue.release_account_sources(
+                            account_id=account.account_id,
                             reason=(
-                                "Account session requires "
-                                "login or verification."
+                                "Current scan was killed from "
+                                "the operations dashboard."
                             ),
                         )
-                    )
+                        self._kill_current_requested.clear()
+                        account_terminal_status = "available"
+                        account_terminal_error = None
+                        print(
+                            "Current scan killed from dashboard."
+                        )
+                        break
 
-                    print(
-                        f"Released {released_count} "
-                        "remaining source(s).",
-                        file=sys.stderr,
-                    )
+                    if isinstance(exc, LinkedInSessionError):
+                        account_terminal_status = "needs_login"
+                        account_terminal_error = exc
+                        self.events.emit(
+                            event_type="source",
+                            step_name="linkedin_session_invalid",
+                            status="error",
+                            message=(
+                                f"{type(exc).__name__}: {exc}"
+                            ),
+                            progress_percent=10,
+                            source_id=source.id,
+                            account_id=account.account_id,
+                        )
+                        self.health.mark_account_needs_login(
+                            account_id=account.account_id,
+                            error=exc,
+                        )
+                        self.health.mark_error(
+                            error=exc,
+                            account_id=account.account_id,
+                            source_id=source.id,
+                        )
 
-                    self._send_failure_message(
-                        source=source,
-                        error=exc,
-                    )
-                    break
+                        print(
+                            f"{account.account_id} requires "
+                            "login or verification.",
+                            file=sys.stderr,
+                        )
 
-                except Exception as exc:
+                        self.queue.fail_source(
+                            source_id=source.id,
+                            account_id=account.account_id,
+                            error=exc,
+                            retryable=True,
+                        )
+
+                        released_count = (
+                            self.queue
+                            .release_account_sources(
+                                account_id=(
+                                    account.account_id
+                                ),
+                                reason=(
+                                    "Account session requires "
+                                    "login or verification."
+                                ),
+                            )
+                        )
+
+                        print(
+                            f"Released {released_count} "
+                            "remaining source(s).",
+                            file=sys.stderr,
+                        )
+
+                        self._send_failure_message(
+                            source=source,
+                            error=exc,
+                        )
+                        break
+
                     account_terminal_status = "error"
                     account_terminal_error = exc
                     self.events.emit(
@@ -731,20 +802,17 @@ class RoundRobinLinkedInWorker:
                         source_id=source.id,
                     )
 
-                    next_status = (
-                        self.queue.fail_source(
-                            source_id=source.id,
-                            account_id=account.account_id,
-                            error=exc,
-                            retryable=True,
-                        )
+                    next_status = self.queue.fail_source(
+                        source_id=source.id,
+                        account_id=account.account_id,
+                        error=exc,
+                        retryable=True,
                     )
 
                     print(
                         f"Source {source.id} failed. "
                         f"Next status: {next_status}. "
-                        f"Error: {type(exc).__name__}: "
-                        f"{exc}",
+                        f"Error: {type(exc).__name__}: {exc}",
                         file=sys.stderr,
                     )
 
@@ -769,6 +837,12 @@ class RoundRobinLinkedInWorker:
                 account_id=account.account_id,
             )
             browser.stop()
+
+            with self._active_browser_lock:
+                if self._active_browser is browser:
+                    self._active_browser = None
+
+            self._active_account_id = None
 
             try:
                 if account_terminal_status == "available":
@@ -1373,6 +1447,109 @@ class RoundRobinLinkedInWorker:
         )
 
     
+    def _start_command_listener(self) -> None:
+        if (
+            self._command_thread is not None
+            and self._command_thread.is_alive()
+        ):
+            return
+
+        self._command_stop_event.clear()
+        self._command_thread = threading.Thread(
+            target=self._command_loop,
+            name="linkedin-worker-commands",
+            daemon=True,
+        )
+        self._command_thread.start()
+
+        print("Worker command listener started.")
+
+    def _stop_command_listener(self) -> None:
+        self._command_stop_event.set()
+
+        thread = self._command_thread
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5)
+
+        self._command_thread = None
+
+    def _command_loop(self) -> None:
+        while not self._command_stop_event.wait(1):
+            try:
+                self._process_control_commands()
+            except Exception as exc:
+                print(
+                    "Worker command listener failed: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+
+    def _process_control_commands(self) -> None:
+        while True:
+            command = self.commands.claim_next_command()
+
+            if command is None:
+                return
+
+            try:
+                if command.command == "stop_scan":
+                    self._scan_paused = True
+                    self._set_live_health_state(
+                        status="paused",
+                        account_id=self._active_account_id,
+                        source_id=None,
+                    )
+                    self.health.heartbeat(
+                        status="paused",
+                        current_account_id=(
+                            self._active_account_id
+                        ),
+                    )
+
+                elif command.command == "resume_scan":
+                    self._scan_paused = False
+                    self._set_live_health_state(
+                        status="idle",
+                        account_id=None,
+                        source_id=None,
+                    )
+                    self.health.heartbeat(
+                        status="idle"
+                    )
+
+                elif command.command == "kill_current":
+                    self._kill_current_requested.set()
+
+                    with self._active_browser_lock:
+                        browser = self._active_browser
+
+                    if browser is not None:
+                        try:
+                            browser.stop()
+                        except Exception as exc:
+                            print(
+                                "Could not stop active browser: "
+                                f"{type(exc).__name__}: {exc}",
+                                file=sys.stderr,
+                            )
+
+                else:
+                    raise ValueError(
+                        "Unsupported worker command: "
+                        f"{command.command}"
+                    )
+
+                self.commands.complete(
+                    command_id=command.id
+                )
+
+            except Exception as exc:
+                self.commands.fail(
+                    command_id=command.id,
+                    error=exc,
+                )
+                raise
+
     def _set_live_health_state(
         self,
         *,
