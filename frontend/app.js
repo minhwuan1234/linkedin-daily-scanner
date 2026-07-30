@@ -2,10 +2,26 @@ const config = window.APP_CONFIG || {};
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
+  systemBadge: document.querySelector("#systemBadge"),
+  systemBadgeText: document.querySelector("#systemBadgeText"),
+  globalError: document.querySelector("#globalError"),
+
   totalProfiles: document.querySelector("#totalProfiles"),
-  scannedToday: document.querySelector("#scannedToday"),
-  completeProfiles: document.querySelector("#completeProfiles"),
+  pendingCount: document.querySelector("#pendingCount"),
+  processingCount: document.querySelector("#processingCount"),
+  completedCount: document.querySelector("#completedCount"),
+  failedCount: document.querySelector("#failedCount"),
+
+  profilesTabCount: document.querySelector("#profilesTabCount"),
+  queueTabCount: document.querySelector("#queueTabCount"),
+
+  activeProcessBadge: document.querySelector("#activeProcessBadge"),
+  activeProcessContent: document.querySelector("#activeProcessContent"),
+  readyAccountSummary: document.querySelector("#readyAccountSummary"),
+  overviewAccountList: document.querySelector("#overviewAccountList"),
+  activityTimeline: document.querySelector("#activityTimeline"),
   lastUpdated: document.querySelector("#lastUpdated"),
+
   resultSummary: document.querySelector("#resultSummary"),
   searchInput: document.querySelector("#searchInput"),
   sortSelect: document.querySelector("#sortSelect"),
@@ -13,6 +29,24 @@ const els = {
   emptyState: document.querySelector("#emptyState"),
   tableWrap: document.querySelector("#tableWrap"),
   profileTableBody: document.querySelector("#profileTableBody"),
+
+  queueSummary: document.querySelector("#queueSummary"),
+  queueSearchInput: document.querySelector("#queueSearchInput"),
+  queueStatusFilter: document.querySelector("#queueStatusFilter"),
+  queueEmptyState: document.querySelector("#queueEmptyState"),
+  queueTableWrap: document.querySelector("#queueTableWrap"),
+  queueTableBody: document.querySelector("#queueTableBody"),
+
+  accountsGrid: document.querySelector("#accountsGrid"),
+
+  healthOverallBadge: document.querySelector("#healthOverallBadge"),
+  healthServiceList: document.querySelector("#healthServiceList"),
+  workerDetailGrid: document.querySelector("#workerDetailGrid"),
+  healthHeartbeatAge: document.querySelector("#healthHeartbeatAge"),
+  healthStaleJobs: document.querySelector("#healthStaleJobs"),
+  healthUnsentLark: document.querySelector("#healthUnsentLark"),
+  healthNeedsLogin: document.querySelector("#healthNeedsLogin"),
+
   drawerBackdrop: document.querySelector("#drawerBackdrop"),
   detailDrawer: document.querySelector("#detailDrawer"),
   drawerName: document.querySelector("#drawerName"),
@@ -22,7 +56,12 @@ const els = {
 
 const state = {
   profiles: [],
-  filteredProfiles: []
+  filteredProfiles: [],
+  sources: [],
+  filteredSources: [],
+  accounts: [],
+  worker: null,
+  tableErrors: {}
 };
 
 function assertConfig() {
@@ -62,12 +101,41 @@ function formatDate(value) {
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return String(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
 
   return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
+}
+
+function formatAge(value) {
+  if (!value) return "Không có dữ liệu";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Không xác định";
+  }
+
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 1000)
+  );
+
+  if (seconds < 60) return `${seconds} giây trước`;
+
+  const minutes = Math.floor(seconds / 60);
+
+  if (minutes < 60) return `${minutes} phút trước`;
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) return `${hours} giờ trước`;
+
+  return `${Math.floor(hours / 24)} ngày trước`;
 }
 
 function isToday(value) {
@@ -127,11 +195,75 @@ function getLatestSnapshots(rows) {
   return Array.from(latestBySource.values());
 }
 
-async function loadProfiles() {
-  els.refreshButton.disabled = true;
-  els.errorState.hidden = true;
+function normaliseStatus(value) {
+  return String(value || "unknown")
+    .trim()
+    .toLowerCase();
+}
 
-  const { data, error } = await client
+function statusLabel(value) {
+  const status = normaliseStatus(value);
+
+  const labels = {
+    pending: "Pending",
+    processing: "Processing",
+    completed: "Completed",
+    failed: "Failed",
+    disabled: "Disabled",
+    available: "Available",
+    scanning: "Scanning",
+    cooldown: "Cooldown",
+    needs_login: "Needs login",
+    error: "Error",
+    starting: "Starting",
+    idle: "Idle",
+    stopping: "Stopping",
+    offline: "Offline"
+  };
+
+  return labels[status] || status;
+}
+
+function statusBadge(value) {
+  const status = normaliseStatus(value);
+
+  return `
+    <span class="status-badge status-${escapeHtml(status)}">
+      ${escapeHtml(statusLabel(status))}
+    </span>
+  `;
+}
+
+function countByStatus(status) {
+  return state.sources.filter(
+    (source) => normaliseStatus(source.job_status) === status
+  ).length;
+}
+
+async function safeQuery(name, queryPromise, fallback) {
+  try {
+    const result = await queryPromise;
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    delete state.tableErrors[name];
+
+    return result.data ?? fallback;
+  } catch (error) {
+    state.tableErrors[name] = error.message || String(error);
+    return fallback;
+  }
+}
+
+async function loadDashboard() {
+  els.refreshButton.disabled = true;
+  els.refreshButton.querySelector(".button-icon").textContent = "…";
+  els.globalError.hidden = true;
+  state.tableErrors = {};
+
+  const profileQuery = client
     .from("linkedin_profile_snapshots")
     .select(
       [
@@ -157,81 +289,187 @@ async function loadProfiles() {
     .order("scraped_at", { ascending: false })
     .limit(1000);
 
+  const sourceQuery = client
+    .from("linkedin_sources")
+    .select(
+      [
+        "id",
+        "name",
+        "linkedin_url",
+        "source_type",
+        "enabled",
+        "job_status",
+        "assigned_account_id",
+        "processing_started_at",
+        "processing_heartbeat_at",
+        "retry_count",
+        "last_error",
+        "last_scanned_at",
+        "completed_at",
+        "lark_chat_id",
+        "lark_result_sent_at",
+        "lark_result_error"
+      ].join(",")
+    )
+    .order("id", { ascending: false })
+    .limit(2000);
+
+  const accountQuery = client
+    .from("linkedin_scanner_accounts")
+    .select(
+      [
+        "account_id",
+        "display_name",
+        "profile_directory",
+        "enabled",
+        "status",
+        "current_source_id",
+        "batch_processed_count",
+        "consecutive_failures",
+        "cooldown_until",
+        "last_used_at",
+        "last_success_at",
+        "last_error_at",
+        "last_error",
+        "updated_at"
+      ].join(",")
+    )
+    .order("account_id", { ascending: true });
+
+  const workerQuery = client
+    .from("linkedin_worker_health")
+    .select(
+      [
+        "worker_id",
+        "worker_name",
+        "status",
+        "worker_version",
+        "hostname",
+        "pid",
+        "current_account_id",
+        "current_source_id",
+        "last_heartbeat_at",
+        "started_at",
+        "last_batch_started_at",
+        "last_batch_completed_at",
+        "last_success_at",
+        "last_error_at",
+        "last_error",
+        "updated_at"
+      ].join(",")
+    )
+    .order("last_heartbeat_at", { ascending: false })
+    .limit(1);
+
+  const [
+    profiles,
+    sources,
+    accounts,
+    workers
+  ] = await Promise.all([
+    safeQuery("profiles", profileQuery, []),
+    safeQuery("sources", sourceQuery, []),
+    safeQuery("accounts", accountQuery, []),
+    safeQuery("worker", workerQuery, [])
+  ]);
+
+  state.profiles = getLatestSnapshots(profiles || []);
+  state.sources = sources || [];
+  state.accounts = accounts || [];
+  state.worker = workers?.[0] || null;
+
   els.refreshButton.disabled = false;
+  els.refreshButton.querySelector(".button-icon").textContent = "↻";
 
-  if (error) {
-    els.errorState.textContent =
-      `Không thể tải dữ liệu: ${error.message}`;
+  renderAll();
+}
 
-    els.errorState.hidden = false;
-    els.tableWrap.hidden = true;
-    els.resultSummary.textContent =
-      "Không tải được dữ liệu.";
-
-    return;
-  }
-
-  state.profiles =
-    getLatestSnapshots(data || []);
-
+function renderAll() {
   updateStats();
-  applyFilters();
+  applyProfileFilters();
+  applyQueueFilters();
+  renderOverview();
+  renderAccounts();
+  renderHealth();
+  renderGlobalError();
 }
 
 function updateStats() {
-  const profiles = state.profiles;
-
-  const latestDate = profiles
+  const latestDate = state.profiles
     .map((profile) => profile.scraped_at)
     .filter(Boolean)
     .sort()
     .at(-1);
 
   els.totalProfiles.textContent =
-    profiles.length.toLocaleString("vi-VN");
+    state.profiles.length.toLocaleString("vi-VN");
 
-  els.scannedToday.textContent =
-    profiles
-      .filter((profile) =>
-        isToday(profile.scraped_at)
-      )
-      .length.toLocaleString("vi-VN");
+  els.pendingCount.textContent =
+    countByStatus("pending").toLocaleString("vi-VN");
 
-  els.completeProfiles.textContent =
-    profiles
-      .filter(isComplete)
-      .length.toLocaleString("vi-VN");
+  els.processingCount.textContent =
+    countByStatus("processing").toLocaleString("vi-VN");
+
+  els.completedCount.textContent =
+    countByStatus("completed").toLocaleString("vi-VN");
+
+  els.failedCount.textContent =
+    countByStatus("failed").toLocaleString("vi-VN");
+
+  els.profilesTabCount.textContent =
+    state.profiles.length.toLocaleString("vi-VN");
+
+  els.queueTabCount.textContent =
+    state.sources.length.toLocaleString("vi-VN");
 
   els.lastUpdated.textContent =
-    formatDate(latestDate);
+    latestDate
+      ? `Snapshot gần nhất: ${formatAge(latestDate)}`
+      : "Chưa có snapshot";
 }
 
-function applyFilters() {
-  const query =
-    els.searchInput.value
-      .trim()
-      .toLowerCase();
+function renderGlobalError() {
+  const entries = Object.entries(state.tableErrors);
+
+  if (!entries.length) {
+    els.globalError.hidden = true;
+    return;
+  }
+
+  els.globalError.innerHTML = `
+    <strong>Một số nguồn dữ liệu chưa đọc được.</strong><br />
+    ${entries
+      .map(
+        ([name, message]) =>
+          `${escapeHtml(name)}: ${escapeHtml(message)}`
+      )
+      .join("<br />")}
+  `;
+
+  els.globalError.hidden = false;
+}
+
+function applyProfileFilters() {
+  const query = els.searchInput.value
+    .trim()
+    .toLowerCase();
 
   const sort = els.sortSelect.value;
 
-  const filtered =
-    state.profiles.filter((profile) => {
-      const searchable = [
-        profile.name,
-        profile.headline,
-        profile.location,
-        profile.linkedin_url,
-        ...getPostCaptions(profile)
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+  const filtered = state.profiles.filter((profile) => {
+    const searchable = [
+      profile.name,
+      profile.headline,
+      profile.location,
+      profile.linkedin_url,
+      ...getPostCaptions(profile)
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
 
-      return (
-        !query ||
-        searchable.includes(query)
-      );
-    });
+    return !query || searchable.includes(query);
+  });
 
   filtered.sort((a, b) => {
     if (sort === "name") {
@@ -241,13 +479,8 @@ function applyFilters() {
       );
     }
 
-    const first = new Date(
-      a.scraped_at || 0
-    ).getTime();
-
-    const second = new Date(
-      b.scraped_at || 0
-    ).getTime();
+    const first = new Date(a.scraped_at || 0).getTime();
+    const second = new Date(b.scraped_at || 0).getTime();
 
     return sort === "oldest"
       ? first - second
@@ -256,203 +489,767 @@ function applyFilters() {
 
   state.filteredProfiles = filtered;
 
-  renderTable();
+  renderProfileTable();
 }
 
-function renderTable() {
-  const profiles =
-    state.filteredProfiles;
+function renderProfileTable() {
+  const profiles = state.filteredProfiles;
 
   els.resultSummary.textContent =
-    `${profiles.length.toLocaleString(
-      "vi-VN"
-    )} profiles`;
+    `${profiles.length.toLocaleString("vi-VN")} profiles`;
 
-  els.emptyState.hidden =
-    profiles.length > 0;
+  els.emptyState.hidden = profiles.length > 0;
+  els.tableWrap.hidden = profiles.length === 0;
 
-  els.tableWrap.hidden =
-    profiles.length === 0;
+  els.profileTableBody.innerHTML = profiles
+    .map((profile) => {
+      const postCount = getPostCaptions(profile).length;
 
-  els.profileTableBody.innerHTML =
-    profiles
-      .map((profile) => {
-        const postCount =
-          getPostCaptions(profile).length;
-
-        return `
-          <tr>
-            <td>
-              <div class="profile-cell">
-                <div class="avatar">
-                  ${escapeHtml(
-                    getInitials(profile.name)
-                  )}
-                </div>
-
-                <div class="profile-copy">
-                  <p class="profile-name">
-                    ${escapeHtml(
-                      profile.name
-                    )}
-                  </p>
-
-                  <p class="profile-headline">
-                    ${escapeHtml(
-                      profile.headline ||
-                      "Không có headline"
-                    )}
-                  </p>
-                </div>
+      return `
+        <tr>
+          <td>
+            <div class="profile-cell">
+              <div class="avatar">
+                ${escapeHtml(getInitials(profile.name))}
               </div>
-            </td>
 
-            <td>
-              ${escapeHtml(
-                profile.location || "—"
-              )}
-            </td>
+              <div class="profile-copy">
+                <p class="profile-name">
+                  ${escapeHtml(profile.name)}
+                </p>
 
-            <td>
-              ${escapeHtml(
-                profile.followers_count_text ||
-                "—"
-              )}
-            </td>
+                <p class="profile-headline">
+                  ${escapeHtml(
+                    profile.headline || "Không có headline"
+                  )}
+                </p>
+              </div>
+            </div>
+          </td>
 
-            <td>
-              ${escapeHtml(
-                profile.connections_count_text ||
-                "—"
-              )}
-            </td>
+          <td>
+            ${escapeHtml(profile.location || "—")}
+          </td>
 
-            <td>
-              <span class="post-count-badge">
-                ${postCount}
-              </span>
-            </td>
+          <td>
+            ${escapeHtml(
+              profile.followers_count_text || "—"
+            )}
+          </td>
 
-            <td class="muted-cell">
-              ${escapeHtml(
-                formatDate(
-                  profile.scraped_at
-                )
-              )}
-            </td>
+          <td>
+            ${escapeHtml(
+              profile.connections_count_text || "—"
+            )}
+          </td>
 
-            <td class="action-cell">
-              <button
-                class="row-button"
-                type="button"
-                data-profile-id="${escapeHtml(
-                  profile.id
-                )}"
-                aria-label="Xem ${escapeHtml(
-                  profile.name
-                )}"
-              >
-                ⋯
-              </button>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+          <td>
+            <span class="post-count-badge">
+              ${postCount}
+            </span>
+          </td>
+
+          <td class="muted-cell">
+            ${escapeHtml(formatDate(profile.scraped_at))}
+          </td>
+
+          <td class="action-cell">
+            <button
+              class="row-button"
+              type="button"
+              data-profile-id="${escapeHtml(profile.id)}"
+              aria-label="Xem ${escapeHtml(profile.name)}"
+            >
+              ⋯
+            </button>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
 
   els.profileTableBody
-    .querySelectorAll(
-      "[data-profile-id]"
-    )
+    .querySelectorAll("[data-profile-id]")
     .forEach((button) => {
-      button.addEventListener(
-        "click",
-        () => {
-          const profileId =
-            String(
-              button.dataset.profileId
-            );
+      button.addEventListener("click", () => {
+        const profile = state.profiles.find(
+          (item) =>
+            String(item.id) ===
+            String(button.dataset.profileId)
+        );
 
-          const profile =
-            state.profiles.find(
-              (item) =>
-                String(item.id) ===
-                profileId
-            );
-
-          if (profile) {
-            openDrawer(profile);
-          }
+        if (profile) {
+          openDrawer(profile);
         }
-      );
+      });
     });
+}
+
+function applyQueueFilters() {
+  const query = els.queueSearchInput.value
+    .trim()
+    .toLowerCase();
+
+  const filter = els.queueStatusFilter.value;
+
+  state.filteredSources = state.sources.filter((source) => {
+    const status = normaliseStatus(source.job_status);
+
+    const matchesStatus =
+      filter === "all" || status === filter;
+
+    const searchable = [
+      source.name,
+      source.linkedin_url,
+      source.assigned_account_id,
+      source.job_status,
+      source.last_error
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return (
+      matchesStatus &&
+      (!query || searchable.includes(query))
+    );
+  });
+
+  renderQueueTable();
+}
+
+function renderQueueTable() {
+  const sources = state.filteredSources;
+
+  els.queueSummary.textContent =
+    `${sources.length.toLocaleString("vi-VN")} sources`;
+
+  els.queueEmptyState.hidden = sources.length > 0;
+  els.queueTableWrap.hidden = sources.length === 0;
+
+  els.queueTableBody.innerHTML = sources
+    .map((source) => {
+      const sourceName =
+        source.name ||
+        `Source #${source.id}`;
+
+      return `
+        <tr>
+          <td>
+            <div class="queue-source">
+              <strong>${escapeHtml(sourceName)}</strong>
+              <span>${escapeHtml(source.linkedin_url || "—")}</span>
+            </div>
+          </td>
+
+          <td>
+            ${statusBadge(source.job_status)}
+          </td>
+
+          <td>
+            ${escapeHtml(source.assigned_account_id || "—")}
+          </td>
+
+          <td>
+            ${Number(source.retry_count || 0)}
+          </td>
+
+          <td class="muted-cell">
+            ${escapeHtml(formatDate(source.processing_started_at))}
+          </td>
+
+          <td class="muted-cell">
+            ${escapeHtml(formatDate(source.last_scanned_at))}
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+}
+
+function getCurrentSource() {
+  if (!state.worker?.current_source_id) {
+    return null;
+  }
+
+  return state.sources.find(
+    (source) =>
+      String(source.id) ===
+      String(state.worker.current_source_id)
+  ) || null;
+}
+
+function renderOverview() {
+  renderActiveProcess();
+  renderOverviewAccounts();
+  renderTimeline();
+}
+
+function renderActiveProcess() {
+  const worker = state.worker;
+  const source = getCurrentSource();
+
+  if (!worker) {
+    els.activeProcessBadge.className =
+      "pill pill-red";
+    els.activeProcessBadge.textContent =
+      "Worker chưa đăng ký";
+
+    els.activeProcessContent.innerHTML = `
+      <div class="empty-process">
+        Chưa có dữ liệu worker trong linkedin_worker_health.
+      </div>
+    `;
+
+    return;
+  }
+
+  const workerStatus = normaliseStatus(worker.status);
+
+  els.activeProcessBadge.className =
+    `pill ${
+      workerStatus === "scanning"
+        ? "pill-purple"
+        : workerStatus === "idle"
+          ? "pill-green"
+          : "pill-amber"
+    }`;
+
+  els.activeProcessBadge.textContent =
+    statusLabel(workerStatus);
+
+  if (!source) {
+    els.activeProcessContent.innerHTML = `
+      <div class="active-process-card">
+        <div class="active-process-title">
+          <div>
+            <h3>
+              ${escapeHtml(
+                worker.worker_name || worker.worker_id || "Mac Worker"
+              )}
+            </h3>
+            <p class="process-url">
+              Không có source đang được xử lý.
+            </p>
+          </div>
+
+          ${statusBadge(worker.status)}
+        </div>
+
+        <p class="process-step">
+          ${
+            workerStatus === "idle"
+              ? "Worker đang chờ URL mới."
+              : "Worker chưa gắn current_source_id."
+          }
+        </p>
+
+        <div class="active-process-footer">
+          <span>
+            Current account:
+            ${escapeHtml(worker.current_account_id || "—")}
+          </span>
+
+          <span>
+            Heartbeat ${escapeHtml(formatAge(worker.last_heartbeat_at))}
+          </span>
+        </div>
+      </div>
+    `;
+
+    return;
+  }
+
+  const progress =
+    normaliseStatus(source.job_status) === "completed"
+      ? 100
+      : 62;
+
+  els.activeProcessContent.innerHTML = `
+    <div class="active-process-card">
+      <div class="active-process-title">
+        <div>
+          <h3>
+            ${escapeHtml(source.name || `Source #${source.id}`)}
+          </h3>
+
+          <p class="process-url">
+            ${escapeHtml(source.linkedin_url || "—")}
+          </p>
+        </div>
+
+        ${statusBadge(source.job_status)}
+      </div>
+
+      <p class="process-step">
+        ${
+          normaliseStatus(source.job_status) === "processing"
+            ? "Worker đang scan profile và cập nhật snapshot."
+            : "Đang đồng bộ trạng thái source."
+        }
+      </p>
+
+      <div class="process-progress">
+        <div
+          class="process-progress-bar"
+          style="width: ${progress}%"
+        ></div>
+      </div>
+
+      <div class="active-process-footer">
+        <span>
+          ${escapeHtml(
+            source.assigned_account_id ||
+            worker.current_account_id ||
+            "Chưa assign account"
+          )}
+        </span>
+
+        <span>
+          Heartbeat ${escapeHtml(formatAge(worker.last_heartbeat_at))}
+        </span>
+      </div>
+    </div>
+  `;
+}
+
+function renderOverviewAccounts() {
+  const enabledAccounts = state.accounts.filter(
+    (account) => account.enabled !== false
+  );
+
+  const readyCount = enabledAccounts.filter(
+    (account) =>
+      ["available", "idle"].includes(
+        normaliseStatus(account.status)
+      )
+  ).length;
+
+  els.readyAccountSummary.textContent =
+    `${readyCount}/${enabledAccounts.length || 0} ready`;
+
+  if (!state.accounts.length) {
+    els.overviewAccountList.innerHTML = `
+      <div class="empty-process">
+        Chưa đọc được linkedin_scanner_accounts.
+      </div>
+    `;
+    return;
+  }
+
+  els.overviewAccountList.innerHTML = state.accounts
+    .slice(0, 5)
+    .map((account) => `
+      <div class="compact-account-row">
+        <div class="compact-account-copy">
+          <strong>${escapeHtml(account.account_id)}</strong>
+          <span>
+            ${
+              account.current_source_id
+                ? `Source #${escapeHtml(account.current_source_id)}`
+                : account.last_error
+                  ? escapeHtml(account.last_error)
+                  : "Không có source hiện tại"
+            }
+          </span>
+        </div>
+
+        ${statusBadge(account.status)}
+      </div>
+    `)
+    .join("");
+}
+
+function renderTimeline() {
+  const entries = [];
+
+  if (state.worker) {
+    entries.push({
+      type:
+        normaliseStatus(state.worker.status) === "error"
+          ? "error"
+          : "processing",
+      icon: "W",
+      title: `Worker ${statusLabel(state.worker.status)}`,
+      description:
+        state.worker.current_source_id
+          ? `Đang xử lý source #${state.worker.current_source_id}`
+          : "Không có source hiện tại",
+      time: formatAge(state.worker.last_heartbeat_at)
+    });
+  }
+
+  state.sources
+    .filter((source) => source.last_scanned_at)
+    .slice(0, 4)
+    .forEach((source) => {
+      entries.push({
+        type:
+          normaliseStatus(source.job_status) === "failed"
+            ? "error"
+            : "success",
+        icon:
+          normaliseStatus(source.job_status) === "failed"
+            ? "!"
+            : "✓",
+        title:
+          normaliseStatus(source.job_status) === "failed"
+            ? "Source scan thất bại"
+            : "Snapshot đã hoàn thành",
+        description:
+          source.name ||
+          source.linkedin_url ||
+          `Source #${source.id}`,
+        time: formatAge(source.last_scanned_at)
+      });
+    });
+
+  if (!entries.length) {
+    els.activityTimeline.innerHTML = `
+      <div class="empty-process">
+        Chưa có hoạt động để hiển thị.
+      </div>
+    `;
+    return;
+  }
+
+  els.activityTimeline.innerHTML = entries
+    .map((entry) => `
+      <div class="activity-entry is-${entry.type}">
+        <div class="activity-dot">${entry.icon}</div>
+
+        <div class="activity-entry-main">
+          <div class="activity-entry-copy">
+            <strong>${escapeHtml(entry.title)}</strong>
+            <span>${escapeHtml(entry.description)}</span>
+          </div>
+
+          <span class="activity-time">
+            ${escapeHtml(entry.time)}
+          </span>
+        </div>
+      </div>
+    `)
+    .join("");
+}
+
+function renderAccounts() {
+  if (!state.accounts.length) {
+    els.accountsGrid.innerHTML = `
+      <div class="panel">
+        <div class="empty-process">
+          Không có dữ liệu account hoặc anon key chưa có quyền đọc bảng.
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  els.accountsGrid.innerHTML = state.accounts
+    .map((account, index) => `
+      <article class="account-card">
+        <div class="account-card-header">
+          <div class="account-title">
+            <div class="account-index">
+              ${String(index + 1).padStart(2, "0")}
+            </div>
+
+            <div>
+              <strong>${escapeHtml(account.account_id)}</strong>
+              <span>
+                ${escapeHtml(
+                  account.display_name || "Persistent browser session"
+                )}
+              </span>
+            </div>
+          </div>
+
+          ${statusBadge(account.status)}
+        </div>
+
+        <div class="account-detail-list">
+          <div class="account-detail-row">
+            <span>Current source</span>
+            <strong>
+              ${
+                account.current_source_id
+                  ? `#${escapeHtml(account.current_source_id)}`
+                  : "—"
+              }
+            </strong>
+          </div>
+
+          <div class="account-detail-row">
+            <span>Batch processed</span>
+            <strong>
+              ${Number(account.batch_processed_count || 0)}
+            </strong>
+          </div>
+
+          <div class="account-detail-row">
+            <span>Consecutive failures</span>
+            <strong>
+              ${Number(account.consecutive_failures || 0)}
+            </strong>
+          </div>
+
+          <div class="account-detail-row">
+            <span>Last success</span>
+            <strong>
+              ${escapeHtml(formatAge(account.last_success_at))}
+            </strong>
+          </div>
+
+          <div class="account-detail-row">
+            <span>Last error</span>
+            <strong>
+              ${escapeHtml(account.last_error || "—")}
+            </strong>
+          </div>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function renderHealth() {
+  const worker = state.worker;
+  const heartbeatAgeSeconds = worker?.last_heartbeat_at
+    ? Math.max(
+        0,
+        Math.floor(
+          (Date.now() - new Date(worker.last_heartbeat_at).getTime()) /
+          1000
+        )
+      )
+    : null;
+
+  const workerOnline =
+    heartbeatAgeSeconds !== null &&
+    heartbeatAgeSeconds <= 90 &&
+    !["offline", "stopping"].includes(
+      normaliseStatus(worker?.status)
+    );
+
+  const needsLoginCount = state.accounts.filter(
+    (account) =>
+      normaliseStatus(account.status) === "needs_login"
+  ).length;
+
+  const staleJobs = state.sources.filter((source) => {
+    if (normaliseStatus(source.job_status) !== "processing") {
+      return false;
+    }
+
+    const heartbeat =
+      source.processing_heartbeat_at ||
+      source.processing_started_at;
+
+    if (!heartbeat) return true;
+
+    return (
+      Date.now() - new Date(heartbeat).getTime() >
+      20 * 60 * 1000
+    );
+  }).length;
+
+  const unsentLark = state.sources.filter(
+    (source) =>
+      source.lark_chat_id &&
+      source.last_scanned_at &&
+      !source.lark_result_sent_at
+  ).length;
+
+  let overall = "HEALTHY";
+
+  if (
+    !workerOnline ||
+    state.tableErrors.sources ||
+    state.tableErrors.worker
+  ) {
+    overall = "UNHEALTHY";
+  } else if (
+    needsLoginCount > 0 ||
+    staleJobs > 0 ||
+    unsentLark > 0 ||
+    countByStatus("failed") > 0
+  ) {
+    overall = "DEGRADED";
+  }
+
+  const overallClass =
+    overall === "HEALTHY"
+      ? "pill-green"
+      : overall === "DEGRADED"
+        ? "pill-amber"
+        : "pill-red";
+
+  els.healthOverallBadge.className =
+    `pill ${overallClass}`;
+  els.healthOverallBadge.textContent = overall;
+
+  els.systemBadge.className =
+    `system-badge ${
+      overall === "HEALTHY"
+        ? "is-healthy"
+        : overall === "DEGRADED"
+          ? "is-degraded"
+          : "is-unhealthy"
+    }`;
+
+  els.systemBadgeText.textContent =
+    overall === "HEALTHY"
+      ? "System healthy"
+      : overall === "DEGRADED"
+        ? "System degraded"
+        : "System unhealthy";
+
+  const services = [
+    {
+      name: "Supabase profiles",
+      detail:
+        state.tableErrors.profiles ||
+        `${state.profiles.length} profiles`,
+      healthy: !state.tableErrors.profiles
+    },
+    {
+      name: "Supabase queue",
+      detail:
+        state.tableErrors.sources ||
+        `${state.sources.length} sources`,
+      healthy: !state.tableErrors.sources
+    },
+    {
+      name: "Mac Worker",
+      detail:
+        worker
+          ? `${statusLabel(worker.status)} · ${formatAge(worker.last_heartbeat_at)}`
+          : "Không có worker record",
+      healthy: workerOnline
+    },
+    {
+      name: "LinkedIn accounts",
+      detail:
+        state.tableErrors.accounts ||
+        `${state.accounts.length} accounts · ${needsLoginCount} needs login`,
+      healthy:
+        !state.tableErrors.accounts &&
+        needsLoginCount === 0
+    },
+    {
+      name: "Lark delivery",
+      detail: `${unsentLark} kết quả chưa gửi`,
+      healthy: unsentLark === 0
+    }
+  ];
+
+  els.healthServiceList.innerHTML = services
+    .map((service) => `
+      <div class="health-service-row">
+        <div class="health-service-copy">
+          <strong>${escapeHtml(service.name)}</strong>
+          <span>${escapeHtml(service.detail)}</span>
+        </div>
+
+        <span class="status-badge ${
+          service.healthy
+            ? "status-available"
+            : "status-error"
+        }">
+          ${service.healthy ? "Healthy" : "Issue"}
+        </span>
+      </div>
+    `)
+    .join("");
+
+  els.workerDetailGrid.innerHTML = `
+    <dt>Worker ID</dt>
+    <dd>${escapeHtml(worker?.worker_id || "—")}</dd>
+
+    <dt>Status</dt>
+    <dd>${escapeHtml(statusLabel(worker?.status))}</dd>
+
+    <dt>Version</dt>
+    <dd>${escapeHtml(worker?.worker_version || "—")}</dd>
+
+    <dt>Hostname</dt>
+    <dd>${escapeHtml(worker?.hostname || "—")}</dd>
+
+    <dt>Current account</dt>
+    <dd>${escapeHtml(worker?.current_account_id || "—")}</dd>
+
+    <dt>Current source</dt>
+    <dd>${escapeHtml(worker?.current_source_id || "—")}</dd>
+
+    <dt>Last heartbeat</dt>
+    <dd>${escapeHtml(formatDate(worker?.last_heartbeat_at))}</dd>
+
+    <dt>Last success</dt>
+    <dd>${escapeHtml(formatDate(worker?.last_success_at))}</dd>
+
+    <dt>Last error</dt>
+    <dd>${escapeHtml(worker?.last_error || "—")}</dd>
+  `;
+
+  els.healthHeartbeatAge.textContent =
+    heartbeatAgeSeconds === null
+      ? "—"
+      : formatAge(worker.last_heartbeat_at);
+
+  els.healthStaleJobs.textContent =
+    staleJobs.toLocaleString("vi-VN");
+
+  els.healthUnsentLark.textContent =
+    unsentLark.toLocaleString("vi-VN");
+
+  els.healthNeedsLogin.textContent =
+    needsLoginCount.toLocaleString("vi-VN");
 }
 
 function openDrawer(profile) {
   els.drawerName.textContent =
     profile.name || "Chưa có tên";
 
-  const linkedInBlock =
-    profile.linkedin_url
-      ? `
-        <a
-          class="detail-link"
-          href="${escapeHtml(
-            profile.linkedin_url
-          )}"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Mở LinkedIn profile
-        </a>
-      `
-      : `
-        <p>
-          Không có LinkedIn URL.
-        </p>
-      `;
+  const linkedInBlock = profile.linkedin_url
+    ? `
+      <a
+        class="detail-link"
+        href="${escapeHtml(profile.linkedin_url)}"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Mở LinkedIn profile
+      </a>
+    `
+    : `
+      <p>Không có LinkedIn URL.</p>
+    `;
 
-  const postCaptions =
-    getPostCaptions(profile);
+  const postCaptions = getPostCaptions(profile);
 
-  const recentPostsBlock =
-    postCaptions.length
-      ? `
-        <div class="recent-posts-list">
-          ${postCaptions
-            .map(
-              (
-                caption,
-                index
-              ) => `
-                <article
-                  class="recent-post-card"
-                >
-                  <div
-                    class="recent-post-meta"
-                  >
-                    <span>
-                      Post ${index + 1}
-                    </span>
-                  </div>
+  const recentPostsBlock = postCaptions.length
+    ? `
+      <div class="recent-posts-list">
+        ${postCaptions
+          .map(
+            (caption, index) => `
+              <article class="recent-post-card">
+                <div class="recent-post-meta">
+                  <span>Post ${index + 1}</span>
+                </div>
 
-                  <p>
-                    ${escapeHtml(
-                      caption
-                    )}
-                  </p>
-                </article>
-              `
-            )
-            .join("")}
-        </div>
-      `
-      : `
-        <p class="detail-empty">
-          Không có bài viết trong
-          30 ngày gần nhất.
-        </p>
-      `;
+                <p>${escapeHtml(caption)}</p>
+              </article>
+            `
+          )
+          .join("")}
+      </div>
+    `
+    : `
+      <p class="detail-empty">
+        Không có bài viết trong 30 ngày gần nhất.
+      </p>
+    `;
 
   els.drawerContent.innerHTML = `
     <section class="detail-section">
@@ -460,48 +1257,26 @@ function openDrawer(profile) {
 
       <dl class="detail-grid">
         <dt>Headline</dt>
-        <dd>
-          ${escapeHtml(
-            profile.headline || "—"
-          )}
-        </dd>
+        <dd>${escapeHtml(profile.headline || "—")}</dd>
 
         <dt>Location</dt>
-        <dd>
-          ${escapeHtml(
-            profile.location || "—"
-          )}
-        </dd>
+        <dd>${escapeHtml(profile.location || "—")}</dd>
 
         <dt>Followers</dt>
         <dd>
-          ${escapeHtml(
-            profile.followers_count_text ||
-            "—"
-          )}
+          ${escapeHtml(profile.followers_count_text || "—")}
         </dd>
 
         <dt>Connections</dt>
         <dd>
-          ${escapeHtml(
-            profile.connections_count_text ||
-            "—"
-          )}
+          ${escapeHtml(profile.connections_count_text || "—")}
         </dd>
 
         <dt>Posts</dt>
-        <dd>
-          ${postCaptions.length}
-        </dd>
+        <dd>${postCaptions.length}</dd>
 
         <dt>Last scan</dt>
-        <dd>
-          ${escapeHtml(
-            formatDate(
-              profile.scraped_at
-            )
-          )}
-        </dd>
+        <dd>${escapeHtml(formatDate(profile.scraped_at))}</dd>
       </dl>
     </section>
 
@@ -522,9 +1297,7 @@ function openDrawer(profile) {
     </section>
 
     <section class="detail-section">
-      <div
-        class="detail-section-heading"
-      >
+      <div class="detail-section-heading">
         <h3>Recent posts</h3>
 
         <span class="detail-count">
@@ -548,48 +1321,67 @@ function openDrawer(profile) {
   `;
 
   els.drawerBackdrop.hidden = false;
-
-  els.detailDrawer.classList.add(
-    "is-open"
-  );
-
-  els.detailDrawer.setAttribute(
-    "aria-hidden",
-    "false"
-  );
-
-  document.body.style.overflow =
-    "hidden";
+  els.detailDrawer.classList.add("is-open");
+  els.detailDrawer.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
 }
 
 function closeDrawer() {
   els.drawerBackdrop.hidden = true;
-
-  els.detailDrawer.classList.remove(
-    "is-open"
-  );
-
-  els.detailDrawer.setAttribute(
-    "aria-hidden",
-    "true"
-  );
-
+  els.detailDrawer.classList.remove("is-open");
+  els.detailDrawer.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
 }
 
+function switchTab(tabName) {
+  document
+    .querySelectorAll(".tab-button")
+    .forEach((button) => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.tab === tabName
+      );
+    });
+
+  document
+    .querySelectorAll(".tab-panel")
+    .forEach((panel) => {
+      panel.hidden =
+        panel.id !== `tab-${tabName}`;
+    });
+}
+
+document
+  .querySelectorAll(".tab-button")
+  .forEach((button) => {
+    button.addEventListener("click", () => {
+      switchTab(button.dataset.tab);
+    });
+  });
+
 els.refreshButton.addEventListener(
   "click",
-  loadProfiles
+  loadDashboard
 );
 
 els.searchInput.addEventListener(
   "input",
-  applyFilters
+  applyProfileFilters
 );
 
 els.sortSelect.addEventListener(
   "change",
-  applyFilters
+  applyProfileFilters
+);
+
+els.queueSearchInput.addEventListener(
+  "input",
+  applyQueueFilters
+);
+
+els.queueStatusFilter.addEventListener(
+  "change",
+  applyQueueFilters
 );
 
 els.closeDrawerButton.addEventListener(
@@ -611,4 +1403,4 @@ document.addEventListener(
   }
 );
 
-loadProfiles();
+loadDashboard();
