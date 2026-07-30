@@ -118,6 +118,56 @@ class LinkedInWorkerHealth:
             .execute()
         )
 
+    def touch_heartbeat(
+        self,
+        *,
+        status: str | None = None,
+        current_account_id: str | None = None,
+        current_source_id: int | None = None,
+    ) -> None:
+        """
+        Refresh only the live heartbeat fields.
+
+        This method deliberately does not clear last_error,
+        last_error_at, last_success_at, or batch timestamps.
+        It is safe for a background heartbeat thread.
+        """
+        now = _utc_now_iso()
+
+        payload: dict[str, Any] = {
+            "hostname": self.hostname,
+            "pid": self.pid,
+            "worker_version": self.worker_version,
+            "last_heartbeat_at": now,
+            "updated_at": now,
+        }
+
+        if status is not None:
+            payload["status"] = status
+
+        payload["current_account_id"] = current_account_id
+        payload["current_source_id"] = (
+            int(current_source_id)
+            if current_source_id is not None
+            else None
+        )
+
+        response = (
+            self.client
+            .table(WORKER_HEALTH_TABLE)
+            .update(payload)
+            .eq(
+                "worker_id",
+                self.worker_id,
+            )
+            .execute()
+        )
+
+        if not list(response.data or []):
+            self.register_worker(
+                status=status or "starting"
+            )
+
     def heartbeat(
         self,
         *,
