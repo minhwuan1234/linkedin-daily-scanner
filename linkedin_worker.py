@@ -25,6 +25,7 @@ from app.source_queue import (
     LinkedInSourceQueue,
     QueueSource,
 )
+from app.worker_health import LinkedInWorkerHealth
 from scan_unscanned_profiles import (
     get_result_post_count,
     save_local_output,
@@ -38,7 +39,7 @@ DEFAULT_ERROR_RETRY_SECONDS = 60
 DEFAULT_STALE_JOB_MINUTES = 20
 DEFAULT_ACCOUNT_COOLDOWN_SECONDS = 60
 
-WORKER_VERSION = "2.0.0-round-robin"
+WORKER_VERSION = "2.1.0-round-robin-health"
 
 
 def _read_int_env(
@@ -171,6 +172,11 @@ class RoundRobinLinkedInWorker:
         self._stop_requested = False
         self._round_number = 0
 
+        self.health = LinkedInWorkerHealth(
+            settings=settings,
+            worker_version=WORKER_VERSION,
+        )
+
         try:
             self.lark_client: LarkClient | None = (
                 LarkClient()
@@ -186,6 +192,9 @@ class RoundRobinLinkedInWorker:
 
     def run_forever(self) -> int:
         self._register_signal_handlers()
+        self.health.register_worker(
+            status="starting"
+        )
 
         profile_errors = (
             self.account_pool
@@ -193,6 +202,11 @@ class RoundRobinLinkedInWorker:
         )
 
         if profile_errors:
+            error_text = "; ".join(profile_errors)
+            self.health.mark_error(
+                error=error_text
+            )
+
             print(
                 "LinkedIn account sessions are not ready:",
                 file=sys.stderr,
@@ -241,11 +255,22 @@ class RoundRobinLinkedInWorker:
                     f"Released {released} stale jobs."
                 )
 
+            self.health.heartbeat(
+                status="idle"
+            )
+
             while not self._stop_requested:
                 try:
+                    self.health.heartbeat(
+                        status="idle"
+                    )
                     processed = self.run_one_round()
 
                 except Exception as exc:
+                    self.health.mark_error(
+                        error=exc
+                    )
+
                     print(
                         "Worker round failed: "
                         f"{type(exc).__name__}: {exc}",
@@ -278,6 +303,15 @@ class RoundRobinLinkedInWorker:
             return 0
 
         finally:
+            try:
+                self.health.mark_stopping()
+            except Exception as exc:
+                print(
+                    "Could not save stopping heartbeat: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+
             print("")
             print(
                 "LinkedIn round-robin worker stopped."
@@ -340,12 +374,24 @@ class RoundRobinLinkedInWorker:
             f"Account turn: {account.account_id}"
         )
 
+        self.health.mark_batch_started(
+            account_id=account.account_id
+        )
+        self.health.mark_account_scanning(
+            account_id=account.account_id
+        )
+
         sources = self.queue.claim_sources(
             account_id=account.account_id,
             limit=self.urls_per_account_turn,
         )
 
         if not sources:
+            self.health.mark_account_available(
+                account_id=account.account_id
+            )
+            self.health.mark_batch_completed()
+
             print(
                 f"{account.account_id}: "
                 "no pending sources."
@@ -386,6 +432,18 @@ class RoundRobinLinkedInWorker:
                     f"URL: {source.linkedin_url}"
                 )
 
+                self.health.heartbeat(
+                    status="scanning",
+                    current_account_id=(
+                        account.account_id
+                    ),
+                    current_source_id=source.id,
+                )
+                self.health.mark_account_scanning(
+                    account_id=account.account_id,
+                    source_id=source.id,
+                )
+
                 try:
                     self._process_source(
                         account=account,
@@ -394,6 +452,16 @@ class RoundRobinLinkedInWorker:
                     )
 
                 except LinkedInSessionError as exc:
+                    self.health.mark_account_needs_login(
+                        account_id=account.account_id,
+                        error=exc,
+                    )
+                    self.health.mark_error(
+                        error=exc,
+                        account_id=account.account_id,
+                        source_id=source.id,
+                    )
+
                     print(
                         f"{account.account_id} requires "
                         "login or verification.",
@@ -433,6 +501,17 @@ class RoundRobinLinkedInWorker:
                     break
 
                 except Exception as exc:
+                    self.health.mark_account_error(
+                        account_id=account.account_id,
+                        error=exc,
+                        source_id=source.id,
+                    )
+                    self.health.mark_error(
+                        error=exc,
+                        account_id=account.account_id,
+                        source_id=source.id,
+                    )
+
                     next_status = (
                         self.queue.fail_source(
                             source_id=source.id,
@@ -460,6 +539,19 @@ class RoundRobinLinkedInWorker:
 
         finally:
             browser.stop()
+
+            try:
+                self.health.mark_account_available(
+                    account_id=account.account_id,
+                    success=True,
+                )
+                self.health.mark_batch_completed()
+            except Exception as exc:
+                print(
+                    "Could not update account health: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
 
         return len(sources)
 
@@ -513,6 +605,15 @@ class RoundRobinLinkedInWorker:
             source_id=source.id,
             account_id=account.account_id,
             scanned_at=scraped_at,
+        )
+
+        self.health.mark_success(
+            account_id=account.account_id,
+            source_id=source.id,
+        )
+        self.health.mark_account_available(
+            account_id=account.account_id,
+            success=True,
         )
 
         print(
