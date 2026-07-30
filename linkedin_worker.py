@@ -1253,7 +1253,7 @@ class RoundRobinLinkedInWorker:
                 f"status for source {source_id}.",
                 file=sys.stderr,
             )
-        def _restore_scheduler_position(
+    def _restore_scheduler_position(
         self,
     ) -> None:
         """
