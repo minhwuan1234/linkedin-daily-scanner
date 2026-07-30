@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
+from supabase import create_client
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -69,6 +70,19 @@ SUPABASE_SECRET_KEY = os.getenv(
     "SUPABASE_SECRET_KEY",
     "",
 ).strip()
+
+
+DASHBOARD_CONTROL_TOKEN = os.getenv(
+    "DASHBOARD_CONTROL_TOKEN",
+    "",
+).strip()
+
+WORKER_COMMAND_TABLE = "linkedin_worker_commands"
+ALLOWED_WORKER_COMMANDS = {
+    "kill_current",
+    "stop_scan",
+    "resume_scan",
+}
 
 
 # =========================================================
@@ -161,6 +175,159 @@ def health_check() -> dict[str, Any]:
             ),
         },
     }
+
+
+
+# =========================================================
+# WORKER CONTROL API
+# =========================================================
+
+@app.post("/api/worker/commands")
+async def create_worker_command(
+    request: Request,
+) -> JSONResponse:
+    """
+    Queue a control command for the Mac worker.
+
+    The browser cannot be controlled directly from Railway.
+    Railway writes a command to Supabase; the local worker
+    reads and acknowledges it.
+    """
+    if not DASHBOARD_CONTROL_TOKEN:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": (
+                    "DASHBOARD_CONTROL_TOKEN is not configured"
+                ),
+            },
+        )
+
+    incoming_token = (
+        request.headers.get("x-control-token", "")
+        .strip()
+    )
+
+    if incoming_token != DASHBOARD_CONTROL_TOKEN:
+        return JSONResponse(
+            status_code=401,
+            content={
+                "ok": False,
+                "error": "Invalid control token",
+            },
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Request body must be valid JSON",
+            },
+        )
+
+    command = str(
+        body.get("command") or ""
+    ).strip()
+
+    worker_id = str(
+        body.get("worker_id") or ""
+    ).strip()
+
+    if command not in ALLOWED_WORKER_COMMANDS:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Unsupported worker command",
+                "allowed_commands": sorted(
+                    ALLOWED_WORKER_COMMANDS
+                ),
+            },
+        )
+
+    if not worker_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "worker_id is required",
+            },
+        )
+
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": "Supabase backend is not configured",
+            },
+        )
+
+    try:
+        client = create_client(
+            SUPABASE_URL,
+            SUPABASE_SECRET_KEY,
+        )
+
+        response = (
+            client
+            .table(WORKER_COMMAND_TABLE)
+            .insert(
+                {
+                    "worker_id": worker_id,
+                    "command": command,
+                    "status": "pending",
+                    "requested_at": (
+                        datetime
+                        .now(timezone.utc)
+                        .isoformat()
+                    ),
+                }
+            )
+            .execute()
+        )
+
+        rows = list(response.data or [])
+
+        if not rows:
+            raise RuntimeError(
+                "Supabase returned no command row"
+            )
+
+        command_row = rows[0]
+
+    except Exception as exc:
+        logger.exception(
+            "Could not queue worker command"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not queue worker command",
+                "detail": str(exc),
+            },
+        )
+
+    logger.warning(
+        "WORKER COMMAND QUEUED | worker_id=%s | command=%s | command_id=%s",
+        worker_id,
+        command,
+        command_row.get("id"),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "command": command_row,
+        },
+    )
 
 
 # =========================================================
@@ -632,4 +799,3 @@ async def receive_lark_event(
                 result.existing_urls
             ),
         },
-    )
