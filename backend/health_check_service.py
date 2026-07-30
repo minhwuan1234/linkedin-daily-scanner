@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from app.linkedin_scanner import create_supabase_client
-from app.settings import Settings
+from supabase import Client, create_client
 
 
 SOURCE_TABLE = "linkedin_sources"
@@ -16,8 +16,66 @@ DEFAULT_WORKER_STALE_SECONDS = 90
 DEFAULT_JOB_STALE_MINUTES = 20
 
 
+def _required_env(
+    key: str,
+) -> str:
+    value = os.getenv(
+        key,
+        "",
+    ).strip()
+
+    if not value:
+        raise RuntimeError(
+            f"Missing required environment variable: {key}"
+        )
+
+    return value
+
+
+def _create_supabase_client() -> Client:
+    """
+    Health check only needs Supabase.
+
+    Do not call app.settings.load_settings() here because
+    that loader also requires unrelated scanner variables
+    such as GOOGLE_SHEET_ID.
+    """
+    supabase_url = _required_env(
+        "SUPABASE_URL"
+    )
+
+    supabase_key = (
+        os.getenv(
+            "SUPABASE_SECRET_KEY",
+            "",
+        ).strip()
+        or os.getenv(
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "",
+        ).strip()
+        or os.getenv(
+            "SUPABASE_KEY",
+            "",
+        ).strip()
+    )
+
+    if not supabase_key:
+        raise RuntimeError(
+            "Missing Supabase key. Set "
+            "SUPABASE_SECRET_KEY or "
+            "SUPABASE_SERVICE_ROLE_KEY."
+        )
+
+    return create_client(
+        supabase_url,
+        supabase_key,
+    )
+
+
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(
+        timezone.utc
+    )
 
 
 def _parse_datetime(
@@ -33,7 +91,10 @@ def _parse_datetime(
 
     try:
         parsed = datetime.fromisoformat(
-            text.replace("Z", "+00:00")
+            text.replace(
+                "Z",
+                "+00:00",
+            )
         )
     except ValueError:
         return None
@@ -51,16 +112,24 @@ def _parse_datetime(
 def _seconds_since(
     value: Any,
 ) -> int | None:
-    parsed = _parse_datetime(value)
+    parsed = _parse_datetime(
+        value
+    )
 
     if parsed is None:
         return None
 
     seconds = int(
-        (_utc_now() - parsed).total_seconds()
+        (
+            _utc_now()
+            - parsed
+        ).total_seconds()
     )
 
-    return max(0, seconds)
+    return max(
+        0,
+        seconds,
+    )
 
 
 def _format_age(
@@ -78,18 +147,24 @@ def _format_age(
         return f"{minutes}m ago"
 
     hours = minutes // 60
-    remaining_minutes = minutes % 60
+    remaining_minutes = (
+        minutes % 60
+    )
 
     if hours < 24:
         return (
-            f"{hours}h {remaining_minutes}m ago"
+            f"{hours}h "
+            f"{remaining_minutes}m ago"
         )
 
     days = hours // 24
-    remaining_hours = hours % 24
+    remaining_hours = (
+        hours % 24
+    )
 
     return (
-        f"{days}d {remaining_hours}h ago"
+        f"{days}d "
+        f"{remaining_hours}h ago"
     )
 
 
@@ -116,28 +191,23 @@ class HealthCheckResult:
 
 class LinkedInSystemHealthCheck:
     """
-    Read-only health check for the whole LinkedIn scanner.
+    Read-only health check for the shared Supabase database.
 
-    It reads the existing shared Supabase database:
-    - linkedin_sources
-    - linkedin_scanner_accounts
-    - linkedin_worker_health
-
-    It does not scan LinkedIn.
-    It does not modify jobs.
-    It does not create a new database.
+    This service deliberately does not load the full Mac
+    scanner Settings object. Railway only needs Supabase
+    credentials to read system health.
     """
 
     def __init__(
         self,
         *,
-        settings: Settings,
         worker_stale_seconds: int = (
             DEFAULT_WORKER_STALE_SECONDS
         ),
         job_stale_minutes: int = (
             DEFAULT_JOB_STALE_MINUTES
         ),
+        client: Client | None = None,
     ) -> None:
         if worker_stale_seconds < 30:
             raise ValueError(
@@ -151,8 +221,10 @@ class LinkedInSystemHealthCheck:
                 "at least 1"
             )
 
-        self.client = create_supabase_client(
-            settings
+        self.client = (
+            client
+            if client is not None
+            else _create_supabase_client()
         )
 
         self.worker_stale_seconds = (
@@ -172,8 +244,12 @@ class LinkedInSystemHealthCheck:
             queue_counts = (
                 self._get_queue_counts()
             )
-            accounts = self._get_accounts()
-            worker = self._get_latest_worker()
+            accounts = (
+                self._get_accounts()
+            )
+            worker = (
+                self._get_latest_worker()
+            )
             stale_jobs = (
                 self._get_stale_job_count()
             )
@@ -288,7 +364,10 @@ class LinkedInSystemHealthCheck:
             for row in list(
                 response.data or []
             )
-            if isinstance(row, dict)
+            if isinstance(
+                row,
+                dict,
+            )
         ]
 
     def _get_latest_worker(
@@ -322,7 +401,10 @@ class LinkedInSystemHealthCheck:
 
         row = rows[0]
 
-        if not isinstance(row, dict):
+        if not isinstance(
+            row,
+            dict,
+        ):
             return None
 
         return dict(row)
@@ -330,16 +412,16 @@ class LinkedInSystemHealthCheck:
     def _get_stale_job_count(
         self,
     ) -> int:
-        cutoff = (
-            _utc_now().timestamp()
-            - (
-                self.job_stale_minutes
-                * 60
-            )
+        cutoff_seconds = (
+            self.job_stale_minutes
+            * 60
         )
 
-        cutoff_iso = datetime.fromtimestamp(
-            cutoff,
+        cutoff = datetime.fromtimestamp(
+            (
+                _utc_now().timestamp()
+                - cutoff_seconds
+            ),
             tz=timezone.utc,
         ).isoformat()
 
@@ -356,7 +438,7 @@ class LinkedInSystemHealthCheck:
             )
             .lt(
                 "processing_heartbeat_at",
-                cutoff_iso,
+                cutoff,
             )
             .limit(1)
             .execute()
@@ -455,7 +537,8 @@ class LinkedInSystemHealthCheck:
             )
 
             worker_online = (
-                worker_heartbeat_age is not None
+                worker_heartbeat_age
+                is not None
                 and worker_heartbeat_age
                 <= self.worker_stale_seconds
                 and worker.get("status")
@@ -468,21 +551,33 @@ class LinkedInSystemHealthCheck:
         enabled_accounts = [
             account
             for account in accounts
-            if account.get("enabled") is True
+            if account.get(
+                "enabled"
+            ) is True
         ]
 
         needs_login_accounts = [
-            str(account.get("account_id"))
+            str(
+                account.get(
+                    "account_id"
+                )
+            )
             for account in enabled_accounts
-            if account.get("status")
-            == "needs_login"
+            if account.get(
+                "status"
+            ) == "needs_login"
         ]
 
         error_accounts = [
-            str(account.get("account_id"))
+            str(
+                account.get(
+                    "account_id"
+                )
+            )
             for account in enabled_accounts
-            if account.get("status")
-            == "error"
+            if account.get(
+                "status"
+            ) == "error"
         ]
 
         return {
@@ -510,7 +605,9 @@ class LinkedInSystemHealthCheck:
             ),
             "last_scan_at": last_scan_at,
             "last_scan_age_seconds": (
-                _seconds_since(last_scan_at)
+                _seconds_since(
+                    last_scan_at
+                )
             ),
         }
 
@@ -518,18 +615,26 @@ class LinkedInSystemHealthCheck:
         self,
         details: dict[str, Any],
     ) -> str:
-        if not details["database_healthy"]:
+        if not details[
+            "database_healthy"
+        ]:
             return "UNHEALTHY"
 
-        if not details["worker_online"]:
+        if not details[
+            "worker_online"
+        ]:
             return "UNHEALTHY"
 
-        if details["enabled_account_count"] == 0:
+        if details[
+            "enabled_account_count"
+        ] == 0:
             return "UNHEALTHY"
 
         degraded = any(
             (
-                details["stale_job_count"] > 0,
+                details[
+                    "stale_job_count"
+                ] > 0,
                 details[
                     "unsent_lark_result_count"
                 ] > 0,
@@ -539,7 +644,9 @@ class LinkedInSystemHealthCheck:
                     ]
                 ),
                 bool(
-                    details["error_accounts"]
+                    details[
+                        "error_accounts"
+                    ]
                 ),
                 details[
                     "queue_counts"
@@ -562,8 +669,12 @@ class LinkedInSystemHealthCheck:
         overall_status: str,
         details: dict[str, Any],
     ) -> str:
-        queue = details["queue_counts"]
-        worker = details["worker"]
+        queue = details[
+            "queue_counts"
+        ]
+        worker = details[
+            "worker"
+        ]
 
         lines = [
             "LinkedIn Scanner Health Check",
@@ -572,7 +683,9 @@ class LinkedInSystemHealthCheck:
             "",
         ]
 
-        if details["database_healthy"]:
+        if details[
+            "database_healthy"
+        ]:
             lines.append(
                 "Supabase: Healthy"
             )
@@ -592,13 +705,18 @@ class LinkedInSystemHealthCheck:
         else:
             worker_state = (
                 "Online"
-                if details["worker_online"]
+                if details[
+                    "worker_online"
+                ]
                 else "Offline or stale"
             )
 
             lines.extend(
                 [
-                    f"Mac Worker: {worker_state}",
+                    (
+                        "Mac Worker: "
+                        f"{worker_state}"
+                    ),
                     (
                         "Worker status: "
                         f"{worker.get('status') or 'unknown'}"
@@ -622,7 +740,10 @@ class LinkedInSystemHealthCheck:
             [
                 "",
                 "Queue:",
-                f"Pending: {queue.get('pending', 0)}",
+                (
+                    "Pending: "
+                    f"{queue.get('pending', 0)}"
+                ),
                 (
                     "Processing: "
                     f"{queue.get('processing', 0)}"
@@ -631,7 +752,10 @@ class LinkedInSystemHealthCheck:
                     "Completed: "
                     f"{queue.get('completed', 0)}"
                 ),
-                f"Failed: {queue.get('failed', 0)}",
+                (
+                    "Failed: "
+                    f"{queue.get('failed', 0)}"
+                ),
                 (
                     "Stale processing: "
                     f"{details['stale_job_count']}"
@@ -645,7 +769,9 @@ class LinkedInSystemHealthCheck:
             ]
         )
 
-        accounts = details["accounts"]
+        accounts = details[
+            "accounts"
+        ]
 
         if not accounts:
             lines.append(
@@ -654,18 +780,24 @@ class LinkedInSystemHealthCheck:
         else:
             for account in accounts:
                 account_id = (
-                    account.get("account_id")
+                    account.get(
+                        "account_id"
+                    )
                     or "unknown"
                 )
 
                 status = (
-                    account.get("status")
+                    account.get(
+                        "status"
+                    )
                     or "unknown"
                 )
 
                 enabled = (
                     "enabled"
-                    if account.get("enabled") is True
+                    if account.get(
+                        "enabled"
+                    ) is True
                     else "disabled"
                 )
 
@@ -686,12 +818,16 @@ class LinkedInSystemHealthCheck:
 
         actions: list[str] = []
 
-        if not details["worker_online"]:
+        if not details[
+            "worker_online"
+        ]:
             actions.append(
                 "Restart the Mac worker."
             )
 
-        if details["needs_login_accounts"]:
+        if details[
+            "needs_login_accounts"
+        ]:
             actions.append(
                 "Login again for: "
                 + ", ".join(
@@ -702,16 +838,16 @@ class LinkedInSystemHealthCheck:
                 + "."
             )
 
-        if details["stale_job_count"] > 0:
+        if details[
+            "stale_job_count"
+        ] > 0:
             actions.append(
                 "Release stale processing jobs."
             )
 
-        if (
-            details[
-                "unsent_lark_result_count"
-            ] > 0
-        ):
+        if details[
+            "unsent_lark_result_count"
+        ] > 0:
             actions.append(
                 "Retry unsent Lark results."
             )
@@ -725,4 +861,6 @@ class LinkedInSystemHealthCheck:
                 ]
             )
 
-        return "\n".join(lines)
+        return "\n".join(
+            lines
+        )
