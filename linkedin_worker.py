@@ -5,6 +5,7 @@ import random
 import signal
 import sys
 import time
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
@@ -38,8 +39,9 @@ DEFAULT_IDLE_POLL_SECONDS = 30
 DEFAULT_ERROR_RETRY_SECONDS = 60
 DEFAULT_STALE_JOB_MINUTES = 20
 DEFAULT_ACCOUNT_COOLDOWN_SECONDS = 60
+DEFAULT_HEARTBEAT_INTERVAL_SECONDS = 30
 
-WORKER_VERSION = "2.1.0-round-robin-health"
+WORKER_VERSION = "2.2.0-background-heartbeat"
 
 
 def _read_int_env(
@@ -172,6 +174,20 @@ class RoundRobinLinkedInWorker:
         self._stop_requested = False
         self._round_number = 0
 
+        self.heartbeat_interval_seconds = _read_int_env(
+            "LINKEDIN_HEARTBEAT_INTERVAL_SECONDS",
+            default=DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+            minimum=10,
+            maximum=300,
+        )
+
+        self._health_lock = threading.Lock()
+        self._health_status = "starting"
+        self._health_account_id: str | None = None
+        self._health_source_id: int | None = None
+        self._heartbeat_stop_event = threading.Event()
+        self._heartbeat_thread: threading.Thread | None = None
+
         self.health = LinkedInWorkerHealth(
             settings=settings,
             worker_version=WORKER_VERSION,
@@ -195,6 +211,12 @@ class RoundRobinLinkedInWorker:
         self.health.register_worker(
             status="starting"
         )
+        self._set_live_health_state(
+            status="starting",
+            account_id=None,
+            source_id=None,
+        )
+        self._start_background_heartbeat()
 
         profile_errors = (
             self.account_pool
@@ -255,12 +277,22 @@ class RoundRobinLinkedInWorker:
                     f"Released {released} stale jobs."
                 )
 
+            self._set_live_health_state(
+                status="idle",
+                account_id=None,
+                source_id=None,
+            )
             self.health.heartbeat(
                 status="idle"
             )
 
             while not self._stop_requested:
                 try:
+                    self._set_live_health_state(
+                        status="idle",
+                        account_id=None,
+                        source_id=None,
+                    )
                     self.health.heartbeat(
                         status="idle"
                     )
@@ -303,7 +335,14 @@ class RoundRobinLinkedInWorker:
             return 0
 
         finally:
+            self._stop_background_heartbeat()
+
             try:
+                self._set_live_health_state(
+                    status="stopping",
+                    account_id=None,
+                    source_id=None,
+                )
                 self.health.mark_stopping()
             except Exception as exc:
                 print(
@@ -374,6 +413,11 @@ class RoundRobinLinkedInWorker:
             f"Account turn: {account.account_id}"
         )
 
+        self._set_live_health_state(
+            status="scanning",
+            account_id=account.account_id,
+            source_id=None,
+        )
         self.health.mark_batch_started(
             account_id=account.account_id
         )
@@ -432,6 +476,11 @@ class RoundRobinLinkedInWorker:
                     f"URL: {source.linkedin_url}"
                 )
 
+                self._set_live_health_state(
+                    status="scanning",
+                    account_id=account.account_id,
+                    source_id=source.id,
+                )
                 self.health.heartbeat(
                     status="scanning",
                     current_account_id=(
@@ -854,6 +903,74 @@ class RoundRobinLinkedInWorker:
                 f"status for source {source_id}.",
                 file=sys.stderr,
             )
+
+    def _set_live_health_state(
+        self,
+        *,
+        status: str,
+        account_id: str | None,
+        source_id: int | None,
+    ) -> None:
+        with self._health_lock:
+            self._health_status = status
+            self._health_account_id = account_id
+            self._health_source_id = source_id
+
+    def _start_background_heartbeat(self) -> None:
+        if (
+            self._heartbeat_thread is not None
+            and self._heartbeat_thread.is_alive()
+        ):
+            return
+
+        self._heartbeat_stop_event.clear()
+
+        self._heartbeat_thread = threading.Thread(
+            target=self._heartbeat_loop,
+            name="linkedin-worker-heartbeat",
+            daemon=True,
+        )
+        self._heartbeat_thread.start()
+
+        print(
+            "Background heartbeat: every "
+            f"{self.heartbeat_interval_seconds}s"
+        )
+
+    def _stop_background_heartbeat(self) -> None:
+        self._heartbeat_stop_event.set()
+
+        thread = self._heartbeat_thread
+
+        if (
+            thread is not None
+            and thread.is_alive()
+        ):
+            thread.join(timeout=5)
+
+        self._heartbeat_thread = None
+
+    def _heartbeat_loop(self) -> None:
+        while not self._heartbeat_stop_event.wait(
+            self.heartbeat_interval_seconds
+        ):
+            with self._health_lock:
+                status = self._health_status
+                account_id = self._health_account_id
+                source_id = self._health_source_id
+
+            try:
+                self.health.touch_heartbeat(
+                    status=status,
+                    current_account_id=account_id,
+                    current_source_id=source_id,
+                )
+            except Exception as exc:
+                print(
+                    "Background heartbeat failed: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
 
     def _wait_between_profiles(self) -> None:
         if (
