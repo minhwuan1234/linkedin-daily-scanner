@@ -2,6 +2,9 @@ const config = window.APP_CONFIG || {};
 
 const els = {
   refreshButton: document.querySelector("#refreshButton"),
+  killProcessButton: document.querySelector("#killProcessButton"),
+  stopScanButton: document.querySelector("#stopScanButton"),
+  stopScanButtonText: document.querySelector("#stopScanButtonText"),
   systemBadge: document.querySelector("#systemBadge"),
   systemBadgeText: document.querySelector("#systemBadgeText"),
   globalError: document.querySelector("#globalError"),
@@ -61,7 +64,8 @@ const state = {
   filteredSources: [],
   accounts: [],
   worker: null,
-  tableErrors: {}
+  tableErrors: {},
+  commandPending: false
 };
 
 function assertConfig() {
@@ -257,6 +261,145 @@ async function safeQuery(name, queryPromise, fallback) {
   }
 }
 
+
+function getControlToken() {
+  const storedToken = sessionStorage.getItem(
+    "linkedinScannerControlToken"
+  );
+
+  if (storedToken) {
+    return storedToken;
+  }
+
+  const enteredToken = window.prompt(
+    "Nhập dashboard control token"
+  );
+
+  const cleanedToken = String(
+    enteredToken || ""
+  ).trim();
+
+  if (cleanedToken) {
+    sessionStorage.setItem(
+      "linkedinScannerControlToken",
+      cleanedToken
+    );
+  }
+
+  return cleanedToken;
+}
+
+function updateWorkerControlButtons() {
+  const workerStatus = normaliseStatus(
+    state.worker?.status
+  );
+
+  const isPaused = workerStatus === "paused";
+
+  els.stopScanButton.classList.toggle(
+    "is-resume",
+    isPaused
+  );
+
+  els.stopScanButtonText.textContent =
+    isPaused
+      ? "Resume scan"
+      : "Stop scan";
+
+  els.stopScanButton.disabled =
+    state.commandPending ||
+    !state.worker?.worker_id;
+
+  els.killProcessButton.disabled =
+    state.commandPending ||
+    !state.worker?.worker_id ||
+    !state.worker?.current_source_id;
+}
+
+async function sendWorkerCommand(command) {
+  const workerId = String(
+    state.worker?.worker_id || ""
+  ).trim();
+
+  if (!workerId) {
+    throw new Error(
+      "Không tìm thấy worker_id đang hoạt động."
+    );
+  }
+
+  const controlToken = getControlToken();
+
+  if (!controlToken) {
+    return;
+  }
+
+  const labels = {
+    kill_current: "kill lượt quét hiện tại",
+    stop_scan: "tạm dừng scanner",
+    resume_scan: "tiếp tục scanner"
+  };
+
+  const confirmed = window.confirm(
+    `Xác nhận ${labels[command] || command}?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  state.commandPending = true;
+  updateWorkerControlButtons();
+
+  try {
+    const response = await fetch(
+      "/api/worker/commands",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Control-Token": controlToken
+        },
+        body: JSON.stringify({
+          worker_id: workerId,
+          command
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      if (response.status === 401) {
+        sessionStorage.removeItem(
+          "linkedinScannerControlToken"
+        );
+      }
+
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể gửi worker command."
+      );
+    }
+
+    els.globalError.hidden = false;
+    els.globalError.innerHTML = `
+      <strong>Đã gửi command.</strong><br />
+      ${escapeHtml(labels[command] || command)}
+      — worker sẽ xử lý trong vài giây.
+    `;
+
+    window.setTimeout(
+      loadDashboard,
+      1500
+    );
+  } finally {
+    state.commandPending = false;
+    updateWorkerControlButtons();
+  }
+}
+
+
 async function loadDashboard() {
   els.refreshButton.disabled = true;
   els.refreshButton.querySelector(".button-icon").textContent = "…";
@@ -392,6 +535,7 @@ function renderAll() {
   renderAccounts();
   renderHealth();
   renderGlobalError();
+  updateWorkerControlButtons();
 }
 
 function updateStats() {
@@ -1358,6 +1502,33 @@ document
       switchTab(button.dataset.tab);
     });
   });
+
+els.killProcessButton.addEventListener(
+  "click",
+  async () => {
+    try {
+      await sendWorkerCommand("kill_current");
+    } catch (error) {
+      window.alert(error.message || String(error));
+    }
+  }
+);
+
+els.stopScanButton.addEventListener(
+  "click",
+  async () => {
+    try {
+      const command =
+        normaliseStatus(state.worker?.status) === "paused"
+          ? "resume_scan"
+          : "stop_scan";
+
+      await sendWorkerCommand(command);
+    } catch (error) {
+      window.alert(error.message || String(error));
+    }
+  }
+);
 
 els.refreshButton.addEventListener(
   "click",
