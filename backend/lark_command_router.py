@@ -4,7 +4,6 @@ import re
 from dataclasses import dataclass
 
 from app.lark_client import LarkClient
-from app.settings import load_settings
 from backend.health_check_service import (
     LinkedInSystemHealthCheck,
 )
@@ -38,7 +37,9 @@ def is_health_check_command(
     text: str | None,
 ) -> bool:
     return (
-        _normalise_command(text)
+        _normalise_command(
+            text
+        )
         in HEALTH_CHECK_COMMANDS
     )
 
@@ -57,10 +58,11 @@ def handle_lark_command(
     chat_id: str | None,
 ) -> LarkCommandResult:
     """
-    Handle supported text commands from the Lark webhook.
+    Process supported Lark text commands.
 
-    Returns handled=False when the message is not a command.
-    The caller can then continue with the LinkedIn URL flow.
+    This module intentionally does not call load_settings().
+    Railway health checks only require Supabase and Lark
+    environment variables.
     """
     command = _normalise_command(
         text
@@ -81,12 +83,8 @@ def handle_lark_command(
             "the health check command"
         )
 
-    settings = load_settings()
-
     health_result = (
-        LinkedInSystemHealthCheck(
-            settings=settings
-        )
+        LinkedInSystemHealthCheck()
         .run()
     )
 
