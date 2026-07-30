@@ -2,40 +2,64 @@
 set -euo pipefail
 
 LABEL="com.linkedin.daily-scanner.worker"
-PROJECT_DIR="${1:-$HOME/Documents/linkedin-daily-scanner}"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
 PLIST_DIR="$HOME/Library/LaunchAgents"
 PLIST_PATH="$PLIST_DIR/$LABEL.plist"
-RUN_SCRIPT="$PROJECT_DIR/scripts/run_linkedin_worker.sh"
+
 LOG_DIR="$PROJECT_DIR/logs"
-UID_VALUE="$(id -u)"
+OUT_LOG="$LOG_DIR/linkedin-worker.out.log"
+ERR_LOG="$LOG_DIR/linkedin-worker.err.log"
+
+PYTHON_BIN="$PROJECT_DIR/.venv/bin/python3"
+WORKER_FILE="$PROJECT_DIR/linkedin_worker.py"
+ENV_FILE="$PROJECT_DIR/.env"
+
+DOMAIN="gui/$(id -u)"
 
 if [[ ! -d "$PROJECT_DIR" ]]; then
   echo "Project directory not found: $PROJECT_DIR" >&2
   exit 1
 fi
 
-if [[ ! -f "$PROJECT_DIR/linkedin_worker.py" ]]; then
-  echo "linkedin_worker.py not found in: $PROJECT_DIR" >&2
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo ".env not found: $ENV_FILE" >&2
   exit 1
 fi
 
-if [[ ! -f "$PROJECT_DIR/.env" ]]; then
-  echo ".env not found in: $PROJECT_DIR" >&2
+if [[ ! -x "$PYTHON_BIN" ]]; then
+  echo "Virtualenv Python not found: $PYTHON_BIN" >&2
   exit 1
 fi
 
-if [[ ! -f "$RUN_SCRIPT" ]]; then
-  echo "Runner script not found: $RUN_SCRIPT" >&2
+if [[ ! -f "$WORKER_FILE" ]]; then
+  echo "Worker file not found: $WORKER_FILE" >&2
   exit 1
 fi
 
-mkdir -p "$PLIST_DIR" "$LOG_DIR"
-chmod +x "$RUN_SCRIPT"
+mkdir -p "$PLIST_DIR"
+mkdir -p "$LOG_DIR"
+
+launchctl bootout \
+  "$DOMAIN/$LABEL" \
+  2>/dev/null || true
+
+rm -f "$PLIST_PATH"
+
+COMMAND="cd '$PROJECT_DIR' && set -a && source '$ENV_FILE' && set +a && exec /usr/bin/caffeinate -dimsu '$PYTHON_BIN' -u '$WORKER_FILE'"
+
+ESCAPED_COMMAND="$(
+  printf '%s' "$COMMAND" \
+    | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'
+)"
 
 cat > "$PLIST_PATH" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+
 <plist version="1.0">
 <dict>
   <key>Label</key>
@@ -44,57 +68,75 @@ cat > "$PLIST_PATH" <<PLIST
   <key>ProgramArguments</key>
   <array>
     <string>/bin/zsh</string>
-    <string>$RUN_SCRIPT</string>
+    <string>-lc</string>
+    <string>$ESCAPED_COMMAND</string>
   </array>
 
   <key>WorkingDirectory</key>
   <string>$PROJECT_DIR</string>
 
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>LINKEDIN_SCANNER_PROJECT_DIR</key>
-    <string>$PROJECT_DIR</string>
-    <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
-  </dict>
-
   <key>RunAtLoad</key>
   <true/>
 
   <key>KeepAlive</key>
-  <dict>
-    <key>SuccessfulExit</key>
-    <false/>
-  </dict>
+  <true/>
 
   <key>ThrottleInterval</key>
   <integer>10</integer>
 
   <key>ProcessType</key>
-  <string>Background</string>
+  <string>Interactive</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>$HOME</string>
+
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
 
   <key>StandardOutPath</key>
-  <string>$LOG_DIR/linkedin-worker.out.log</string>
+  <string>$OUT_LOG</string>
 
   <key>StandardErrorPath</key>
-  <string>$LOG_DIR/linkedin-worker.err.log</string>
+  <string>$ERR_LOG</string>
 </dict>
 </plist>
 PLIST
 
-plutil -lint "$PLIST_PATH"
+/usr/bin/plutil -lint "$PLIST_PATH"
 
-launchctl bootout "gui/$UID_VALUE/$LABEL" 2>/dev/null || true
-launchctl bootstrap "gui/$UID_VALUE" "$PLIST_PATH"
-launchctl enable "gui/$UID_VALUE/$LABEL"
-launchctl kickstart -k "gui/$UID_VALUE/$LABEL"
+: > "$OUT_LOG"
+: > "$ERR_LOG"
+
+launchctl bootstrap \
+  "$DOMAIN" \
+  "$PLIST_PATH"
+
+launchctl enable \
+  "$DOMAIN/$LABEL"
+
+launchctl kickstart -k \
+  "$DOMAIN/$LABEL"
+
+sleep 4
 
 echo ""
 echo "LinkedIn worker service installed."
 echo "Label: $LABEL"
+echo "Project: $PROJECT_DIR"
 echo "Plist: $PLIST_PATH"
-echo "Logs:"
-echo "  $LOG_DIR/linkedin-worker.out.log"
-echo "  $LOG_DIR/linkedin-worker.err.log"
 echo ""
-launchctl print "gui/$UID_VALUE/$LABEL" | head -n 35
+
+launchctl print \
+  "$DOMAIN/$LABEL" \
+  | grep -E "state =|pid =|last exit code" \
+  || true
+
+echo ""
+echo "Output log:"
+echo "$OUT_LOG"
+echo ""
+echo "Error log:"
+echo "$ERR_LOG"
