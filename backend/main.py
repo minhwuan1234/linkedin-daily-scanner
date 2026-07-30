@@ -7,6 +7,9 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from backend.lark_command_router import (
+    handle_lark_command,
+)
 from backend.linkedin_url_parser import (
     LinkedInUrlLimitError,
     extract_linkedin_urls_with_limit,
@@ -74,9 +77,9 @@ app = FastAPI(
     title="LinkedIn Daily Scanner API",
     description=(
         "Railway backend for receiving LinkedIn URLs "
-        "from Lark and storing them in Supabase."
+        "and health-check commands from Lark."
     ),
-    version="0.5.0",
+    version="0.6.0",
 )
 
 
@@ -94,6 +97,15 @@ def root() -> dict[str, str]:
 
 @app.get("/health")
 def health_check() -> dict[str, Any]:
+    """
+    Basic Railway API health endpoint.
+
+    This route only checks whether the API is running and
+    whether the required environment variables are present.
+
+    The full LinkedIn scanner health check is triggered from
+    Lark with the command: health check
+    """
     return {
         "status": "ok",
         "timestamp": (
@@ -133,19 +145,21 @@ async def receive_lark_event(
     """
     Nhận text message từ Lark.
 
-    Flow hiện tại:
-    1. Nhận webhook.
-    2. Lấy nội dung text.
-    3. Tách LinkedIn URL.
-    4. Chuẩn hóa và loại URL trùng.
-    5. Reject toàn bộ request nếu vượt gateway.
-    6. Thêm URL chưa tồn tại vào:
-       public.linkedin_sources.linkedin_url
+    Flow:
+    1. Nhận và validate webhook.
+    2. Lấy text, chat ID và sender ID.
+    3. Kiểm tra command health check.
+    4. Nếu là command:
+       - đọc trạng thái toàn hệ thống;
+       - gửi báo cáo về đúng chat Lark;
+       - dừng flow URL.
+    5. Nếu không phải command:
+       - tách LinkedIn URL;
+       - áp dụng gateway tối đa 10 URL;
+       - lưu URL vào Supabase;
+       - Mac worker xử lý queue sau đó.
 
-    Chưa thực hiện:
-    - Chạy LinkedIn scraper trên Railway.
-    - Gửi outbound message phản hồi về Lark.
-    - Update các cột dữ liệu profile.
+    Railway không trực tiếp chạy LinkedIn browser.
     """
 
     # -----------------------------------------------------
@@ -305,15 +319,98 @@ async def receive_lark_event(
         parsed_content = json.loads(raw_content)
         text = str(
             parsed_content.get("text", "")
-        )
+        ).strip()
     except json.JSONDecodeError:
         logger.warning(
             "Cannot parse Lark content: %s",
             raw_content,
         )
 
+    logger.info(
+        (
+            "LARK TEXT MESSAGE | "
+            "open_id=%s | "
+            "message_id=%s | "
+            "chat_id=%s | "
+            "chat_type=%s | "
+            "text=%s"
+        ),
+        open_id,
+        message_id,
+        chat_id,
+        chat_type,
+        text,
+    )
+
     # -----------------------------------------------------
-    # 7. EXTRACT LINKEDIN URLS + APPLY GATEWAY
+    # 7. CHECK LARK COMMANDS BEFORE URL PARSING
+    # -----------------------------------------------------
+
+    try:
+        command_result = handle_lark_command(
+            text=text,
+            chat_id=chat_id,
+        )
+
+    except Exception as exc:
+        logger.exception(
+            (
+                "Could not process Lark command | "
+                "message_id=%s | "
+                "chat_id=%s"
+            ),
+            message_id,
+            chat_id,
+        )
+
+        # Return 200 so Lark does not repeatedly resend
+        # the same event and create duplicate bot messages.
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": False,
+                "message_received": True,
+                "command_handled": False,
+                "reason": (
+                    "lark_command_processing_failed"
+                ),
+                "message_id": message_id,
+                "open_id": open_id,
+                "error": str(exc),
+            },
+        )
+
+    if command_result.handled:
+        logger.info(
+            (
+                "LARK COMMAND COMPLETED | "
+                "command=%s | "
+                "message_id=%s | "
+                "chat_id=%s | "
+                "response_message_id=%s"
+            ),
+            command_result.command,
+            message_id,
+            chat_id,
+            command_result.message_id,
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "message_received": True,
+                "command_handled": True,
+                "command": command_result.command,
+                "message_id": message_id,
+                "response_message_id": (
+                    command_result.message_id
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 8. EXTRACT LINKEDIN URLS + APPLY GATEWAY
     # -----------------------------------------------------
 
     try:
@@ -342,8 +439,8 @@ async def receive_lark_event(
             exc.max_count,
         )
 
-        # Trả HTTP 200 để Lark không retry cùng một event.
-        # Request bị reject toàn bộ trước bước Supabase insert.
+        # HTTP 200 prevents Lark from retrying the event.
+        # No URL is inserted before this gateway passes.
         return JSONResponse(
             status_code=200,
             content={
@@ -425,16 +522,17 @@ async def receive_lark_event(
         )
 
     # -----------------------------------------------------
-    # 8. INSERT URLS INTO SUPABASE
+    # 9. INSERT URLS INTO THE SHARED SUPABASE DATABASE
     # -----------------------------------------------------
 
     try:
         result = insert_new_linkedin_urls(
-    linkedin_urls,
-    chat_id=chat_id,
-    message_id=message_id,
-    sender_open_id=open_id,
-)
+            linkedin_urls,
+            chat_id=chat_id,
+            message_id=message_id,
+            sender_open_id=open_id,
+        )
+
     except Exception as exc:
         logger.exception(
             (
@@ -478,7 +576,7 @@ async def receive_lark_event(
     )
 
     # -----------------------------------------------------
-    # 9. RESPONSE TO LARK
+    # 10. RESPONSE TO LARK WEBHOOK
     # -----------------------------------------------------
 
     return JSONResponse(
