@@ -36,6 +36,14 @@ from scan_unscanned_profiles import (
 
 SOURCE_TABLE = "linkedin_sources"
 
+SCHEDULER_STATE_TABLE = (
+    "linkedin_scheduler_state"
+)
+
+SCHEDULER_NAME = (
+    "main_linkedin_scanner"
+)
+
 DEFAULT_IDLE_POLL_SECONDS = 30
 DEFAULT_ERROR_RETRY_SECONDS = 60
 DEFAULT_STALE_JOB_MINUTES = 20
@@ -198,6 +206,7 @@ class RoundRobinLinkedInWorker:
             settings=settings,
             worker_id=self.health.worker_id,
         )
+        self._restore_scheduler_position()
 
         try:
             self.lark_client: LarkClient | None = (
@@ -391,7 +400,19 @@ class RoundRobinLinkedInWorker:
                 "LinkedIn round-robin worker stopped."
             )
 
-    def run_one_round(self) -> int:
+        def run_one_round(self) -> int:
+        """
+        Chạy tối đa một lượt qua toàn bộ account.
+
+        Con trỏ account không reset về account_01.
+
+        Quy tắc:
+        - Account chỉ được ghi là đã dùng khi claim được URL.
+        - Nếu account hiện tại không claim được URL, queue được xem
+          là đang trống và account đó vẫn là account tiếp theo.
+        - Nếu claim ít hơn batch limit, queue gần như đã hết và
+          round dừng ngay.
+        """
         self._round_number += 1
         round_claimed_count = 0
 
@@ -400,16 +421,53 @@ class RoundRobinLinkedInWorker:
         print(
             f"Round {self._round_number} started"
         )
+        print(
+            "Starting account: "
+            f"{self.account_pool.next_account_id}"
+        )
 
-        for account in self.account_pool.accounts:
+        maximum_account_turns = len(
+            self.account_pool.accounts
+        )
+
+        for _ in range(maximum_account_turns):
             if self._stop_requested:
                 break
+
+            account = (
+                self.account_pool
+                .get_next_account()
+            )
 
             claimed_count = self.run_account_turn(
                 account=account
             )
 
+            if claimed_count <= 0:
+                # get_next_account() đã dịch con trỏ.
+                # Queue đang trống nên quay lại account này,
+                # để request tiếp theo bắt đầu đúng account đó.
+                self.account_pool.set_next_account(
+                    account.account_id
+                )
+
+                print(
+                    "Queue appears empty. "
+                    "Keeping next account at "
+                    f"{account.account_id}."
+                )
+                break
+
             round_claimed_count += claimed_count
+
+            self._save_scheduler_position(
+                account_id=account.account_id
+            )
+
+            print(
+                "Next account: "
+                f"{self.account_pool.next_account_id}"
+            )
 
             if (
                 claimed_count > 0
@@ -426,6 +484,18 @@ class RoundRobinLinkedInWorker:
                     self.account_cooldown_seconds
                 )
 
+            if (
+                claimed_count
+                < self.urls_per_account_turn
+            ):
+                print(
+                    f"{account.account_id} claimed "
+                    f"{claimed_count}/"
+                    f"{self.urls_per_account_turn}. "
+                    "Queue is now likely empty."
+                )
+                break
+
         print("")
         print(
             f"Round {self._round_number} completed."
@@ -433,6 +503,10 @@ class RoundRobinLinkedInWorker:
         print(
             "Sources claimed in round: "
             f"{round_claimed_count}"
+        )
+        print(
+            "Next scheduled account: "
+            f"{self.account_pool.next_account_id}"
         )
 
         return round_claimed_count
@@ -1210,7 +1284,126 @@ class RoundRobinLinkedInWorker:
                 f"status for source {source_id}.",
                 file=sys.stderr,
             )
+        def _restore_scheduler_position(
+        self,
+    ) -> None:
+        """
+        Khôi phục account tiếp theo từ Supabase.
 
+        Nếu chưa có state, bắt đầu từ account_01.
+        """
+        client = create_supabase_client(
+            self.settings
+        )
+
+        response = (
+            client
+            .table(SCHEDULER_STATE_TABLE)
+            .select(
+                "scheduler_name,last_account_id"
+            )
+            .eq(
+                "scheduler_name",
+                SCHEDULER_NAME,
+            )
+            .limit(1)
+            .execute()
+        )
+
+        rows = list(
+            response.data or []
+        )
+
+        if not rows:
+            (
+                client
+                .table(SCHEDULER_STATE_TABLE)
+                .insert(
+                    {
+                        "scheduler_name": (
+                            SCHEDULER_NAME
+                        ),
+                        "last_account_id": None,
+                        "updated_at": (
+                            _utc_now_iso()
+                        ),
+                    }
+                )
+                .execute()
+            )
+
+            self.account_pool.set_next_after(
+                None
+            )
+
+            print(
+                "Scheduler state created. "
+                "Starting from account_01."
+            )
+            return
+
+        last_account_id = _clean_text(
+            rows[0].get(
+                "last_account_id"
+            )
+        )
+
+        self.account_pool.set_next_after(
+            last_account_id or None
+        )
+
+        print(
+            "Scheduler restored. "
+            f"Last account: "
+            f"{last_account_id or 'none'}. "
+            "Next account: "
+            f"{self.account_pool.next_account_id}."
+        )
+
+    def _save_scheduler_position(
+        self,
+        *,
+        account_id: str,
+    ) -> None:
+        """
+        Lưu account vừa claim được URL.
+
+        Lần chạy tiếp theo sẽ bắt đầu từ account sau nó.
+        """
+        cleaned_account_id = _clean_text(
+            account_id
+        )
+
+        if not cleaned_account_id:
+            raise ValueError(
+                "account_id cannot be empty"
+            )
+
+        client = create_supabase_client(
+            self.settings
+        )
+
+        (
+            client
+            .table(SCHEDULER_STATE_TABLE)
+            .upsert(
+                {
+                    "scheduler_name": (
+                        SCHEDULER_NAME
+                    ),
+                    "last_account_id": (
+                        cleaned_account_id
+                    ),
+                    "updated_at": (
+                        _utc_now_iso()
+                    ),
+                },
+                on_conflict="scheduler_name",
+            )
+            .execute()
+        )
+
+    
     def _set_live_health_state(
         self,
         *,
