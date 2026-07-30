@@ -1,130 +1,166 @@
-# PATCH FOR linkedin_worker.py
+from __future__ import annotations
 
-# 1) Add import:
-from app.worker_command_store import WorkerCommandStore
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
 
-# 2) In __init__, after self.events = ... add:
-self.commands = WorkerCommandStore(
-    settings=settings,
-    worker_id=self.health.worker_id,
-)
-self._scan_paused = False
-self._kill_current_requested = False
-self._active_account_id: str | None = None
+from app.linkedin_scanner import create_supabase_client
+from app.settings import Settings
 
-# 3) Add this method inside RoundRobinLinkedInWorker:
 
-def _process_control_commands(self) -> None:
-    while True:
-        command = self.commands.claim_next_command()
+COMMAND_TABLE = "linkedin_worker_commands"
 
-        if command is None:
-            return
 
-        try:
-            if command.command == "stop_scan":
-                self._scan_paused = True
-                self._set_live_health_state(
-                    status="paused",
-                    account_id=None,
-                    source_id=None,
-                )
-                self.health.heartbeat(
-                    status="paused"
-                )
+def _utc_now_iso() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
 
-            elif command.command == "resume_scan":
-                self._scan_paused = False
-                self._set_live_health_state(
-                    status="idle",
-                    account_id=None,
-                    source_id=None,
-                )
-                self.health.heartbeat(
-                    status="idle"
-                )
 
-            elif command.command == "kill_current":
-                self._kill_current_requested = True
+@dataclass(frozen=True)
+class WorkerCommand:
+    id: int
+    worker_id: str
+    command: str
 
-                if self._active_account_id:
-                    self.queue.release_account_sources(
-                        account_id=self._active_account_id,
-                        reason=(
-                            "Current scan was killed "
-                            "from the operations dashboard."
-                        ),
-                    )
+    @classmethod
+    def from_row(
+        cls,
+        row: dict[str, Any],
+    ) -> "WorkerCommand":
+        return cls(
+            id=int(row["id"]),
+            worker_id=str(row["worker_id"]),
+            command=str(row["command"]),
+        )
 
-                self.request_stop()
 
-            else:
-                raise ValueError(
-                    "Unsupported worker command: "
-                    f"{command.command}"
-                )
+class WorkerCommandStore:
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+        worker_id: str,
+    ) -> None:
+        self.client = create_supabase_client(
+            settings
+        )
+        self.worker_id = str(worker_id).strip()
 
-            self.commands.complete(
-                command_id=command.id
+        if not self.worker_id:
+            raise ValueError(
+                "worker_id cannot be empty"
             )
 
-        except Exception as exc:
-            self.commands.fail(
-                command_id=command.id,
-                error=exc,
+    def claim_next_command(
+        self,
+    ) -> WorkerCommand | None:
+        response = (
+            self.client
+            .table(COMMAND_TABLE)
+            .select(
+                "id,worker_id,command,status,requested_at"
             )
-            raise
+            .eq(
+                "worker_id",
+                self.worker_id,
+            )
+            .eq(
+                "status",
+                "pending",
+            )
+            .order(
+                "requested_at",
+                desc=False,
+            )
+            .limit(1)
+            .execute()
+        )
 
-# 4) In run_forever(), at the start of while not self._stop_requested:
-self._process_control_commands()
+        rows = list(response.data or [])
 
-if self._scan_paused:
-    self._set_live_health_state(
-        status="paused",
-        account_id=None,
-        source_id=None,
-    )
-    self.health.heartbeat(
-        status="paused"
-    )
-    self._sleep_interruptibly(2)
-    continue
+        if not rows:
+            return None
 
-# 5) At the start of run_account_turn():
-self._active_account_id = account.account_id
+        row = rows[0]
+        command_id = int(row["id"])
 
-# 6) In run_account_turn() finally block, after browser.stop():
-self._active_account_id = None
+        update_response = (
+            self.client
+            .table(COMMAND_TABLE)
+            .update(
+                {
+                    "status": "processing",
+                    "error": None,
+                }
+            )
+            .eq(
+                "id",
+                command_id,
+            )
+            .eq(
+                "status",
+                "pending",
+            )
+            .execute()
+        )
 
-# 7) At the start of each source loop, before scanning:
-self._process_control_commands()
+        updated_rows = list(
+            update_response.data or []
+        )
 
-if self._kill_current_requested:
-    self.queue.release_account_sources(
-        account_id=account.account_id,
-        reason=(
-            "Current scan was killed "
-            "from the operations dashboard."
-        ),
-    )
-    break
+        if not updated_rows:
+            return None
 
-if self._scan_paused:
-    self.queue.release_account_sources(
-        account_id=account.account_id,
-        reason=(
-            "Scanner paused from "
-            "the operations dashboard."
-        ),
-    )
-    break
+        return WorkerCommand.from_row(
+            updated_rows[0]
+        )
 
-# 8) In _sleep_interruptibly(), call command polling each second:
-try:
-    self._process_control_commands()
-except Exception as exc:
-    print(
-        "Could not process worker command: "
-        f"{type(exc).__name__}: {exc}",
-        file=sys.stderr,
-    )
+    def complete(
+        self,
+        *,
+        command_id: int,
+    ) -> None:
+        (
+            self.client
+            .table(COMMAND_TABLE)
+            .update(
+                {
+                    "status": "completed",
+                    "processed_at": (
+                        _utc_now_iso()
+                    ),
+                    "error": None,
+                }
+            )
+            .eq(
+                "id",
+                int(command_id),
+            )
+            .execute()
+        )
+
+    def fail(
+        self,
+        *,
+        command_id: int,
+        error: Exception | str,
+    ) -> None:
+        (
+            self.client
+            .table(COMMAND_TABLE)
+            .update(
+                {
+                    "status": "failed",
+                    "processed_at": (
+                        _utc_now_iso()
+                    ),
+                    "error": str(error)[:2000],
+                }
+            )
+            .eq(
+                "id",
+                int(command_id),
+            )
+            .execute()
+        )
