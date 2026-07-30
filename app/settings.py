@@ -90,5 +90,4 @@ def load_settings() -> Settings:
                 10,
             )
         ),
-    )        ),
     )
