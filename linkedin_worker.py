@@ -402,19 +402,20 @@ class RoundRobinLinkedInWorker:
 
         def run_one_round(self) -> int:
         """
-        Chạy tối đa một lượt qua toàn bộ account.
+        Mỗi round chỉ chạy đúng một account.
 
-        Con trỏ account không reset về account_01.
+        - Có source:
+          xử lý batch, lưu account vừa dùng và chuyển sang account kế tiếp.
 
-        Quy tắc:
-        - Account chỉ được ghi là đã dùng khi claim được URL.
-        - Nếu account hiện tại không claim được URL, queue được xem
-          là đang trống và account đó vẫn là account tiếp theo.
-        - Nếu claim ít hơn batch limit, queue gần như đã hết và
-          round dừng ngay.
+        - Không có source:
+          giữ nguyên account hiện tại và trả về 0 để worker đi vào idle sleep.
+
+        Cách này tránh việc worker chạy vòng qua cả 5 account
+        liên tục khi queue đang trống.
         """
         self._round_number += 1
-        round_claimed_count = 0
+
+        account = self.account_pool.get_next_account()
 
         print("")
         print("=" * 72)
@@ -422,94 +423,66 @@ class RoundRobinLinkedInWorker:
             f"Round {self._round_number} started"
         )
         print(
-            "Starting account: "
-            f"{self.account_pool.next_account_id}"
+            f"Selected account: {account.account_id}"
         )
 
-        maximum_account_turns = len(
-            self.account_pool.accounts
+        claimed_count = self.run_account_turn(
+            account=account
         )
 
-        for _ in range(maximum_account_turns):
-            if self._stop_requested:
-                break
-
-            account = (
-                self.account_pool
-                .get_next_account()
-            )
-
-            claimed_count = self.run_account_turn(
-                account=account
-            )
-
-            if claimed_count <= 0:
-                # get_next_account() đã dịch con trỏ.
-                # Queue đang trống nên quay lại account này,
-                # để request tiếp theo bắt đầu đúng account đó.
-                self.account_pool.set_next_account(
-                    account.account_id
-                )
-
-                print(
-                    "Queue appears empty. "
-                    "Keeping next account at "
-                    f"{account.account_id}."
-                )
-                break
-
-            round_claimed_count += claimed_count
-
-            self._save_scheduler_position(
-                account_id=account.account_id
+        if claimed_count <= 0:
+            # get_next_account() đã tăng con trỏ.
+            # Queue trống nên đặt lại account hiện tại,
+            # tránh đổi account sau mỗi lần poll rỗng.
+            self.account_pool.set_next_account(
+                account.account_id
             )
 
             print(
-                "Next account: "
-                f"{self.account_pool.next_account_id}"
+                f"{account.account_id}: queue is empty."
+            )
+            print(
+                "Worker will enter idle polling."
+            )
+            print(
+                "Next scheduled account remains: "
+                f"{account.account_id}"
             )
 
-            if (
-                claimed_count > 0
-                and self.account_cooldown_seconds > 0
-                and not self._stop_requested
-            ):
-                print(
-                    f"{account.account_id} completed "
-                    f"its turn. Cooldown "
-                    f"{self.account_cooldown_seconds}s."
-                )
+            return 0
 
-                self._sleep_interruptibly(
-                    self.account_cooldown_seconds
-                )
-
-            if (
-                claimed_count
-                < self.urls_per_account_turn
-            ):
-                print(
-                    f"{account.account_id} claimed "
-                    f"{claimed_count}/"
-                    f"{self.urls_per_account_turn}. "
-                    "Queue is now likely empty."
-                )
-                break
+        # Chỉ ghi scheduler khi account thực sự claim được source.
+        self._save_scheduler_position(
+            account_id=account.account_id
+        )
 
         print("")
         print(
             f"Round {self._round_number} completed."
         )
         print(
-            "Sources claimed in round: "
-            f"{round_claimed_count}"
+            f"Sources claimed: {claimed_count}"
         )
         print(
             "Next scheduled account: "
             f"{self.account_pool.next_account_id}"
         )
 
-        return round_claimed_count
+        if (
+            self.account_cooldown_seconds > 0
+            and not self._stop_requested
+        ):
+            print(
+                f"{account.account_id} completed "
+                f"its turn. Cooldown "
+                f"{self.account_cooldown_seconds}s."
+            )
+
+            self._sleep_interruptibly(
+                self.account_cooldown_seconds
+            )
+
+        return claimed_count  
 
     def run_account_turn(
         self,
