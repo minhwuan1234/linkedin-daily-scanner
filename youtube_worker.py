@@ -154,7 +154,7 @@ class YouTubeWorker:
                 print(f"Max results: {job.max_results}")
                 print(f"Filters: {job.filters}")
 
-                 self.events.emit(
+                self.events.emit(
                     job_id=job.id,
                     event_type="queue",
                     step_name="job_claimed",
