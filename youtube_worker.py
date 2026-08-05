@@ -4,9 +4,6 @@ import signal
 import sys
 import threading
 import time
-from app.youtube_job_queue import (
-    YouTubeJobQueue,
-)
 from typing import Any
 
 from app.orchestration.worker_registry import (
@@ -14,6 +11,7 @@ from app.orchestration.worker_registry import (
     WorkerRegistry,
 )
 from app.settings import Settings, load_settings
+from app.youtube_job_queue import YouTubeJobQueue
 
 
 WORKER_VERSION = "0.1.0"
@@ -39,11 +37,11 @@ class YouTubeWorker:
         self.settings = settings
 
         self.registry = WorkerRegistry(
-            settings=settings
+            settings=settings,
         )
-        
+
         self.queue = YouTubeJobQueue(
-            settings=settings
+            settings=settings,
         )
 
         self.registration = WorkerRegistration(
@@ -98,9 +96,7 @@ class YouTubeWorker:
         try:
             while not self._stop_requested:
                 job = self.queue.claim_next_job(
-                    worker_id=(
-                        self.registration.worker_id
-                    )
+                    worker_id=self.registration.worker_id,
                 )
 
                 if job is None:
@@ -108,9 +104,7 @@ class YouTubeWorker:
                     continue
 
                 self.registry.heartbeat(
-                    worker_id=(
-                        self.registration.worker_id
-                    ),
+                    worker_id=self.registration.worker_id,
                     status="busy",
                     current_job_id=job.id,
                     current_load=1,
@@ -125,9 +119,7 @@ class YouTubeWorker:
                 try:
                     self.queue.heartbeat_job(
                         job_id=job.id,
-                        worker_id=(
-                            self.registration.worker_id
-                        ),
+                        worker_id=self.registration.worker_id,
                         current_stage="ready_for_hermes",
                         progress_percent=10,
                     )
@@ -136,9 +128,7 @@ class YouTubeWorker:
 
                     self.queue.release_job(
                         job_id=job.id,
-                        worker_id=(
-                            self.registration.worker_id
-                        ),
+                        worker_id=self.registration.worker_id,
                         reason=(
                             "Released after worker integration test"
                         ),
@@ -146,9 +136,7 @@ class YouTubeWorker:
 
                 finally:
                     self.registry.heartbeat(
-                        worker_id=(
-                            self.registration.worker_id
-                        ),
+                        worker_id=self.registration.worker_id,
                         status="idle",
                         current_job_id=None,
                         current_load=0,
@@ -165,9 +153,7 @@ class YouTubeWorker:
 
             try:
                 self.registry.heartbeat(
-                    worker_id=(
-                        self.registration.worker_id
-                    ),
+                    worker_id=self.registration.worker_id,
                     status="stopping",
                     current_job_id=None,
                     current_load=0,
@@ -223,10 +209,8 @@ class YouTubeWorker:
             HEARTBEAT_INTERVAL_SECONDS
         ):
             try:
-        self.registry.heartbeat(
-                    worker_id=(
-                        self.registration.worker_id
-                    ),
+                self.registry.heartbeat(
+                    worker_id=self.registration.worker_id,
                     status="idle",
                     current_job_id=None,
                     current_load=0,
@@ -278,7 +262,7 @@ def main() -> int:
         settings = load_settings()
 
         worker = YouTubeWorker(
-            settings=settings
+            settings=settings,
         )
 
         return worker.run_forever()
