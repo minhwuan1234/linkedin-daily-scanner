@@ -11,21 +11,29 @@ from app.orchestration.worker_registry import (
     WorkerRegistry,
 )
 from app.settings import Settings, load_settings
-from app.youtube_job_queue import YouTubeJobQueue
+from app.youtube_job_queue import (
+    YouTubeJobQueue,
+)
 
 
 WORKER_VERSION = "0.1.0"
 HEARTBEAT_INTERVAL_SECONDS = 30
+IDLE_POLL_SECONDS = 5
+INTEGRATION_TEST_HOLD_SECONDS = 3
 
 
 class YouTubeWorker:
     """
     YouTube worker tối thiểu.
 
-    Hiện tại worker chỉ:
+    Hiện tại worker:
     - đăng ký vào scanner_workers;
     - gửi heartbeat;
-    - giữ trạng thái idle;
+    - kiểm tra queue YouTube;
+    - claim job pending;
+    - chuyển trạng thái worker sang busy;
+    - cập nhật job thành ready_for_hermes;
+    - trả job về pending sau bài test tích hợp;
     - dừng an toàn.
     """
 
@@ -37,11 +45,11 @@ class YouTubeWorker:
         self.settings = settings
 
         self.registry = WorkerRegistry(
-            settings=settings,
+            settings=settings
         )
 
         self.queue = YouTubeJobQueue(
-            settings=settings,
+            settings=settings
         )
 
         self.registration = WorkerRegistration(
@@ -59,14 +67,20 @@ class YouTubeWorker:
         )
 
         self._stop_requested = False
+
         self._heartbeat_stop_event = threading.Event()
         self._heartbeat_thread: threading.Thread | None = None
+
+        self._state_lock = threading.Lock()
+        self._current_status = "starting"
+        self._current_job_id: str | None = None
+        self._current_load = 0
 
     def run_forever(
         self,
     ) -> int:
         """
-        Khởi động worker và giữ worker sống.
+        Khởi động worker và liên tục kiểm tra queue.
         """
 
         self._register_signal_handlers()
@@ -77,13 +91,13 @@ class YouTubeWorker:
             worker_version=WORKER_VERSION,
         )
 
-        self.registry.heartbeat(
-            worker_id=self.registration.worker_id,
+        self._set_worker_state(
             status="idle",
             current_job_id=None,
             current_load=0,
         )
 
+        self._send_registry_heartbeat()
         self._start_background_heartbeat()
 
         print("")
@@ -95,52 +109,116 @@ class YouTubeWorker:
 
         try:
             while not self._stop_requested:
-                job = self.queue.claim_next_job(
-                    worker_id=self.registration.worker_id,
-                )
-
-                if job is None:
-                    time.sleep(5)
+                try:
+                    job = self.queue.claim_next_job(
+                        worker_id=(
+                            self.registration.worker_id
+                        )
+                    )
+                except Exception as exc:
+                    print(
+                        "Could not claim YouTube job: "
+                        f"{type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                    )
+                    self._sleep_interruptibly(
+                        IDLE_POLL_SECONDS
+                    )
                     continue
 
-                self.registry.heartbeat(
-                    worker_id=self.registration.worker_id,
+                if job is None:
+                    self._sleep_interruptibly(
+                        IDLE_POLL_SECONDS
+                    )
+                    continue
+
+                self._set_worker_state(
                     status="busy",
                     current_job_id=job.id,
                     current_load=1,
                 )
+
+                self._send_registry_heartbeat()
 
                 print("")
                 print("YouTube job claimed.")
                 print(f"Job ID: {job.id}")
                 print(f"Keyword: {job.keyword}")
                 print(f"Max results: {job.max_results}")
+                print(f"Filters: {job.filters}")
 
                 try:
                     self.queue.heartbeat_job(
                         job_id=job.id,
-                        worker_id=self.registration.worker_id,
+                        worker_id=(
+                            self.registration.worker_id
+                        ),
                         current_stage="ready_for_hermes",
                         progress_percent=10,
                     )
 
-                    time.sleep(3)
+                    self._sleep_interruptibly(
+                        INTEGRATION_TEST_HOLD_SECONDS
+                    )
+
+                    if self._stop_requested:
+                        release_reason = (
+                            "Worker stopped before Hermes integration"
+                        )
+                    else:
+                        release_reason = (
+                            "Released after worker integration test"
+                        )
 
                     self.queue.release_job(
                         job_id=job.id,
-                        worker_id=self.registration.worker_id,
-                        reason=(
-                            "Released after worker integration test"
+                        worker_id=(
+                            self.registration.worker_id
                         ),
+                        reason=release_reason,
                     )
 
+                except Exception as exc:
+                    print(
+                        "YouTube job integration test failed: "
+                        f"{type(exc).__name__}: {exc}",
+                        file=sys.stderr,
+                    )
+
+                    try:
+                        self.queue.release_job(
+                            job_id=job.id,
+                            worker_id=(
+                                self.registration.worker_id
+                            ),
+                            reason=(
+                                "Worker integration error: "
+                                f"{type(exc).__name__}: {exc}"
+                            ),
+                        )
+                    except Exception as release_exc:
+                        print(
+                            "Could not release YouTube job: "
+                            f"{type(release_exc).__name__}: "
+                            f"{release_exc}",
+                            file=sys.stderr,
+                        )
+
                 finally:
-                    self.registry.heartbeat(
-                        worker_id=self.registration.worker_id,
+                    self._set_worker_state(
                         status="idle",
                         current_job_id=None,
                         current_load=0,
                     )
+
+                    try:
+                        self._send_registry_heartbeat()
+                    except Exception as exc:
+                        print(
+                            "Could not return worker to idle: "
+                            f"{type(exc).__name__}: {exc}",
+                            file=sys.stderr,
+                        )
 
             return 0
 
@@ -151,13 +229,14 @@ class YouTubeWorker:
         finally:
             self._stop_background_heartbeat()
 
+            self._set_worker_state(
+                status="stopping",
+                current_job_id=None,
+                current_load=0,
+            )
+
             try:
-                self.registry.heartbeat(
-                    worker_id=self.registration.worker_id,
-                    status="stopping",
-                    current_job_id=None,
-                    current_load=0,
-                )
+                self._send_registry_heartbeat()
             except Exception as exc:
                 print(
                     "Could not save stopping state: "
@@ -167,6 +246,46 @@ class YouTubeWorker:
 
             print("")
             print("YouTube Hermes Worker stopped.")
+
+    def _set_worker_state(
+        self,
+        *,
+        status: str,
+        current_job_id: str | None,
+        current_load: int,
+    ) -> None:
+        """
+        Lưu trạng thái hiện tại để heartbeat nền sử dụng.
+        """
+
+        with self._state_lock:
+            self._current_status = status
+            self._current_job_id = current_job_id
+            self._current_load = current_load
+
+    def _get_worker_state(
+        self,
+    ) -> tuple[str, str | None, int]:
+        with self._state_lock:
+            return (
+                self._current_status,
+                self._current_job_id,
+                self._current_load,
+            )
+
+    def _send_registry_heartbeat(
+        self,
+    ) -> None:
+        status, current_job_id, current_load = (
+            self._get_worker_state()
+        )
+
+        self.registry.heartbeat(
+            worker_id=self.registration.worker_id,
+            status=status,
+            current_job_id=current_job_id,
+            current_load=current_load,
+        )
 
     def _start_background_heartbeat(
         self,
@@ -209,12 +328,7 @@ class YouTubeWorker:
             HEARTBEAT_INTERVAL_SECONDS
         ):
             try:
-                self.registry.heartbeat(
-                    worker_id=self.registration.worker_id,
-                    status="idle",
-                    current_job_id=None,
-                    current_load=0,
-                )
+                self._send_registry_heartbeat()
 
             except Exception as exc:
                 print(
@@ -222,6 +336,22 @@ class YouTubeWorker:
                     f"{type(exc).__name__}: {exc}",
                     file=sys.stderr,
                 )
+
+    def _sleep_interruptibly(
+        self,
+        seconds: int,
+    ) -> None:
+        remaining = max(
+            0,
+            int(seconds),
+        )
+
+        while (
+            remaining > 0
+            and not self._stop_requested
+        ):
+            time.sleep(1)
+            remaining -= 1
 
     def request_stop(
         self,
@@ -262,7 +392,7 @@ def main() -> int:
         settings = load_settings()
 
         worker = YouTubeWorker(
-            settings=settings,
+            settings=settings
         )
 
         return worker.run_forever()
