@@ -379,6 +379,14 @@ class RoundRobinLinkedInWorker:
             self.health.heartbeat(
                 status="idle"
             )
+            self.shared_registry.heartbeat(
+                worker_id=(
+                    self.shared_registration.worker_id
+                ),
+                status="idle",
+                current_job_id=None,
+                current_load=0,
+            )
 
             while not self._stop_requested:
                 try:
@@ -451,6 +459,14 @@ class RoundRobinLinkedInWorker:
                     source_id=None,
                 )
                 self.health.mark_stopping()
+                self.shared_registry.heartbeat(
+                    worker_id=(
+                        self.shared_registration.worker_id
+                    ),
+                    status="stopping",
+                    current_job_id=None,
+                    current_load=0,
+                )
             except Exception as exc:
                 print(
                     "Could not save stopping heartbeat: "
@@ -1592,6 +1608,34 @@ class RoundRobinLinkedInWorker:
                 )
                 raise
 
+
+    @staticmethod
+    def _to_shared_worker_status(
+        status: str,
+    ) -> str:
+        """
+        Chuyển trạng thái LinkedIn cũ
+        sang trạng thái worker dùng chung.
+        """
+
+        cleaned_status = str(
+            status or ""
+        ).strip().lower()
+
+        status_map = {
+            "starting": "starting",
+            "idle": "idle",
+            "scanning": "busy",
+            "paused": "paused",
+            "stopping": "stopping",
+            "error": "error",
+        }
+
+        return status_map.get(
+            cleaned_status,
+            "error",
+        )
+
     def _set_live_health_state(
         self,
         *,
@@ -1652,6 +1696,21 @@ class RoundRobinLinkedInWorker:
                     status=status,
                     current_account_id=account_id,
                     current_source_id=source_id,
+                )
+
+                self.shared_registry.heartbeat(
+                    worker_id=(
+                        self.shared_registration.worker_id
+                    ),
+                    status=self._to_shared_worker_status(
+                        status
+                    ),
+                    current_job_id=None,
+                    current_load=(
+                        1
+                        if status == "scanning"
+                        else 0
+                    ),
                 )
             except Exception as exc:
                 print(
