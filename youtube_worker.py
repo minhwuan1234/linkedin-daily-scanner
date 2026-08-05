@@ -4,6 +4,9 @@ import signal
 import sys
 import threading
 import time
+from app.youtube_job_queue import (
+    YouTubeJobQueue,
+)
 from typing import Any
 
 from app.orchestration.worker_registry import (
@@ -36,6 +39,9 @@ class YouTubeWorker:
         self.settings = settings
 
         self.registry = WorkerRegistry(
+            settings=settings
+        )
+                self.queue = YouTubeJobQueue(
             settings=settings
         )
 
@@ -88,9 +94,64 @@ class YouTubeWorker:
         print("Status: idle")
         print("Press Ctrl+C to stop.")
 
-        try:
+                try:
             while not self._stop_requested:
-                time.sleep(1)
+                job = self.queue.claim_next_job(
+                    worker_id=(
+                        self.registration.worker_id
+                    )
+                )
+
+                if job is None:
+                    time.sleep(5)
+                    continue
+
+                self.registry.heartbeat(
+                    worker_id=(
+                        self.registration.worker_id
+                    ),
+                    status="busy",
+                    current_job_id=job.id,
+                    current_load=1,
+                )
+
+                print("")
+                print("YouTube job claimed.")
+                print(f"Job ID: {job.id}")
+                print(f"Keyword: {job.keyword}")
+                print(f"Max results: {job.max_results}")
+
+                try:
+                    self.queue.heartbeat_job(
+                        job_id=job.id,
+                        worker_id=(
+                            self.registration.worker_id
+                        ),
+                        current_stage="ready_for_hermes",
+                        progress_percent=10,
+                    )
+
+                    time.sleep(3)
+
+                    self.queue.release_job(
+                        job_id=job.id,
+                        worker_id=(
+                            self.registration.worker_id
+                        ),
+                        reason=(
+                            "Released after worker integration test"
+                        ),
+                    )
+
+                finally:
+                    self.registry.heartbeat(
+                        worker_id=(
+                            self.registration.worker_id
+                        ),
+                        status="idle",
+                        current_job_id=None,
+                        current_load=0,
+                    )
 
             return 0
 
