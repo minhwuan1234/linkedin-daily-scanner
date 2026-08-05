@@ -42,7 +42,7 @@ class YouTubeWorker:
             settings=settings
         )
         
-                self.queue = YouTubeJobQueue(
+        self.queue = YouTubeJobQueue(
             settings=settings
         )
 
