@@ -223,7 +223,7 @@ class YouTubeWorker:
             HEARTBEAT_INTERVAL_SECONDS
         ):
             try:
-                self.registry.heartbeat(
+        self.registry.heartbeat(
                     worker_id=(
                         self.registration.worker_id
                     ),
