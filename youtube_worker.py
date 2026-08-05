@@ -95,7 +95,7 @@ class YouTubeWorker:
         print("Status: idle")
         print("Press Ctrl+C to stop.")
 
-                try:
+        try:
             while not self._stop_requested:
                 job = self.queue.claim_next_job(
                     worker_id=(
