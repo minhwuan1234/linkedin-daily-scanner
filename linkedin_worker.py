@@ -122,6 +122,37 @@ class RoundRobinLinkedInWorker:
         settings: Settings,
     ) -> None:
         self.settings = settings
+
+        self.shared_registry = WorkerRegistry(
+            settings=settings
+        )
+
+        self.shared_registration = WorkerRegistration(
+            worker_id=(
+                os.getenv(
+                    "LINKEDIN_WORKER_ID",
+                    "mac_worker_01",
+                ).strip()
+                or "mac_worker_01"
+            ),
+            worker_name=(
+                os.getenv(
+                    "LINKEDIN_WORKER_NAME",
+                    "LinkedIn Mac Worker",
+                ).strip()
+                or "LinkedIn Mac Worker"
+            ),
+            worker_type="linkedin",
+            capabilities=(
+                "linkedin_profile_scan",
+            ),
+            max_concurrent_jobs=1,
+            metadata={
+                "scanner": "linkedin",
+                "account_mode": "round_robin",
+            },
+        )
+
         self.account_pool = LinkedInAccountPool()
         self.queue = LinkedInSourceQueue(
             settings=settings
@@ -242,6 +273,13 @@ class RoundRobinLinkedInWorker:
 
     def run_forever(self) -> int:
         self._register_signal_handlers()
+
+        self.shared_registry.register(
+            worker=self.shared_registration,
+            status="starting",
+            worker_version=WORKER_VERSION,
+        )
+
         self.health.register_worker(
             status="starting"
         )
