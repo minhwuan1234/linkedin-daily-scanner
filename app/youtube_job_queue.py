@@ -15,7 +15,7 @@ JOB_TABLE = "youtube_scan_jobs"
 
 def _utc_now_iso() -> str:
     return datetime.now(
-        timezone.utc
+        timezone.utc,
     ).isoformat()
 
 
@@ -34,21 +34,21 @@ class YouTubeScanJob:
         row: dict[str, Any],
     ) -> "YouTubeScanJob":
         job_id = str(
-            row.get("id") or ""
+            row.get("id") or "",
         ).strip()
 
         keyword = str(
-            row.get("keyword") or ""
+            row.get("keyword") or "",
         ).strip()
 
         if not job_id:
             raise ValueError(
-                "YouTube job is missing id"
+                "YouTube job is missing id",
             )
 
         if not keyword:
             raise ValueError(
-                "YouTube job is missing keyword"
+                "YouTube job is missing keyword",
             )
 
         filters = row.get("filters")
@@ -60,14 +60,14 @@ class YouTubeScanJob:
             id=job_id,
             keyword=keyword,
             max_results=int(
-                row.get("max_results") or 40
+                row.get("max_results") or 40,
             ),
             filters=filters,
             retry_count=int(
-                row.get("retry_count") or 0
+                row.get("retry_count") or 0,
             ),
             max_retries=int(
-                row.get("max_retries") or 3
+                row.get("max_retries") or 3,
             ),
         )
 
@@ -83,7 +83,7 @@ class YouTubeJobQueue:
         settings: Settings,
     ) -> None:
         self.client = create_supabase_client(
-            settings
+            settings,
         )
 
     def claim_next_job(
@@ -92,12 +92,12 @@ class YouTubeJobQueue:
         worker_id: str,
     ) -> YouTubeScanJob | None:
         cleaned_worker_id = str(
-            worker_id or ""
+            worker_id or "",
         ).strip()
 
         if not cleaned_worker_id:
             raise ValueError(
-                "worker_id cannot be empty"
+                "worker_id cannot be empty",
             )
 
         response = (
@@ -116,18 +116,18 @@ class YouTubeJobQueue:
         )
 
         rows = list(
-            response.data or []
+            response.data or [],
         )
 
         if not rows:
             return None
 
         candidate = dict(
-            rows[0]
+            rows[0],
         )
 
         job_id = str(
-            candidate.get("id") or ""
+            candidate.get("id") or "",
         ).strip()
 
         now = _utc_now_iso()
@@ -140,14 +140,12 @@ class YouTubeJobQueue:
                     "status": "processing",
                     "current_stage": "claimed",
                     "progress_percent": 5,
-                    "assigned_worker_id": (
-                        cleaned_worker_id
-                    ),
+                    "assigned_worker_id": cleaned_worker_id,
                     "processing_started_at": now,
                     "processing_heartbeat_at": now,
                     "updated_at": now,
                     "last_error": None,
-                }
+                },
             )
             .eq(
                 "id",
@@ -161,14 +159,14 @@ class YouTubeJobQueue:
         )
 
         claimed_rows = list(
-            claim_response.data or []
+            claim_response.data or [],
         )
 
         if not claimed_rows:
             return None
 
         return YouTubeScanJob.from_row(
-            dict(claimed_rows[0])
+            dict(claimed_rows[0]),
         )
 
     def heartbeat_job(
@@ -186,9 +184,9 @@ class YouTubeJobQueue:
             .table(JOB_TABLE)
             .update(
                 {
-                    "current_stage": (
-                        str(current_stage).strip()
-                    ),
+                    "current_stage": str(
+                        current_stage,
+                    ).strip(),
                     "progress_percent": max(
                         0,
                         min(
@@ -198,7 +196,7 @@ class YouTubeJobQueue:
                     ),
                     "processing_heartbeat_at": now,
                     "updated_at": now,
-                }
+                },
             )
             .eq(
                 "id",
@@ -217,10 +215,10 @@ class YouTubeJobQueue:
 
         if not list(response.data or []):
             raise RuntimeError(
-                "Could not update YouTube job heartbeat"
+                "Could not update YouTube job heartbeat",
             )
 
-            def release_job(
+    def release_job(
         self,
         *,
         job_id: str,
@@ -232,21 +230,21 @@ class YouTubeJobQueue:
         """
 
         cleaned_job_id = str(
-            job_id or ""
+            job_id or "",
         ).strip()
 
         cleaned_worker_id = str(
-            worker_id or ""
+            worker_id or "",
         ).strip()
 
         if not cleaned_job_id:
             raise ValueError(
-                "job_id cannot be empty"
+                "job_id cannot be empty",
             )
 
         if not cleaned_worker_id:
             raise ValueError(
-                "worker_id cannot be empty"
+                "worker_id cannot be empty",
             )
 
         now = _utc_now_iso()
@@ -263,10 +261,10 @@ class YouTubeJobQueue:
                     "processing_started_at": None,
                     "processing_heartbeat_at": None,
                     "last_error": str(
-                        reason or "Job released"
+                        reason or "Job released",
                     ).strip()[:4000],
                     "updated_at": now,
-                }
+                },
             )
             .eq(
                 "id",
@@ -285,5 +283,5 @@ class YouTubeJobQueue:
 
         if not list(response.data or []):
             raise RuntimeError(
-                "Could not release YouTube job"
+                "Could not release YouTube job",
             )
