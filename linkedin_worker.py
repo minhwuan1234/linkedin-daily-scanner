@@ -6,6 +6,10 @@ import signal
 import sys
 import time
 import threading
+from app.orchestration.worker_registry import (
+    WorkerRegistration,
+    WorkerRegistry,
+)
 from datetime import datetime, timezone
 from typing import Any
 
