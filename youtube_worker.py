@@ -41,6 +41,7 @@ class YouTubeWorker:
         self.registry = WorkerRegistry(
             settings=settings
         )
+        
                 self.queue = YouTubeJobQueue(
             settings=settings
         )
