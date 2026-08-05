@@ -221,3 +221,76 @@ class WorkerRegistry:
             )
 
         return dict(rows[0])
+
+    def heartbeat(
+        self,
+        *,
+        worker_id: str,
+        status: WorkerStatus,
+        current_job_id: str | None = None,
+        current_load: int = 0,
+        last_error: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        Cập nhật trạng thái sống của worker.
+        """
+
+        cleaned_worker_id = str(
+            worker_id or ""
+        ).strip()
+
+        if not cleaned_worker_id:
+            raise ValueError(
+                "worker_id cannot be empty"
+            )
+
+        if current_load < 0:
+            raise ValueError(
+                "current_load cannot be negative"
+            )
+
+        now = _utc_now_iso()
+
+        payload: dict[str, Any] = {
+            "status": status,
+            "current_job_id": current_job_id,
+            "current_load": current_load,
+            "hostname": self.hostname,
+            "pid": self.pid,
+            "last_heartbeat_at": now,
+            "updated_at": now,
+        }
+
+        if last_error:
+            payload["last_error"] = str(
+                last_error
+            )[:4000]
+
+            payload["last_error_at"] = now
+
+        elif status != "error":
+            payload["last_error"] = None
+            payload["last_error_at"] = None
+
+        response = (
+            self.client
+            .table(WORKER_TABLE)
+            .update(payload)
+            .eq(
+                "worker_id",
+                cleaned_worker_id,
+            )
+            .execute()
+        )
+
+        rows = list(
+            response.data or []
+        )
+
+        if not rows:
+            raise RuntimeError(
+                "Worker is not registered: "
+                f"{cleaned_worker_id}"
+            )
+
+        return dict(rows[0])
