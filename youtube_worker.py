@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from app.orchestration.job_event_store import (
+    JobEventStore,
+)
 import signal
 import sys
 import threading
@@ -65,7 +68,11 @@ class YouTubeWorker:
                 "engine": "hermes",
             },
         )
-
+        self.events = JobEventStore(
+            settings=settings,
+            worker_id=self.registration.worker_id,
+            platform="youtube",
+        )
         self._stop_requested = False
 
         self._heartbeat_stop_event = threading.Event()
@@ -147,6 +154,20 @@ class YouTubeWorker:
                 print(f"Max results: {job.max_results}")
                 print(f"Filters: {job.filters}")
 
+                 self.events.emit(
+                    job_id=job.id,
+                    event_type="queue",
+                    step_name="job_claimed",
+                    status="processing",
+                    message="YouTube worker claimed the job.",
+                    progress_percent=5,
+                    metadata={
+                        "keyword": job.keyword,
+                        "max_results": job.max_results,
+                        "filters": job.filters,
+                    },
+                )
+                
                 try:
                     self.queue.heartbeat_job(
                         job_id=job.id,
@@ -154,6 +175,16 @@ class YouTubeWorker:
                             self.registration.worker_id
                         ),
                         current_stage="ready_for_hermes",
+                        progress_percent=10,
+                    )
+                    self.events.emit(
+                        job_id=job.id,
+                        event_type="worker",
+                        step_name="ready_for_hermes",
+                        status="processing",
+                        message=(
+                            "YouTube job is ready for Hermes."
+                        ),
                         progress_percent=10,
                     )
 
@@ -176,6 +207,14 @@ class YouTubeWorker:
                             self.registration.worker_id
                         ),
                         reason=release_reason,
+                    
+                    self.events.emit(
+                        job_id=job.id,
+                        event_type="queue",
+                        step_name="job_released",
+                        status="warning",
+                        message=release_reason,
+                        progress_percent=0,
                     )
 
                 except Exception as exc:
@@ -183,6 +222,17 @@ class YouTubeWorker:
                         "YouTube job integration test failed: "
                         f"{type(exc).__name__}: {exc}",
                         file=sys.stderr,
+                    )
+                    
+                    self.events.emit(
+                        job_id=job.id,
+                        event_type="worker",
+                        step_name="job_failed",
+                        status="error",
+                        message=(
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        progress_percent=10,
                     )
 
                     try:
