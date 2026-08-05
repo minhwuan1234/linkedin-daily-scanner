@@ -219,3 +219,71 @@ class YouTubeJobQueue:
             raise RuntimeError(
                 "Could not update YouTube job heartbeat"
             )
+
+            def release_job(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        reason: str,
+    ) -> None:
+        """
+        Trả job đang processing về pending.
+        """
+
+        cleaned_job_id = str(
+            job_id or ""
+        ).strip()
+
+        cleaned_worker_id = str(
+            worker_id or ""
+        ).strip()
+
+        if not cleaned_job_id:
+            raise ValueError(
+                "job_id cannot be empty"
+            )
+
+        if not cleaned_worker_id:
+            raise ValueError(
+                "worker_id cannot be empty"
+            )
+
+        now = _utc_now_iso()
+
+        response = (
+            self.client
+            .table(JOB_TABLE)
+            .update(
+                {
+                    "status": "pending",
+                    "current_stage": "queued",
+                    "progress_percent": 0,
+                    "assigned_worker_id": None,
+                    "processing_started_at": None,
+                    "processing_heartbeat_at": None,
+                    "last_error": str(
+                        reason or "Job released"
+                    ).strip()[:4000],
+                    "updated_at": now,
+                }
+            )
+            .eq(
+                "id",
+                cleaned_job_id,
+            )
+            .eq(
+                "status",
+                "processing",
+            )
+            .eq(
+                "assigned_worker_id",
+                cleaned_worker_id,
+            )
+            .execute()
+        )
+
+        if not list(response.data or []):
+            raise RuntimeError(
+                "Could not release YouTube job"
+            )
