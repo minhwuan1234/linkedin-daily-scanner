@@ -71,6 +71,7 @@ SUPABASE_SECRET_KEY = os.getenv(
     "",
 ).strip()
 
+
 WORKER_COMMAND_TABLE = "linkedin_worker_commands"
 ALLOWED_WORKER_COMMANDS = {
     "kill_current",
@@ -84,12 +85,13 @@ ALLOWED_WORKER_COMMANDS = {
 # =========================================================
 
 app = FastAPI(
-    title="LinkedIn Daily Scanner API",
+    title="LinkedIn and YouTube Scanner API",
     description=(
-        "Railway backend for receiving LinkedIn URLs "
-        "and health-check commands from Lark."
+        "Railway backend for LinkedIn scanning, "
+        "YouTube research jobs, dashboard controls, "
+        "and Lark commands."
     ),
-    version="0.6.0",
+    version="0.7.0",
 )
 
 
@@ -187,7 +189,6 @@ async def create_worker_command(
     Railway writes a command to Supabase; the local worker
     reads and acknowledges it.
     """
-
     try:
         body = await request.json()
     except Exception:
@@ -299,17 +300,10 @@ async def create_worker_command(
         },
     )
 
-@app.post("/api/worker/commands")
-async def create_worker_command(...):
-    ...
-    return JSONResponse(
-        status_code=202,
-        content={
-            "ok": True,
-            "command": command_row,
-        },
-    )
 
+# =========================================================
+# YOUTUBE RESEARCH JOB API
+# =========================================================
 
 YOUTUBE_JOB_TABLE = "youtube_scan_jobs"
 
@@ -318,7 +312,146 @@ YOUTUBE_JOB_TABLE = "youtube_scan_jobs"
 async def create_youtube_job(
     request: Request,
 ) -> JSONResponse:
-    ...
+    """
+    Create one pending YouTube research job.
+
+    The Railway backend only creates the queue row.
+    The Mac YouTube worker claims and processes the job.
+    """
+
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": "Supabase backend is not configured",
+            },
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Request body must be valid JSON",
+            },
+        )
+
+    keyword = str(
+        body.get("keyword") or ""
+    ).strip()
+
+    try:
+        max_results = int(
+            body.get("max_results") or 40
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "max_results must be an integer",
+            },
+        )
+
+    filters = body.get("filters")
+
+    if not isinstance(
+        filters,
+        dict,
+    ):
+        filters = {}
+
+    if not keyword:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "keyword is required",
+            },
+        )
+
+    max_results = max(
+        1,
+        min(
+            max_results,
+            40,
+        ),
+    )
+
+    now = (
+        datetime
+        .now(timezone.utc)
+        .isoformat()
+    )
+
+    try:
+        client = create_client(
+            SUPABASE_URL,
+            SUPABASE_SECRET_KEY,
+        )
+
+        response = (
+            client
+            .table(YOUTUBE_JOB_TABLE)
+            .insert(
+                {
+                    "keyword": keyword,
+                    "status": "pending",
+                    "current_stage": "queued",
+                    "progress_percent": 0,
+                    "max_results": max_results,
+                    "filters": filters,
+                    "retry_count": 0,
+                    "result_count": 0,
+                    "last_error": None,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+            .execute()
+        )
+
+        rows = list(
+            response.data or []
+        )
+
+        if not rows:
+            raise RuntimeError(
+                "Supabase returned no YouTube job row"
+            )
+
+        job = rows[0]
+
+    except Exception as exc:
+        logger.exception(
+            "Could not create YouTube research job"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not create YouTube job",
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "YOUTUBE JOB CREATED | "
+            "job_id=%s | keyword=%s | max_results=%s"
+        ),
+        job.get("id"),
+        keyword,
+        max_results,
+    )
+
     return JSONResponse(
         status_code=201,
         content={
@@ -327,12 +460,6 @@ async def create_youtube_job(
         },
     )
 
-# =========================================================
-# LARK WEBHOOK
-# =========================================================
-
-@app.post("/webhooks/lark/events")
-async def receive_lark_event(...):
 
 # =========================================================
 # LARK WEBHOOK
