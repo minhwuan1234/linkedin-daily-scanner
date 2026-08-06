@@ -775,6 +775,388 @@ def extract_channel_description(
     return longest_text
 
 
+def extract_channel_links(
+    page: Page,
+) -> list[dict[str, str]]:
+    """
+    Lấy toàn bộ external links trong popup About của channel.
+    """
+
+    dialog = page.locator(
+        "[role='dialog']"
+    ).last
+
+    try:
+        if (
+            dialog.count() == 0
+            or not dialog.is_visible(
+                timeout=1_000
+            )
+        ):
+            return []
+    except Exception:
+        return []
+
+    links: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    try:
+        anchors = dialog.locator(
+            "a[href]"
+        )
+
+        count = min(
+            anchors.count(),
+            100,
+        )
+
+    except Exception:
+        count = 0
+        anchors = dialog.locator(
+            "a[href]"
+        )
+
+    for index in range(
+        count
+    ):
+        anchor = anchors.nth(
+            index
+        )
+
+        try:
+            if not anchor.is_visible(
+                timeout=500
+            ):
+                continue
+
+            href = clean_single_line(
+                anchor.get_attribute(
+                    "href"
+                )
+            )
+
+            if not href:
+                continue
+
+            absolute_url = urljoin(
+                YOUTUBE_BASE_URL,
+                href,
+            )
+
+            lowered_url = absolute_url.casefold()
+
+            if (
+                "youtube.com" in lowered_url
+                and "/redirect" not in lowered_url
+            ):
+                continue
+
+            normalized_url = (
+                absolute_url
+                .split("#")[0]
+                .rstrip("/")
+                .casefold()
+            )
+
+            if normalized_url in seen_urls:
+                continue
+
+            visible_text = clean_single_line(
+                anchor.inner_text(
+                    timeout=2_000
+                )
+            )
+
+            container_text = ""
+
+            try:
+                container = anchor.locator(
+                    "xpath=ancestor::*[self::div or self::li][1]"
+                )
+
+                if container.count() > 0:
+                    container_text = clean_multiline_text(
+                        container.inner_text(
+                            timeout=2_000
+                        )
+                    )
+
+            except Exception:
+                container_text = ""
+
+            title = ""
+
+            if container_text:
+                lines = [
+                    clean_single_line(
+                        line
+                    )
+                    for line in container_text.splitlines()
+                    if clean_single_line(
+                        line
+                    )
+                ]
+
+                for line in lines:
+                    if line == visible_text:
+                        continue
+
+                    if (
+                        line.casefold()
+                        in absolute_url.casefold()
+                    ):
+                        continue
+
+                    if (
+                        "http://" in line.casefold()
+                        or "https://" in line.casefold()
+                    ):
+                        continue
+
+                    title = line
+                    break
+
+            if not title:
+                title = visible_text
+
+            if not title:
+                title = clean_single_line(
+                    anchor.get_attribute(
+                        "aria-label"
+                    )
+                )
+
+            seen_urls.add(
+                normalized_url
+            )
+
+            links.append(
+                {
+                    "title": title,
+                    "url": absolute_url,
+                }
+            )
+
+        except Exception:
+            continue
+
+    return links
+
+
+def extract_channel_more_info(
+    page: Page,
+) -> list[dict[str, str]]:
+    """
+    Lấy các dòng trong phần More info / Thông tin khác.
+    """
+
+    dialog = page.locator(
+        "[role='dialog']"
+    ).last
+
+    try:
+        if (
+            dialog.count() == 0
+            or not dialog.is_visible(
+                timeout=1_000
+            )
+        ):
+            return []
+    except Exception:
+        return []
+
+    section_headings = (
+        "More info",
+        "Thông tin khác",
+        "Thông tin thêm",
+    )
+
+    heading = None
+
+    for heading_text in section_headings:
+        try:
+            candidate = dialog.get_by_text(
+                heading_text,
+                exact=True,
+            ).first
+
+            if candidate.is_visible(
+                timeout=700
+            ):
+                heading = candidate
+                break
+
+        except Exception:
+            continue
+
+    if heading is None:
+        return []
+
+    rows: list[dict[str, str]] = []
+    seen_values: set[str] = set()
+
+    try:
+        following_nodes = heading.locator(
+            "xpath=following::*"
+        )
+
+        count = min(
+            following_nodes.count(),
+            150,
+        )
+
+    except Exception:
+        return []
+
+    stop_headings = {
+        "links",
+        "đường liên kết",
+    }
+
+    ignored_values = {
+        "more info",
+        "thông tin khác",
+        "thông tin thêm",
+    }
+
+    for index in range(
+        count
+    ):
+        node = following_nodes.nth(
+            index
+        )
+
+        try:
+            if not node.is_visible(
+                timeout=300
+            ):
+                continue
+
+            text = clean_single_line(
+                node.inner_text(
+                    timeout=1_000
+                )
+            )
+
+            if not text:
+                continue
+
+            lowered = text.casefold()
+
+            if lowered in stop_headings:
+                break
+
+            if lowered in ignored_values:
+                continue
+
+            if len(text) > 300:
+                continue
+
+            if lowered in seen_values:
+                continue
+
+            child_text_count = 0
+
+            try:
+                child_text_count = node.locator(
+                    ":scope *"
+                ).count()
+            except Exception:
+                child_text_count = 0
+
+            if child_text_count > 8:
+                continue
+
+            seen_values.add(
+                lowered
+            )
+
+            label = ""
+            value = text
+
+            aria_label = clean_single_line(
+                node.get_attribute(
+                    "aria-label"
+                )
+            )
+
+            title_attr = clean_single_line(
+                node.get_attribute(
+                    "title"
+                )
+            )
+
+            if aria_label and aria_label != text:
+                label = aria_label
+            elif title_attr and title_attr != text:
+                label = title_attr
+
+            rows.append(
+                {
+                    "label": label,
+                    "value": value,
+                }
+            )
+
+        except Exception:
+            continue
+
+    compact_rows: list[dict[str, str]] = []
+
+    for row in rows:
+        value = row["value"]
+
+        if any(
+            value in existing["value"]
+            and value != existing["value"]
+            for existing in rows
+        ):
+            continue
+
+        compact_rows.append(
+            row
+        )
+
+    return compact_rows
+
+
+def extract_channel_about_data(
+    page: Page,
+) -> dict[str, object]:
+    """
+    Mở popup About một lần rồi lấy description, links và more info.
+    """
+
+    popup_opened = _click_channel_description_more(
+        page
+    )
+
+    if not popup_opened:
+        return {
+            "description": "",
+            "links": [],
+            "more_info": [],
+        }
+
+    description = extract_channel_description(
+        page
+    )
+
+    links = extract_channel_links(
+        page
+    )
+
+    more_info = extract_channel_more_info(
+        page
+    )
+
+    return {
+        "description": description,
+        "links": links,
+        "more_info": more_info,
+    }
+
+
 def scan_channel_details(
     browser: YouTubeBrowserManager,
     channel: dict[str, str | int],
@@ -859,8 +1241,25 @@ def scan_channel_details(
             ),
         )
 
-    description = extract_channel_description(
+    about_data = extract_channel_about_data(
         page
+    )
+
+    description = str(
+        about_data.get(
+            "description",
+            "",
+        )
+    )
+
+    channel_links = about_data.get(
+        "links",
+        [],
+    )
+
+    channel_more_info = about_data.get(
+        "more_info",
+        [],
     )
 
     return {
@@ -882,6 +1281,8 @@ def scan_channel_details(
             )
         ),
         "channel_description": description,
+        "channel_links": channel_links,
+        "channel_more_info": channel_more_info,
         "channel_metadata_text": metadata_text,
     }
 
@@ -928,6 +1329,24 @@ def scan_channel_list(
                 result[
                     "video_count_text"
                 ],
+            )
+            print(
+                "Links:",
+                len(
+                    result.get(
+                        "channel_links",
+                        [],
+                    )
+                ),
+            )
+            print(
+                "More info rows:",
+                len(
+                    result.get(
+                        "channel_more_info",
+                        [],
+                    )
+                ),
             )
 
         except Exception as exc:
