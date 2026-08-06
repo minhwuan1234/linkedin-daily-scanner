@@ -260,22 +260,27 @@ class YouTubeBrowserManager:
 
         return self._page
 
-    def open_youtube(
+    def open_start_page(
         self,
     ) -> Page:
+        """
+        Mở Google bằng browser profile riêng.
+        """
+
         page = self.ensure_page()
 
         try:
             page.goto(
-                "https://www.youtube.com",
+                DEFAULT_START_URL,
                 wait_until="domcontentloaded",
                 timeout=(
                     self.settings.navigation_timeout_ms
                 ),
             )
+
         except PlaywrightTimeoutError:
             logger.warning(
-                "YouTube navigation timed out"
+                "Google navigation timed out"
             )
 
         page.wait_for_timeout(
