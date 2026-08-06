@@ -48,11 +48,10 @@ def main() -> None:
         "scan_status": "test",
     }
 
-    job_id = (
-        "manual-test-"
-        + uuid.uuid4().hex[:10]
+    job_id = str(
+    uuid.uuid4()
     )
-
+  
     print("")
     print("==============================")
     print("ROW PREVIEW")
