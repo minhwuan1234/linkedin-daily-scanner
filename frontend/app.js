@@ -86,6 +86,8 @@ const state = {
   activeYoutubeJob: null,
   youtubeSubmitting: false,
   youtubePollTimer: null,
+  youtubeRealtimeChannel: null,
+  youtubeRealtimeReloadTimer: null,
   tableErrors: {},
   commandPending: false
 };
@@ -497,6 +499,18 @@ async function loadYoutubeResearch() {
 
 function renderYoutubeResearch() {
   const job = state.activeYoutubeJob;
+
+  const youtubeError =
+    state.tableErrors.youtubeJobs ||
+    state.tableErrors.youtubeChannels ||
+    "";
+
+  if (youtubeError) {
+    els.youtubeLastError.hidden = false;
+    els.youtubeLastError.textContent =
+      `Không đọc được dữ liệu YouTube từ Supabase: ${youtubeError}`;
+  }
+
   const channels = state.youtubeChannels || [];
   const searchValue = String(
     els.youtubeSearchInput?.value || ""
@@ -526,7 +540,9 @@ function renderYoutubeResearch() {
     els.youtubeProgressBar.style.width = "0%";
     els.youtubeStageText.textContent = "Idle";
     els.youtubeResultCount.textContent = "0 / 40 channels";
-    els.youtubeLastError.hidden = true;
+    if (!youtubeError) {
+      els.youtubeLastError.hidden = true;
+    }
     els.youtubeResultSummary.textContent = "Chưa có dữ liệu.";
   } else {
     const progress = Math.max(
@@ -553,8 +569,14 @@ function renderYoutubeResearch() {
       `${channels.length} channel của keyword “${job.keyword || "—"}”`;
 
     const lastError = String(job.last_error || "").trim();
-    els.youtubeLastError.hidden = !lastError;
-    els.youtubeLastError.textContent = lastError;
+
+    if (lastError) {
+      els.youtubeLastError.hidden = false;
+      els.youtubeLastError.textContent = lastError;
+    } else if (!youtubeError) {
+      els.youtubeLastError.hidden = true;
+      els.youtubeLastError.textContent = "";
+    }
   }
 
   els.youtubeStartButton.disabled =
@@ -655,12 +677,6 @@ async function createYoutubeResearchJob(event) {
     const result = await response.json();
 
     if (!response.ok || !result.ok) {
-      if (response.status === 401) {
-        sessionStorage.removeItem(
-          "linkedinScannerControlToken"
-        );
-      }
-
       throw new Error(
         result.detail ||
         result.error ||
@@ -698,6 +714,61 @@ function updateYoutubePolling() {
     state.youtubePollTimer = null;
   }
 }
+
+
+function scheduleYoutubeRealtimeReload() {
+  if (state.youtubeRealtimeReloadTimer) {
+    window.clearTimeout(
+      state.youtubeRealtimeReloadTimer
+    );
+  }
+
+  state.youtubeRealtimeReloadTimer = window.setTimeout(
+    async () => {
+      state.youtubeRealtimeReloadTimer = null;
+      await loadYoutubeResearch();
+    },
+    250
+  );
+}
+
+function setupYoutubeRealtime() {
+  if (state.youtubeRealtimeChannel) {
+    client.removeChannel(
+      state.youtubeRealtimeChannel
+    );
+  }
+
+  state.youtubeRealtimeChannel = client
+    .channel("youtube-research-dashboard")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "youtube_scan_jobs"
+      },
+      scheduleYoutubeRealtimeReload
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "youtube_scan_channels"
+      },
+      scheduleYoutubeRealtimeReload
+    )
+    .subscribe((status) => {
+      if (status === "CHANNEL_ERROR") {
+        console.warn(
+          "YouTube Supabase realtime channel error. " +
+          "Polling fallback remains active."
+        );
+      }
+    });
+}
+
 
 async function loadDashboard() {
   els.refreshButton.disabled = true;
@@ -1888,4 +1959,5 @@ document.addEventListener(
   }
 );
 
+setupYoutubeRealtime();
 loadDashboard();
