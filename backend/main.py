@@ -71,12 +71,6 @@ SUPABASE_SECRET_KEY = os.getenv(
     "",
 ).strip()
 
-
-DASHBOARD_CONTROL_TOKEN = os.getenv(
-    "DASHBOARD_CONTROL_TOKEN",
-    "",
-).strip()
-
 WORKER_COMMAND_TABLE = "linkedin_worker_commands"
 ALLOWED_WORKER_COMMANDS = {
     "kill_current",
