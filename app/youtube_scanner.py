@@ -945,14 +945,33 @@ def extract_channel_links(
 
 def extract_channel_more_info(
     page: Page,
-) -> list[dict[str, str]]:
+) -> dict[str, object]:
     """
-    Lấy các dòng trong phần More info / Thông tin khác.
+    Lấy toàn bộ phần More info và đồng thời tách các trường quen thuộc.
+
+    Kết quả:
+    - raw_text
+    - email
+    - location
+    - joined_date
+    - total_views
+    - channel_id
+    - other
     """
 
     dialog = page.locator(
         "[role='dialog']"
     ).last
+
+    empty_result: dict[str, object] = {
+        "raw_text": "",
+        "email": "",
+        "location": "",
+        "joined_date": "",
+        "total_views": "",
+        "channel_id": "",
+        "other": [],
+    }
 
     try:
         if (
@@ -961,9 +980,9 @@ def extract_channel_more_info(
                 timeout=1_000
             )
         ):
-            return []
+            return empty_result
     except Exception:
-        return []
+        return empty_result
 
     section_headings = (
         "More info",
@@ -990,134 +1009,142 @@ def extract_channel_more_info(
             continue
 
     if heading is None:
-        return []
-
-    rows: list[dict[str, str]] = []
-    seen_values: set[str] = set()
+        return empty_result
 
     try:
-        following_nodes = heading.locator(
-            "xpath=following::*"
+        section_container = heading.locator(
+            "xpath=ancestor::*[self::div or self::section][1]"
         )
 
-        count = min(
-            following_nodes.count(),
-            150,
-        )
+        if section_container.count() == 0:
+            section_container = dialog
 
     except Exception:
-        return []
+        section_container = dialog
 
-    stop_headings = {
-        "links",
-        "đường liên kết",
-    }
+    raw_text = ""
 
-    ignored_values = {
+    try:
+        raw_text = clean_multiline_text(
+            section_container.inner_text(
+                timeout=5_000
+            )
+        )
+    except Exception:
+        raw_text = ""
+
+    lines = [
+        clean_single_line(
+            line
+        )
+        for line in raw_text.splitlines()
+        if clean_single_line(
+            line
+        )
+    ]
+
+    heading_names = {
         "more info",
         "thông tin khác",
         "thông tin thêm",
     }
 
-    for index in range(
-        count
-    ):
-        node = following_nodes.nth(
-            index
-        )
+    filtered_lines = [
+        line
+        for line in lines
+        if line.casefold() not in heading_names
+    ]
 
-        try:
-            if not node.is_visible(
-                timeout=300
-            ):
-                continue
+    email = ""
+    location = ""
+    joined_date = ""
+    total_views = ""
+    channel_id = ""
+    other: list[dict[str, str]] = []
 
-            text = clean_single_line(
-                node.inner_text(
-                    timeout=1_000
-                )
-            )
+    known_country_names = {
+        "united states",
+        "united kingdom",
+        "canada",
+        "australia",
+        "india",
+        "germany",
+        "france",
+        "vietnam",
+        "viet nam",
+        "singapore",
+        "netherlands",
+        "spain",
+        "italy",
+        "brazil",
+        "mexico",
+        "japan",
+        "south korea",
+    }
 
-            if not text:
-                continue
+    for line in filtered_lines:
+        lowered = line.casefold()
 
-            lowered = text.casefold()
-
-            if lowered in stop_headings:
-                break
-
-            if lowered in ignored_values:
-                continue
-
-            if len(text) > 300:
-                continue
-
-            if lowered in seen_values:
-                continue
-
-            child_text_count = 0
-
-            try:
-                child_text_count = node.locator(
-                    ":scope *"
-                ).count()
-            except Exception:
-                child_text_count = 0
-
-            if child_text_count > 8:
-                continue
-
-            seen_values.add(
-                lowered
-            )
-
-            label = ""
-            value = text
-
-            aria_label = clean_single_line(
-                node.get_attribute(
-                    "aria-label"
-                )
-            )
-
-            title_attr = clean_single_line(
-                node.get_attribute(
-                    "title"
-                )
-            )
-
-            if aria_label and aria_label != text:
-                label = aria_label
-            elif title_attr and title_attr != text:
-                label = title_attr
-
-            rows.append(
-                {
-                    "label": label,
-                    "value": value,
-                }
-            )
-
-        except Exception:
-            continue
-
-    compact_rows: list[dict[str, str]] = []
-
-    for row in rows:
-        value = row["value"]
-
-        if any(
-            value in existing["value"]
-            and value != existing["value"]
-            for existing in rows
+        if not email and (
+            "email" in lowered
+            or "sign in to see email" in lowered
+            or "đăng nhập để xem địa chỉ email" in lowered
         ):
+            email = line
             continue
 
-        compact_rows.append(
-            row
+        if not joined_date and (
+            lowered.startswith("joined ")
+            or lowered.startswith("đã tham gia ")
+            or lowered.startswith("tham gia ")
+        ):
+            joined_date = line
+            continue
+
+        if not total_views and (
+            re.search(
+                r"\b[\d.,]+\s+views?\b",
+                lowered,
+                re.IGNORECASE,
+            )
+            or "lượt xem" in lowered
+        ):
+            total_views = line
+            continue
+
+        if not channel_id and (
+            "youtube.com/@" in lowered
+            or "youtube.com/channel/" in lowered
+            or "youtube.com/c/" in lowered
+            or "youtube.com/user/" in lowered
+        ):
+            channel_id = line
+            continue
+
+        if not location and (
+            lowered in known_country_names
+            or lowered.startswith("location:")
+            or lowered.startswith("địa điểm:")
+        ):
+            location = line
+            continue
+
+        other.append(
+            {
+                "label": "",
+                "value": line,
+            }
         )
 
-    return compact_rows
+    return {
+        "raw_text": raw_text,
+        "email": email,
+        "location": location,
+        "joined_date": joined_date,
+        "total_views": total_views,
+        "channel_id": channel_id,
+        "other": other,
+    }
 
 
 def extract_channel_about_data(
@@ -1282,6 +1309,17 @@ def scan_channel_details(
         ),
         "channel_description": description,
         "channel_links": channel_links,
+        "channel_more_info_text": str(
+            channel_more_info.get(
+                "raw_text",
+                "",
+            )
+        )
+        if isinstance(
+            channel_more_info,
+            dict,
+        )
+        else "",
         "channel_more_info": channel_more_info,
         "channel_metadata_text": metadata_text,
     }
@@ -1339,15 +1377,46 @@ def scan_channel_list(
                     )
                 ),
             )
+            more_info = result.get(
+                "channel_more_info",
+                {},
+            )
+
             print(
-                "More info rows:",
+                "More info text length:",
                 len(
                     result.get(
-                        "channel_more_info",
-                        [],
+                        "channel_more_info_text",
+                        "",
                     )
                 ),
             )
+
+            if isinstance(
+                more_info,
+                dict,
+            ):
+                print(
+                    "Joined:",
+                    more_info.get(
+                        "joined_date",
+                        "",
+                    ),
+                )
+                print(
+                    "Views:",
+                    more_info.get(
+                        "total_views",
+                        "",
+                    ),
+                )
+                print(
+                    "Location:",
+                    more_info.get(
+                        "location",
+                        "",
+                    ),
+                )
 
         except Exception as exc:
             print(
