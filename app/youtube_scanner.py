@@ -151,3 +151,123 @@ def apply_this_year_filter(
     raise RuntimeError(
         "Could not apply YouTube filter: Năm nay."
     )
+
+from urllib.parse import urljoin
+
+
+YOUTUBE_BASE_URL = "https://www.youtube.com"
+
+
+def collect_search_videos(
+    page: Page,
+    *,
+    max_results: int = 40,
+) -> list[dict[str, str | int]]:
+    """
+    Scroll trang kết quả và lấy tối đa 40 video đầu tiên.
+    """
+
+    target_count = max(
+        1,
+        min(
+            int(max_results),
+            40,
+        ),
+    )
+
+    videos: list[dict[str, str | int]] = []
+    seen_urls: set[str] = set()
+
+    unchanged_rounds = 0
+    previous_count = 0
+
+    while (
+        len(videos) < target_count
+        and unchanged_rounds < 6
+    ):
+        links = page.locator(
+            "ytd-video-renderer "
+            "a#video-title[href*='/watch']"
+        )
+
+        try:
+            link_count = min(
+                links.count(),
+                200,
+            )
+        except Exception:
+            link_count = 0
+
+        for index in range(link_count):
+            link = links.nth(index)
+
+            try:
+                href = (
+                    link.get_attribute("href")
+                    or ""
+                ).strip()
+
+                if not href:
+                    continue
+
+                video_url = urljoin(
+                    YOUTUBE_BASE_URL,
+                    href,
+                )
+
+                if video_url in seen_urls:
+                    continue
+
+                title = (
+                    link.get_attribute("title")
+                    or link.inner_text(
+                        timeout=2_000
+                    )
+                    or ""
+                )
+
+                title = " ".join(
+                    title.split()
+                )
+
+                if not title:
+                    continue
+
+                seen_urls.add(
+                    video_url
+                )
+
+                videos.append(
+                    {
+                        "video_position": len(videos) + 1,
+                        "video_title": title,
+                        "video_url": video_url,
+                    }
+                )
+
+                if len(videos) >= target_count:
+                    break
+
+            except Exception:
+                continue
+
+        if len(videos) == previous_count:
+            unchanged_rounds += 1
+        else:
+            unchanged_rounds = 0
+
+        previous_count = len(videos)
+
+        if len(videos) >= target_count:
+            break
+
+        page.mouse.wheel(
+            0,
+            2_000,
+        )
+
+        page.wait_for_timeout(
+            1_200
+        )
+
+    return videos
