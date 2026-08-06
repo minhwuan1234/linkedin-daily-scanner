@@ -1016,6 +1016,94 @@ def extract_channel_links(
 
 
 
+
+def parse_compact_count(
+    value: str,
+) -> int | None:
+    """
+    Chuyển count dạng YouTube về số nguyên.
+
+    Ví dụ:
+    - 1.15M subscribers -> 1150000
+    - 851K subscribers -> 851000
+    - 1.8K videos -> 1800
+    - 208 videos -> 208
+    """
+
+    cleaned = clean_single_line(
+        value
+    ).casefold()
+
+    if not cleaned:
+        return None
+
+    match = re.search(
+        r"([\d.,]+)\s*([kmb]?)",
+        cleaned,
+        re.IGNORECASE,
+    )
+
+    if not match:
+        return None
+
+    number_text = match.group(
+        1
+    )
+    suffix = match.group(
+        2
+    ).casefold()
+
+    if (
+        "," in number_text
+        and "." not in number_text
+    ):
+        parts = number_text.split(
+            ","
+        )
+
+        if (
+            len(parts) == 2
+            and len(parts[1]) <= 2
+            and suffix
+        ):
+            number_text = ".".join(
+                parts
+            )
+        else:
+            number_text = "".join(
+                parts
+            )
+
+    else:
+        number_text = number_text.replace(
+            ",",
+            "",
+        )
+
+    try:
+        number = float(
+            number_text
+        )
+    except ValueError:
+        return None
+
+    multiplier = {
+        "": 1,
+        "k": 1_000,
+        "m": 1_000_000,
+        "b": 1_000_000_000,
+    }.get(
+        suffix,
+        1,
+    )
+
+    return int(
+        round(
+            number * multiplier
+        )
+    )
+
+
 def parse_view_count(
     value: str,
 ) -> int | None:
@@ -1489,6 +1577,12 @@ def scan_channel_details(
             dict,
         )
         else None,
+        "subscriber_count": parse_compact_count(
+            subscriber_count_text
+        ),
+        "video_count": parse_compact_count(
+            video_count_text
+        ),
         "channel_metadata_text": metadata_text,
     }
 
