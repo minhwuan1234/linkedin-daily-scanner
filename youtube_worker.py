@@ -22,17 +22,17 @@ from app.youtube_job_queue import (
     YouTubeScanJob,
 )
 from app.youtube_result_store import (
-    save_channel_results,
+    save_channel_result,
 )
 from app.youtube_scanner import (
     apply_this_year_filter,
     collect_unique_channels_from_results,
-    scan_channel_list,
+    scan_channel_details,
     search_youtube,
 )
 
 
-WORKER_VERSION = "0.2.0"
+WORKER_VERSION = "0.3.0"
 HEARTBEAT_INTERVAL_SECONDS = 30
 IDLE_POLL_SECONDS = 5
 
@@ -264,48 +264,128 @@ class YouTubeWorker:
                     "Worker stop requested before channel scan."
                 )
 
+            total_channels = len(
+                channels
+            )
+            saved_count = 0
+
             self._update_job_progress(
                 job_id=job.id,
                 stage="scanning_channels",
-                progress=55,
+                progress=40,
                 message=(
-                    f"Scanning {len(channels)} channels."
+                    f"Scanning 0 / {total_channels} channels."
                 ),
             )
 
-            results = scan_channel_list(
-                browser=browser,
-                channels=channels,
-            )
+            for index, channel in enumerate(
+                channels,
+                start=1,
+            ):
+                if self._stop_requested:
+                    raise RuntimeError(
+                        "Worker stop requested during channel scan."
+                    )
 
-            if self._stop_requested:
-                raise RuntimeError(
-                    "Worker stop requested before saving results."
+                print("")
+                print(
+                    f"Scanning channel {index}/{total_channels}: "
+                    f"{channel.get('channel_url', '')}"
                 )
 
-            self._update_job_progress(
-                job_id=job.id,
-                stage="saving_results",
-                progress=85,
-                message=(
-                    f"Saving {len(results)} channel results."
-                ),
-            )
+                try:
+                    result = scan_channel_details(
+                        browser=browser,
+                        channel=channel,
+                    )
 
-            saved_rows = save_channel_results(
-                job_id=job.id,
-                channels=results,
-            )
+                    save_channel_result(
+                        job_id=job.id,
+                        channel=result,
+                    )
+
+                    saved_count += 1
+
+                    progress = 40 + int(
+                        (
+                            saved_count
+                            / max(
+                                1,
+                                total_channels,
+                            )
+                        )
+                        * 55
+                    )
+
+                    self.queue.update_result_progress(
+                        job_id=job.id,
+                        worker_id=(
+                            self.registration.worker_id
+                        ),
+                        current_stage="scanning_channels",
+                        progress_percent=min(
+                            95,
+                            progress,
+                        ),
+                        result_count=saved_count,
+                    )
+
+                    self.events.emit(
+                        job_id=job.id,
+                        event_type="worker",
+                        step_name="channel_saved",
+                        status="processing",
+                        message=(
+                            f"Saved channel {saved_count} / "
+                            f"{total_channels}: "
+                            f"{result.get('channel_name', '')}"
+                        ),
+                        progress_percent=min(
+                            95,
+                            progress,
+                        ),
+                        metadata={
+                            "channel_url": result.get(
+                                "channel_url",
+                                "",
+                            ),
+                            "channel_name": result.get(
+                                "channel_name",
+                                "",
+                            ),
+                            "saved_channel_count": saved_count,
+                            "total_channel_count": total_channels,
+                        },
+                    )
+
+                    print(
+                        "Saved channel to Supabase:",
+                        result.get(
+                            "channel_name",
+                            "",
+                        ),
+                    )
+
+                except Exception as channel_exc:
+                    print(
+                        "Could not scan/save channel "
+                        f"{channel.get('channel_url', '')}: "
+                        f"{type(channel_exc).__name__}: "
+                        f"{channel_exc}",
+                        file=sys.stderr,
+                    )
 
             self.queue.complete_job(
                 job_id=job.id,
                 worker_id=(
                     self.registration.worker_id
                 ),
-                result_count=len(
-                    saved_rows
-                ),
+                result_count=saved_count,
             )
+
+            saved_rows = [
+                None
+            ] * saved_count
 
             self.events.emit(
                 job_id=job.id,
