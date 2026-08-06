@@ -4,6 +4,7 @@ from app.youtube_browser import (
 from app.youtube_scanner import (
     apply_this_year_filter,
     collect_unique_channels_from_results,
+    scan_channel_list,
     search_youtube,
 )
 
@@ -35,20 +36,43 @@ def main() -> None:
             f"Collected channels: {len(channels)}"
         )
 
-        for channel in channels:
+        results = scan_channel_list(
+            browser=browser,
+            channels=channels,
+        )
+
+        print("")
+        print("==============================")
+        print("CHANNEL SCAN RESULTS")
+        print("==============================")
+
+        for result in results:
             print("")
             print(
                 "Position:",
-                channel["channel_position"],
+                result["channel_position"],
             )
             print(
                 "Name:",
-                channel["channel_name"],
+                result["channel_name"],
             )
             print(
                 "URL:",
-                channel["channel_url"],
+                result["channel_url"],
             )
+            print(
+                "Subscribers:",
+                result["subscriber_count_text"],
+            )
+            print(
+                "Videos:",
+                result["video_count_text"],
+            )
+            print("Description:")
+            print(
+                result["channel_description"]
+            )
+            print("------------------------------")
 
         input(
             "Press Enter to close browser..."
