@@ -299,6 +299,40 @@ async def create_worker_command(
         },
     )
 
+@app.post("/api/worker/commands")
+async def create_worker_command(...):
+    ...
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "command": command_row,
+        },
+    )
+
+
+YOUTUBE_JOB_TABLE = "youtube_scan_jobs"
+
+
+@app.post("/api/youtube/jobs")
+async def create_youtube_job(
+    request: Request,
+) -> JSONResponse:
+    ...
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "job": job,
+        },
+    )
+
+# =========================================================
+# LARK WEBHOOK
+# =========================================================
+
+@app.post("/webhooks/lark/events")
+async def receive_lark_event(...):
 
 # =========================================================
 # LARK WEBHOOK
