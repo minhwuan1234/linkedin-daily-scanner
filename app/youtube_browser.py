@@ -44,7 +44,7 @@ class YouTubeBrowserSettings:
             else Path.cwd()
         )
 
-            browser_id = (
+        browser_id = (
             os.getenv(
                 "YOUTUBE_BROWSER_ID",
                 DEFAULT_BROWSER_ID,
@@ -71,7 +71,40 @@ class YouTubeBrowserSettings:
 
         profile_directory = (
             profile_root / browser_id
-        ).resolve()  
+        ).resolve()
+
+        return cls(
+            profile_directory=profile_directory,
+            headless=_read_bool_env(
+                "YOUTUBE_HEADLESS",
+                default=False,
+            ),
+            navigation_timeout_ms=_read_int_env(
+                "YOUTUBE_NAVIGATION_TIMEOUT_MS",
+                default=45_000,
+                minimum=5_000,
+            ),
+            operation_timeout_ms=_read_int_env(
+                "YOUTUBE_OPERATION_TIMEOUT_MS",
+                default=15_000,
+                minimum=1_000,
+            ),
+            slow_mo_ms=_read_int_env(
+                "YOUTUBE_SLOW_MO_MS",
+                default=0,
+                minimum=0,
+            ),
+            viewport_width=_read_int_env(
+                "YOUTUBE_VIEWPORT_WIDTH",
+                default=1440,
+                minimum=800,
+            ),
+            viewport_height=_read_int_env(
+                "YOUTUBE_VIEWPORT_HEIGHT",
+                default=1000,
+                minimum=600,
+            ),
+        )
 
 
 def _read_bool_env(
@@ -142,7 +175,10 @@ def _read_int_env(
 
 class YouTubeBrowserManager:
     """
-    Quản lý persistent Chromium context cho YouTube.
+    Quản lý persistent Chromium context riêng cho YouTube.
+
+    Mỗi browser ID dùng một thư mục profile riêng:
+    youtube_browser_profiles/<browser_id>
     """
 
     def __init__(
@@ -182,6 +218,12 @@ class YouTubeBrowserManager:
 
         return self._page
 
+    @property
+    def is_started(
+        self,
+    ) -> bool:
+        return self._started
+
     def start(
         self,
     ) -> "YouTubeBrowserManager":
@@ -191,6 +233,12 @@ class YouTubeBrowserManager:
         self.settings.profile_directory.mkdir(
             parents=True,
             exist_ok=True,
+        )
+
+        logger.info(
+            "Starting YouTube browser | profile_dir=%s | headless=%s",
+            self.settings.profile_directory,
+            self.settings.headless,
         )
 
         self._playwright = sync_playwright().start()
@@ -222,8 +270,15 @@ class YouTubeBrowserManager:
             )
 
         except Exception:
-            self._playwright.stop()
+            if self._playwright is not None:
+                self._playwright.stop()
+
             self._playwright = None
+
+            logger.exception(
+                "Could not launch YouTube browser"
+            )
+
             raise
 
         self._context.set_default_timeout(
@@ -234,15 +289,19 @@ class YouTubeBrowserManager:
             self.settings.navigation_timeout_ms
         )
 
-        pages = self._context.pages
+        existing_pages = self._context.pages
 
         self._page = (
-            pages[0]
-            if pages
+            existing_pages[0]
+            if existing_pages
             else self._context.new_page()
         )
 
         self._started = True
+
+        logger.info(
+            "YouTube browser started successfully"
+        )
 
         return self
 
@@ -295,12 +354,16 @@ class YouTubeBrowserManager:
         if not self._started:
             return
 
+        logger.info(
+            "Stopping YouTube browser"
+        )
+
         if self._context is not None:
             try:
                 self._context.close()
             except Exception:
                 logger.exception(
-                    "Could not close YouTube context"
+                    "Could not close YouTube browser context"
                 )
 
         if self._playwright is not None:
