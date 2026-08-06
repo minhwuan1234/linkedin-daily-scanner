@@ -218,6 +218,67 @@ class YouTubeJobQueue:
                 "Could not update YouTube job heartbeat",
             )
 
+    def update_result_progress(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        current_stage: str,
+        progress_percent: int,
+        result_count: int,
+    ) -> None:
+        """
+        Update progress and saved result count while scanning.
+        """
+
+        now = _utc_now_iso()
+
+        response = (
+            self.client
+            .table(JOB_TABLE)
+            .update(
+                {
+                    "current_stage": str(
+                        current_stage
+                    ).strip(),
+                    "progress_percent": max(
+                        0,
+                        min(
+                            100,
+                            int(progress_percent),
+                        ),
+                    ),
+                    "result_count": max(
+                        0,
+                        int(result_count),
+                    ),
+                    "processing_heartbeat_at": now,
+                    "updated_at": now,
+                }
+            )
+            .eq(
+                "id",
+                str(job_id),
+            )
+            .eq(
+                "status",
+                "processing",
+            )
+            .eq(
+                "assigned_worker_id",
+                str(worker_id),
+            )
+            .execute()
+        )
+
+        if not list(
+            response.data or []
+        ):
+            raise RuntimeError(
+                "Could not update YouTube result progress"
+            )
+
+
     def complete_job(
         self,
         *,
