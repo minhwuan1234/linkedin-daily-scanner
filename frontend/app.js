@@ -634,12 +634,6 @@ async function createYoutubeResearchJob(event) {
     return;
   }
 
-  const controlToken = getControlToken();
-
-  if (!controlToken) {
-    return;
-  }
-
   state.youtubeSubmitting = true;
   renderYoutubeResearch();
 
@@ -649,8 +643,7 @@ async function createYoutubeResearchJob(event) {
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-Control-Token": controlToken
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           keyword,
