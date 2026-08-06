@@ -1,417 +1,405 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import os
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Iterable
 
-from app.linkedin_scanner import (
-    create_supabase_client,
-)
-from app.settings import Settings
+from supabase import Client, create_client
 
 
-JOB_TABLE = "youtube_scan_jobs"
+YOUTUBE_CHANNEL_TABLE = "youtube_scan_channels"
 
 
-def _utc_now_iso() -> str:
-    return datetime.now(
-        timezone.utc,
-    ).isoformat()
-
-
-@dataclass(frozen=True)
-class YouTubeScanJob:
-    id: str
-    keyword: str
-    max_results: int
-    filters: dict[str, Any]
-    retry_count: int
-    max_retries: int
-
-    @classmethod
-    def from_row(
-        cls,
-        row: dict[str, Any],
-    ) -> "YouTubeScanJob":
-        job_id = str(
-            row.get("id") or "",
-        ).strip()
-
-        keyword = str(
-            row.get("keyword") or "",
-        ).strip()
-
-        if not job_id:
-            raise ValueError(
-                "YouTube job is missing id",
-            )
-
-        if not keyword:
-            raise ValueError(
-                "YouTube job is missing keyword",
-            )
-
-        filters = row.get("filters")
-
-        if not isinstance(filters, dict):
-            filters = {}
-
-        return cls(
-            id=job_id,
-            keyword=keyword,
-            max_results=int(
-                row.get("max_results") or 40,
-            ),
-            filters=filters,
-            retry_count=int(
-                row.get("retry_count") or 0,
-            ),
-            max_retries=int(
-                row.get("max_retries") or 3,
-            ),
-        )
-
-
-class YouTubeJobQueue:
+class YouTubeResultStoreError(RuntimeError):
     """
-    Quản lý queue job YouTube trong Supabase.
+    Lỗi khi chuẩn hóa hoặc lưu kết quả scan YouTube.
     """
 
-    def __init__(
-        self,
-        *,
-        settings: Settings,
-    ) -> None:
-        self.client = create_supabase_client(
-            settings,
+
+def get_supabase_client() -> Client:
+    """
+    Tạo Supabase client từ biến môi trường.
+
+    Ưu tiên service-role key để worker có quyền ghi dữ liệu.
+    """
+
+    supabase_url = os.getenv(
+        "SUPABASE_URL",
+        "",
+    ).strip()
+
+    supabase_key = (
+        os.getenv(
+            "SUPABASE_SERVICE_ROLE_KEY",
+            "",
+        ).strip()
+        or os.getenv(
+            "SUPABASE_KEY",
+            "",
+        ).strip()
+        or os.getenv(
+            "SUPABASE_ANON_KEY",
+            "",
+        ).strip()
+    )
+
+    if not supabase_url:
+        raise YouTubeResultStoreError(
+            "Missing SUPABASE_URL environment variable."
         )
 
-    def claim_next_job(
-        self,
-        *,
-        worker_id: str,
-    ) -> YouTubeScanJob | None:
-        cleaned_worker_id = str(
-            worker_id or "",
-        ).strip()
+    if not supabase_key:
+        raise YouTubeResultStoreError(
+            "Missing SUPABASE_SERVICE_ROLE_KEY, "
+            "SUPABASE_KEY, or SUPABASE_ANON_KEY."
+        )
 
-        if not cleaned_worker_id:
-            raise ValueError(
-                "worker_id cannot be empty",
+    return create_client(
+        supabase_url,
+        supabase_key,
+    )
+
+
+def _clean_text(
+    value: Any,
+) -> str:
+    if value is None:
+        return ""
+
+    return str(
+        value
+    ).strip()
+
+
+def _clean_integer(
+    value: Any,
+) -> int | None:
+    if value is None or value == "":
+        return None
+
+    if isinstance(
+        value,
+        bool,
+    ):
+        return None
+
+    try:
+        return int(
+            value
+        )
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
+
+
+def _clean_links(
+    value: Any,
+) -> list[dict[str, str]]:
+    """
+    Chỉ giữ các link hợp lệ dưới dạng:
+    {"title": "...", "url": "..."}
+    """
+
+    if not isinstance(
+        value,
+        list,
+    ):
+        return []
+
+    links: list[dict[str, str]] = []
+    seen_urls: set[str] = set()
+
+    for item in value:
+        if not isinstance(
+            item,
+            dict,
+        ):
+            continue
+
+        title = _clean_text(
+            item.get(
+                "title",
+                "",
             )
+        )
+        url = _clean_text(
+            item.get(
+                "url",
+                "",
+            )
+        )
 
-        response = (
-            self.client
-            .table(JOB_TABLE)
-            .select("*")
-            .eq(
-                "status",
+        if not url or url in seen_urls:
+            continue
+
+        seen_urls.add(
+            url
+        )
+
+        links.append(
+            {
+                "title": title,
+                "url": url,
+            }
+        )
+
+    return links
+
+
+def build_channel_row(
+    *,
+    job_id: str,
+    channel: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Chuyển output của youtube_scanner thành row để lưu Supabase.
+    """
+
+    cleaned_job_id = _clean_text(
+        job_id
+    )
+    channel_url = _clean_text(
+        channel.get(
+            "channel_url",
+            "",
+        )
+    )
+
+    if not cleaned_job_id:
+        raise YouTubeResultStoreError(
+            "job_id is required."
+        )
+
+    if not channel_url:
+        raise YouTubeResultStoreError(
+            "channel_url is required."
+        )
+
+    email = _clean_text(
+        channel.get(
+            "email",
+            "",
+        )
+    )
+    email_status = _clean_text(
+        channel.get(
+            "email_status",
+            "",
+        )
+    )
+
+    if not email_status:
+        email_status = (
+            "available"
+            if email
+            else "unavailable"
+        )
+
+    return {
+        "job_id": cleaned_job_id,
+        "channel_url": channel_url,
+        "channel_name": _clean_text(
+            channel.get(
+                "channel_name",
+                "",
+            )
+        ),
+        "subscriber_count_text": _clean_text(
+            channel.get(
+                "subscriber_count_text",
+                "",
+            )
+        ),
+        "subscriber_count": _clean_integer(
+            channel.get(
+                "subscriber_count",
+            )
+        ),
+        "video_count_text": _clean_text(
+            channel.get(
+                "video_count_text",
+                "",
+            )
+        ),
+        "video_count": _clean_integer(
+            channel.get(
+                "video_count",
+            )
+        ),
+        "channel_description": _clean_text(
+            channel.get(
+                "channel_description",
+                "",
+            )
+        ),
+        "location": _clean_text(
+            channel.get(
+                "location",
+                "",
+            )
+        ),
+        "email": email,
+        "email_status": email_status,
+        "total_views_text": _clean_text(
+            channel.get(
+                "total_views_text",
+                "",
+            )
+        ),
+        "total_views": _clean_integer(
+            channel.get(
+                "total_views",
+            )
+        ),
+        "channel_links": _clean_links(
+            channel.get(
+                "channel_links",
+                [],
+            )
+        ),
+        "scan_status": (
+            str(
+                channel.get(
+                    "scan_status",
+                    "completed",
+                )
+            ).strip().casefold()
+            if str(
+                channel.get(
+                    "scan_status",
+                    "completed",
+                )
+            ).strip().casefold()
+            in {
                 "pending",
-            )
-            .order(
-                "created_at",
-            )
-            .limit(1)
-            .execute()
-        )
+                "running",
+                "completed",
+                "failed",
+            }
+            else "completed"
+        ),
+        "scanned_at": datetime.now(
+            timezone.utc
+        ).isoformat(),
+    }
 
-        rows = list(
-            response.data or [],
-        )
 
-        if not rows:
-            return None
+def save_channel_result(
+    *,
+    job_id: str,
+    channel: dict[str, Any],
+    client: Client | None = None,
+) -> dict[str, Any]:
+    """
+    Upsert một channel.
 
-        candidate = dict(
-            rows[0],
-        )
+    Cần unique index:
+    (job_id, channel_url)
+    """
 
-        job_id = str(
-            candidate.get("id") or "",
-        ).strip()
+    active_client = (
+        client
+        if client is not None
+        else get_supabase_client()
+    )
 
-        now = _utc_now_iso()
+    row = build_channel_row(
+        job_id=job_id,
+        channel=channel,
+    )
 
-        claim_response = (
-            self.client
-            .table(JOB_TABLE)
-            .update(
-                {
-                    "status": "processing",
-                    "current_stage": "claimed",
-                    "progress_percent": 5,
-                    "assigned_worker_id": cleaned_worker_id,
-                    "processing_started_at": now,
-                    "processing_heartbeat_at": now,
-                    "updated_at": now,
-                    "last_error": None,
-                },
-            )
-            .eq(
-                "id",
-                job_id,
-            )
-            .eq(
-                "status",
-                "pending",
-            )
-            .execute()
-        )
-
-        claimed_rows = list(
-            claim_response.data or [],
-        )
-
-        if not claimed_rows:
-            return None
-
-        return YouTubeScanJob.from_row(
-            dict(claimed_rows[0]),
-        )
-
-    def heartbeat_job(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        current_stage: str,
-        progress_percent: int,
-    ) -> None:
-        now = _utc_now_iso()
-
+    try:
         response = (
-            self.client
-            .table(JOB_TABLE)
-            .update(
-                {
-                    "current_stage": str(
-                        current_stage,
-                    ).strip(),
-                    "progress_percent": max(
-                        0,
-                        min(
-                            100,
-                            int(progress_percent),
-                        ),
-                    ),
-                    "processing_heartbeat_at": now,
-                    "updated_at": now,
-                },
+            active_client.table(
+                YOUTUBE_CHANNEL_TABLE
             )
-            .eq(
-                "id",
-                str(job_id),
-            )
-            .eq(
-                "status",
-                "processing",
-            )
-            .eq(
-                "assigned_worker_id",
-                str(worker_id),
+            .upsert(
+                row,
+                on_conflict=(
+                    "job_id,channel_url"
+                ),
             )
             .execute()
         )
+    except Exception as error:
+        raise YouTubeResultStoreError(
+            "Could not save YouTube channel "
+            f"{row['channel_url']}: {error}"
+        ) from error
 
-        if not list(response.data or []):
-            raise RuntimeError(
-                "Could not update YouTube job heartbeat",
-            )
+    data = getattr(
+        response,
+        "data",
+        None,
+    )
 
-    def complete_job(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        result_count: int,
-    ) -> None:
-        now = _utc_now_iso()
+    if isinstance(
+        data,
+        list,
+    ) and data:
+        return data[0]
 
+    return row
+
+
+def save_channel_results(
+    *,
+    job_id: str,
+    channels: Iterable[dict[str, Any]],
+    client: Client | None = None,
+) -> list[dict[str, Any]]:
+    """
+    Upsert nhiều channel trong một request.
+    """
+
+    active_client = (
+        client
+        if client is not None
+        else get_supabase_client()
+    )
+
+    rows = [
+        build_channel_row(
+            job_id=job_id,
+            channel=channel,
+        )
+        for channel in channels
+    ]
+
+    if not rows:
+        return []
+
+    try:
         response = (
-            self.client
-            .table(JOB_TABLE)
-            .update(
-                {
-                    "status": "completed",
-                    "current_stage": "completed",
-                    "progress_percent": 100,
-                    "result_count": max(
-                        0,
-                        int(result_count),
-                    ),
-                    "processing_heartbeat_at": now,
-                    "completed_at": now,
-                    "updated_at": now,
-                    "last_error": None,
-                },
+            active_client.table(
+                YOUTUBE_CHANNEL_TABLE
             )
-            .eq(
-                "id",
-                str(job_id),
-            )
-            .eq(
-                "status",
-                "processing",
-            )
-            .eq(
-                "assigned_worker_id",
-                str(worker_id),
+            .upsert(
+                rows,
+                on_conflict=(
+                    "job_id,channel_url"
+                ),
             )
             .execute()
         )
+    except Exception as error:
+        raise YouTubeResultStoreError(
+            "Could not save YouTube channel results: "
+            f"{error}"
+        ) from error
 
-        if not list(response.data or []):
-            raise RuntimeError(
-                "Could not complete YouTube job",
-            )
+    data = getattr(
+        response,
+        "data",
+        None,
+    )
 
-    def fail_job(
-        self,
-        *,
-        job: YouTubeScanJob,
-        worker_id: str,
-        error_message: str,
-    ) -> str:
-        """
-        Nếu còn retry:
-        processing -> pending
+    if isinstance(
+        data,
+        list,
+    ):
+        return data
 
-        Nếu hết retry:
-        processing -> failed
-
-        Trả về trạng thái cuối: pending hoặc failed.
-        """
-
-        next_retry_count = (
-            int(job.retry_count) + 1
-        )
-
-        should_retry = (
-            next_retry_count
-            <= int(job.max_retries)
-        )
-
-        next_status = (
-            "pending"
-            if should_retry
-            else "failed"
-        )
-
-        now = _utc_now_iso()
-
-        update_data: dict[str, Any] = {
-            "status": next_status,
-            "current_stage": (
-                "queued"
-                if should_retry
-                else "failed"
-            ),
-            "progress_percent": (
-                0
-                if should_retry
-                else 100
-            ),
-            "retry_count": next_retry_count,
-            "assigned_worker_id": None,
-            "processing_started_at": None,
-            "processing_heartbeat_at": None,
-            "last_error": str(
-                error_message or "Unknown YouTube worker error",
-            ).strip()[:4000],
-            "updated_at": now,
-        }
-
-        if not should_retry:
-            update_data["completed_at"] = now
-
-        response = (
-            self.client
-            .table(JOB_TABLE)
-            .update(
-                update_data,
-            )
-            .eq(
-                "id",
-                str(job.id),
-            )
-            .eq(
-                "status",
-                "processing",
-            )
-            .eq(
-                "assigned_worker_id",
-                str(worker_id),
-            )
-            .execute()
-        )
-
-        if not list(response.data or []):
-            raise RuntimeError(
-                "Could not fail YouTube job",
-            )
-
-        return next_status
-
-    def release_job(
-        self,
-        *,
-        job_id: str,
-        worker_id: str,
-        reason: str,
-    ) -> None:
-        cleaned_job_id = str(
-            job_id or "",
-        ).strip()
-
-        cleaned_worker_id = str(
-            worker_id or "",
-        ).strip()
-
-        if not cleaned_job_id:
-            raise ValueError(
-                "job_id cannot be empty",
-            )
-
-        if not cleaned_worker_id:
-            raise ValueError(
-                "worker_id cannot be empty",
-            )
-
-        now = _utc_now_iso()
-
-        response = (
-            self.client
-            .table(JOB_TABLE)
-            .update(
-                {
-                    "status": "pending",
-                    "current_stage": "queued",
-                    "progress_percent": 0,
-                    "assigned_worker_id": None,
-                    "processing_started_at": None,
-                    "processing_heartbeat_at": None,
-                    "last_error": str(
-                        reason or "Job released",
-                    ).strip()[:4000],
-                    "updated_at": now,
-                },
-            )
-            .eq(
-                "id",
-                cleaned_job_id,
-            )
-            .eq(
-                "status",
-                "processing",
-            )
-            .eq(
-                "assigned_worker_id",
-                cleaned_worker_id,
-            )
-            .execute()
-        )
-
-        if not list(response.data or []):
-            raise RuntimeError(
-                "Could not release YouTube job",
-            )
+    return rows
