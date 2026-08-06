@@ -1,4 +1,3 @@
-```python
 import json
 
 from app.youtube_browser import YouTubeBrowserManager
