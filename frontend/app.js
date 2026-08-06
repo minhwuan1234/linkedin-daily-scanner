@@ -284,33 +284,6 @@ async function safeQuery(name, queryPromise, fallback) {
 }
 
 
-function getControlToken() {
-  const storedToken = sessionStorage.getItem(
-    "linkedinScannerControlToken"
-  );
-
-  if (storedToken) {
-    return storedToken;
-  }
-
-  const enteredToken = window.prompt(
-    "Nhập dashboard control token"
-  );
-
-  const cleanedToken = String(
-    enteredToken || ""
-  ).trim();
-
-  if (cleanedToken) {
-    sessionStorage.setItem(
-      "linkedinScannerControlToken",
-      cleanedToken
-    );
-  }
-
-  return cleanedToken;
-}
-
 function updateWorkerControlButtons() {
   const workerStatus = normaliseStatus(
     state.worker?.status
@@ -349,12 +322,6 @@ async function sendWorkerCommand(command) {
     );
   }
 
-  const controlToken = getControlToken();
-
-  if (!controlToken) {
-    return;
-  }
-
   const labels = {
     kill_current: "kill lượt quét hiện tại",
     stop_scan: "tạm dừng scanner",
@@ -378,8 +345,7 @@ async function sendWorkerCommand(command) {
       {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-Control-Token": controlToken
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           worker_id: workerId,
@@ -391,12 +357,6 @@ async function sendWorkerCommand(command) {
     const result = await response.json();
 
     if (!response.ok || !result.ok) {
-      if (response.status === 401) {
-        sessionStorage.removeItem(
-          "linkedinScannerControlToken"
-        );
-      }
-
       throw new Error(
         result.detail ||
         result.error ||
