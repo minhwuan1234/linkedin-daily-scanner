@@ -269,6 +269,7 @@ class YouTubeBrowserManager:
                     ),
                     headless=self.settings.headless,
                     slow_mo=self.settings.slow_mo_ms,
+                    channel="chrome",
                     viewport={
                         "width": (
                             self.settings.viewport_width
