@@ -74,17 +74,19 @@ def apply_this_year_filter(
     page: Page,
 ) -> None:
     """
-    Mở bộ lọc tìm kiếm YouTube và chọn:
-    Ngày tải lên -> Năm nay.
+    Mở bộ lọc YouTube và chọn:
+    Upload date -> This year.
+
+    Hỗ trợ cả giao diện tiếng Anh và tiếng Việt.
     """
 
     filter_button_selectors = (
-        "button[aria-label='Bộ lọc tìm kiếm']",
         "button[aria-label='Search filters']",
-        "button:has-text('Bộ lọc')",
+        "button[aria-label='Bộ lọc tìm kiếm']",
         "button:has-text('Filters')",
-        "yt-button-shape button:has-text('Bộ lọc')",
+        "button:has-text('Bộ lọc')",
         "yt-button-shape button:has-text('Filters')",
+        "yt-button-shape button:has-text('Bộ lọc')",
     )
 
     filter_opened = False
@@ -114,48 +116,66 @@ def apply_this_year_filter(
         )
 
     page.wait_for_timeout(
-        1_000
+        1_500
     )
 
-    this_year_selectors = (
-        "ytd-search-filter-renderer:has-text('Năm nay')",
-        "yt-formatted-string:text-is('Năm nay')",
-        "a:has-text('Năm nay')",
-        "ytd-search-filter-renderer:has-text('This year')",
-        "yt-formatted-string:text-is('This year')",
-        "a:has-text('This year')",
+    this_year_texts = (
+        "This year",
+        "Năm nay",
     )
 
-    for selector in this_year_selectors:
-        try:
-            option = page.locator(
-                selector
-            ).first
+    for option_text in this_year_texts:
+        selectors = (
+            f"ytd-search-filter-renderer:has-text('{option_text}')",
+            f"yt-formatted-string:text-is('{option_text}')",
+            f"a:has-text('{option_text}')",
+        )
 
-            if option.is_visible(
-                timeout=2_000
-            ):
-                option.click(
-                    timeout=5_000
+        for selector in selectors:
+            try:
+                options = page.locator(
+                    selector
                 )
 
-                page.wait_for_timeout(
-                    3_000
+                option_count = min(
+                    options.count(),
+                    20,
                 )
 
-                return
+                for index in range(
+                    option_count
+                ):
+                    option = options.nth(
+                        index
+                    )
 
-        except Exception:
-            continue
+                    if not option.is_visible(
+                        timeout=1_000
+                    ):
+                        continue
+
+                    option.click(
+                        timeout=5_000
+                    )
+
+                    page.wait_for_timeout(
+                        3_000
+                    )
+
+                    print(
+                        "Applied YouTube filter: "
+                        f"{option_text}"
+                    )
+
+                    return
+
+            except Exception:
+                continue
 
     raise RuntimeError(
-        "Could not apply YouTube filter: Năm nay."
+        "Could not select YouTube filter: "
+        "This year / Năm nay."
     )
-
-from urllib.parse import urljoin
-
-
-YOUTUBE_BASE_URL = "https://www.youtube.com"
 
 
 def collect_search_videos(
