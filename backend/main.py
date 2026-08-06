@@ -799,3 +799,4 @@ async def receive_lark_event(
                 result.existing_urls
             ),
         },
+    )
