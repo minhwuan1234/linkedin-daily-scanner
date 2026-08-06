@@ -74,10 +74,8 @@ def apply_this_year_filter(
     page: Page,
 ) -> None:
     """
-    Mở bộ lọc YouTube và chọn:
-    Upload date -> This year.
-
-    Hỗ trợ cả giao diện tiếng Anh và tiếng Việt.
+    Mở Search filters và chọn Upload date -> This year.
+    Hỗ trợ cả tiếng Anh và tiếng Việt.
     """
 
     filter_button_selectors = (
@@ -85,25 +83,16 @@ def apply_this_year_filter(
         "button[aria-label='Bộ lọc tìm kiếm']",
         "button:has-text('Filters')",
         "button:has-text('Bộ lọc')",
-        "yt-button-shape button:has-text('Filters')",
-        "yt-button-shape button:has-text('Bộ lọc')",
     )
 
     filter_opened = False
 
     for selector in filter_button_selectors:
         try:
-            button = page.locator(
-                selector
-            ).first
+            button = page.locator(selector).first
 
-            if button.is_visible(
-                timeout=2_000
-            ):
-                button.click(
-                    timeout=5_000
-                )
-
+            if button.is_visible(timeout=2_000):
+                button.click(timeout=5_000)
                 filter_opened = True
                 break
 
@@ -115,65 +104,69 @@ def apply_this_year_filter(
             "Could not open YouTube search filters."
         )
 
-    page.wait_for_timeout(
-        1_500
-    )
+    page.wait_for_timeout(1_500)
 
-    this_year_texts = (
+    target_texts = (
         "This year",
         "Năm nay",
     )
 
-    for option_text in this_year_texts:
-        selectors = (
-            f"ytd-search-filter-renderer:has-text('{option_text}')",
-            f"yt-formatted-string:text-is('{option_text}')",
-            f"a:has-text('{option_text}')",
-        )
+    for target_text in target_texts:
+        try:
+            exact_text = page.get_by_text(
+                target_text,
+                exact=True,
+            )
 
-        for selector in selectors:
-            try:
-                options = page.locator(
-                    selector
-                )
+            count = min(
+                exact_text.count(),
+                20,
+            )
 
-                option_count = min(
-                    options.count(),
-                    20,
-                )
+            for index in range(count):
+                item = exact_text.nth(index)
 
-                for index in range(
-                    option_count
+                if not item.is_visible(
+                    timeout=1_000
                 ):
-                    option = options.nth(
-                        index
-                    )
+                    continue
 
-                    if not option.is_visible(
-                        timeout=1_000
-                    ):
-                        continue
-
-                    option.click(
+                try:
+                    item.click(
                         timeout=5_000
                     )
-
-                    page.wait_for_timeout(
-                        3_000
+                except Exception:
+                    parent_link = item.locator(
+                        "xpath=ancestor::a[1]"
                     )
 
-                    print(
-                        "Applied YouTube filter: "
-                        f"{option_text}"
-                    )
+                    if parent_link.count() > 0:
+                        parent_link.click(
+                            timeout=5_000
+                        )
+                    else:
+                        item.locator(
+                            "xpath=ancestor::ytd-search-filter-renderer[1]"
+                        ).click(
+                            timeout=5_000
+                        )
 
-                    return
+                page.wait_for_timeout(
+                    3_000
+                )
 
-            except Exception:
-                continue
+                print(
+                    "Applied YouTube filter: "
+                    f"{target_text}"
+                )
+
+                return
+
+        except Exception:
+            continue
 
     raise RuntimeError(
-        "Could not select YouTube filter: "
+        "Could not click YouTube filter: "
         "This year / Năm nay."
     )
 
