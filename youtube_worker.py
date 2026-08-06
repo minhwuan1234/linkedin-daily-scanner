@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from app.orchestration.job_event_store import (
-    JobEventStore,
-)
 import signal
 import sys
 import threading
 import time
 from typing import Any
 
+from app.orchestration.job_event_store import (
+    JobEventStore,
+)
 from app.orchestration.worker_registry import (
     WorkerRegistration,
     WorkerRegistry,
@@ -36,6 +36,7 @@ class YouTubeWorker:
     - claim job pending;
     - chuyển trạng thái worker sang busy;
     - cập nhật job thành ready_for_hermes;
+    - ghi event realtime;
     - trả job về pending sau bài test tích hợp;
     - dừng an toàn.
     """
@@ -68,11 +69,13 @@ class YouTubeWorker:
                 "engine": "hermes",
             },
         )
+
         self.events = JobEventStore(
             settings=settings,
             worker_id=self.registration.worker_id,
             platform="youtube",
         )
+
         self._stop_requested = False
 
         self._heartbeat_stop_event = threading.Event()
@@ -167,7 +170,7 @@ class YouTubeWorker:
                         "filters": job.filters,
                     },
                 )
-                
+
                 try:
                     self.queue.heartbeat_job(
                         job_id=job.id,
@@ -177,6 +180,7 @@ class YouTubeWorker:
                         current_stage="ready_for_hermes",
                         progress_percent=10,
                     )
+
                     self.events.emit(
                         job_id=job.id,
                         event_type="worker",
@@ -207,7 +211,8 @@ class YouTubeWorker:
                             self.registration.worker_id
                         ),
                         reason=release_reason,
-                    
+                    )
+
                     self.events.emit(
                         job_id=job.id,
                         event_type="queue",
@@ -223,7 +228,7 @@ class YouTubeWorker:
                         f"{type(exc).__name__}: {exc}",
                         file=sys.stderr,
                     )
-                    
+
                     self.events.emit(
                         job_id=job.id,
                         event_type="worker",
