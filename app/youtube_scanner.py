@@ -469,3 +469,295 @@ def collect_unique_channels_from_results(
         )
 
     return channels
+
+def clean_channel_name(
+    value: str,
+) -> str:
+    cleaned = " ".join(
+        str(value or "").split()
+    )
+
+    prefixes = (
+        "Go to channel ",
+        "Đi tới kênh ",
+    )
+
+    for prefix in prefixes:
+        if cleaned.startswith(prefix):
+            cleaned = cleaned[
+                len(prefix):
+            ].strip()
+
+    return cleaned
+
+
+def build_channel_about_url(
+    channel_url: str,
+) -> str:
+    cleaned_url = (
+        str(channel_url or "")
+        .split("?")[0]
+        .rstrip("/")
+    )
+
+    if not cleaned_url:
+        raise ValueError(
+            "Channel URL cannot be empty."
+        )
+
+    if cleaned_url.endswith("/about"):
+        return cleaned_url
+
+    return f"{cleaned_url}/about"
+
+
+def first_visible_text(
+    page: Page,
+    selectors: tuple[str, ...],
+) -> str:
+    for selector in selectors:
+        try:
+            items = page.locator(
+                selector
+            )
+
+            count = min(
+                items.count(),
+                20,
+            )
+
+            for index in range(count):
+                item = items.nth(
+                    index
+                )
+
+                if not item.is_visible(
+                    timeout=700
+                ):
+                    continue
+
+                text = " ".join(
+                    (
+                        item.inner_text(
+                            timeout=2_000
+                        )
+                        or ""
+                    ).split()
+                )
+
+                if text:
+                    return text
+
+        except Exception:
+            continue
+
+    return ""
+
+
+def extract_channel_description(
+    page: Page,
+) -> str:
+    selectors = (
+        "#description-container",
+        "#description",
+        "yt-formatted-string#description",
+        "ytd-channel-about-metadata-renderer "
+        "#description",
+        "ytd-about-channel-renderer "
+        "#description-container",
+    )
+
+    longest_text = ""
+
+    for selector in selectors:
+        try:
+            items = page.locator(
+                selector
+            )
+
+            count = min(
+                items.count(),
+                20,
+            )
+
+            for index in range(count):
+                item = items.nth(
+                    index
+                )
+
+                if not item.is_visible(
+                    timeout=700
+                ):
+                    continue
+
+                text = (
+                    item.inner_text(
+                        timeout=3_000
+                    )
+                    or ""
+                ).strip()
+
+                text = "\n".join(
+                    line.strip()
+                    for line in text.splitlines()
+                    if line.strip()
+                )
+
+                if len(text) > len(
+                    longest_text
+                ):
+                    longest_text = text
+
+        except Exception:
+            continue
+
+    return longest_text
+
+
+def extract_video_count_from_about(
+    page: Page,
+) -> str:
+    selectors = (
+        "#videos-count",
+        "yt-formatted-string#videos-count",
+        "ytd-channel-about-metadata-renderer "
+        "tr:has-text('videos')",
+        "ytd-channel-about-metadata-renderer "
+        "tr:has-text('video')",
+        "ytd-about-channel-renderer "
+        "*:has-text('videos')",
+    )
+
+    return first_visible_text(
+        page,
+        selectors,
+    )
+
+
+def scan_channel_details(
+    browser: YouTubeBrowserManager,
+    channel: dict[str, str | int],
+) -> dict[str, str | int]:
+    page = browser.ensure_page()
+
+    channel_url = str(
+        channel["channel_url"]
+    )
+
+    about_url = build_channel_about_url(
+        channel_url
+    )
+
+    try:
+        page.goto(
+            about_url,
+            wait_until="domcontentloaded",
+            timeout=(
+                browser.settings.navigation_timeout_ms
+            ),
+        )
+
+    except PlaywrightTimeoutError:
+        print(
+            "Channel navigation timed out. "
+            "Continuing with current page."
+        )
+
+    page.wait_for_timeout(
+        3_000
+    )
+
+    channel_name = first_visible_text(
+        page,
+        (
+            "#channel-name",
+            "ytd-channel-name #text",
+            "yt-formatted-string#text",
+            "h1",
+        ),
+    )
+
+    if not channel_name:
+        channel_name = clean_channel_name(
+            str(
+                channel.get(
+                    "channel_name",
+                    "",
+                )
+            )
+        )
+
+    subscriber_count = first_visible_text(
+        page,
+        (
+            "#subscriber-count",
+            "yt-formatted-string#subscriber-count",
+            "span:has-text('subscribers')",
+            "span:has-text('subscriber')",
+            "span:has-text('người đăng ký')",
+        ),
+    )
+
+    video_count = extract_video_count_from_about(
+        page
+    )
+
+    description = extract_channel_description(
+        page
+    )
+
+    return {
+        "channel_position": channel[
+            "channel_position"
+        ],
+        "channel_url": channel_url,
+        "channel_about_url": about_url,
+        "channel_name": clean_channel_name(
+            channel_name
+        ),
+        "subscriber_count_text": (
+            subscriber_count
+        ),
+        "video_count_text": video_count,
+        "channel_description": description,
+    }
+
+
+def scan_channel_list(
+    browser: YouTubeBrowserManager,
+    channels: list[dict[str, str | int]],
+) -> list[dict[str, str | int]]:
+    results: list[
+        dict[str, str | int]
+    ] = []
+
+    for channel in channels:
+        print("")
+        print(
+            "Opening channel:",
+            channel["channel_url"],
+        )
+
+        try:
+            result = scan_channel_details(
+                browser=browser,
+                channel=channel,
+            )
+
+            results.append(
+                result
+            )
+
+            print(
+                "Scanned channel:",
+                result["channel_name"],
+            )
+
+        except Exception as exc:
+            print(
+                "Could not scan channel "
+                f"{channel['channel_url']}: "
+                f"{type(exc).__name__}: {exc}"
+            )
+
+    return results
