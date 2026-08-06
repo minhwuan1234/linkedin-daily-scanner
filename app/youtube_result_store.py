@@ -1,11 +1,10 @@
-from dotenv import load_dotenv
-
 from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
+from dotenv import load_dotenv
 from supabase import Client, create_client
 
 
