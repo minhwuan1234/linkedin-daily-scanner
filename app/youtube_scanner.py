@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from urllib.parse import quote_plus
+import re
+from urllib.parse import quote_plus, urljoin
 
 from playwright.sync_api import (
+    Locator,
     Page,
     TimeoutError as PlaywrightTimeoutError,
 )
@@ -12,26 +14,104 @@ from app.youtube_browser import (
 )
 
 
+YOUTUBE_BASE_URL = "https://www.youtube.com"
 YOUTUBE_SEARCH_URL = (
     "https://www.youtube.com/results"
     "?search_query={keyword}"
 )
 
 
+def clean_single_line(
+    value: str | None,
+) -> str:
+    return " ".join(
+        str(value or "").split()
+    ).strip()
+
+
+def clean_multiline_text(
+    value: str | None,
+) -> str:
+    lines: list[str] = []
+
+    for raw_line in str(value or "").splitlines():
+        line = clean_single_line(
+            raw_line
+        )
+
+        if line:
+            lines.append(
+                line
+            )
+
+    return "\n".join(
+        lines
+    ).strip()
+
+
+def clean_channel_name(
+    value: str,
+) -> str:
+    cleaned = clean_single_line(
+        value
+    )
+
+    prefixes = (
+        "Go to channel ",
+        "Đi tới kênh ",
+    )
+
+    for prefix in prefixes:
+        if cleaned.casefold().startswith(
+            prefix.casefold()
+        ):
+            cleaned = cleaned[
+                len(prefix):
+            ].strip()
+
+    return cleaned
+
+
 def build_youtube_search_url(
     keyword: str,
 ) -> str:
-    cleaned_keyword = " ".join(
-        str(keyword or "").split()
+    cleaned_keyword = clean_single_line(
+        keyword
     )
 
     if not cleaned_keyword:
         raise ValueError(
-            "YouTube search keyword cannot be empty"
+            "YouTube search keyword cannot be empty."
         )
 
     return YOUTUBE_SEARCH_URL.format(
-        keyword=quote_plus(cleaned_keyword)
+        keyword=quote_plus(
+            cleaned_keyword
+        )
+    )
+
+
+def normalize_channel_url(
+    channel_url: str,
+) -> str:
+    cleaned_url = clean_single_line(
+        channel_url
+    )
+
+    if not cleaned_url:
+        raise ValueError(
+            "Channel URL cannot be empty."
+        )
+
+    absolute_url = urljoin(
+        YOUTUBE_BASE_URL,
+        cleaned_url,
+    )
+
+    return (
+        absolute_url
+        .split("?")[0]
+        .rstrip("/")
     )
 
 
@@ -39,10 +119,6 @@ def search_youtube(
     browser: YouTubeBrowserManager,
     keyword: str,
 ) -> Page:
-    """
-    Mở trang kết quả tìm kiếm YouTube theo keyword.
-    """
-
     page = browser.ensure_page()
 
     search_url = build_youtube_search_url(
@@ -70,14 +146,10 @@ def search_youtube(
 
     return page
 
+
 def apply_this_year_filter(
     page: Page,
 ) -> None:
-    """
-    Mở Search filters và chọn Upload date -> This year.
-    Hỗ trợ cả tiếng Anh và tiếng Việt.
-    """
-
     filter_button_selectors = (
         "button[aria-label='Search filters']",
         "button[aria-label='Bộ lọc tìm kiếm']",
@@ -89,10 +161,17 @@ def apply_this_year_filter(
 
     for selector in filter_button_selectors:
         try:
-            button = page.locator(selector).first
+            button = page.locator(
+                selector
+            ).first
 
-            if button.is_visible(timeout=2_000):
-                button.click(timeout=5_000)
+            if button.is_visible(
+                timeout=2_000
+            ):
+                button.click(
+                    timeout=5_000
+                )
+
                 filter_opened = True
                 break
 
@@ -104,7 +183,9 @@ def apply_this_year_filter(
             "Could not open YouTube search filters."
         )
 
-    page.wait_for_timeout(1_500)
+    page.wait_for_timeout(
+        1_500
+    )
 
     target_texts = (
         "This year",
@@ -135,6 +216,7 @@ def apply_this_year_filter(
                     item.click(
                         timeout=5_000
                     )
+
                 except Exception:
                     parent_link = item.locator(
                         "xpath=ancestor::a[1]"
@@ -146,7 +228,8 @@ def apply_this_year_filter(
                         )
                     else:
                         item.locator(
-                            "xpath=ancestor::ytd-search-filter-renderer[1]"
+                            "xpath=ancestor::"
+                            "ytd-search-filter-renderer[1]"
                         ).click(
                             timeout=5_000
                         )
@@ -171,124 +254,38 @@ def apply_this_year_filter(
     )
 
 
-def collect_search_videos(
-    page: Page,
-    *,
-    max_results: int = 40,
-) -> list[dict[str, str | int]]:
-    """
-    Scroll trang kết quả và lấy tối đa 40 video đầu tiên.
-    """
-
-    target_count = max(
-        1,
-        min(
-            int(max_results),
-            40,
-        ),
+def _find_channel_link_in_card(
+    card: Locator,
+) -> Locator | None:
+    selectors = (
+        "#channel-info a[href^='/@']",
+        "#channel-info a[href*='/channel/']",
+        "#channel-info a[href*='/c/']",
+        "#channel-info a[href*='/user/']",
+        "ytd-channel-name a[href^='/@']",
+        "ytd-channel-name a[href*='/channel/']",
+        "ytd-channel-name a[href*='/c/']",
+        "ytd-channel-name a[href*='/user/']",
     )
 
-    videos: list[dict[str, str | int]] = []
-    seen_urls: set[str] = set()
-
-    unchanged_rounds = 0
-    previous_count = 0
-
-    while (
-        len(videos) < target_count
-        and unchanged_rounds < 6
-    ):
-        links = page.locator(
-            "ytd-video-renderer "
-            "a#video-title[href*='/watch']"
-        )
-
+    for selector in selectors:
         try:
-            link_count = min(
-                links.count(),
-                200,
-            )
+            candidate = card.locator(
+                selector
+            ).first
+
+            if (
+                candidate.count() > 0
+                and candidate.is_visible(
+                    timeout=500
+                )
+            ):
+                return candidate
+
         except Exception:
-            link_count = 0
+            continue
 
-        for index in range(link_count):
-            link = links.nth(index)
-
-            try:
-                href = (
-                    link.get_attribute("href")
-                    or ""
-                ).strip()
-
-                if not href:
-                    continue
-
-                video_url = urljoin(
-                    YOUTUBE_BASE_URL,
-                    href,
-                )
-
-                if video_url in seen_urls:
-                    continue
-
-                title = (
-                    link.get_attribute("title")
-                    or link.inner_text(
-                        timeout=2_000
-                    )
-                    or ""
-                )
-
-                title = " ".join(
-                    title.split()
-                )
-
-                if not title:
-                    continue
-
-                seen_urls.add(
-                    video_url
-                )
-
-                videos.append(
-                    {
-                        "video_position": len(videos) + 1,
-                        "video_title": title,
-                        "video_url": video_url,
-                    }
-                )
-
-                if len(videos) >= target_count:
-                    break
-
-            except Exception:
-                continue
-
-        if len(videos) == previous_count:
-            unchanged_rounds += 1
-        else:
-            unchanged_rounds = 0
-
-        previous_count = len(videos)
-
-        if len(videos) >= target_count:
-            break
-
-        page.mouse.wheel(
-            0,
-            2_000,
-        )
-
-        page.wait_for_timeout(
-            1_200
-        )
-
-    return videos
-
-from urllib.parse import urljoin
-
-
-YOUTUBE_BASE_URL = "https://www.youtube.com"
+    return None
 
 
 def collect_unique_channels_from_results(
@@ -296,19 +293,15 @@ def collect_unique_channels_from_results(
     *,
     max_channels: int = 3,
 ) -> list[dict[str, str | int]]:
-    """
-    Lấy channel trực tiếp từ các video card trên trang search.
-
-    Không mở video.
-    Không lấy channel trùng.
-    """
-
     target_count = max(
         1,
         int(max_channels),
     )
 
-    channels: list[dict[str, str | int]] = []
+    channels: list[
+        dict[str, str | int]
+    ] = []
+
     seen_channel_urls: set[str] = set()
 
     unchanged_rounds = 0
@@ -331,71 +324,39 @@ def collect_unique_channels_from_results(
             card_count = 0
 
         for index in range(card_count):
-            card = video_cards.nth(
-                index
+            card = video_cards.nth(index)
+
+            channel_link = (
+                _find_channel_link_in_card(
+                    card
+                )
             )
-
-            channel_link_selectors = (
-                "#channel-info a[href^='/@']",
-                "#channel-info a[href*='/channel/']",
-                "#channel-info a[href*='/c/']",
-                "#channel-info a[href*='/user/']",
-                "ytd-channel-name a[href^='/@']",
-                "ytd-channel-name a[href*='/channel/']",
-                "ytd-channel-name a[href*='/c/']",
-                "ytd-channel-name a[href*='/user/']",
-            )
-
-            channel_link = None
-
-            for selector in channel_link_selectors:
-                try:
-                    candidate = card.locator(
-                        selector
-                    ).first
-
-                    if (
-                        candidate.count() > 0
-                        and candidate.is_visible(
-                            timeout=500
-                        )
-                    ):
-                        channel_link = candidate
-                        break
-
-                except Exception:
-                    continue
 
             if channel_link is None:
                 continue
 
             try:
-                href = (
+                href = clean_single_line(
                     channel_link.get_attribute(
                         "href"
                     )
-                    or ""
-                ).strip()
+                )
 
                 if not href:
                     continue
 
-                channel_url = urljoin(
-                    YOUTUBE_BASE_URL,
-                    href,
+                channel_url = normalize_channel_url(
+                    href
                 )
 
                 normalized_url = (
-                    channel_url
-                    .split("?")[0]
-                    .rstrip("/")
-                    .casefold()
+                    channel_url.casefold()
                 )
 
                 if normalized_url in seen_channel_urls:
                     continue
 
-                channel_name = (
+                channel_name = clean_channel_name(
                     channel_link.get_attribute(
                         "aria-label"
                     )
@@ -403,10 +364,6 @@ def collect_unique_channels_from_results(
                         timeout=2_000
                     )
                     or ""
-                )
-
-                channel_name = " ".join(
-                    channel_name.split()
                 )
 
                 if not channel_name:
@@ -417,13 +374,11 @@ def collect_unique_channels_from_results(
                         ).first
                     )
 
-                    channel_name = " ".join(
-                        (
-                            channel_name_locator.inner_text(
-                                timeout=2_000
-                            )
-                            or ""
-                        ).split()
+                    channel_name = clean_channel_name(
+                        channel_name_locator.inner_text(
+                            timeout=2_000
+                        )
+                        or ""
                     )
 
                 if not channel_name:
@@ -454,7 +409,9 @@ def collect_unique_channels_from_results(
         else:
             unchanged_rounds = 0
 
-        previous_count = len(channels)
+        previous_count = len(
+            channels
+        )
 
         if len(channels) >= target_count:
             break
@@ -470,46 +427,6 @@ def collect_unique_channels_from_results(
 
     return channels
 
-def clean_channel_name(
-    value: str,
-) -> str:
-    cleaned = " ".join(
-        str(value or "").split()
-    )
-
-    prefixes = (
-        "Go to channel ",
-        "Đi tới kênh ",
-    )
-
-    for prefix in prefixes:
-        if cleaned.startswith(prefix):
-            cleaned = cleaned[
-                len(prefix):
-            ].strip()
-
-    return cleaned
-
-
-def build_channel_about_url(
-    channel_url: str,
-) -> str:
-    cleaned_url = (
-        str(channel_url or "")
-        .split("?")[0]
-        .rstrip("/")
-    )
-
-    if not cleaned_url:
-        raise ValueError(
-            "Channel URL cannot be empty."
-        )
-
-    if cleaned_url.endswith("/about"):
-        return cleaned_url
-
-    return f"{cleaned_url}/about"
-
 
 def first_visible_text(
     page: Page,
@@ -523,26 +440,21 @@ def first_visible_text(
 
             count = min(
                 items.count(),
-                20,
+                30,
             )
 
             for index in range(count):
-                item = items.nth(
-                    index
-                )
+                item = items.nth(index)
 
                 if not item.is_visible(
                     timeout=700
                 ):
                     continue
 
-                text = " ".join(
-                    (
-                        item.inner_text(
-                            timeout=2_000
-                        )
-                        or ""
-                    ).split()
+                text = clean_single_line(
+                    item.inner_text(
+                        timeout=2_000
+                    )
                 )
 
                 if text:
@@ -554,58 +466,35 @@ def first_visible_text(
     return ""
 
 
-def extract_channel_description(
+def _extract_channel_header_text(
     page: Page,
 ) -> str:
     selectors = (
-        "#description-container",
-        "#description",
-        "yt-formatted-string#description",
-        "ytd-channel-about-metadata-renderer "
-        "#description",
-        "ytd-about-channel-renderer "
-        "#description-container",
+        "ytd-c4-tabbed-header-renderer",
+        "yt-page-header-renderer",
+        "#page-header",
+        "#channel-header",
+        "ytd-browse #header",
     )
 
     longest_text = ""
 
     for selector in selectors:
         try:
-            items = page.locator(
-                selector
-            )
-
-            count = min(
-                items.count(),
-                20,
-            )
+            items = page.locator(selector)
+            count = min(items.count(), 10)
 
             for index in range(count):
-                item = items.nth(
-                    index
-                )
+                item = items.nth(index)
 
-                if not item.is_visible(
-                    timeout=700
-                ):
+                if not item.is_visible(timeout=700):
                     continue
 
-                text = (
-                    item.inner_text(
-                        timeout=3_000
-                    )
-                    or ""
-                ).strip()
-
-                text = "\n".join(
-                    line.strip()
-                    for line in text.splitlines()
-                    if line.strip()
+                text = clean_multiline_text(
+                    item.inner_text(timeout=3_000)
                 )
 
-                if len(text) > len(
-                    longest_text
-                ):
+                if len(text) > len(longest_text):
                     longest_text = text
 
         except Exception:
@@ -614,24 +503,276 @@ def extract_channel_description(
     return longest_text
 
 
-def extract_video_count_from_about(
+def _find_metadata_line(
     page: Page,
 ) -> str:
     selectors = (
-        "#videos-count",
-        "yt-formatted-string#videos-count",
-        "ytd-channel-about-metadata-renderer "
-        "tr:has-text('videos')",
-        "ytd-channel-about-metadata-renderer "
-        "tr:has-text('video')",
-        "ytd-about-channel-renderer "
-        "*:has-text('videos')",
+        "#channel-handle-and-stats",
+        "#channel-handle-and-stats-container",
+        "yt-content-metadata-view-model",
+        "yt-page-header-view-model "
+        "yt-content-metadata-view-model",
+        "ytd-c4-tabbed-header-renderer "
+        "#subscriber-count",
     )
 
-    return first_visible_text(
-        page,
-        selectors,
+    candidates: list[str] = []
+
+    for selector in selectors:
+        try:
+            items = page.locator(selector)
+            count = min(items.count(), 20)
+
+            for index in range(count):
+                item = items.nth(index)
+
+                if not item.is_visible(timeout=700):
+                    continue
+
+                text = clean_single_line(
+                    item.inner_text(timeout=2_000)
+                )
+
+                if text:
+                    candidates.append(text)
+
+        except Exception:
+            continue
+
+    header_text = _extract_channel_header_text(
+        page
     )
+
+    if header_text:
+        candidates.extend(
+            clean_single_line(line)
+            for line in header_text.splitlines()
+            if clean_single_line(line)
+        )
+
+    for text in candidates:
+        lowered = text.casefold()
+
+        has_subscriber = any(
+            marker in lowered
+            for marker in (
+                "subscriber",
+                "subscribers",
+                "người đăng ký",
+            )
+        )
+
+        has_video = bool(
+            re.search(
+                r"\b[\d.,]+\s*(?:k|m|b|nghìn|tr|triệu)?"
+                r"\s*(?:videos?|video)\b",
+                lowered,
+                re.IGNORECASE,
+            )
+        )
+
+        if has_subscriber or has_video:
+            return text
+
+    return ""
+
+
+def _split_metadata_parts(
+    metadata_text: str,
+) -> tuple[str, str]:
+    subscriber_count = ""
+    video_count = ""
+
+    parts = [
+        clean_single_line(part)
+        for part in re.split(
+            r"[•·]",
+            metadata_text,
+        )
+        if clean_single_line(part)
+    ]
+
+    for part in parts:
+        lowered = part.casefold()
+
+        if (
+            "subscriber" in lowered
+            or "subscribers" in lowered
+            or "người đăng ký" in lowered
+        ):
+            subscriber_count = part
+            continue
+
+        if re.search(
+            r"\bvideos?\b",
+            lowered,
+            re.IGNORECASE,
+        ):
+            video_count = part
+            continue
+
+    if not subscriber_count:
+        match = re.search(
+            r"([\d.,]+\s*(?:k|m|b|nghìn|tr|triệu)?"
+            r"\s*(?:subscribers?|người đăng ký))",
+            metadata_text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            subscriber_count = clean_single_line(
+                match.group(1)
+            )
+
+    if not video_count:
+        match = re.search(
+            r"([\d.,]+\s*(?:k|m|b|nghìn|tr|triệu)?"
+            r"\s*videos?)",
+            metadata_text,
+            re.IGNORECASE,
+        )
+
+        if match:
+            video_count = clean_single_line(
+                match.group(1)
+            )
+
+    return (
+        subscriber_count,
+        video_count,
+    )
+
+
+def _click_channel_description_more(
+    page: Page,
+) -> bool:
+    selectors = (
+        "yt-description-preview-view-model "
+        "button:has-text('more')",
+        "yt-description-preview-view-model "
+        "button:has-text('xem thêm')",
+        "#description-container "
+        "button:has-text('more')",
+        "#description-container "
+        "button:has-text('xem thêm')",
+        "button[aria-label='Description']",
+        "button[aria-label='Mô tả']",
+    )
+
+    for selector in selectors:
+        try:
+            button = page.locator(selector).first
+
+            if button.is_visible(timeout=1_000):
+                button.click(timeout=5_000)
+                page.wait_for_timeout(1_500)
+                return True
+
+        except Exception:
+            continue
+
+    exact_labels = (
+        "more",
+        "...more",
+        "…more",
+        "xem thêm",
+        "...xem thêm",
+        "…xem thêm",
+    )
+
+    for label in exact_labels:
+        try:
+            candidates = page.get_by_text(
+                label,
+                exact=True,
+            )
+
+            count = min(
+                candidates.count(),
+                20,
+            )
+
+            for index in range(count):
+                candidate = candidates.nth(index)
+
+                if not candidate.is_visible(timeout=500):
+                    continue
+
+                candidate.click(timeout=5_000)
+                page.wait_for_timeout(1_500)
+                return True
+
+        except Exception:
+            continue
+
+    return False
+
+
+def extract_channel_description(
+    page: Page,
+) -> str:
+    _click_channel_description_more(
+        page
+    )
+
+    selectors = (
+        "ytd-about-channel-renderer "
+        "#description-container",
+        "ytd-about-channel-renderer "
+        "#description",
+        "yt-about-channel-view-model "
+        "#description-container",
+        "yt-about-channel-view-model "
+        "#description",
+        "[role='dialog'] "
+        "#description-container",
+        "[role='dialog'] "
+        "#description",
+        "[role='dialog'] "
+        "yt-formatted-string",
+        "yt-description-preview-view-model "
+        "#description",
+        "#description-container",
+        "yt-formatted-string#description",
+    )
+
+    longest_text = ""
+
+    for selector in selectors:
+        try:
+            items = page.locator(selector)
+            count = min(items.count(), 30)
+
+            for index in range(count):
+                item = items.nth(index)
+
+                if not item.is_visible(timeout=700):
+                    continue
+
+                text = clean_multiline_text(
+                    item.inner_text(timeout=3_000)
+                )
+
+                if not text:
+                    continue
+
+                lowered = text.casefold()
+
+                if lowered in {
+                    "description",
+                    "mô tả",
+                    "more",
+                    "xem thêm",
+                }:
+                    continue
+
+                if len(text) > len(longest_text):
+                    longest_text = text
+
+        except Exception:
+            continue
+
+    return longest_text
 
 
 def scan_channel_details(
@@ -640,17 +781,13 @@ def scan_channel_details(
 ) -> dict[str, str | int]:
     page = browser.ensure_page()
 
-    channel_url = str(
-        channel["channel_url"]
-    )
-
-    about_url = build_channel_about_url(
-        channel_url
+    channel_url = normalize_channel_url(
+        str(channel["channel_url"])
     )
 
     try:
         page.goto(
-            about_url,
+            channel_url,
             wait_until="domcontentloaded",
             timeout=(
                 browser.settings.navigation_timeout_ms
@@ -670,9 +807,10 @@ def scan_channel_details(
     channel_name = first_visible_text(
         page,
         (
-            "#channel-name",
+            "yt-page-header-view-model h1",
+            "yt-page-header-view-model #channel-name",
+            "ytd-c4-tabbed-header-renderer #channel-name",
             "ytd-channel-name #text",
-            "yt-formatted-string#text",
             "h1",
         ),
     )
@@ -687,20 +825,39 @@ def scan_channel_details(
             )
         )
 
-    subscriber_count = first_visible_text(
-        page,
-        (
-            "#subscriber-count",
-            "yt-formatted-string#subscriber-count",
-            "span:has-text('subscribers')",
-            "span:has-text('subscriber')",
-            "span:has-text('người đăng ký')",
-        ),
-    )
-
-    video_count = extract_video_count_from_about(
+    metadata_text = _find_metadata_line(
         page
     )
+
+    (
+        subscriber_count,
+        video_count,
+    ) = _split_metadata_parts(
+        metadata_text
+    )
+
+    if not subscriber_count:
+        subscriber_count = first_visible_text(
+            page,
+            (
+                "#subscriber-count",
+                "yt-formatted-string#subscriber-count",
+                "span:has-text('subscribers')",
+                "span:has-text('subscriber')",
+                "span:has-text('người đăng ký')",
+            ),
+        )
+
+    if not video_count:
+        video_count = first_visible_text(
+            page,
+            (
+                "#videos-count",
+                "yt-formatted-string#videos-count",
+                "span:has-text('videos')",
+                "span:has-text('video')",
+            ),
+        )
 
     description = extract_channel_description(
         page
@@ -711,21 +868,29 @@ def scan_channel_details(
             "channel_position"
         ],
         "channel_url": channel_url,
-        "channel_about_url": about_url,
         "channel_name": clean_channel_name(
             channel_name
         ),
         "subscriber_count_text": (
-            subscriber_count
+            clean_single_line(
+                subscriber_count
+            )
         ),
-        "video_count_text": video_count,
+        "video_count_text": (
+            clean_single_line(
+                video_count
+            )
+        ),
         "channel_description": description,
+        "channel_metadata_text": metadata_text,
     }
 
 
 def scan_channel_list(
     browser: YouTubeBrowserManager,
-    channels: list[dict[str, str | int]],
+    channels: list[
+        dict[str, str | int]
+    ],
 ) -> list[dict[str, str | int]]:
     results: list[
         dict[str, str | int]
@@ -751,6 +916,18 @@ def scan_channel_list(
             print(
                 "Scanned channel:",
                 result["channel_name"],
+            )
+            print(
+                "Subscribers:",
+                result[
+                    "subscriber_count_text"
+                ],
+            )
+            print(
+                "Videos:",
+                result[
+                    "video_count_text"
+                ],
             )
 
         except Exception as exc:
