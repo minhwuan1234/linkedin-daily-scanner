@@ -83,6 +83,11 @@
         Accounts
       </button>
 
+      <button class="tab-button" type="button" data-tab="youtube">
+        YouTube Research
+        <span id="youtubeTabCount" class="tab-count">0</span>
+      </button>
+
       <button class="tab-button" type="button" data-tab="health">
         Health
       </button>
@@ -316,6 +321,118 @@
           <span>Đang tải accounts...</span>
         </div>
       </div>
+    </section>
+
+    <!-- YOUTUBE RESEARCH -->
+    <section id="tab-youtube" class="tab-panel" hidden>
+      <section class="youtube-research-grid">
+        <article class="panel youtube-launch-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Channel research</p>
+              <h2>YouTube Research</h2>
+              <p class="panel-meta">
+                Nhập một keyword để research tối đa 40 kênh YouTube.
+              </p>
+            </div>
+
+            <span id="youtubeJobBadge" class="pill pill-neutral">Idle</span>
+          </div>
+
+          <form id="youtubeResearchForm" class="youtube-research-form">
+            <label class="youtube-keyword-field">
+              <span>Keyword</span>
+              <input
+                id="youtubeKeywordInput"
+                type="text"
+                placeholder="Ví dụ: cardiology 101"
+                autocomplete="off"
+                required
+              />
+            </label>
+
+            <div class="youtube-form-actions">
+              <div class="youtube-limit-note">
+                Mỗi lượt scan tối đa <strong>40 kênh</strong>.
+              </div>
+
+              <button id="youtubeStartButton" class="primary-button" type="submit">
+                <span class="button-icon">▶</span>
+                <span id="youtubeStartButtonText">Start research</span>
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <article class="panel youtube-progress-panel">
+          <div class="panel-header">
+            <div>
+              <p class="panel-kicker">Realtime progress</p>
+              <h2>Research progress</h2>
+            </div>
+
+            <span id="youtubeProgressText" class="panel-meta">Chưa có job</span>
+          </div>
+
+          <div class="youtube-progress-content">
+            <div class="process-progress youtube-progress-track">
+              <div id="youtubeProgressBar" class="process-progress-bar" style="width: 0%"></div>
+            </div>
+
+            <div class="youtube-progress-meta">
+              <span id="youtubeStageText">Idle</span>
+              <strong id="youtubeResultCount">0 / 40 channels</strong>
+            </div>
+
+            <p id="youtubeLastError" class="youtube-last-error" hidden></p>
+          </div>
+        </article>
+      </section>
+
+      <article class="panel data-panel youtube-results-panel">
+        <div class="panel-toolbar">
+          <div>
+            <p class="panel-kicker">Live channel results</p>
+            <h2>Channels researched</h2>
+            <p id="youtubeResultSummary" class="panel-meta">Chưa có dữ liệu.</p>
+          </div>
+
+          <div class="toolbar-actions">
+            <label class="search-field">
+              <span aria-hidden="true">⌕</span>
+              <input
+                id="youtubeSearchInput"
+                type="search"
+                placeholder="Tìm tên kênh, location hoặc URL"
+                autocomplete="off"
+              />
+            </label>
+          </div>
+        </div>
+
+        <div id="youtubeEmptyState" class="state">
+          Chưa có channel nào. Nhập keyword và bắt đầu research.
+        </div>
+
+        <div id="youtubeTableWrap" class="table-wrap" hidden>
+          <table class="youtube-results-table">
+            <thead>
+              <tr>
+                <th>Channel</th>
+                <th>Subscribers</th>
+                <th>Videos</th>
+                <th>Location</th>
+                <th>Email</th>
+                <th>Total views</th>
+                <th>Links</th>
+                <th>Scanned</th>
+              </tr>
+            </thead>
+
+            <tbody id="youtubeTableBody"></tbody>
+          </table>
+        </div>
+      </article>
     </section>
 
     <!-- HEALTH -->
