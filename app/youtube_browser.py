@@ -18,7 +18,9 @@ from playwright.sync_api import (
 logger = logging.getLogger("youtube-browser")
 
 
-DEFAULT_PROFILE_DIRECTORY = "youtube_browser_profile"
+DEFAULT_BROWSER_ID = "youtube_browser_01"
+DEFAULT_PROFILE_ROOT = "youtube_browser_profiles"
+DEFAULT_START_URL = "https://www.google.com"
 
 
 @dataclass(frozen=True)
@@ -42,52 +44,34 @@ class YouTubeBrowserSettings:
             else Path.cwd()
         )
 
-        profile_value = os.getenv(
-            "YOUTUBE_BROWSER_PROFILE_DIR",
-            DEFAULT_PROFILE_DIRECTORY,
-        ).strip()
-
-        profile_directory = Path(
-            profile_value
+            browser_id = (
+            os.getenv(
+                "YOUTUBE_BROWSER_ID",
+                DEFAULT_BROWSER_ID,
+            ).strip()
+            or DEFAULT_BROWSER_ID
         )
 
-        if not profile_directory.is_absolute():
-            profile_directory = (
-                root / profile_directory
+        profile_root_value = (
+            os.getenv(
+                "YOUTUBE_BROWSER_PROFILE_ROOT",
+                DEFAULT_PROFILE_ROOT,
+            ).strip()
+            or DEFAULT_PROFILE_ROOT
+        )
+
+        profile_root = Path(
+            profile_root_value
+        )
+
+        if not profile_root.is_absolute():
+            profile_root = (
+                root / profile_root
             ).resolve()
 
-        return cls(
-            profile_directory=profile_directory,
-            headless=_read_bool_env(
-                "YOUTUBE_HEADLESS",
-                default=False,
-            ),
-            navigation_timeout_ms=_read_int_env(
-                "YOUTUBE_NAVIGATION_TIMEOUT_MS",
-                default=45_000,
-                minimum=5_000,
-            ),
-            operation_timeout_ms=_read_int_env(
-                "YOUTUBE_OPERATION_TIMEOUT_MS",
-                default=15_000,
-                minimum=1_000,
-            ),
-            slow_mo_ms=_read_int_env(
-                "YOUTUBE_SLOW_MO_MS",
-                default=0,
-                minimum=0,
-            ),
-            viewport_width=_read_int_env(
-                "YOUTUBE_VIEWPORT_WIDTH",
-                default=1440,
-                minimum=800,
-            ),
-            viewport_height=_read_int_env(
-                "YOUTUBE_VIEWPORT_HEIGHT",
-                default=1000,
-                minimum=600,
-            ),
-        )
+        profile_directory = (
+            profile_root / browser_id
+        ).resolve()  
 
 
 def _read_bool_env(
