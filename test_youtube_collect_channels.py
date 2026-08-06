@@ -3,7 +3,7 @@ from app.youtube_browser import (
 )
 from app.youtube_scanner import (
     apply_this_year_filter,
-    collect_search_videos,
+    collect_unique_channels_from_results,
     search_youtube,
 )
 
@@ -23,21 +23,31 @@ def main() -> None:
             page
         )
 
-        videos = collect_search_videos(
-            page,
-            max_results=40,
+        channels = (
+            collect_unique_channels_from_results(
+                page,
+                max_channels=3,
+            )
         )
 
         print("")
         print(
-            f"Collected videos: {len(videos)}"
+            f"Collected channels: {len(channels)}"
         )
 
-        for video in videos:
+        for channel in channels:
+            print("")
             print(
-                video["video_position"],
-                video["video_title"],
-                video["video_url"],
+                "Position:",
+                channel["channel_position"],
+            )
+            print(
+                "Name:",
+                channel["channel_name"],
+            )
+            print(
+                "URL:",
+                channel["channel_url"],
             )
 
         input(
