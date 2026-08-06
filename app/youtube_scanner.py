@@ -145,10 +145,6 @@ def search_youtube(
 ) -> Page:
     page = browser.ensure_page()
 
-    browser.assert_youtube_logged_in(
-        page=page
-    )
-
     search_url = build_youtube_search_url(
         keyword
     )
@@ -170,10 +166,6 @@ def search_youtube(
 
     page.wait_for_timeout(
         3_000
-    )
-
-    browser.assert_youtube_logged_in(
-        page=page
     )
 
     return page
@@ -807,6 +799,54 @@ def extract_channel_description(
     return longest_text
 
 
+
+def clean_youtube_redirect_url(
+    url: str,
+) -> str:
+    """
+    Chuyển URL redirect của YouTube về URL đích thật.
+
+    Ví dụ:
+    youtube.com/redirect?...&q=https%3A%2F%2Fexample.com
+    -> https://example.com
+    """
+
+    cleaned = clean_single_line(
+        url
+    )
+
+    if not cleaned:
+        return ""
+
+    try:
+        parsed = urlparse(
+            cleaned
+        )
+
+        if (
+            "youtube.com" in parsed.netloc
+            and parsed.path == "/redirect"
+        ):
+            query = parse_qs(
+                parsed.query
+            )
+
+            target = (
+                query.get("q")
+                or query.get("url")
+            )
+
+            if target:
+                return unquote(
+                    target[0]
+                )
+
+    except Exception:
+        return cleaned
+
+    return cleaned
+
+
 def extract_channel_links(
     page: Page,
 ) -> list[dict[str, str]]:
@@ -973,6 +1013,32 @@ def extract_channel_links(
             continue
 
     return links
+
+
+
+def parse_view_count(
+    value: str,
+) -> int | None:
+    """
+    Chuyển text như '82,362,462 views'
+    thành số nguyên 82362462.
+    """
+
+    digits = re.sub(
+        r"[^\d]",
+        "",
+        value or "",
+    )
+
+    if not digits:
+        return None
+
+    try:
+        return int(
+            digits
+        )
+    except ValueError:
+        return None
 
 
 def extract_channel_more_info(
@@ -1353,6 +1419,76 @@ def scan_channel_details(
         )
         else "",
         "channel_more_info": channel_more_info,
+        "email": (
+            channel_more_info.get(
+                "email",
+                "",
+            )
+            if isinstance(
+                channel_more_info,
+                dict,
+            )
+            and "sign in to see email" not in str(
+                channel_more_info.get(
+                    "email",
+                    "",
+                )
+            ).casefold()
+            else ""
+        ),
+        "email_status": (
+            "available"
+            if isinstance(
+                channel_more_info,
+                dict,
+            )
+            and channel_more_info.get(
+                "email",
+                "",
+            )
+            and "sign in to see email" not in str(
+                channel_more_info.get(
+                    "email",
+                    "",
+                )
+            ).casefold()
+            else "login_required"
+        ),
+        "location": (
+            channel_more_info.get(
+                "location",
+                "",
+            )
+            if isinstance(
+                channel_more_info,
+                dict,
+            )
+            else ""
+        ),
+        "total_views_text": (
+            channel_more_info.get(
+                "total_views",
+                "",
+            )
+            if isinstance(
+                channel_more_info,
+                dict,
+            )
+            else ""
+        ),
+        "total_views": parse_view_count(
+            str(
+                channel_more_info.get(
+                    "total_views",
+                    "",
+                )
+            )
+        )
+        if isinstance(
+            channel_more_info,
+            dict,
+        )
+        else None,
         "channel_metadata_text": metadata_text,
     }
 
