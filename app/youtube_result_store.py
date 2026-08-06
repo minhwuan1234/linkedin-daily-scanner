@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+
 from __future__ import annotations
 
 import os
@@ -6,6 +8,8 @@ from typing import Any, Iterable
 
 from supabase import Client, create_client
 
+
+load_dotenv()
 
 YOUTUBE_CHANNEL_TABLE = "youtube_scan_channels"
 
