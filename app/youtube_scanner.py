@@ -1475,6 +1475,14 @@ def scan_channel_details(
         [],
     )
 
+    subscriber_count_text = clean_single_line(
+        subscriber_count
+    )
+
+    video_count_text = clean_single_line(
+        video_count
+    )
+
     return {
         "channel_position": channel[
             "channel_position"
@@ -1484,14 +1492,10 @@ def scan_channel_details(
             channel_name
         ),
         "subscriber_count_text": (
-            clean_single_line(
-                subscriber_count
-            )
+            subscriber_count_text
         ),
         "video_count_text": (
-            clean_single_line(
-                video_count
-            )
+            video_count_text
         ),
         "channel_description": description,
         "channel_links": channel_links,
