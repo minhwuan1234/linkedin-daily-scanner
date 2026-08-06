@@ -48,9 +48,7 @@ def main() -> None:
         "scan_status": "test",
     }
 
-    job_id = str(
-    uuid.uuid4()
-    )
+    job_id = "3a224507-6b27-4755-a42a-c64261e6b068"
   
     print("")
     print("==============================")
