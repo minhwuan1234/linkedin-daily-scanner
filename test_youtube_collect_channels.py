@@ -1,3 +1,4 @@
+import json
 from app.youtube_browser import (
     YouTubeBrowserManager,
 )
@@ -40,6 +41,22 @@ def main() -> None:
             browser=browser,
             channels=channels,
         )
+
+
+        print("")
+        print("==============================")
+        print("CHANNEL 1 RAW JSON")
+        print("==============================")
+
+        if results:
+        print(
+        json.dumps(
+            results[0],
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+         )
+       )
 
         print("")
         print("==============================")
