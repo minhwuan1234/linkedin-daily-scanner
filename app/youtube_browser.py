@@ -21,6 +21,7 @@ logger = logging.getLogger("youtube-browser")
 DEFAULT_BROWSER_ID = "youtube_browser_01"
 DEFAULT_PROFILE_ROOT = "youtube_browser_profiles"
 DEFAULT_START_URL = "https://www.google.com"
+DEFAULT_YOUTUBE_URL = "https://www.youtube.com"
 
 
 @dataclass(frozen=True)
@@ -171,6 +172,22 @@ def _read_int_env(
         )
 
     return parsed_value
+
+
+
+class YouTubeBrowserError(RuntimeError):
+    """
+    Base error cho YouTube browser manager.
+    """
+
+
+class YouTubeLoginRequiredError(
+    YouTubeBrowserError
+):
+    """
+    Browser profile chưa đăng nhập YouTube
+    hoặc session đã hết hạn.
+    """
 
 
 class YouTubeBrowserManager:
@@ -326,11 +343,38 @@ class YouTubeBrowserManager:
         Mở Google bằng browser profile riêng.
         """
 
+        return self._open_url(
+            url=DEFAULT_START_URL,
+            timeout_message=(
+                "Google navigation timed out"
+            ),
+        )
+
+    def open_youtube_home(
+        self,
+    ) -> Page:
+        """
+        Mở YouTube bằng browser profile riêng.
+        """
+
+        return self._open_url(
+            url=DEFAULT_YOUTUBE_URL,
+            timeout_message=(
+                "YouTube navigation timed out"
+            ),
+        )
+
+    def _open_url(
+        self,
+        *,
+        url: str,
+        timeout_message: str,
+    ) -> Page:
         page = self.ensure_page()
 
         try:
             page.goto(
-                DEFAULT_START_URL,
+                url,
                 wait_until="domcontentloaded",
                 timeout=(
                     self.settings.navigation_timeout_ms
@@ -339,7 +383,7 @@ class YouTubeBrowserManager:
 
         except PlaywrightTimeoutError:
             logger.warning(
-                "Google navigation timed out"
+                timeout_message
             )
 
         page.wait_for_timeout(
@@ -347,6 +391,101 @@ class YouTubeBrowserManager:
         )
 
         return page
+
+    def is_youtube_logged_in(
+        self,
+        page: Page | None = None,
+    ) -> bool:
+        """
+        Kiểm tra browser profile hiện có đăng nhập YouTube không.
+
+        Dấu hiệu đã login:
+        - có avatar/account button trên top bar.
+
+        Dấu hiệu chưa login:
+        - có nút Sign in / Đăng nhập.
+        """
+
+        active_page = (
+            page
+            if page is not None
+            else self.ensure_page()
+        )
+
+        sign_in_selectors = (
+            "a[href*='accounts.google.com/ServiceLogin']",
+            "a:has-text('Sign in')",
+            "a:has-text('Đăng nhập')",
+            "button:has-text('Sign in')",
+            "button:has-text('Đăng nhập')",
+            "ytd-button-renderer:has-text('Sign in')",
+            "ytd-button-renderer:has-text('Đăng nhập')",
+        )
+
+        for selector in sign_in_selectors:
+            try:
+                candidate = active_page.locator(
+                    selector
+                ).first
+
+                if candidate.is_visible(
+                    timeout=700
+                ):
+                    return False
+
+            except Exception:
+                continue
+
+        account_selectors = (
+            "button#avatar-btn",
+            "ytd-topbar-menu-button-renderer "
+            "button#avatar-btn",
+            "button[aria-label*='Account']",
+            "button[aria-label*='Tài khoản']",
+            "#avatar-btn",
+        )
+
+        for selector in account_selectors:
+            try:
+                candidate = active_page.locator(
+                    selector
+                ).first
+
+                if candidate.is_visible(
+                    timeout=1_000
+                ):
+                    return True
+
+            except Exception:
+                continue
+
+        return False
+
+    def assert_youtube_logged_in(
+        self,
+        page: Page | None = None,
+    ) -> None:
+        """
+        Dừng flow nếu browser profile chưa đăng nhập YouTube.
+        """
+
+        active_page = (
+            page
+            if page is not None
+            else self.ensure_page()
+        )
+
+        if self.is_youtube_logged_in(
+            page=active_page
+        ):
+            return
+
+        raise YouTubeLoginRequiredError(
+            "YOUTUBE_LOGIN_REQUIRED: "
+            "Browser profile is not logged in to YouTube. "
+            "Open test_youtube_browser.py, sign in manually, "
+            "then run the scanner again."
+        )
 
     def stop(
         self,
