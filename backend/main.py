@@ -193,30 +193,6 @@ async def create_worker_command(
     Railway writes a command to Supabase; the local worker
     reads and acknowledges it.
     """
-    if not DASHBOARD_CONTROL_TOKEN:
-        return JSONResponse(
-            status_code=503,
-            content={
-                "ok": False,
-                "error": (
-                    "DASHBOARD_CONTROL_TOKEN is not configured"
-                ),
-            },
-        )
-
-    incoming_token = (
-        request.headers.get("x-control-token", "")
-        .strip()
-    )
-
-    if incoming_token != DASHBOARD_CONTROL_TOKEN:
-        return JSONResponse(
-            status_code=401,
-            content={
-                "ok": False,
-                "error": "Invalid control token",
-            },
-        )
 
     try:
         body = await request.json()
