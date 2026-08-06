@@ -218,6 +218,140 @@ class YouTubeJobQueue:
                 "Could not update YouTube job heartbeat",
             )
 
+    def complete_job(
+        self,
+        *,
+        job_id: str,
+        worker_id: str,
+        result_count: int,
+    ) -> None:
+        now = _utc_now_iso()
+
+        response = (
+            self.client
+            .table(JOB_TABLE)
+            .update(
+                {
+                    "status": "completed",
+                    "current_stage": "completed",
+                    "progress_percent": 100,
+                    "result_count": max(
+                        0,
+                        int(result_count),
+                    ),
+                    "processing_heartbeat_at": now,
+                    "completed_at": now,
+                    "updated_at": now,
+                    "last_error": None,
+                },
+            )
+            .eq(
+                "id",
+                str(job_id),
+            )
+            .eq(
+                "status",
+                "processing",
+            )
+            .eq(
+                "assigned_worker_id",
+                str(worker_id),
+            )
+            .execute()
+        )
+
+        if not list(response.data or []):
+            raise RuntimeError(
+                "Could not complete YouTube job",
+            )
+
+    def fail_job(
+        self,
+        *,
+        job: YouTubeScanJob,
+        worker_id: str,
+        error_message: str,
+    ) -> str:
+        """
+        Nếu còn retry:
+        processing -> pending
+
+        Nếu hết retry:
+        processing -> failed
+
+        Trả về trạng thái cuối: pending hoặc failed.
+        """
+
+        next_retry_count = (
+            int(job.retry_count) + 1
+        )
+
+        should_retry = (
+            next_retry_count
+            <= int(job.max_retries)
+        )
+
+        next_status = (
+            "pending"
+            if should_retry
+            else "failed"
+        )
+
+        now = _utc_now_iso()
+
+        update_data: dict[str, Any] = {
+            "status": next_status,
+            "current_stage": (
+                "queued"
+                if should_retry
+                else "failed"
+            ),
+            "progress_percent": (
+                0
+                if should_retry
+                else 100
+            ),
+            "retry_count": next_retry_count,
+            "assigned_worker_id": None,
+            "processing_started_at": None,
+            "processing_heartbeat_at": None,
+            "last_error": str(
+                error_message or "Unknown YouTube worker error",
+            ).strip()[:4000],
+            "updated_at": now,
+        }
+
+        if not should_retry:
+            update_data["completed_at"] = now
+
+        response = (
+            self.client
+            .table(JOB_TABLE)
+            .update(
+                update_data,
+            )
+            .eq(
+                "id",
+                str(job.id),
+            )
+            .eq(
+                "status",
+                "processing",
+            )
+            .eq(
+                "assigned_worker_id",
+                str(worker_id),
+            )
+            .execute()
+        )
+
+        if not list(response.data or []):
+            raise RuntimeError(
+                "Could not fail YouTube job",
+            )
+
+        return next_status
+
     def release_job(
         self,
         *,
@@ -225,10 +359,6 @@ class YouTubeJobQueue:
         worker_id: str,
         reason: str,
     ) -> None:
-        """
-        Trả job đang processing về pending.
-        """
-
         cleaned_job_id = str(
             job_id or "",
         ).strip()
