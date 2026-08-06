@@ -14,31 +14,42 @@ from app.orchestration.worker_registry import (
     WorkerRegistry,
 )
 from app.settings import Settings, load_settings
+from app.youtube_browser import (
+    YouTubeBrowserManager,
+)
 from app.youtube_job_queue import (
     YouTubeJobQueue,
+    YouTubeScanJob,
+)
+from app.youtube_result_store import (
+    save_channel_results,
+)
+from app.youtube_scanner import (
+    apply_this_year_filter,
+    collect_unique_channels_from_results,
+    scan_channel_list,
+    search_youtube,
 )
 
 
-WORKER_VERSION = "0.1.0"
+WORKER_VERSION = "0.2.0"
 HEARTBEAT_INTERVAL_SECONDS = 30
 IDLE_POLL_SECONDS = 5
-INTEGRATION_TEST_HOLD_SECONDS = 3
 
 
 class YouTubeWorker:
     """
-    YouTube worker tối thiểu.
+    Worker YouTube chạy flow thật:
 
-    Hiện tại worker:
-    - đăng ký vào scanner_workers;
-    - gửi heartbeat;
-    - kiểm tra queue YouTube;
     - claim job pending;
-    - chuyển trạng thái worker sang busy;
-    - cập nhật job thành ready_for_hermes;
-    - ghi event realtime;
-    - trả job về pending sau bài test tích hợp;
-    - dừng an toàn.
+    - mở browser profile riêng;
+    - search keyword;
+    - áp dụng filter This year;
+    - collect channel URL;
+    - scan channel;
+    - lưu kết quả vào youtube_scan_channels;
+    - complete hoặc retry/fail job;
+    - gửi heartbeat và event.
     """
 
     def __init__(
@@ -57,8 +68,8 @@ class YouTubeWorker:
         )
 
         self.registration = WorkerRegistration(
-            worker_id="youtube-hermes-01",
-            worker_name="YouTube Hermes Worker",
+            worker_id="youtube-browser-01",
+            worker_name="YouTube Browser Worker",
             worker_type="youtube",
             capabilities=(
                 "youtube_scan",
@@ -66,7 +77,8 @@ class YouTubeWorker:
             max_concurrent_jobs=1,
             metadata={
                 "scanner": "youtube",
-                "engine": "hermes",
+                "engine": "playwright",
+                "browser_profile": "youtube_browser_01",
             },
         )
 
@@ -89,10 +101,6 @@ class YouTubeWorker:
     def run_forever(
         self,
     ) -> int:
-        """
-        Khởi động worker và liên tục kiểm tra queue.
-        """
-
         self._register_signal_handlers()
 
         self.registry.register(
@@ -111,7 +119,7 @@ class YouTubeWorker:
         self._start_background_heartbeat()
 
         print("")
-        print("YouTube Hermes Worker started.")
+        print("YouTube Browser Worker started.")
         print(f"Worker ID: {self.registration.worker_id}")
         print(f"Worker version: {WORKER_VERSION}")
         print("Status: idle")
@@ -119,22 +127,7 @@ class YouTubeWorker:
 
         try:
             while not self._stop_requested:
-                try:
-                    job = self.queue.claim_next_job(
-                        worker_id=(
-                            self.registration.worker_id
-                        )
-                    )
-                except Exception as exc:
-                    print(
-                        "Could not claim YouTube job: "
-                        f"{type(exc).__name__}: {exc}",
-                        file=sys.stderr,
-                    )
-                    self._sleep_interruptibly(
-                        IDLE_POLL_SECONDS
-                    )
-                    continue
+                job = self._claim_next_job_safely()
 
                 if job is None:
                     self._sleep_interruptibly(
@@ -142,138 +135,9 @@ class YouTubeWorker:
                     )
                     continue
 
-                self._set_worker_state(
-                    status="busy",
-                    current_job_id=job.id,
-                    current_load=1,
+                self._process_job(
+                    job
                 )
-
-                self._send_registry_heartbeat()
-
-                print("")
-                print("YouTube job claimed.")
-                print(f"Job ID: {job.id}")
-                print(f"Keyword: {job.keyword}")
-                print(f"Max results: {job.max_results}")
-                print(f"Filters: {job.filters}")
-
-                self.events.emit(
-                    job_id=job.id,
-                    event_type="queue",
-                    step_name="job_claimed",
-                    status="processing",
-                    message="YouTube worker claimed the job.",
-                    progress_percent=5,
-                    metadata={
-                        "keyword": job.keyword,
-                        "max_results": job.max_results,
-                        "filters": job.filters,
-                    },
-                )
-
-                try:
-                    self.queue.heartbeat_job(
-                        job_id=job.id,
-                        worker_id=(
-                            self.registration.worker_id
-                        ),
-                        current_stage="ready_for_hermes",
-                        progress_percent=10,
-                    )
-
-                    self.events.emit(
-                        job_id=job.id,
-                        event_type="worker",
-                        step_name="ready_for_hermes",
-                        status="processing",
-                        message=(
-                            "YouTube job is ready for Hermes."
-                        ),
-                        progress_percent=10,
-                    )
-
-                    self._sleep_interruptibly(
-                        INTEGRATION_TEST_HOLD_SECONDS
-                    )
-
-                    if self._stop_requested:
-                        release_reason = (
-                            "Worker stopped before Hermes integration"
-                        )
-                    else:
-                        release_reason = (
-                            "Released after worker integration test"
-                        )
-
-                    self.queue.release_job(
-                        job_id=job.id,
-                        worker_id=(
-                            self.registration.worker_id
-                        ),
-                        reason=release_reason,
-                    )
-
-                    self.events.emit(
-                        job_id=job.id,
-                        event_type="queue",
-                        step_name="job_released",
-                        status="warning",
-                        message=release_reason,
-                        progress_percent=0,
-                    )
-
-                except Exception as exc:
-                    print(
-                        "YouTube job integration test failed: "
-                        f"{type(exc).__name__}: {exc}",
-                        file=sys.stderr,
-                    )
-
-                    self.events.emit(
-                        job_id=job.id,
-                        event_type="worker",
-                        step_name="job_failed",
-                        status="error",
-                        message=(
-                            f"{type(exc).__name__}: {exc}"
-                        ),
-                        progress_percent=10,
-                    )
-
-                    try:
-                        self.queue.release_job(
-                            job_id=job.id,
-                            worker_id=(
-                                self.registration.worker_id
-                            ),
-                            reason=(
-                                "Worker integration error: "
-                                f"{type(exc).__name__}: {exc}"
-                            ),
-                        )
-                    except Exception as release_exc:
-                        print(
-                            "Could not release YouTube job: "
-                            f"{type(release_exc).__name__}: "
-                            f"{release_exc}",
-                            file=sys.stderr,
-                        )
-
-                finally:
-                    self._set_worker_state(
-                        status="idle",
-                        current_job_id=None,
-                        current_load=0,
-                    )
-
-                    try:
-                        self._send_registry_heartbeat()
-                    except Exception as exc:
-                        print(
-                            "Could not return worker to idle: "
-                            f"{type(exc).__name__}: {exc}",
-                            file=sys.stderr,
-                        )
 
             return 0
 
@@ -300,7 +164,268 @@ class YouTubeWorker:
                 )
 
             print("")
-            print("YouTube Hermes Worker stopped.")
+            print("YouTube Browser Worker stopped.")
+
+    def _claim_next_job_safely(
+        self,
+    ) -> YouTubeScanJob | None:
+        try:
+            return self.queue.claim_next_job(
+                worker_id=(
+                    self.registration.worker_id
+                )
+            )
+
+        except Exception as exc:
+            print(
+                "Could not claim YouTube job: "
+                f"{type(exc).__name__}: {exc}",
+                file=sys.stderr,
+            )
+            return None
+
+    def _process_job(
+        self,
+        job: YouTubeScanJob,
+    ) -> None:
+        self._set_worker_state(
+            status="busy",
+            current_job_id=job.id,
+            current_load=1,
+        )
+
+        self._send_registry_heartbeat()
+
+        print("")
+        print("YouTube job claimed.")
+        print(f"Job ID: {job.id}")
+        print(f"Keyword: {job.keyword}")
+        print(f"Max results: {job.max_results}")
+        print(f"Filters: {job.filters}")
+
+        self.events.emit(
+            job_id=job.id,
+            event_type="queue",
+            step_name="job_claimed",
+            status="processing",
+            message="YouTube worker claimed the job.",
+            progress_percent=5,
+            metadata={
+                "keyword": job.keyword,
+                "max_results": job.max_results,
+                "filters": job.filters,
+            },
+        )
+
+        browser = YouTubeBrowserManager()
+
+        try:
+            browser.start()
+
+            self._update_job_progress(
+                job_id=job.id,
+                stage="searching",
+                progress=15,
+                message=(
+                    "Opening YouTube search results."
+                ),
+            )
+
+            page = search_youtube(
+                browser=browser,
+                keyword=job.keyword,
+            )
+
+            apply_this_year_filter(
+                page
+            )
+
+            self._update_job_progress(
+                job_id=job.id,
+                stage="collecting_channels",
+                progress=35,
+                message=(
+                    "Collecting unique YouTube channels."
+                ),
+            )
+
+            channels = (
+                collect_unique_channels_from_results(
+                    page,
+                    max_channels=max(
+                        1,
+                        int(job.max_results),
+                    ),
+                )
+            )
+
+            if self._stop_requested:
+                raise RuntimeError(
+                    "Worker stop requested before channel scan."
+                )
+
+            self._update_job_progress(
+                job_id=job.id,
+                stage="scanning_channels",
+                progress=55,
+                message=(
+                    f"Scanning {len(channels)} channels."
+                ),
+            )
+
+            results = scan_channel_list(
+                browser=browser,
+                channels=channels,
+            )
+
+            if self._stop_requested:
+                raise RuntimeError(
+                    "Worker stop requested before saving results."
+                )
+
+            self._update_job_progress(
+                job_id=job.id,
+                stage="saving_results",
+                progress=85,
+                message=(
+                    f"Saving {len(results)} channel results."
+                ),
+            )
+
+            saved_rows = save_channel_results(
+                job_id=job.id,
+                channels=results,
+            )
+
+            self.queue.complete_job(
+                job_id=job.id,
+                worker_id=(
+                    self.registration.worker_id
+                ),
+                result_count=len(
+                    saved_rows
+                ),
+            )
+
+            self.events.emit(
+                job_id=job.id,
+                event_type="worker",
+                step_name="job_completed",
+                status="completed",
+                message=(
+                    f"Saved {len(saved_rows)} YouTube channels."
+                ),
+                progress_percent=100,
+                metadata={
+                    "collected_channel_count": len(
+                        channels
+                    ),
+                    "saved_channel_count": len(
+                        saved_rows
+                    ),
+                },
+            )
+
+            print("")
+            print("YouTube job completed.")
+            print(f"Saved channels: {len(saved_rows)}")
+
+        except Exception as exc:
+            error_message = (
+                f"{type(exc).__name__}: {exc}"
+            )
+
+            print(
+                "YouTube job failed: "
+                f"{error_message}",
+                file=sys.stderr,
+            )
+
+            try:
+                final_status = self.queue.fail_job(
+                    job=job,
+                    worker_id=(
+                        self.registration.worker_id
+                    ),
+                    error_message=error_message,
+                )
+            except Exception as queue_exc:
+                final_status = "unknown"
+
+                print(
+                    "Could not update failed job: "
+                    f"{type(queue_exc).__name__}: "
+                    f"{queue_exc}",
+                    file=sys.stderr,
+                )
+
+            self.events.emit(
+                job_id=job.id,
+                event_type="worker",
+                step_name="job_failed",
+                status="error",
+                message=error_message,
+                progress_percent=0,
+                metadata={
+                    "queue_status": final_status,
+                    "retry_count": (
+                        job.retry_count + 1
+                    ),
+                    "max_retries": job.max_retries,
+                },
+            )
+
+        finally:
+            try:
+                browser.stop()
+            except Exception as browser_exc:
+                print(
+                    "Could not close YouTube browser: "
+                    f"{type(browser_exc).__name__}: "
+                    f"{browser_exc}",
+                    file=sys.stderr,
+                )
+
+            self._set_worker_state(
+                status="idle",
+                current_job_id=None,
+                current_load=0,
+            )
+
+            try:
+                self._send_registry_heartbeat()
+            except Exception as exc:
+                print(
+                    "Could not return worker to idle: "
+                    f"{type(exc).__name__}: {exc}",
+                    file=sys.stderr,
+                )
+
+    def _update_job_progress(
+        self,
+        *,
+        job_id: str,
+        stage: str,
+        progress: int,
+        message: str,
+    ) -> None:
+        self.queue.heartbeat_job(
+            job_id=job_id,
+            worker_id=(
+                self.registration.worker_id
+            ),
+            current_stage=stage,
+            progress_percent=progress,
+        )
+
+        self.events.emit(
+            job_id=job_id,
+            event_type="worker",
+            step_name=stage,
+            status="processing",
+            message=message,
+            progress_percent=progress,
+        )
 
     def _set_worker_state(
         self,
@@ -309,10 +434,6 @@ class YouTubeWorker:
         current_job_id: str | None,
         current_load: int,
     ) -> None:
-        """
-        Lưu trạng thái hiện tại để heartbeat nền sử dụng.
-        """
-
         with self._state_lock:
             self._current_status = status
             self._current_job_id = current_job_id
