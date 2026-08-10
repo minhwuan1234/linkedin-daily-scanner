@@ -53,6 +53,11 @@ const els = {
   youtubeLastError: document.querySelector("#youtubeLastError"),
   youtubeResultSummary: document.querySelector("#youtubeResultSummary"),
   youtubeSearchInput: document.querySelector("#youtubeSearchInput"),
+  youtubeKeywordFilter: document.querySelector("#youtubeKeywordFilter"),
+  youtubeLocationFilter: document.querySelector("#youtubeLocationFilter"),
+  youtubeEmailFilter: document.querySelector("#youtubeEmailFilter"),
+  youtubeSubscriberFilter: document.querySelector("#youtubeSubscriberFilter"),
+  youtubeSortSelect: document.querySelector("#youtubeSortSelect"),
   youtubeEmptyState: document.querySelector("#youtubeEmptyState"),
   youtubeTableWrap: document.querySelector("#youtubeTableWrap"),
   youtubeTableBody: document.querySelector("#youtubeTableBody"),
@@ -426,79 +431,266 @@ function youtubeBadgeClass(status) {
   return "pill-neutral";
 }
 
-async function loadYoutubeResearch() {
-  const jobsQuery = client
-    .from("youtube_scan_jobs")
-    .select(
-      [
-        "id",
-        "keyword",
-        "status",
-        "current_stage",
-        "progress_percent",
-        "max_results",
-        "result_count",
-        "last_error",
-        "created_at",
-        "updated_at",
-        "completed_at"
-      ].join(",")
-    )
-    .order("created_at", { ascending: false })
-    .limit(20);
+async function fetchAllYoutubeRows(queryFactory, pageSize = 1000) {
+  const rows = [];
+  let from = 0;
 
-  const jobs = await safeQuery(
-    "youtubeJobs",
-    jobsQuery,
-    []
-  );
-
-  state.youtubeJobs = jobs || [];
-  state.activeYoutubeJob = state.youtubeJobs[0] || null;
-
-  if (state.activeYoutubeJob?.id) {
-    const channelsQuery = client
-      .from("youtube_scan_channels")
-      .select(
-        [
-          "id",
-          "job_id",
-          "channel_url",
-          "channel_name",
-          "subscriber_count_text",
-          "subscriber_count",
-          "video_count_text",
-          "video_count",
-          "channel_description",
-          "location",
-          "email",
-          "email_status",
-          "total_views_text",
-          "total_views",
-          "channel_links",
-          "scan_status",
-          "scanned_at"
-        ].join(",")
-      )
-      .eq("job_id", state.activeYoutubeJob.id)
-      .order("scanned_at", { ascending: false })
-      .limit(100);
-
-    state.youtubeChannels = await safeQuery(
-      "youtubeChannels",
-      channelsQuery,
-      []
+  while (true) {
+    const result = await queryFactory(
+      from,
+      from + pageSize - 1
     );
-  } else {
+
+    if (result.error) {
+      throw result.error;
+    }
+
+    const batch = result.data || [];
+    rows.push(...batch);
+
+    if (batch.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return rows;
+}
+
+function populateYoutubeFilterOptions() {
+  const currentKeyword =
+    els.youtubeKeywordFilter?.value || "all";
+  const currentLocation =
+    els.youtubeLocationFilter?.value || "all";
+
+  const keywords = Array.from(
+    new Set(
+      (state.youtubeJobs || [])
+        .map((job) => String(job.keyword || "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const locations = Array.from(
+    new Set(
+      (state.youtubeChannels || [])
+        .map((channel) => String(channel.location || "").trim())
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  els.youtubeKeywordFilter.innerHTML = [
+    '<option value="all">Tất cả keyword</option>',
+    ...keywords.map(
+      (keyword) =>
+        `<option value="${escapeHtml(keyword)}">${escapeHtml(keyword)}</option>`
+    )
+  ].join("");
+
+  els.youtubeLocationFilter.innerHTML = [
+    '<option value="all">Tất cả location</option>',
+    ...locations.map(
+      (location) =>
+        `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`
+    )
+  ].join("");
+
+  els.youtubeKeywordFilter.value =
+    keywords.includes(currentKeyword)
+      ? currentKeyword
+      : "all";
+
+  els.youtubeLocationFilter.value =
+    locations.includes(currentLocation)
+      ? currentLocation
+      : "all";
+}
+
+async function loadYoutubeResearch() {
+  try {
+    state.youtubeJobs = await fetchAllYoutubeRows(
+      (from, to) =>
+        client
+          .from("youtube_scan_jobs")
+          .select(
+            "id,keyword,status,current_stage,progress_percent,max_results,result_count,last_error,created_at,updated_at,completed_at"
+          )
+          .order("created_at", { ascending: false })
+          .range(from, to)
+    );
+
+    delete state.tableErrors.youtubeJobs;
+    state.activeYoutubeJob =
+      state.youtubeJobs[0] || null;
+  } catch (error) {
+    state.tableErrors.youtubeJobs =
+      error.message || String(error);
+    state.youtubeJobs = [];
+    state.activeYoutubeJob = null;
+  }
+
+  try {
+    state.youtubeChannels = await fetchAllYoutubeRows(
+      (from, to) =>
+        client
+          .from("youtube_scan_channels")
+          .select(
+            "id,job_id,channel_url,channel_name,subscriber_count_text,subscriber_count,video_count_text,video_count,channel_description,location,email,email_status,total_views_text,total_views,channel_links,scan_status,scanned_at"
+          )
+          .order("scanned_at", { ascending: false })
+          .range(from, to)
+    );
+
+    delete state.tableErrors.youtubeChannels;
+  } catch (error) {
+    state.tableErrors.youtubeChannels =
+      error.message || String(error);
     state.youtubeChannels = [];
   }
 
+  populateYoutubeFilterOptions();
   renderYoutubeResearch();
   updateYoutubePolling();
 }
 
 function renderYoutubeResearch() {
   const job = state.activeYoutubeJob;
+
+  const jobsById = new Map(
+    (state.youtubeJobs || []).map(
+      (item) => [String(item.id), item]
+    )
+  );
+
+  const channels = state.youtubeChannels || [];
+
+  const searchValue = String(
+    els.youtubeSearchInput?.value || ""
+  ).trim().toLowerCase();
+
+  const keywordFilter =
+    els.youtubeKeywordFilter?.value || "all";
+  const locationFilter =
+    els.youtubeLocationFilter?.value || "all";
+  const emailFilter =
+    els.youtubeEmailFilter?.value || "all";
+  const subscriberFilter =
+    els.youtubeSubscriberFilter?.value || "all";
+
+  const minSubscribers =
+    subscriberFilter === "all"
+      ? 0
+      : Number(subscriberFilter);
+
+  let filteredChannels = channels.filter(
+    (channel) => {
+      const channelJob = jobsById.get(
+        String(channel.job_id || "")
+      );
+
+      const keyword = String(
+        channelJob?.keyword || ""
+      ).trim();
+
+      const location = String(
+        channel.location || ""
+      ).trim();
+
+      const hasEmail = Boolean(
+        String(channel.email || "").trim()
+      );
+
+      if (
+        searchValue &&
+        ![
+          channel.channel_name,
+          channel.channel_url,
+          channel.location,
+          channel.email,
+          keyword
+        ]
+          .map((value) =>
+            String(value || "").toLowerCase()
+          )
+          .some((value) =>
+            value.includes(searchValue)
+          )
+      ) {
+        return false;
+      }
+
+      if (
+        keywordFilter !== "all" &&
+        keyword !== keywordFilter
+      ) {
+        return false;
+      }
+
+      if (
+        locationFilter !== "all" &&
+        location !== locationFilter
+      ) {
+        return false;
+      }
+
+      if (
+        emailFilter === "available" &&
+        !hasEmail
+      ) {
+        return false;
+      }
+
+      if (
+        emailFilter === "missing" &&
+        hasEmail
+      ) {
+        return false;
+      }
+
+      if (
+        minSubscribers > 0 &&
+        Number(channel.subscriber_count || 0) <
+          minSubscribers
+      ) {
+        return false;
+      }
+
+      return true;
+    }
+  );
+
+  const sortValue =
+    els.youtubeSortSelect?.value || "newest";
+
+  filteredChannels.sort((a, b) => {
+    if (sortValue === "subscribers") {
+      return Number(b.subscriber_count || 0) -
+        Number(a.subscriber_count || 0);
+    }
+
+    if (sortValue === "views") {
+      return Number(b.total_views || 0) -
+        Number(a.total_views || 0);
+    }
+
+    if (sortValue === "name") {
+      return String(a.channel_name || "")
+        .localeCompare(
+          String(b.channel_name || "")
+        );
+    }
+
+    return (
+      new Date(b.scanned_at || 0).getTime() -
+      new Date(a.scanned_at || 0).getTime()
+    );
+  });
+
+  if (els.youtubeTabCount) {
+    els.youtubeTabCount.textContent =
+      String(channels.length);
+  }
 
   const youtubeError =
     state.tableErrors.youtubeJobs ||
@@ -511,137 +703,181 @@ function renderYoutubeResearch() {
       `Không đọc được dữ liệu YouTube từ Supabase: ${youtubeError}`;
   }
 
-  const channels = state.youtubeChannels || [];
-  const searchValue = String(
-    els.youtubeSearchInput?.value || ""
-  ).trim().toLowerCase();
-
-  const filteredChannels = channels.filter((channel) => {
-    if (!searchValue) return true;
-
-    return [
-      channel.channel_name,
-      channel.channel_url,
-      channel.location,
-      channel.email
-    ]
-      .map((value) => String(value || "").toLowerCase())
-      .some((value) => value.includes(searchValue));
-  });
-
-  if (els.youtubeTabCount) {
-    els.youtubeTabCount.textContent = String(channels.length);
-  }
-
   if (!job) {
-    els.youtubeJobBadge.className = "pill pill-neutral";
+    els.youtubeJobBadge.className =
+      "pill pill-neutral";
     els.youtubeJobBadge.textContent = "Idle";
-    els.youtubeProgressText.textContent = "Chưa có job";
+    els.youtubeProgressText.textContent =
+      "Chưa có job";
     els.youtubeProgressBar.style.width = "0%";
     els.youtubeStageText.textContent = "Idle";
-    els.youtubeResultCount.textContent = "0 / 40 channels";
-    if (!youtubeError) {
-      els.youtubeLastError.hidden = true;
-    }
-    els.youtubeResultSummary.textContent = "Chưa có dữ liệu.";
+    els.youtubeResultCount.textContent =
+      `${channels.length} total channels`;
   } else {
     const progress = Math.max(
       0,
-      Math.min(100, Number(job.progress_percent || 0))
+      Math.min(
+        100,
+        Number(job.progress_percent || 0)
+      )
     );
-    const resultCount = Math.max(
-      Number(job.result_count || 0),
-      channels.length
-    );
-    const maxResults = Number(job.max_results || 40);
+
+    const latestCount = channels.filter(
+      (channel) =>
+        String(channel.job_id) ===
+        String(job.id)
+    ).length;
 
     els.youtubeJobBadge.className =
       `pill ${youtubeBadgeClass(job.status)}`;
-    els.youtubeJobBadge.textContent = statusLabel(job.status);
-    els.youtubeProgressText.textContent = `${progress}%`;
-    els.youtubeProgressBar.style.width = `${progress}%`;
-    els.youtubeStageText.textContent = youtubeStageLabel(
-      job.current_stage || job.status
-    );
+    els.youtubeJobBadge.textContent =
+      statusLabel(job.status);
+    els.youtubeProgressText.textContent =
+      `${progress}%`;
+    els.youtubeProgressBar.style.width =
+      `${progress}%`;
+    els.youtubeStageText.textContent =
+      youtubeStageLabel(
+        job.current_stage || job.status
+      );
     els.youtubeResultCount.textContent =
-      `${resultCount} / ${maxResults} channels`;
-    els.youtubeResultSummary.textContent =
-      `${channels.length} channel của keyword “${job.keyword || "—"}”`;
+      `${Math.max(
+        Number(job.result_count || 0),
+        latestCount
+      )} / ${Number(job.max_results || 40)} latest · ${channels.length} total`;
 
-    const lastError = String(job.last_error || "").trim();
+    const lastError = String(
+      job.last_error || ""
+    ).trim();
 
     if (lastError) {
       els.youtubeLastError.hidden = false;
-      els.youtubeLastError.textContent = lastError;
+      els.youtubeLastError.textContent =
+        lastError;
     } else if (!youtubeError) {
       els.youtubeLastError.hidden = true;
       els.youtubeLastError.textContent = "";
     }
   }
 
+  els.youtubeResultSummary.textContent =
+    `${filteredChannels.length} / ${channels.length} channel đang hiển thị`;
+
   els.youtubeStartButton.disabled =
     state.youtubeSubmitting ||
-    normaliseStatus(job?.status) === "processing" ||
-    normaliseStatus(job?.status) === "pending";
+    normaliseStatus(job?.status) ===
+      "processing" ||
+    normaliseStatus(job?.status) ===
+      "pending";
 
-  els.youtubeStartButtonText.textContent = state.youtubeSubmitting
-    ? "Creating job..."
-    : "Start research";
+  els.youtubeStartButtonText.textContent =
+    state.youtubeSubmitting
+      ? "Creating job..."
+      : "Start research";
 
-  els.youtubeEmptyState.hidden = filteredChannels.length > 0;
-  els.youtubeTableWrap.hidden = filteredChannels.length === 0;
+  els.youtubeEmptyState.hidden =
+    filteredChannels.length > 0;
+  els.youtubeTableWrap.hidden =
+    filteredChannels.length === 0;
 
-  els.youtubeTableBody.innerHTML = filteredChannels
-    .map((channel) => {
-      const links = Array.isArray(channel.channel_links)
-        ? channel.channel_links
-        : [];
+  els.youtubeTableBody.innerHTML =
+    filteredChannels
+      .map((channel) => {
+        const channelJob = jobsById.get(
+          String(channel.job_id || "")
+        );
 
-      const linksHtml = links.length
-        ? links
-            .slice(0, 3)
-            .map((link) => `
-              <a
-                class="youtube-link-chip"
-                href="${escapeHtml(link.url || "#")}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ${escapeHtml(link.title || "Link")}
-              </a>
-            `)
-            .join("")
-        : "<span class=\"table-muted\">—</span>";
+        const keyword =
+          channelJob?.keyword || "—";
 
-      const emailText = channel.email
-        ? channel.email
-        : statusLabel(channel.email_status || "unavailable");
+        const links = Array.isArray(
+          channel.channel_links
+        )
+          ? channel.channel_links
+          : [];
 
-      return `
-        <tr>
-          <td>
-            <div class="youtube-channel-cell">
-              <strong>${escapeHtml(channel.channel_name || "Unnamed channel")}</strong>
-              <a
-                href="${escapeHtml(channel.channel_url || "#")}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ${escapeHtml(channel.channel_url || "—")}
-              </a>
-            </div>
-          </td>
-          <td>${escapeHtml(channel.subscriber_count_text || formatCompactNumber(channel.subscriber_count))}</td>
-          <td>${escapeHtml(channel.video_count_text || formatCompactNumber(channel.video_count))}</td>
-          <td>${escapeHtml(channel.location || "—")}</td>
-          <td>${escapeHtml(emailText)}</td>
-          <td>${escapeHtml(channel.total_views_text || formatCompactNumber(channel.total_views))}</td>
-          <td><div class="youtube-link-list">${linksHtml}</div></td>
-          <td>${escapeHtml(formatDate(channel.scanned_at))}</td>
-        </tr>
-      `;
-    })
-    .join("");
+        const linksHtml = links.length
+          ? links
+              .map((link) => `
+                <a
+                  class="youtube-link-chip"
+                  href="${escapeHtml(link.url || "#")}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ${escapeHtml(link.title || "Link")}
+                </a>
+              `)
+              .join("")
+          : '<span class="table-muted">—</span>';
+
+        const emailText = channel.email
+          ? channel.email
+          : statusLabel(
+              channel.email_status ||
+              "unavailable"
+            );
+
+        return `
+          <tr>
+            <td>
+              <div class="youtube-channel-cell">
+                <strong>${escapeHtml(
+                  channel.channel_name ||
+                  "Unnamed channel"
+                )}</strong>
+                <a
+                  href="${escapeHtml(
+                    channel.channel_url || "#"
+                  )}"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  ${escapeHtml(
+                    channel.channel_url || "—"
+                  )}
+                </a>
+              </div>
+            </td>
+            <td>
+              <span class="youtube-keyword-chip">
+                ${escapeHtml(keyword)}
+              </span>
+            </td>
+            <td>${escapeHtml(
+              channel.subscriber_count_text ||
+              formatCompactNumber(
+                channel.subscriber_count
+              )
+            )}</td>
+            <td>${escapeHtml(
+              channel.video_count_text ||
+              formatCompactNumber(
+                channel.video_count
+              )
+            )}</td>
+            <td>${escapeHtml(
+              channel.location || "—"
+            )}</td>
+            <td>${escapeHtml(emailText)}</td>
+            <td>${escapeHtml(
+              channel.total_views_text ||
+              formatCompactNumber(
+                channel.total_views
+              )
+            )}</td>
+            <td>
+              <div class="youtube-link-list">
+                ${linksHtml}
+              </div>
+            </td>
+            <td>${escapeHtml(
+              formatDate(channel.scanned_at)
+            )}</td>
+          </tr>
+        `;
+      })
+      .join("");
 }
 
 async function createYoutubeResearchJob(event) {
@@ -1939,6 +2175,21 @@ els.youtubeSearchInput.addEventListener(
   "input",
   renderYoutubeResearch
 );
+
+[
+  els.youtubeKeywordFilter,
+  els.youtubeLocationFilter,
+  els.youtubeEmailFilter,
+  els.youtubeSubscriberFilter,
+  els.youtubeSortSelect
+]
+  .filter(Boolean)
+  .forEach((element) => {
+    element.addEventListener(
+      "change",
+      renderYoutubeResearch
+    );
+  });
 
 els.closeDrawerButton.addEventListener(
   "click",
