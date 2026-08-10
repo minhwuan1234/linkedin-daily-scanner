@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260806-2" />
+  <link rel="stylesheet" href="./styles.css?v=20260810-1" />
 </head>
 
 <body>
@@ -397,16 +397,44 @@
             <p id="youtubeResultSummary" class="panel-meta">Chưa có dữ liệu.</p>
           </div>
 
-          <div class="toolbar-actions">
-            <label class="search-field">
+          <div class="toolbar-actions youtube-filter-toolbar">
+            <label class="search-field youtube-search-field">
               <span aria-hidden="true">⌕</span>
               <input
                 id="youtubeSearchInput"
                 type="search"
-                placeholder="Tìm tên kênh, location hoặc URL"
+                placeholder="Tìm tên kênh, email, location, URL hoặc keyword"
                 autocomplete="off"
               />
             </label>
+
+            <select id="youtubeKeywordFilter">
+              <option value="all">Tất cả keyword</option>
+            </select>
+
+            <select id="youtubeLocationFilter">
+              <option value="all">Tất cả location</option>
+            </select>
+
+            <select id="youtubeEmailFilter">
+              <option value="all">Tất cả email</option>
+              <option value="available">Có email</option>
+              <option value="missing">Chưa có email</option>
+            </select>
+
+            <select id="youtubeSubscriberFilter">
+              <option value="all">Mọi subscriber</option>
+              <option value="10000">≥ 10K</option>
+              <option value="100000">≥ 100K</option>
+              <option value="1000000">≥ 1M</option>
+            </select>
+
+            <select id="youtubeSortSelect">
+              <option value="newest">Mới scan nhất</option>
+              <option value="subscribers">Subscribers cao nhất</option>
+              <option value="views">Views cao nhất</option>
+              <option value="name">Tên A–Z</option>
+            </select>
           </div>
         </div>
 
@@ -419,6 +447,7 @@
             <thead>
               <tr>
                 <th>Channel</th>
+                <th>Keyword</th>
                 <th>Subscribers</th>
                 <th>Videos</th>
                 <th>Location</th>
@@ -517,6 +546,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260806-2"></script>
+  <script src="./app.js?v=20260810-1"></script>
 </body>
 </html>
