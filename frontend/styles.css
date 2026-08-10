@@ -1599,3 +1599,54 @@ tbody tr:last-child td {
     width: 100%;
   }
 }
+
+
+/* YouTube complete-history filters */
+.youtube-filter-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
+
+.youtube-filter-toolbar select {
+  min-height: 42px;
+  max-width: 190px;
+}
+
+.youtube-search-field {
+  min-width: 300px;
+}
+
+.youtube-keyword-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  max-width: 180px;
+  padding: 0 9px;
+  overflow: hidden;
+  border: 1px solid rgba(124, 109, 242, 0.28);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: #c9c3ff;
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#tab-youtube .youtube-results-table {
+  min-width: 1320px;
+}
+
+@media (max-width: 900px) {
+  .youtube-filter-toolbar {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .youtube-filter-toolbar select,
+  .youtube-search-field {
+    width: 100%;
+    max-width: none;
+  }
+}
