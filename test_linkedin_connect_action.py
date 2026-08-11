@@ -8,10 +8,6 @@ from app.outreach_account_pool import (
 )
 
 
-# =========================================================
-# TEST CONFIG
-# =========================================================
-
 ACCOUNT_ID = "outreach_account_01"
 
 TEST_LINKEDIN_URL = (
@@ -19,21 +15,7 @@ TEST_LINKEDIN_URL = (
 )
 
 
-# =========================================================
-# MAIN
-# =========================================================
-
-
 def main() -> None:
-    if (
-        TEST_LINKEDIN_URL
-        == "PASTE_LINKEDIN_PROFILE_URL_HERE"
-    ):
-        raise RuntimeError(
-            "Please set TEST_LINKEDIN_URL "
-            "before running the test."
-        )
-
     pool = OutreachAccountPool()
 
     account = pool.get_account(
@@ -82,63 +64,25 @@ def main() -> None:
         )
 
         print(
-            "linkedin_url: "
-            f"{result.linkedin_url}"
-        )
-
-        print(
-            f"final_url: {result.final_url}"
-        )
-
-        print(
-            f"message: {result.message}"
-        )
-
-        print("")
-
-        input(
-            "Check browser, then press "
-            "Enter to close..."
-        )
-
-    finally:
-        browser.stop()
-
-
-if __name__ == "__main__":
-    main()
-    try:
-        browser.start()
-
-        result = connect_profile(
-            browser=browser,
-            linkedin_url=(
-                TEST_LINKEDIN_URL
-            ),
-        )
-
-        print("")
-        print("==============================")
-        print("CONNECT RESULT")
-        print("==============================")
-        print(
-            f"status: {result.status}"
-        )
-        print(
             f"linkedin_url: "
             f"{result.linkedin_url}"
         )
+
         print(
-            f"final_url: {result.final_url}"
+            f"final_url: "
+            f"{result.final_url}"
         )
+
         print(
-            f"message: {result.message}"
+            f"message: "
+            f"{result.message}"
         )
+
         print("")
 
         input(
-            "Check browser, then press "
-            "Enter to close..."
+            "Check browser, "
+            "then press Enter to close..."
         )
 
     finally:
