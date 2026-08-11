@@ -142,27 +142,69 @@ def _click_direct_connect(
         timeout_ms=1500,
     )
 
-
 def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    Click nút dấu ... / More.
+    Mở nút dấu ... ở header profile.
     """
 
     selectors = (
         "button[aria-label='More actions']",
         "button[aria-label*='More actions']",
-        "button[aria-label*='More']",
-        "button:has-text('More')",
-        "button.artdeco-dropdown__trigger",
+        "button:has(svg)",
     )
 
-    return _click_first_visible(
-        page,
-        selectors,
-        timeout_ms=1500,
-    )
+    # Ưu tiên aria-label trước
+    for selector in selectors[:2]:
+        if _click_first_visible(
+            page,
+            (selector,),
+            timeout_ms=1500,
+        ):
+            return True
+
+    # Fallback:
+    # tìm button gần khu vực action có text ...
+    try:
+        buttons = page.locator("button")
+
+        count = buttons.count()
+
+        for index in range(count):
+            button = buttons.nth(index)
+
+            try:
+                aria = (
+                    button.get_attribute(
+                        "aria-label"
+                    )
+                    or ""
+                ).lower()
+
+                text = (
+                    button.inner_text(
+                        timeout=300
+                    )
+                    or ""
+                ).strip()
+
+                if (
+                    "more" in aria
+                    or text == "..."
+                    or text == "…"
+                ):
+                    if button.is_visible():
+                        button.click()
+                        return True
+
+            except Exception:
+                continue
+
+    except Exception:
+        pass
+
+    return False
 
 
 def _click_connect_in_more_menu(
@@ -170,22 +212,37 @@ def _click_connect_in_more_menu(
 ) -> bool:
     """
     Sau khi mở dấu ...,
-    tìm Connect trong dropdown.
+    ưu tiên bắt Connect bằng URL action thực tế
+    của LinkedIn.
+
+    Screenshot thực tế cho thấy Connect trỏ tới:
+    /preload/custom-invite/
     """
 
-    selectors = (
+    strong_selectors = (
+        "a[href*='/preload/custom-invite/']",
+        "a[href*='preload/custom-invite']",
+    )
+
+    if _click_first_visible(
+        page,
+        strong_selectors,
+        timeout_ms=2500,
+    ):
+        return True
+
+    # Fallback theo text nếu LinkedIn đổi href
+    fallback_selectors = (
         "[role='menuitem']:has-text('Connect')",
-        "div[role='menu'] li:has-text('Connect')",
-        "div[role='menu'] span:has-text('Connect')",
-        "li.artdeco-dropdown__item:has-text('Connect')",
-        ".artdeco-dropdown__content li:has-text('Connect')",
-        ".artdeco-dropdown__content span:has-text('Connect')",
+        "a:has-text('Connect')",
+        "li:has-text('Connect')",
+        "span:has-text('Connect')",
     )
 
     return _click_first_visible(
         page,
-        selectors,
-        timeout_ms=2500,
+        fallback_selectors,
+        timeout_ms=2000,
     )
 
 
