@@ -48,34 +48,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()            context.pages[0]
-            if context.pages
-            else context.new_page()
-        )
-
-        page.goto(
-            "https://www.linkedin.com/",
-            wait_until="domcontentloaded",
-        )
-
-        print("")
-        print(
-            "Login LinkedIn manually."
-        )
-        print(
-            "When login is complete, "
-            "return to Terminal and press Enter."
-        )
-
-        input()
-
-        context.close()
-
-    print("")
-    print(
-        f"Session saved for {ACCOUNT_ID}"
-    )
-
-
-if __name__ == "__main__":
     main()
