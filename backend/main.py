@@ -21,6 +21,10 @@ from backend.linkedin_url_parser import (
 from backend.supabase_sources import (
     insert_new_linkedin_urls,
 )
+from app.outreach_job_store import (
+    OutreachJobStoreError,
+    create_connect_job,
+)
 
 
 # =========================================================
@@ -460,7 +464,175 @@ async def create_youtube_job(
         },
     )
 
+# =========================================================
+# OUTREACH CONNECT JOB API
+# =========================================================
 
+
+@app.post("/api/outreach/connect/jobs")
+async def create_outreach_connect_job(
+    request: Request,
+) -> JSONResponse:
+    """
+    Create one LinkedIn Outreach Connect job.
+
+    Flow:
+
+    Website
+    -> Railway API
+    -> Outreach Supabase
+    -> Mac Outreach worker
+
+    Railway chỉ tạo job.
+    Railway không chạy LinkedIn browser.
+    """
+
+    # -----------------------------------------------------
+    # 1. READ JSON
+    # -----------------------------------------------------
+
+    try:
+        body = await request.json()
+
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "Request body must be valid JSON"
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 2. READ URL LIST
+    # -----------------------------------------------------
+
+    urls = body.get(
+        "urls"
+    )
+
+    if not isinstance(
+        urls,
+        list,
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "urls must be a JSON array"
+                ),
+            },
+        )
+
+    cleaned_urls = [
+        str(url or "").strip()
+        for url in urls
+        if str(url or "").strip()
+    ]
+
+    if not cleaned_urls:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "At least one LinkedIn URL "
+                    "is required"
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 3. CREATE CONNECT JOB
+    # -----------------------------------------------------
+
+    try:
+        result = create_connect_job(
+            cleaned_urls
+        )
+
+    except OutreachJobStoreError as exc:
+        logger.exception(
+            "Could not create Outreach Connect job"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not create "
+                    "Outreach Connect job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Connect "
+            "job error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while "
+                    "creating Outreach Connect job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 4. LOG
+    # -----------------------------------------------------
+
+    logger.info(
+        (
+            "OUTREACH CONNECT JOB CREATED | "
+            "job_id=%s | "
+            "job_code=%s | "
+            "input=%s | "
+            "targets=%s | "
+            "duplicates=%s"
+        ),
+        result.job_id,
+        result.job_code,
+        result.input_count,
+        result.target_count,
+        result.duplicate_count,
+    )
+
+    # -----------------------------------------------------
+    # 5. RESPONSE
+    # -----------------------------------------------------
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "job": {
+                "job_id": result.job_id,
+                "job_code": result.job_code,
+                "input_count": (
+                    result.input_count
+                ),
+                "target_count": (
+                    result.target_count
+                ),
+                "duplicate_count": (
+                    result.duplicate_count
+                ),
+                "status": "pending",
+            },
+        },
+    )
 # =========================================================
 # LARK WEBHOOK
 # =========================================================
