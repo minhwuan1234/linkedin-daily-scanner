@@ -391,24 +391,37 @@ def _click_direct_connect(
     deadline: float,
 ) -> bool:
     """
-    Chỉ click Connect ở vùng header.
+    CASE 1:
+    Nếu profile có nút Connect trực tiếp
+    trong header thì click ngay.
 
-    Không click Connect ở:
-    People you may know
-    hoặc các section bên dưới.
+    Không lấy các nút Connect ở sidebar
+    như "More profiles for you".
     """
+
+    _check_deadline(
+        deadline
+    )
 
     selectors = (
         "button:has-text('Connect')",
         "button[aria-label='Connect']",
         "button[aria-label*='Connect']",
         "button[aria-label*='connect']",
-        "a[aria-label*='Connect']",
-        (
-            "[aria-label^='Invite']"
-            "[aria-label*='connect']"
-        ),
     )
+
+    viewport = page.viewport_size
+
+    if viewport:
+        max_x = (
+            viewport["width"]
+            * 0.72
+        )
+    else:
+        # fallback nếu không lấy được viewport
+        max_x = 950
+
+    candidates_found = []
 
     for selector in selectors:
         _check_deadline(
@@ -416,65 +429,75 @@ def _click_direct_connect(
         )
 
         try:
-            candidates = (
-                page
-                .locator(selector)
+            candidates = page.locator(
+                selector
             )
 
-            count = (
-                candidates.count()
-            )
+            count = candidates.count()
 
-            for index in range(
-                count
-            ):
+            for index in range(count):
                 _check_deadline(
                     deadline
                 )
 
-                candidate = (
-                    candidates
-                    .nth(index)
+                candidate = candidates.nth(
+                    index
                 )
 
-                timeout = _remaining_ms(
-                    deadline,
-                    maximum_ms=250,
-                )
+                try:
+                    timeout = _remaining_ms(
+                        deadline,
+                        maximum_ms=250,
+                    )
 
-                if not candidate.is_visible(
-                    timeout=timeout
-                ):
+                    if not candidate.is_visible(
+                        timeout=timeout
+                    ):
+                        continue
+
+                    box = candidate.bounding_box()
+
+                    if not box:
+                        continue
+
+                    x = box["x"]
+                    y = box["y"]
+
+                    print(
+                        "CONNECT candidate:",
+                        index,
+                        "x=",
+                        x,
+                        "y=",
+                        y,
+                    )
+
+                    # -------------------------------------
+                    # HEADER ONLY
+                    # -------------------------------------
+
+                    # Connect phải nằm gần đầu profile
+                    if y > 650:
+                        continue
+
+                    # Connect phải nằm ở phần profile chính.
+                    # Sidebar bên phải bị loại.
+                    if x > max_x:
+                        continue
+
+                    candidates_found.append(
+                        (
+                            y,
+                            x,
+                            candidate,
+                        )
+                    )
+
+                except LinkedInProfileActionTimeout:
+                    raise
+
+                except Exception:
                     continue
-
-                box = (
-                    candidate
-                    .bounding_box()
-                )
-
-                if not box:
-                    continue
-
-                if box["y"] > 550:
-                    continue
-
-                print(
-                    "DIRECT CONNECT candidate:",
-                    selector,
-                    "y=",
-                    box["y"],
-                )
-
-                timeout = _remaining_ms(
-                    deadline,
-                    maximum_ms=700,
-                )
-
-                candidate.click(
-                    timeout=timeout
-                )
-
-                return True
 
         except LinkedInProfileActionTimeout:
             raise
@@ -482,7 +505,53 @@ def _click_direct_connect(
         except Exception:
             continue
 
-    return False
+    if not candidates_found:
+        return False
+
+    # Nếu có nhiều candidate hợp lệ,
+    # lấy Connect nằm cao nhất trên profile.
+    candidates_found.sort(
+        key=lambda item: (
+            item[0],
+            item[1],
+        )
+    )
+
+    y, x, button = (
+        candidates_found[0]
+    )
+
+    print(
+        "DIRECT CONNECT selected:",
+        "x=",
+        x,
+        "y=",
+        y,
+    )
+
+    try:
+        timeout = _remaining_ms(
+            deadline,
+            maximum_ms=800,
+        )
+
+        button.click(
+            timeout=timeout
+        )
+
+        print(
+            "Direct Connect clicked."
+        )
+
+        return True
+
+    except Exception as exc:
+        print(
+            "DIRECT CONNECT CLICK ERROR:",
+            f"{type(exc).__name__}: {exc}",
+        )
+
+        return False
 
 
 # =========================================================
