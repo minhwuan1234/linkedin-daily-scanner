@@ -147,24 +147,68 @@ def _click_direct_connect(
     page: Page,
 ) -> bool:
     """
-    Một số profile có Connect
-    ngay trên hàng action chính.
+    Chỉ tìm nút Connect ở khu vực header
+    của profile đang mở.
+
+    Không được click các nút Connect
+    trong People you may know / sidebar.
     """
 
     selectors = (
         "button:has-text('Connect')",
-        "button[aria-label='Connect']",
         "button[aria-label*='Connect']",
         "button[aria-label*='connect']",
-        "a[aria-label*='Connect']",
-        "[aria-label^='Invite'][aria-label*='connect']",
+        "a:has-text('Connect')",
     )
 
-    return _click_first_visible(
-        page,
-        selectors,
-        timeout_ms=1200,
-    )
+    for selector in selectors:
+        try:
+            candidates = page.locator(
+                selector
+            )
+
+            count = candidates.count()
+
+            for index in range(count):
+                candidate = candidates.nth(
+                    index
+                )
+
+                if not candidate.is_visible():
+                    continue
+
+                box = candidate.bounding_box()
+
+                if not box:
+                    continue
+
+                y = box["y"]
+
+                # Chỉ chấp nhận Connect
+                # nằm ở phần đầu profile.
+                #
+                # People you may know thường
+                # nằm sâu hơn phía dưới trang.
+                if y > 550:
+                    continue
+
+                print(
+                    "DIRECT CONNECT candidate:",
+                    selector,
+                    "y=",
+                    y,
+                )
+
+                candidate.click(
+                    timeout=2000
+                )
+
+                return True
+
+        except Exception:
+            continue
+
+    return False
 
 
 # =========================================================
