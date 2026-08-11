@@ -12,18 +12,6 @@ PROFILE_DIR = (
 
 
 def main() -> None:
-    PROFILE_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-    print(
-        f"Opening browser for: {ACCOUNT_ID}"
-    )
-    print(
-        f"Profile directory: {PROFILE_DIR}"
-    )
-
     with sync_playwright() as playwright:
         context = (
             playwright.chromium
@@ -35,6 +23,32 @@ def main() -> None:
 
         page = (
             context.pages[0]
+            if context.pages
+            else context.new_page()
+        )
+
+        page.goto(
+            "https://www.linkedin.com/feed/",
+            wait_until="domcontentloaded",
+        )
+
+        page.wait_for_timeout(3000)
+
+        print("")
+        print("FINAL URL:")
+        print(page.url)
+        print("")
+
+        input(
+            "Check browser. "
+            "If already logged in, press Enter..."
+        )
+
+        context.close()
+
+
+if __name__ == "__main__":
+    main()            context.pages[0]
             if context.pages
             else context.new_page()
         )
