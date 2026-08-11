@@ -146,66 +146,41 @@ def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    Mở nút dấu ... ở header profile.
+    Tìm nút dấu ... thông qua SVG overflow
+    rồi click button cha chứa icon đó.
     """
 
-    selectors = (
-        "button[aria-label='More actions']",
-        "button[aria-label*='More actions']",
-        "button:has(svg)",
-    )
-
-    # Ưu tiên aria-label trước
-    for selector in selectors[:2]:
-        if _click_first_visible(
-            page,
-            (selector,),
-            timeout_ms=1500,
-        ):
-            return True
-
-    # Fallback:
-    # tìm button gần khu vực action có text ...
     try:
-        buttons = page.locator("button")
+        overflow_icon = (
+            page
+            .locator(
+                "svg#overflow-web-ios-small"
+            )
+            .first
+        )
 
-        count = buttons.count()
+        if not overflow_icon.is_visible(
+            timeout=2000
+        ):
+            return False
 
-        for index in range(count):
-            button = buttons.nth(index)
+        button = overflow_icon.locator(
+            "xpath=ancestor::button[1]"
+        )
 
-            try:
-                aria = (
-                    button.get_attribute(
-                        "aria-label"
-                    )
-                    or ""
-                ).lower()
+        if not button.is_visible(
+            timeout=1500
+        ):
+            return False
 
-                text = (
-                    button.inner_text(
-                        timeout=300
-                    )
-                    or ""
-                ).strip()
+        button.click(
+            timeout=2000
+        )
 
-                if (
-                    "more" in aria
-                    or text == "..."
-                    or text == "…"
-                ):
-                    if button.is_visible():
-                        button.click()
-                        return True
-
-            except Exception:
-                continue
+        return True
 
     except Exception:
-        pass
-
-    return False
-
+        return False
 
 def _click_connect_in_more_menu(
     page: Page,
