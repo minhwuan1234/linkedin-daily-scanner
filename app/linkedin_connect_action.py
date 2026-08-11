@@ -30,6 +30,11 @@ class LinkedInConnectResult:
     message: str
 
 
+# =========================================================
+# BASIC HELPERS
+# =========================================================
+
+
 def _is_visible(
     page: Page,
     selector: str,
@@ -37,11 +42,9 @@ def _is_visible(
     timeout_ms: int = 1500,
 ) -> bool:
     try:
-        locator = (
-            page
-            .locator(selector)
-            .first
-        )
+        locator = page.locator(
+            selector
+        ).first
 
         return locator.is_visible(
             timeout=timeout_ms
@@ -57,20 +60,11 @@ def _click_first_visible(
     *,
     timeout_ms: int = 2000,
 ) -> bool:
-    """
-    Thử lần lượt các selector.
-
-    Selector nào visible đầu tiên
-    thì click selector đó.
-    """
-
     for selector in selectors:
         try:
-            locator = (
-                page
-                .locator(selector)
-                .first
-            )
+            locator = page.locator(
+                selector
+            ).first
 
             if not locator.is_visible(
                 timeout=timeout_ms
@@ -98,10 +92,8 @@ def _has_pending_state(
     page: Page,
 ) -> bool:
     """
-    Profile đã được gửi connection invitation
-    và đang chờ user accept.
-
-    Pending không phải duplicate database.
+    Invitation đã được gửi trước đó
+    và đang chờ người nhận accept.
     """
 
     selectors = (
@@ -115,7 +107,7 @@ def _has_pending_state(
         _is_visible(
             page,
             selector,
-            timeout_ms=1000,
+            timeout_ms=800,
         )
         for selector in selectors
     )
@@ -125,11 +117,10 @@ def _has_first_degree_state(
     page: Page,
 ) -> bool:
     """
-    Kiểm tra dấu hiệu profile đã là
-    1st-degree connection.
+    Profile đã là connection 1st degree.
 
-    Không dùng nút Message để kết luận
-    vì profile 2nd / 3rd vẫn có thể có Message.
+    Không dùng Message làm signal,
+    vì profile 2nd/3rd vẫn có thể có Message.
     """
 
     selectors = (
@@ -148,7 +139,7 @@ def _has_first_degree_state(
 
 
 # =========================================================
-# DIRECT CONNECT
+# CONNECT DIRECTLY ON PROFILE HEADER
 # =========================================================
 
 
@@ -156,12 +147,8 @@ def _click_direct_connect(
     page: Page,
 ) -> bool:
     """
-    Bước 1:
-
-    Tìm Connect trực tiếp trên header profile.
-
-    Một số profile có nút Connect nằm ngoài
-    ngay cạnh Follow / Message.
+    Một số profile có Connect
+    ngay trên hàng action chính.
     """
 
     selectors = (
@@ -169,19 +156,19 @@ def _click_direct_connect(
         "button[aria-label='Connect']",
         "button[aria-label*='Connect']",
         "button[aria-label*='connect']",
-        "a:has-text('Connect')",
+        "a[aria-label*='Connect']",
         "[aria-label^='Invite'][aria-label*='connect']",
     )
 
     return _click_first_visible(
         page,
         selectors,
-        timeout_ms=1500,
+        timeout_ms=1200,
     )
 
 
 # =========================================================
-# MORE / ... BUTTON
+# MORE BUTTON
 # =========================================================
 
 
@@ -189,11 +176,6 @@ def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    Bước 2:
-
-    Nếu không có Connect trực tiếp,
-    click nút dấu ...
-
     DOM thực tế đã inspect:
 
     <button
@@ -202,39 +184,46 @@ def _click_more_button(
         aria-expanded="false"
     >
 
-    Vì vậy dùng aria-label="More"
-    thay vì đoán class hoặc SVG.
+    Đây là nút dấu ...
     """
 
     try:
-        more_button = (
-            page
-            .locator(
-                "button[aria-label='More']"
-            )
-            .first
-        )
+        more_button = page.locator(
+            "button[aria-label='More']"
+        ).first
 
         if not more_button.is_visible(
             timeout=2500
         ):
+            print(
+                "More button is not visible."
+            )
             return False
+
+        before = more_button.get_attribute(
+            "aria-expanded"
+        )
+
+        print(
+            "MORE before:",
+            before,
+        )
 
         more_button.click(
             timeout=2500
         )
 
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(
+            600
+        )
 
-        expanded = (
-            more_button.get_attribute(
-                "aria-expanded"
-            )
+        after = more_button.get_attribute(
+            "aria-expanded"
         )
 
         print(
-            "MORE EXPANDED:",
-            expanded,
+            "MORE after:",
+            after,
         )
 
         return True
@@ -257,13 +246,11 @@ def _click_connect_in_more_menu(
     page: Page,
 ) -> bool:
     """
-    Sau khi menu ... mở,
-    tìm Connect trong dropdown.
+    Sau khi dấu ... được mở,
+    tìm action Connect.
 
-    Signal mạnh nhất đã quan sát được:
-
-    href chứa:
-    /preload/custom-invite/
+    Signal mạnh đã quan sát trên browser:
+    href chứa /preload/custom-invite/
     """
 
     strong_selectors = (
@@ -276,6 +263,9 @@ def _click_connect_in_more_menu(
         strong_selectors,
         timeout_ms=2500,
     ):
+        print(
+            "Connect clicked using invite href."
+        )
         return True
 
     fallback_selectors = (
@@ -283,27 +273,30 @@ def _click_connect_in_more_menu(
         "a:has-text('Connect')",
         "li:has-text('Connect')",
         "span:has-text('Connect')",
-        "div:has-text('Connect')",
     )
 
-    return _click_first_visible(
+    if _click_first_visible(
         page,
         fallback_selectors,
         timeout_ms=2000,
-    )
+    ):
+        print(
+            "Connect clicked using text fallback."
+        )
+        return True
+
+    return False
+
+
+# =========================================================
+# COMPLETE CONNECT DISCOVERY
+# =========================================================
 
 
 def _click_connect(
     page: Page,
 ) -> bool:
-    """
-    Complete Connect discovery flow:
-
-    1. Check Connect trực tiếp.
-    2. Nếu không có -> click ...
-    3. Tìm Connect trong dropdown.
-    """
-
+    print("")
     print(
         "Checking direct Connect..."
     )
@@ -312,9 +305,8 @@ def _click_connect(
         page
     ):
         print(
-            "Direct Connect found."
+            "Direct Connect found and clicked."
         )
-
         return True
 
     print(
@@ -329,20 +321,20 @@ def _click_connect(
         page
     ):
         print(
-            "More button not found."
+            "Could not open More menu."
         )
-
         return False
 
     print(
         "More menu opened."
     )
 
-    page.wait_for_timeout(500)
+    page.wait_for_timeout(
+        500
+    )
 
     print(
-        "Looking for Connect "
-        "inside More menu..."
+        "Looking for Connect in More menu..."
     )
 
     if _click_connect_in_more_menu(
@@ -351,12 +343,10 @@ def _click_connect(
         print(
             "Connect found in More menu."
         )
-
         return True
 
     print(
-        "Connect not found "
-        "inside More menu."
+        "Connect not found in More menu."
     )
 
     return False
@@ -370,11 +360,6 @@ def _click_connect(
 def _click_send_without_note(
     page: Page,
 ) -> bool:
-    """
-    Nếu LinkedIn mở confirmation modal,
-    gửi invitation mà không kèm note.
-    """
-
     selectors = (
         "button:has-text('Send without a note')",
         "button:has-text('Send without note')",
@@ -389,7 +374,7 @@ def _click_send_without_note(
 
 
 # =========================================================
-# MAIN ACTION
+# MAIN CONNECT ACTION
 # =========================================================
 
 
@@ -398,10 +383,6 @@ def connect_profile(
     browser: LinkedInBrowserManager,
     linkedin_url: str,
 ) -> LinkedInConnectResult:
-    """
-    Xử lý Connect cho đúng 1 LinkedIn profile.
-    """
-
     cleaned_url = str(
         linkedin_url or ""
     ).strip()
@@ -412,33 +393,31 @@ def connect_profile(
         )
 
     try:
-        # -------------------------------------------------
-        # OPEN PROFILE
-        # -------------------------------------------------
-
         print("")
+        print("=" * 60)
+        print("LINKEDIN CONNECT")
+        print("=" * 60)
         print(
-            "Opening profile:"
-        )
-        print(
-            cleaned_url
+            f"URL: {cleaned_url}"
         )
 
         page = browser.open_linkedin_url(
             cleaned_url
         )
 
-        page.wait_for_timeout(1500)
+        page.wait_for_timeout(
+            1500
+        )
 
         # -------------------------------------------------
-        # ALREADY PENDING
+        # PENDING ALREADY
         # -------------------------------------------------
 
         if _has_pending_state(
             page
         ):
             print(
-                "Profile is already Pending."
+                "Result: already pending."
             )
 
             return LinkedInConnectResult(
@@ -452,13 +431,11 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # FIND + CLICK CONNECT
+        # FIND CONNECT
         # -------------------------------------------------
 
-        connect_clicked = (
-            _click_connect(
-                page
-            )
+        connect_clicked = _click_connect(
+            page
         )
 
         if not connect_clicked:
@@ -470,16 +447,13 @@ def connect_profile(
                 page
             ):
                 print(
-                    "Profile is already "
-                    "1st-degree connected."
+                    "Result: already connected."
                 )
 
                 return LinkedInConnectResult(
                     linkedin_url=cleaned_url,
                     final_url=page.url,
-                    status=(
-                        "already_connected"
-                    ),
+                    status="already_connected",
                     message=(
                         "Profile is already a "
                         "1st-degree connection."
@@ -487,15 +461,17 @@ def connect_profile(
                 )
 
             # ---------------------------------------------
-            # CONNECT NOT AVAILABLE
+            # NO CONNECT
             # ---------------------------------------------
+
+            print(
+                "Result: Connect unavailable."
+            )
 
             return LinkedInConnectResult(
                 linkedin_url=cleaned_url,
                 final_url=page.url,
-                status=(
-                    "connect_unavailable"
-                ),
+                status="connect_unavailable",
                 message=(
                     "Connect was not found "
                     "directly or inside "
@@ -504,21 +480,20 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # WAIT AFTER CONNECT CLICK
+        # CONNECT CLICKED
         # -------------------------------------------------
 
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(
+            1000
+        )
 
-        # -------------------------------------------------
-        # SOME UI GOES DIRECTLY TO PENDING
-        # -------------------------------------------------
-
+        # LinkedIn đôi khi chuyển Pending ngay
         if _has_pending_state(
             page
         ):
             print(
-                "Invitation became Pending "
-                "immediately."
+                "Result: invitation sent "
+                "(Pending detected)."
             )
 
             return LinkedInConnectResult(
@@ -531,7 +506,7 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # CONFIRM MODAL
+        # SEND WITHOUT NOTE
         # -------------------------------------------------
 
         print(
@@ -545,7 +520,9 @@ def connect_profile(
                 "Send without note clicked."
             )
 
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(
+                1000
+            )
 
             return LinkedInConnectResult(
                 linkedin_url=cleaned_url,
@@ -557,17 +534,19 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # FINAL PENDING CHECK
+        # LAST PENDING CHECK
         # -------------------------------------------------
 
-        page.wait_for_timeout(800)
+        page.wait_for_timeout(
+            800
+        )
 
         if _has_pending_state(
             page
         ):
             print(
-                "Invitation confirmed "
-                "as Pending."
+                "Result: invitation sent "
+                "(final Pending check)."
             )
 
             return LinkedInConnectResult(
@@ -580,8 +559,13 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # CONNECT CLICKED BUT RESULT UNKNOWN
+        # UNKNOWN RESULT
         # -------------------------------------------------
+
+        print(
+            "Result: Connect clicked but "
+            "confirmation not detected."
+        )
 
         return LinkedInConnectResult(
             linkedin_url=cleaned_url,
@@ -590,420 +574,6 @@ def connect_profile(
             message=(
                 "Connect was clicked, but "
                 "no Pending state or "
-                "Send without note confirmation "
-                "was detected."
-            ),
-        )
-
-    except PlaywrightTimeoutError as exc:
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url="",
-            status="failed",
-            message=(
-                "LinkedIn action timed out: "
-                f"{exc}"
-            ),
-        )
-
-    except Exception as exc:
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url="",
-            status="failed",
-            message=(
-                f"{type(exc).__name__}: {exc}"
-            ),
-        )        if _has_pending_state(
-            page
-        ):
-            print(
-                "Invitation confirmed "
-                "as Pending."
-            )
-
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="invitation_sent",
-                message=(
-                    "Connection invitation sent."
-                ),
-            )
-
-        # -------------------------------------------------
-        # CONNECT CLICKED BUT RESULT UNKNOWN
-        # -------------------------------------------------
-
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url=page.url,
-            status="failed",
-            message=(
-                "Connect was clicked, but "
-                "no Pending state or "
-                "Send without note confirmation "
-                "was detected."
-            ),
-        )
-
-    except PlaywrightTimeoutError as exc:
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url="",
-            status="failed",
-            message=(
-                "LinkedIn action timed out: "
-                f"{exc}"
-            ),
-        )
-
-    except Exception as exc:
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url="",
-            status="failed",
-            message=(
-                f"{type(exc).__name__}: {exc}"
-            ),
-        )    timeout_ms: int = 1500,
-) -> bool:
-    try:
-        return (
-            page
-            .locator(selector)
-            .first
-            .is_visible(timeout=timeout_ms)
-        )
-    except Exception:
-        return False
-
-
-def _click_first_visible(
-    page: Page,
-    selectors: tuple[str, ...],
-    *,
-    timeout_ms: int = 2000,
-) -> bool:
-    for selector in selectors:
-        try:
-            locator = (
-                page
-                .locator(selector)
-                .first
-            )
-
-            if not locator.is_visible(
-                timeout=timeout_ms
-            ):
-                continue
-
-            locator.click(
-                timeout=timeout_ms
-            )
-
-            return True
-
-        except Exception:
-            continue
-
-    return False
-
-
-def _has_pending_state(
-    page: Page,
-) -> bool:
-    selectors = (
-        "button:has-text('Pending')",
-        "[aria-label*='Pending']",
-        "button[aria-label*='Pending']",
-        "span:has-text('Pending')",
-    )
-
-    return any(
-        _is_visible(
-            page,
-            selector,
-        )
-        for selector in selectors
-    )
-
-
-def _has_first_degree_state(
-    page: Page,
-) -> bool:
-    """
-    Dùng 1st-degree để xác định
-    profile đã connected.
-
-    Không dùng Message để kết luận.
-    """
-
-    selectors = (
-        "text=/\\b1st\\b/",
-        "span:has-text('1st')",
-    )
-
-    return any(
-        _is_visible(
-            page,
-            selector,
-            timeout_ms=700,
-        )
-        for selector in selectors
-    )
-
-
-def _click_direct_connect(
-    page: Page,
-) -> bool:
-    """
-    Ưu tiên tìm Connect ngay trên header.
-    """
-
-    selectors = (
-        "button:has-text('Connect')",
-        "button[aria-label*='Connect']",
-        "button[aria-label*='connect']",
-        "[aria-label^='Invite'][aria-label*='connect']",
-    )
-
-    return _click_first_visible(
-        page,
-        selectors,
-        timeout_ms=1500,
-    )
-
-def _click_more_button(
-    page: Page,
-) -> bool:
-    """
-    Click đúng nút dấu ... ở header profile.
-
-    DOM thực tế LinkedIn:
-    <button
-        type="button"
-        aria-label="More"
-        aria-expanded="false"
-    >
-    """
-
-    selectors = (
-        "button[aria-label='More']",
-        "button[aria-label='More'][aria-expanded='false']",
-    )
-
-    return _click_first_visible(
-        page,
-        selectors,
-        timeout_ms=2500,
-    ) 
-    
-page.wait_for_timeout(500)
-
-more_button = page.locator(
-    "button[aria-label='More']"
-).first
-
-print(
-    "MORE EXPANDED:",
-    more_button.get_attribute(
-        "aria-expanded"
-    ),
-)
-
-def _click_connect_in_more_menu(
-    page: Page,
-) -> bool:
-    """
-    Sau khi mở dấu ...,
-    ưu tiên bắt Connect bằng URL action thực tế
-    của LinkedIn.
-
-    Screenshot thực tế cho thấy Connect trỏ tới:
-    /preload/custom-invite/
-    """
-
-    strong_selectors = (
-        "a[href*='/preload/custom-invite/']",
-        "a[href*='preload/custom-invite']",
-    )
-
-    if _click_first_visible(
-        page,
-        strong_selectors,
-        timeout_ms=2500,
-    ):
-        return True
-
-    # Fallback theo text nếu LinkedIn đổi href
-    fallback_selectors = (
-        "[role='menuitem']:has-text('Connect')",
-        "a:has-text('Connect')",
-        "li:has-text('Connect')",
-        "span:has-text('Connect')",
-    )
-
-    return _click_first_visible(
-        page,
-        fallback_selectors,
-        timeout_ms=2000,
-    )
-
-
-def _click_connect(
-    page: Page,
-) -> bool:
-    """
-    Flow:
-
-    1. Tìm Connect trực tiếp.
-    2. Nếu không thấy -> mở ...
-    3. Tìm Connect trong menu.
-    """
-
-    if _click_direct_connect(page):
-        return True
-
-    if not _click_more_button(page):
-        return False
-
-    page.wait_for_timeout(600)
-
-    return _click_connect_in_more_menu(
-        page
-    )
-
-
-def _click_send_without_note(
-    page: Page,
-) -> bool:
-    selectors = (
-        "button:has-text('Send without a note')",
-        "button:has-text('Send without note')",
-        "button[aria-label*='Send without']",
-    )
-
-    return _click_first_visible(
-        page,
-        selectors,
-        timeout_ms=3000,
-    )
-
-
-def connect_profile(
-    *,
-    browser: LinkedInBrowserManager,
-    linkedin_url: str,
-) -> LinkedInConnectResult:
-    cleaned_url = str(
-        linkedin_url or ""
-    ).strip()
-
-    if not cleaned_url:
-        raise ValueError(
-            "linkedin_url cannot be empty"
-        )
-
-    try:
-        page = browser.open_linkedin_url(
-            cleaned_url
-        )
-
-        page.wait_for_timeout(1000)
-
-        # Đã gửi invite rồi
-        if _has_pending_state(page):
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="pending",
-                message=(
-                    "Connection invitation is "
-                    "already pending."
-                ),
-            )
-
-        # Luôn tìm Connect trước
-        connect_clicked = (
-            _click_connect(page)
-        )
-
-        if not connect_clicked:
-            # Không có Connect và là 1st
-            # => đã connected
-            if _has_first_degree_state(
-                page
-            ):
-                return LinkedInConnectResult(
-                    linkedin_url=cleaned_url,
-                    final_url=page.url,
-                    status="already_connected",
-                    message=(
-                        "Profile is already a "
-                        "1st-degree connection."
-                    ),
-                )
-
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="connect_unavailable",
-                message=(
-                    "Connect was not found "
-                    "in the header or More menu."
-                ),
-            )
-
-        page.wait_for_timeout(800)
-
-        # Có UI LinkedIn click Connect
-        # xong chuyển Pending ngay
-        if _has_pending_state(page):
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="invitation_sent",
-                message=(
-                    "Connection invitation sent."
-                ),
-            )
-
-        # Nếu có popup confirm
-        if _click_send_without_note(
-            page
-        ):
-            page.wait_for_timeout(800)
-
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="invitation_sent",
-                message=(
-                    "Connection invitation sent."
-                ),
-            )
-
-        # Check Pending thêm lần nữa
-        page.wait_for_timeout(700)
-
-        if _has_pending_state(page):
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url,
-                final_url=page.url,
-                status="invitation_sent",
-                message=(
-                    "Connection invitation sent."
-                ),
-            )
-
-        return LinkedInConnectResult(
-            linkedin_url=cleaned_url,
-            final_url=page.url,
-            status="failed",
-            message=(
-                "Connect was clicked, "
-                "but no Pending state or "
                 "Send without note confirmation "
                 "was detected."
             ),
