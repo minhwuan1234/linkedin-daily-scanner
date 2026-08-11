@@ -614,6 +614,58 @@ def connect_profile(
             message=(
                 f"{type(exc).__name__}: {exc}"
             ),
+        )        if _has_pending_state(
+            page
+        ):
+            print(
+                "Invitation confirmed "
+                "as Pending."
+            )
+
+            return LinkedInConnectResult(
+                linkedin_url=cleaned_url,
+                final_url=page.url,
+                status="invitation_sent",
+                message=(
+                    "Connection invitation sent."
+                ),
+            )
+
+        # -------------------------------------------------
+        # CONNECT CLICKED BUT RESULT UNKNOWN
+        # -------------------------------------------------
+
+        return LinkedInConnectResult(
+            linkedin_url=cleaned_url,
+            final_url=page.url,
+            status="failed",
+            message=(
+                "Connect was clicked, but "
+                "no Pending state or "
+                "Send without note confirmation "
+                "was detected."
+            ),
+        )
+
+    except PlaywrightTimeoutError as exc:
+        return LinkedInConnectResult(
+            linkedin_url=cleaned_url,
+            final_url="",
+            status="failed",
+            message=(
+                "LinkedIn action timed out: "
+                f"{exc}"
+            ),
+        )
+
+    except Exception as exc:
+        return LinkedInConnectResult(
+            linkedin_url=cleaned_url,
+            final_url="",
+            status="failed",
+            message=(
+                f"{type(exc).__name__}: {exc}"
+            ),
         )    timeout_ms: int = 1500,
 ) -> bool:
     try:
