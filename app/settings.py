@@ -20,6 +20,8 @@ load_dotenv(
 class Settings:
     supabase_url: str
     supabase_secret_key: str
+    outreach_supabase_url: str
+    outreach_supabase_secret_key: str
     google_sheet_id: str
     google_service_account_json: str
 
@@ -71,6 +73,12 @@ def load_settings() -> Settings:
         ),
         supabase_secret_key=get_required_env(
             "SUPABASE_SECRET_KEY"
+        ),
+        outreach_supabase_url=get_required_env(
+            "OUTREACH_SUPABASE_URL"
+        ),
+        outreach_supabase_secret_key=get_required_env(
+            "OUTREACH_SUPABASE_SECRET_KEY"
         ),
         google_sheet_id=get_required_env(
             "GOOGLE_SHEET_ID"
