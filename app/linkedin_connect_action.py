@@ -165,7 +165,20 @@ def _click_more_button(
         page,
         selectors,
         timeout_ms=2500,
-    )
+    ) 
+    
+page.wait_for_timeout(500)
+
+more_button = page.locator(
+    "button[aria-label='More']"
+).first
+
+print(
+    "MORE EXPANDED:",
+    more_button.get_attribute(
+        "aria-expanded"
+    ),
+)
 
 def _click_connect_in_more_menu(
     page: Page,
