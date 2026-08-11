@@ -11,7 +11,7 @@ from app.outreach_account_pool import (
 ACCOUNT_ID = "outreach_account_01"
 
 TEST_LINKEDIN_URL = (
-    "https://www.linkedin.com/in/frank-nguyen-flearningstudio/"
+    "https://www.linkedin.com/in/matecki/"
 )
 
 
