@@ -220,13 +220,10 @@ def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    Tìm đúng nút ... của profile header.
+    Click đúng nút ... của profile.
 
-    DOM thật:
-    button[aria-label="More"]
-
-    Nhưng page có thể có nhiều More,
-    nên chỉ lấy More nằm ở phần đầu profile.
+    LinkedIn đôi khi có nav overlay chặn pointer event,
+    nên dùng DOM click thay vì mouse click.
     """
 
     try:
@@ -237,9 +234,7 @@ def _click_more_button(
         count = candidates.count()
 
         for index in range(count):
-            button = candidates.nth(
-                index
-            )
+            button = candidates.nth(index)
 
             if not button.is_visible():
                 continue
@@ -249,17 +244,15 @@ def _click_more_button(
             if not box:
                 continue
 
-            y = box["y"]
-
-            # Chỉ More ở header profile
-            if y > 550:
+            # Chỉ More ở vùng header profile
+            if box["y"] > 550:
                 continue
 
             print(
                 "MORE candidate:",
                 index,
                 "y=",
-                y,
+                box["y"],
             )
 
             before = button.get_attribute(
@@ -271,12 +264,14 @@ def _click_more_button(
                 before,
             )
 
-            button.click(
-                timeout=2500
+            # Quan trọng:
+            # bypass lớp nav đang intercept pointer event
+            button.evaluate(
+                "(element) => element.click()"
             )
 
             page.wait_for_timeout(
-                600
+                700
             )
 
             after = button.get_attribute(
@@ -288,7 +283,10 @@ def _click_more_button(
                 after,
             )
 
-            return True
+            return (
+                after == "true"
+                or before != after
+            )
 
         print(
             "No header More button found."
