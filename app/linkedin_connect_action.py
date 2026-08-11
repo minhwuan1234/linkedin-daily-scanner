@@ -220,57 +220,81 @@ def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    DOM thực tế đã inspect:
+    Tìm đúng nút ... của profile header.
 
-    <button
-        type="button"
-        aria-label="More"
-        aria-expanded="false"
-    >
+    DOM thật:
+    button[aria-label="More"]
 
-    Đây là nút dấu ...
+    Nhưng page có thể có nhiều More,
+    nên chỉ lấy More nằm ở phần đầu profile.
     """
 
     try:
-        more_button = page.locator(
+        candidates = page.locator(
             "button[aria-label='More']"
-        ).first
+        )
 
-        if not more_button.is_visible(
-            timeout=2500
-        ):
-            print(
-                "More button is not visible."
+        count = candidates.count()
+
+        for index in range(count):
+            button = candidates.nth(
+                index
             )
-            return False
 
-        before = more_button.get_attribute(
-            "aria-expanded"
-        )
+            if not button.is_visible():
+                continue
+
+            box = button.bounding_box()
+
+            if not box:
+                continue
+
+            y = box["y"]
+
+            # Chỉ More ở header profile
+            if y > 550:
+                continue
+
+            print(
+                "MORE candidate:",
+                index,
+                "y=",
+                y,
+            )
+
+            before = button.get_attribute(
+                "aria-expanded"
+            )
+
+            print(
+                "MORE before:",
+                before,
+            )
+
+            button.click(
+                timeout=2500
+            )
+
+            page.wait_for_timeout(
+                600
+            )
+
+            after = button.get_attribute(
+                "aria-expanded"
+            )
+
+            print(
+                "MORE after:",
+                after,
+            )
+
+            return True
 
         print(
-            "MORE before:",
-            before,
+            "No header More button found."
         )
 
-        more_button.click(
-            timeout=2500
-        )
-
-        page.wait_for_timeout(
-            600
-        )
-
-        after = more_button.get_attribute(
-            "aria-expanded"
-        )
-
-        print(
-            "MORE after:",
-            after,
-        )
-
-        return True
+        return False
 
     except Exception as exc:
         print(
