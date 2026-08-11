@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -10,7 +11,17 @@ from playwright.sync_api import (
 
 from app.linkedin_browser import (
     LinkedInBrowserManager,
+    LinkedInBrowserTimeoutError,
+    LinkedInSessionError,
 )
+
+
+# =========================================================
+# CONSTANTS
+# =========================================================
+
+
+PROFILE_TIMEOUT_MS = 10_000
 
 
 ConnectStatus = Literal[
@@ -22,12 +33,76 @@ ConnectStatus = Literal[
 ]
 
 
+# =========================================================
+# RESULT
+# =========================================================
+
+
 @dataclass(frozen=True)
 class LinkedInConnectResult:
     linkedin_url: str
     final_url: str
     status: ConnectStatus
     message: str
+
+
+# =========================================================
+# TIMEOUT
+# =========================================================
+
+
+class LinkedInProfileActionTimeout(
+    RuntimeError
+):
+    pass
+
+
+def _build_deadline() -> float:
+    return (
+        time.monotonic()
+        + (
+            PROFILE_TIMEOUT_MS
+            / 1000
+        )
+    )
+
+
+def _remaining_ms(
+    deadline: float,
+    *,
+    maximum_ms: int,
+) -> int:
+    remaining = int(
+        (
+            deadline
+            - time.monotonic()
+        )
+        * 1000
+    )
+
+    if remaining <= 0:
+        raise LinkedInProfileActionTimeout(
+            "Profile processing exceeded "
+            "the 10 second limit."
+        )
+
+    return max(
+        1,
+        min(
+            remaining,
+            maximum_ms,
+        ),
+    )
+
+
+def _check_deadline(
+    deadline: float,
+) -> None:
+    if time.monotonic() >= deadline:
+        raise LinkedInProfileActionTimeout(
+            "Profile processing exceeded "
+            "the 10 second limit."
+        )
 
 
 # =========================================================
@@ -39,16 +114,31 @@ def _is_visible(
     page: Page,
     selector: str,
     *,
-    timeout_ms: int = 1500,
+    deadline: float,
+    maximum_ms: int = 600,
 ) -> bool:
+    _check_deadline(
+        deadline
+    )
+
     try:
-        locator = page.locator(
-            selector
-        ).first
+        timeout = _remaining_ms(
+            deadline,
+            maximum_ms=maximum_ms,
+        )
+
+        locator = (
+            page
+            .locator(selector)
+            .first
+        )
 
         return locator.is_visible(
-            timeout=timeout_ms
+            timeout=timeout
         )
+
+    except LinkedInProfileActionTimeout:
+        raise
 
     except Exception:
         return False
@@ -58,24 +148,44 @@ def _click_first_visible(
     page: Page,
     selectors: tuple[str, ...],
     *,
-    timeout_ms: int = 2000,
+    deadline: float,
+    maximum_ms: int = 900,
 ) -> bool:
     for selector in selectors:
+        _check_deadline(
+            deadline
+        )
+
         try:
-            locator = page.locator(
-                selector
-            ).first
+            locator = (
+                page
+                .locator(selector)
+                .first
+            )
+
+            timeout = _remaining_ms(
+                deadline,
+                maximum_ms=maximum_ms,
+            )
 
             if not locator.is_visible(
-                timeout=timeout_ms
+                timeout=timeout
             ):
                 continue
 
+            timeout = _remaining_ms(
+                deadline,
+                maximum_ms=maximum_ms,
+            )
+
             locator.click(
-                timeout=timeout_ms
+                timeout=timeout
             )
 
             return True
+
+        except LinkedInProfileActionTimeout:
+            raise
 
         except Exception:
             continue
@@ -84,18 +194,85 @@ def _click_first_visible(
 
 
 # =========================================================
-# PROFILE STATE
+# PROFILE NOT FOUND
+# =========================================================
+
+
+def _is_profile_not_found(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Detect URL/profile không tồn tại.
+
+    Trường hợp này vẫn tính FAILED
+    ở cấp job, nhưng worker sẽ chuyển
+    ngay sang profile tiếp theo.
+    """
+
+    current_url = (
+        page.url
+        or ""
+    ).lower()
+
+    url_signals = (
+        "/404",
+        "/error",
+    )
+
+    if any(
+        signal in current_url
+        for signal in url_signals
+    ):
+        return True
+
+    try:
+        timeout = _remaining_ms(
+            deadline,
+            maximum_ms=700,
+        )
+
+        body_text = (
+            page
+            .locator("body")
+            .inner_text(
+                timeout=timeout
+            )
+            .lower()
+        )
+
+    except LinkedInProfileActionTimeout:
+        raise
+
+    except Exception:
+        return False
+
+    text_signals = (
+        "this page doesn’t exist",
+        "this page doesn't exist",
+        "page not found",
+        "profile not found",
+        "this profile is not available",
+        "the profile you requested does not exist",
+    )
+
+    return any(
+        signal in body_text
+        for signal in text_signals
+    )
+
+
+# =========================================================
+# PENDING
 # =========================================================
 
 
 def _has_pending_state(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
-    """
-    Invitation đã được gửi trước đó
-    và đang chờ người nhận accept.
-    """
-
     selectors = (
         "button:has-text('Pending')",
         "button[aria-label*='Pending']",
@@ -107,47 +284,95 @@ def _has_pending_state(
         _is_visible(
             page,
             selector,
-            timeout_ms=800,
+            deadline=deadline,
+            maximum_ms=350,
         )
         for selector in selectors
     )
 
 
+# =========================================================
+# ALREADY CONNECTED
+# =========================================================
+
+
 def _has_first_degree_state(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
     """
-    Chỉ chấp nhận dấu 1st nằm ở vùng đầu profile.
-    Không tìm 1st trên toàn bộ page.
+    Chỉ chấp nhận 1st trong vùng
+    header của profile.
+
+    Không dùng Message làm signal.
     """
 
+    _check_deadline(
+        deadline
+    )
+
     try:
-        candidates = page.get_by_text(
-            "1st",
-            exact=True,
+        candidates = (
+            page
+            .get_by_text(
+                "1st",
+                exact=True,
+            )
         )
 
-        count = candidates.count()
+        count = (
+            candidates.count()
+        )
 
-        for index in range(count):
-            candidate = candidates.nth(index)
+        for index in range(
+            count
+        ):
+            _check_deadline(
+                deadline
+            )
 
-            if not candidate.is_visible():
-                continue
+            candidate = (
+                candidates
+                .nth(index)
+            )
 
-            box = candidate.bounding_box()
-
-            if not box:
-                continue
-
-            if box["y"] <= 550:
-                print(
-                    "1ST DEGREE signal found:",
-                    "y=",
-                    box["y"],
+            try:
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=300,
                 )
 
-                return True
+                if not candidate.is_visible(
+                    timeout=timeout
+                ):
+                    continue
+
+                box = (
+                    candidate
+                    .bounding_box()
+                )
+
+                if not box:
+                    continue
+
+                if box["y"] <= 550:
+                    print(
+                        "1ST DEGREE signal:",
+                        "y=",
+                        box["y"],
+                    )
+
+                    return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+
+            except Exception:
+                continue
+
+    except LinkedInProfileActionTimeout:
+        raise
 
     except Exception:
         pass
@@ -156,71 +381,103 @@ def _has_first_degree_state(
 
 
 # =========================================================
-# CONNECT DIRECTLY ON PROFILE HEADER
+# DIRECT CONNECT
 # =========================================================
 
 
 def _click_direct_connect(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
     """
-    Chỉ tìm nút Connect ở khu vực header
-    của profile đang mở.
+    Chỉ click Connect ở vùng header.
 
-    Không được click các nút Connect
-    trong People you may know / sidebar.
+    Không click Connect ở:
+    People you may know
+    hoặc các section bên dưới.
     """
 
     selectors = (
         "button:has-text('Connect')",
+        "button[aria-label='Connect']",
         "button[aria-label*='Connect']",
         "button[aria-label*='connect']",
-        "a:has-text('Connect')",
+        "a[aria-label*='Connect']",
+        (
+            "[aria-label^='Invite']"
+            "[aria-label*='connect']"
+        ),
     )
 
     for selector in selectors:
+        _check_deadline(
+            deadline
+        )
+
         try:
-            candidates = page.locator(
-                selector
+            candidates = (
+                page
+                .locator(selector)
             )
 
-            count = candidates.count()
+            count = (
+                candidates.count()
+            )
 
-            for index in range(count):
-                candidate = candidates.nth(
-                    index
+            for index in range(
+                count
+            ):
+                _check_deadline(
+                    deadline
                 )
 
-                if not candidate.is_visible():
+                candidate = (
+                    candidates
+                    .nth(index)
+                )
+
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=250,
+                )
+
+                if not candidate.is_visible(
+                    timeout=timeout
+                ):
                     continue
 
-                box = candidate.bounding_box()
+                box = (
+                    candidate
+                    .bounding_box()
+                )
 
                 if not box:
                     continue
 
-                y = box["y"]
-
-                # Chỉ chấp nhận Connect
-                # nằm ở phần đầu profile.
-                #
-                # People you may know thường
-                # nằm sâu hơn phía dưới trang.
-                if y > 550:
+                if box["y"] > 550:
                     continue
 
                 print(
                     "DIRECT CONNECT candidate:",
                     selector,
                     "y=",
-                    y,
+                    box["y"],
+                )
+
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=700,
                 )
 
                 candidate.click(
-                    timeout=2000
+                    timeout=timeout
                 )
 
                 return True
+
+        except LinkedInProfileActionTimeout:
+            raise
 
         except Exception:
             continue
@@ -235,33 +492,62 @@ def _click_direct_connect(
 
 def _click_more_button(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
     """
-    Click đúng nút ... của profile.
+    Click đúng dấu ... ở header.
 
-    LinkedIn đôi khi có nav overlay chặn pointer event,
-    nên dùng DOM click thay vì mouse click.
+    Dùng DOM click vì LinkedIn đôi khi
+    có nav overlay intercept pointer event.
     """
 
+    _check_deadline(
+        deadline
+    )
+
     try:
-        candidates = page.locator(
-            "button[aria-label='More']"
+        candidates = (
+            page
+            .locator(
+                "button[aria-label='More']"
+            )
         )
 
-        count = candidates.count()
+        count = (
+            candidates.count()
+        )
 
-        for index in range(count):
-            button = candidates.nth(index)
+        for index in range(
+            count
+        ):
+            _check_deadline(
+                deadline
+            )
 
-            if not button.is_visible():
+            button = (
+                candidates
+                .nth(index)
+            )
+
+            timeout = _remaining_ms(
+                deadline,
+                maximum_ms=300,
+            )
+
+            if not button.is_visible(
+                timeout=timeout
+            ):
                 continue
 
-            box = button.bounding_box()
+            box = (
+                button
+                .bounding_box()
+            )
 
             if not box:
                 continue
 
-            # Chỉ More ở vùng header profile
             if box["y"] > 550:
                 continue
 
@@ -272,8 +558,11 @@ def _click_more_button(
                 box["y"],
             )
 
-            before = button.get_attribute(
-                "aria-expanded"
+            before = (
+                button
+                .get_attribute(
+                    "aria-expanded"
+                )
             )
 
             print(
@@ -281,18 +570,29 @@ def _click_more_button(
                 before,
             )
 
-            # Quan trọng:
-            # bypass lớp nav đang intercept pointer event
+            # DOM click để tránh
+            # nav overlay intercept.
             button.evaluate(
                 "(element) => element.click()"
             )
 
-            page.wait_for_timeout(
-                700
+            timeout = _remaining_ms(
+                deadline,
+                maximum_ms=350,
             )
 
-            after = button.get_attribute(
-                "aria-expanded"
+            page.wait_for_timeout(
+                min(
+                    timeout,
+                    350,
+                )
+            )
+
+            after = (
+                button
+                .get_attribute(
+                    "aria-expanded"
+                )
             )
 
             print(
@@ -311,6 +611,9 @@ def _click_more_button(
 
         return False
 
+    except LinkedInProfileActionTimeout:
+        raise
+
     except Exception as exc:
         print(
             "MORE BUTTON ERROR:",
@@ -321,38 +624,44 @@ def _click_more_button(
 
 
 # =========================================================
-# CONNECT INSIDE MORE MENU
+# CONNECT IN MORE MENU
 # =========================================================
 
 
 def _click_connect_in_more_menu(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
-    """
-    Sau khi dấu ... được mở,
-    tìm action Connect.
-
-    Signal mạnh đã quan sát trên browser:
-    href chứa /preload/custom-invite/
-    """
-
     strong_selectors = (
-        "a[href*='/preload/custom-invite/']",
-        "a[href*='preload/custom-invite']",
+        (
+            "a[href*="
+            "'/preload/custom-invite/']"
+        ),
+        (
+            "a[href*="
+            "'preload/custom-invite']"
+        ),
     )
 
     if _click_first_visible(
         page,
         strong_selectors,
-        timeout_ms=2500,
+        deadline=deadline,
+        maximum_ms=700,
     ):
         print(
-            "Connect clicked using invite href."
+            "Connect clicked using "
+            "invite href."
         )
+
         return True
 
     fallback_selectors = (
-        "[role='menuitem']:has-text('Connect')",
+        (
+            "[role='menuitem']"
+            ":has-text('Connect')"
+        ),
         "a:has-text('Connect')",
         "li:has-text('Connect')",
         "span:has-text('Connect')",
@@ -361,23 +670,28 @@ def _click_connect_in_more_menu(
     if _click_first_visible(
         page,
         fallback_selectors,
-        timeout_ms=2000,
+        deadline=deadline,
+        maximum_ms=500,
     ):
         print(
-            "Connect clicked using text fallback."
+            "Connect clicked using "
+            "text fallback."
         )
+
         return True
 
     return False
 
 
 # =========================================================
-# COMPLETE CONNECT DISCOVERY
+# CONNECT DISCOVERY
 # =========================================================
 
 
 def _click_connect(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
     print("")
     print(
@@ -385,15 +699,22 @@ def _click_connect(
     )
 
     if _click_direct_connect(
-        page
+        page,
+        deadline=deadline,
     ):
         print(
-            "Direct Connect found and clicked."
+            "Direct Connect found "
+            "and clicked."
         )
+
         return True
 
     print(
         "Direct Connect not found."
+    )
+
+    _check_deadline(
+        deadline
     )
 
     print(
@@ -401,35 +722,38 @@ def _click_connect(
     )
 
     if not _click_more_button(
-        page
+        page,
+        deadline=deadline,
     ):
         print(
             "Could not open More menu."
         )
+
         return False
 
     print(
         "More menu opened."
     )
 
-    page.wait_for_timeout(
-        500
-    )
-
     print(
-        "Looking for Connect in More menu..."
+        "Looking for Connect "
+        "inside More menu..."
     )
 
     if _click_connect_in_more_menu(
-        page
+        page,
+        deadline=deadline,
     ):
         print(
-            "Connect found in More menu."
+            "Connect found in "
+            "More menu."
         )
+
         return True
 
     print(
-        "Connect not found in More menu."
+        "Connect not found in "
+        "More menu."
     )
 
     return False
@@ -442,22 +766,36 @@ def _click_connect(
 
 def _click_send_without_note(
     page: Page,
+    *,
+    deadline: float,
 ) -> bool:
     selectors = (
-        "button:has-text('Send without a note')",
-        "button:has-text('Send without note')",
-        "button[aria-label*='Send without']",
+        (
+            "button:has-text("
+            "'Send without a note'"
+            ")"
+        ),
+        (
+            "button:has-text("
+            "'Send without note'"
+            ")"
+        ),
+        (
+            "button[aria-label*="
+            "'Send without']"
+        ),
     )
 
     return _click_first_visible(
         page,
         selectors,
-        timeout_ms=3000,
+        deadline=deadline,
+        maximum_ms=650,
     )
 
 
 # =========================================================
-# MAIN CONNECT ACTION
+# MAIN
 # =========================================================
 
 
@@ -467,37 +805,89 @@ def connect_profile(
     linkedin_url: str,
 ) -> LinkedInConnectResult:
     cleaned_url = str(
-        linkedin_url or ""
+        linkedin_url
+        or ""
     ).strip()
 
     if not cleaned_url:
-        raise ValueError(
-            "linkedin_url cannot be empty"
+        return LinkedInConnectResult(
+            linkedin_url="",
+            final_url="",
+            status="failed",
+            message=(
+                "invalid_url: LinkedIn URL "
+                "cannot be empty."
+            ),
         )
+
+    deadline = (
+        _build_deadline()
+    )
+
+    page: Page | None = None
 
     try:
         print("")
         print("=" * 60)
         print("LINKEDIN CONNECT")
         print("=" * 60)
+
         print(
             f"URL: {cleaned_url}"
         )
 
-        page = browser.open_linkedin_url(
-            cleaned_url
+        # -------------------------------------------------
+        # OPEN PROFILE
+        # -------------------------------------------------
+
+        remaining = _remaining_ms(
+            deadline,
+            maximum_ms=PROFILE_TIMEOUT_MS,
         )
 
-        page.wait_for_timeout(
-            1500
+        page = (
+            browser
+            .open_linkedin_url(
+                cleaned_url,
+                overall_timeout_ms=remaining,
+                raise_on_navigation_timeout=True,
+            )
+        )
+
+        _check_deadline(
+            deadline
         )
 
         # -------------------------------------------------
-        # PENDING ALREADY
+        # 404 / NOT FOUND
+        # -------------------------------------------------
+
+        if _is_profile_not_found(
+            page,
+            deadline=deadline,
+        ):
+            print(
+                "Result: profile not found."
+            )
+
+            return LinkedInConnectResult(
+                linkedin_url=cleaned_url,
+                final_url=page.url,
+                status="failed",
+                message=(
+                    "url_not_found: "
+                    "LinkedIn profile does "
+                    "not exist or returned 404."
+                ),
+            )
+
+        # -------------------------------------------------
+        # ALREADY PENDING
         # -------------------------------------------------
 
         if _has_pending_state(
-            page
+            page,
+            deadline=deadline,
         ):
             print(
                 "Result: already pending."
@@ -508,17 +898,20 @@ def connect_profile(
                 final_url=page.url,
                 status="pending",
                 message=(
-                    "Connection invitation is "
-                    "already pending."
+                    "Connection invitation "
+                    "was already sent."
                 ),
             )
 
         # -------------------------------------------------
-        # FIND CONNECT
+        # CONNECT
         # -------------------------------------------------
 
-        connect_clicked = _click_connect(
-            page
+        connect_clicked = (
+            _click_connect(
+                page,
+                deadline=deadline,
+            )
         )
 
         if not connect_clicked:
@@ -527,7 +920,8 @@ def connect_profile(
             # ---------------------------------------------
 
             if _has_first_degree_state(
-                page
+                page,
+                deadline=deadline,
             ):
                 print(
                     "Result: already connected."
@@ -538,13 +932,13 @@ def connect_profile(
                     final_url=page.url,
                     status="already_connected",
                     message=(
-                        "Profile is already a "
-                        "1st-degree connection."
+                        "Profile is already "
+                        "a 1st-degree connection."
                     ),
                 )
 
             # ---------------------------------------------
-            # NO CONNECT
+            # CONNECT UNAVAILABLE
             # ---------------------------------------------
 
             print(
@@ -556,9 +950,8 @@ def connect_profile(
                 final_url=page.url,
                 status="connect_unavailable",
                 message=(
-                    "Connect was not found "
-                    "directly or inside "
-                    "the More menu."
+                    "connect_unavailable: "
+                    "Connect action was not found."
                 ),
             )
 
@@ -566,17 +959,32 @@ def connect_profile(
         # CONNECT CLICKED
         # -------------------------------------------------
 
-        page.wait_for_timeout(
-            1000
+        _check_deadline(
+            deadline
         )
 
-        # LinkedIn đôi khi chuyển Pending ngay
+        remaining = _remaining_ms(
+            deadline,
+            maximum_ms=450,
+        )
+
+        page.wait_for_timeout(
+            min(
+                remaining,
+                450,
+            )
+        )
+
+        # -------------------------------------------------
+        # PENDING DIRECTLY AFTER CLICK
+        # -------------------------------------------------
+
         if _has_pending_state(
-            page
+            page,
+            deadline=deadline,
         ):
             print(
-                "Result: invitation sent "
-                "(Pending detected)."
+                "Result: invitation sent."
             )
 
             return LinkedInConnectResult(
@@ -597,14 +1005,15 @@ def connect_profile(
         )
 
         if _click_send_without_note(
-            page
+            page,
+            deadline=deadline,
         ):
             print(
                 "Send without note clicked."
             )
 
-            page.wait_for_timeout(
-                1000
+            _check_deadline(
+                deadline
             )
 
             return LinkedInConnectResult(
@@ -617,21 +1026,13 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # LAST PENDING CHECK
+        # FINAL PENDING CHECK
         # -------------------------------------------------
-
-        page.wait_for_timeout(
-            800
-        )
 
         if _has_pending_state(
-            page
+            page,
+            deadline=deadline,
         ):
-            print(
-                "Result: invitation sent "
-                "(final Pending check)."
-            )
-
             return LinkedInConnectResult(
                 linkedin_url=cleaned_url,
                 final_url=page.url,
@@ -642,43 +1043,89 @@ def connect_profile(
             )
 
         # -------------------------------------------------
-        # UNKNOWN RESULT
+        # UNKNOWN ACTION RESULT
         # -------------------------------------------------
-
-        print(
-            "Result: Connect clicked but "
-            "confirmation not detected."
-        )
 
         return LinkedInConnectResult(
             linkedin_url=cleaned_url,
             final_url=page.url,
             status="failed",
             message=(
-                "Connect was clicked, but "
-                "no Pending state or "
-                "Send without note confirmation "
-                "was detected."
+                "action_error: Connect was "
+                "clicked but final state "
+                "could not be confirmed."
             ),
         )
 
-    except PlaywrightTimeoutError as exc:
+    # =====================================================
+    # PROFILE TIMEOUT
+    # =====================================================
+
+    except (
+        LinkedInProfileActionTimeout,
+        LinkedInBrowserTimeoutError,
+        PlaywrightTimeoutError,
+    ) as exc:
+        final_url = (
+            page.url
+            if page is not None
+            else ""
+        )
+
+        print(
+            "Result: PROFILE TIMEOUT"
+        )
+
         return LinkedInConnectResult(
             linkedin_url=cleaned_url,
-            final_url="",
+            final_url=final_url,
             status="failed",
             message=(
-                "LinkedIn action timed out: "
+                "timeout: profile exceeded "
+                "the 10 second processing limit. "
                 f"{exc}"
             ),
         )
 
-    except Exception as exc:
+    # =====================================================
+    # SESSION ERROR
+    # =====================================================
+
+    except LinkedInSessionError as exc:
+        final_url = (
+            page.url
+            if page is not None
+            else ""
+        )
+
         return LinkedInConnectResult(
             linkedin_url=cleaned_url,
-            final_url="",
+            final_url=final_url,
             status="failed",
             message=(
-                f"{type(exc).__name__}: {exc}"
+                "session_error: "
+                f"{exc}"
+            ),
+        )
+
+    # =====================================================
+    # OTHER ERROR
+    # =====================================================
+
+    except Exception as exc:
+        final_url = (
+            page.url
+            if page is not None
+            else ""
+        )
+
+        return LinkedInConnectResult(
+            linkedin_url=cleaned_url,
+            final_url=final_url,
+            status="failed",
+            message=(
+                "action_error: "
+                f"{type(exc).__name__}: "
+                f"{exc}"
             ),
         )
