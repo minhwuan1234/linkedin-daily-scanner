@@ -391,12 +391,15 @@ def _click_direct_connect(
     deadline: float,
 ) -> bool:
     """
-    CASE 1:
-    Nếu profile có nút Connect trực tiếp
-    trong header thì click ngay.
+    STEP 1:
+    Luôn tìm Connect trực tiếp trên
+    profile header trước.
 
-    Không lấy các nút Connect ở sidebar
-    như "More profiles for you".
+    Có thể là:
+    - <button>Connect</button>
+    - <a>Connect</a>
+
+    Không lấy Connect từ sidebar.
     """
 
     _check_deadline(
@@ -405,9 +408,11 @@ def _click_direct_connect(
 
     selectors = (
         "button:has-text('Connect')",
-        "button[aria-label='Connect']",
+        "a:has-text('Connect')",
         "button[aria-label*='Connect']",
         "button[aria-label*='connect']",
+        "a[aria-label*='Connect']",
+        "a[aria-label*='connect']",
     )
 
     viewport = page.viewport_size
@@ -418,10 +423,9 @@ def _click_direct_connect(
             * 0.72
         )
     else:
-        # fallback nếu không lấy được viewport
         max_x = 950
 
-    candidates_found = []
+    valid_candidates = []
 
     for selector in selectors:
         _check_deadline(
@@ -455,7 +459,21 @@ def _click_direct_connect(
                     ):
                         continue
 
-                    box = candidate.bounding_box()
+                    text = (
+                        candidate
+                        .inner_text()
+                        .strip()
+                    )
+
+                    # Chỉ nhận đúng action Connect.
+                    # Tránh những element chứa text dài.
+                    if text.lower() != "connect":
+                        continue
+
+                    box = (
+                        candidate
+                        .bounding_box()
+                    )
 
                     if not box:
                         continue
@@ -464,28 +482,28 @@ def _click_direct_connect(
                     y = box["y"]
 
                     print(
-                        "CONNECT candidate:",
-                        index,
+                        "DIRECT CONNECT candidate:",
+                        candidate.evaluate(
+                            "(el) => el.tagName"
+                        ),
+                        "text=",
+                        text,
                         "x=",
                         x,
                         "y=",
                         y,
                     )
 
-                    # -------------------------------------
-                    # HEADER ONLY
-                    # -------------------------------------
-
-                    # Connect phải nằm gần đầu profile
+                    # Không lấy Connect quá sâu
+                    # bên dưới profile.
                     if y > 650:
                         continue
 
-                    # Connect phải nằm ở phần profile chính.
-                    # Sidebar bên phải bị loại.
+                    # Không lấy sidebar bên phải.
                     if x > max_x:
                         continue
 
-                    candidates_found.append(
+                    valid_candidates.append(
                         (
                             y,
                             x,
@@ -505,20 +523,25 @@ def _click_direct_connect(
         except Exception:
             continue
 
-    if not candidates_found:
+    if not valid_candidates:
+        print(
+            "No direct Connect "
+            "in profile header."
+        )
+
         return False
 
-    # Nếu có nhiều candidate hợp lệ,
-    # lấy Connect nằm cao nhất trên profile.
-    candidates_found.sort(
+    # Nút nằm cao nhất trong profile header
+    # được ưu tiên.
+    valid_candidates.sort(
         key=lambda item: (
             item[0],
             item[1],
         )
     )
 
-    y, x, button = (
-        candidates_found[0]
+    y, x, connect = (
+        valid_candidates[0]
     )
 
     print(
@@ -530,13 +553,10 @@ def _click_direct_connect(
     )
 
     try:
-        timeout = _remaining_ms(
-            deadline,
-            maximum_ms=800,
-        )
-
-        button.click(
-            timeout=timeout
+        # DOM click tránh trường hợp
+        # nav overlay intercept pointer.
+        connect.evaluate(
+            "(element) => element.click()"
         )
 
         print(
@@ -552,7 +572,6 @@ def _click_direct_connect(
         )
 
         return False
-
 
 # =========================================================
 # MORE BUTTON
