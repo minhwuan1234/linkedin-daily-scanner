@@ -117,25 +117,42 @@ def _has_first_degree_state(
     page: Page,
 ) -> bool:
     """
-    Profile đã là connection 1st degree.
-
-    Không dùng Message làm signal,
-    vì profile 2nd/3rd vẫn có thể có Message.
+    Chỉ chấp nhận dấu 1st nằm ở vùng đầu profile.
+    Không tìm 1st trên toàn bộ page.
     """
 
-    selectors = (
-        "span:has-text('1st')",
-        "text=/\\b1st\\b/",
-    )
-
-    return any(
-        _is_visible(
-            page,
-            selector,
-            timeout_ms=700,
+    try:
+        candidates = page.get_by_text(
+            "1st",
+            exact=True,
         )
-        for selector in selectors
-    )
+
+        count = candidates.count()
+
+        for index in range(count):
+            candidate = candidates.nth(index)
+
+            if not candidate.is_visible():
+                continue
+
+            box = candidate.bounding_box()
+
+            if not box:
+                continue
+
+            if box["y"] <= 550:
+                print(
+                    "1ST DEGREE signal found:",
+                    "y=",
+                    box["y"],
+                )
+
+                return True
+
+    except Exception:
+        pass
+
+    return False
 
 
 # =========================================================
