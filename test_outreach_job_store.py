@@ -6,7 +6,7 @@ from app.outreach_job_store import (
 
 
 TEST_URLS = [
-    "https://www.linkedin.com/in/anhtuanle234/"
+    "https://www.linkedin.com/in/anhtuanle234/",
     "https://www.linkedin.com/in/ovquang/",
     "https://www.linkedin.com/in/nguyenthaotrinh1012/",
 ]
