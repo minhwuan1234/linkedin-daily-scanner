@@ -146,41 +146,26 @@ def _click_more_button(
     page: Page,
 ) -> bool:
     """
-    Tìm nút dấu ... thông qua SVG overflow
-    rồi click button cha chứa icon đó.
+    Click đúng nút dấu ... ở header profile.
+
+    DOM thực tế LinkedIn:
+    <button
+        type="button"
+        aria-label="More"
+        aria-expanded="false"
+    >
     """
 
-    try:
-        overflow_icon = (
-            page
-            .locator(
-                "svg#overflow-web-ios-small"
-            )
-            .first
-        )
+    selectors = (
+        "button[aria-label='More']",
+        "button[aria-label='More'][aria-expanded='false']",
+    )
 
-        if not overflow_icon.is_visible(
-            timeout=2000
-        ):
-            return False
-
-        button = overflow_icon.locator(
-            "xpath=ancestor::button[1]"
-        )
-
-        if not button.is_visible(
-            timeout=1500
-        ):
-            return False
-
-        button.click(
-            timeout=2000
-        )
-
-        return True
-
-    except Exception:
-        return False
+    return _click_first_visible(
+        page,
+        selectors,
+        timeout_ms=2500,
+    )
 
 def _click_connect_in_more_menu(
     page: Page,
