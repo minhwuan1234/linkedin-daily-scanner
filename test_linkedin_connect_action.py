@@ -7,7 +7,7 @@ from app.linkedin_connect_action import (
 
 
 TEST_LINKEDIN_URL = (
-    "PASTE_TEST_LINKEDIN_PROFILE_URL_HERE"
+    "https://www.linkedin.com/in/minh-quân-851170229/"
 )
 
 
