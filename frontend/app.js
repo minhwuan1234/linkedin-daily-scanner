@@ -204,7 +204,7 @@ const els = {
 
   closeDrawerButton:
     document.querySelector("#closeDrawerButton")
-}
+};
 
 const state = {
   profiles: [],
@@ -951,15 +951,6 @@ function renderYoutubeResearch() {
               channel.email_status ||
               "unavailable"
             );
-        if (els.outreachCurrentTargetCount) {
-  els.outreachCurrentTargetCount.textContent =
-    "0 profiles";
-}
-
-if (els.outreachCurrentTargets) {
-  els.outreachCurrentTargets.innerHTML =
-    "";
-}
 
         return `
           <tr>
@@ -1201,6 +1192,15 @@ function renderOutreachJob(job) {
       els.outreachJobBadge.className =
         "pill pill-neutral";
     }
+    if (els.outreachCurrentTargetCount) {
+  els.outreachCurrentTargetCount.textContent =
+    "0 profiles";
+}
+
+if (els.outreachCurrentTargets) {
+  els.outreachCurrentTargets.innerHTML =
+    "";
+}
 
     return;
   }
