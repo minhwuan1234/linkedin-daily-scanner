@@ -373,7 +373,7 @@ def create_connect_job(
             {
                 "job_type": "connect",
                 "job_code": job_code,
-                "status": "pending",
+                "status": "creating",
 
                 "input_count": input_count,
                 "target_count": 0,
@@ -553,6 +553,7 @@ def create_connect_job(
                 "target_count": target_count,
                 "duplicate_count": duplicate_count,
                 "invalid_count": invalid_count,
+                "status": "pending",
             }
         )
         .eq(
