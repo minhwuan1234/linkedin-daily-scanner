@@ -114,14 +114,13 @@ def normalize_linkedin_url(
         .lower()
         .strip()
     )
-
-    if host in {
-        "linkedin.com",
-        "www.linkedin.com",
-    }:
-        host = "www.linkedin.com"
-
-    if host != "www.linkedin.com":
+    
+    if (
+    host == "linkedin.com"
+        or host.endswith(".linkedin.com")
+    ):
+    host = "www.linkedin.com"
+        else:
         return ""
 
     path = (
