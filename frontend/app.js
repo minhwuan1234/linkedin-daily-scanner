@@ -175,6 +175,22 @@ const els = {
 
   outreachHistoryBody:
     document.querySelector("#outreachHistoryBody"),
+
+    // DRAWER
+  drawerBackdrop:
+    document.querySelector("#drawerBackdrop"),
+
+  detailDrawer:
+    document.querySelector("#detailDrawer"),
+
+  drawerName:
+    document.querySelector("#drawerName"),
+
+  drawerContent:
+    document.querySelector("#drawerContent"),
+
+  closeDrawerButton:
+    document.querySelector("#closeDrawerButton")
 }
 
 const state = {
