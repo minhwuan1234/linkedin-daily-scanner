@@ -469,15 +469,25 @@
     </section>
 
     <!-- OUTREACH -->
+<!-- OUTREACH -->
 <section id="tab-outreach" class="tab-panel" hidden>
+
+  <!-- TOP GRID -->
   <section class="outreach-grid">
 
     <!-- CONNECT INPUT -->
     <article class="panel outreach-launch-panel">
+
       <div class="panel-header">
         <div>
-          <p class="panel-kicker">LinkedIn Outreach</p>
-          <h2>Connect Profiles</h2>
+          <p class="panel-kicker">
+            LinkedIn Outreach
+          </p>
+
+          <h2>
+            Connect Profiles
+          </h2>
+
           <p class="panel-meta">
             Paste danh sách LinkedIn profile URLs.
             Mỗi lần submit sẽ tạo một Connect Job riêng.
@@ -492,12 +502,17 @@
         </span>
       </div>
 
+
       <form
         id="outreachConnectForm"
         class="outreach-connect-form"
       >
+
         <label class="outreach-url-field">
-          <span>LinkedIn Profile URLs</span>
+
+          <span>
+            LinkedIn Profile URLs
+          </span>
 
           <textarea
             id="outreachUrlInput"
@@ -506,9 +521,12 @@
             spellcheck="false"
             required
           ></textarea>
+
         </label>
 
+
         <div class="outreach-input-footer">
+
           <div>
             <strong id="outreachDetectedCount">
               0 URLs detected
@@ -519,28 +537,50 @@
             </p>
           </div>
 
+
           <button
             id="outreachStartButton"
             class="primary-button"
             type="submit"
           >
-            <span class="button-icon">▶</span>
+            <span class="button-icon">
+              ▶
+            </span>
+
             <span id="outreachStartButtonText">
               Start Connect
             </span>
           </button>
+
         </div>
+
       </form>
+
+
+      <p
+        id="outreachError"
+        class="outreach-error"
+        hidden
+      ></p>
+
     </article>
 
 
-    <!-- JOB RESULT -->
+    <!-- CURRENT JOB -->
     <article class="panel outreach-result-panel">
+
       <div class="panel-header">
+
         <div>
-          <p class="panel-kicker">Current job</p>
-          <h2>Connect Job</h2>
+          <p class="panel-kicker">
+            Current job
+          </p>
+
+          <h2>
+            Connect Job
+          </h2>
         </div>
+
 
         <span
           id="outreachJobCode"
@@ -548,66 +588,424 @@
         >
           Chưa có job
         </span>
+
       </div>
+
 
       <div
         id="outreachJobEmpty"
         class="outreach-job-empty"
       >
-        Submit một list LinkedIn URLs để tạo job.
+        Chưa có Connect Job.
       </div>
+
 
       <div
         id="outreachJobResult"
         class="outreach-job-result"
         hidden
       >
+
+        <!-- PROGRESS -->
+        <div class="outreach-progress-block">
+
+          <div class="outreach-progress-header">
+            <span>
+              Progress
+            </span>
+
+            <strong id="outreachProgressText">
+              0 / 0
+            </strong>
+          </div>
+
+
+          <div class="outreach-progress-track">
+
+            <div
+              id="outreachProgressBar"
+              class="outreach-progress-bar"
+              style="width: 0%"
+            ></div>
+
+          </div>
+
+
+          <span
+            id="outreachProgressPercent"
+            class="panel-meta"
+          >
+            0%
+          </span>
+
+        </div>
+
+
+        <!-- COUNTERS -->
         <div class="outreach-stat-grid">
 
           <div class="outreach-stat">
-            <span>Input</span>
-            <strong id="outreachInputCount">0</strong>
+            <span>
+              Input
+            </span>
+
+            <strong id="outreachInputCount">
+              0
+            </strong>
           </div>
 
-          <div class="outreach-stat">
-            <span>Ready</span>
-            <strong id="outreachReadyCount">0</strong>
-          </div>
 
           <div class="outreach-stat">
-            <span>Duplicate</span>
-            <strong id="outreachDuplicateCount">0</strong>
+            <span>
+              Ready
+            </span>
+
+            <strong id="outreachReadyCount">
+              0
+            </strong>
           </div>
 
+
           <div class="outreach-stat">
-            <span>Invalid</span>
-            <strong id="outreachInvalidCount">0</strong>
+            <span>
+              Processed
+            </span>
+
+            <strong id="outreachProcessedCount">
+              0
+            </strong>
+          </div>
+
+
+          <div class="outreach-stat">
+            <span>
+              Success
+            </span>
+
+            <strong id="outreachSuccessCount">
+              0
+            </strong>
+          </div>
+
+
+          <div class="outreach-stat">
+            <span>
+              Failed
+            </span>
+
+            <strong id="outreachFailedCount">
+              0
+            </strong>
+          </div>
+
+
+          <div class="outreach-stat">
+            <span>
+              Duplicate
+            </span>
+
+            <strong id="outreachDuplicateCount">
+              0
+            </strong>
+          </div>
+
+
+          <div class="outreach-stat">
+            <span>
+              Invalid
+            </span>
+
+            <strong id="outreachInvalidCount">
+              0
+            </strong>
           </div>
 
         </div>
 
+
+        <!-- STATUS -->
         <div class="outreach-job-status-row">
-          <span>Status</span>
+
+          <span>
+            Status
+          </span>
 
           <strong id="outreachJobStatus">
             Pending
           </strong>
+
         </div>
+
+
+        <!-- TIMES -->
+        <div class="outreach-job-meta-grid">
+
+          <div>
+            <span>
+              Created
+            </span>
+
+            <strong id="outreachCreatedAt">
+              —
+            </strong>
+          </div>
+
+
+          <div>
+            <span>
+              Started
+            </span>
+
+            <strong id="outreachStartedAt">
+              —
+            </strong>
+          </div>
+
+
+          <div>
+            <span>
+              Completed
+            </span>
+
+            <strong id="outreachCompletedAt">
+              —
+            </strong>
+          </div>
+
+        </div>
+
 
         <p
           id="outreachJobMessage"
           class="panel-meta"
         ></p>
+
+
+        <p
+          id="outreachLastError"
+          class="outreach-error"
+          hidden
+        ></p>
+
       </div>
 
-      <p
-        id="outreachError"
-        class="outreach-error"
-        hidden
-      ></p>
     </article>
 
   </section>
+
+
+  <!-- SCHEDULER -->
+  <section class="outreach-secondary-grid">
+
+    <article class="panel">
+
+      <div class="panel-header">
+
+        <div>
+          <p class="panel-kicker">
+            Scheduler
+          </p>
+
+          <h2>
+            Account Rotation
+          </h2>
+        </div>
+
+        <span
+          id="outreachSchedulerBadge"
+          class="pill pill-neutral"
+        >
+          —
+        </span>
+
+      </div>
+
+
+      <div class="outreach-scheduler-grid">
+
+        <div class="outreach-info-item">
+          <span>
+            Current account
+          </span>
+
+          <strong id="outreachCurrentAccount">
+            —
+          </strong>
+        </div>
+
+
+        <div class="outreach-info-item">
+          <span>
+            Used this turn
+          </span>
+
+          <strong id="outreachUsedTurn">
+            0 / 0
+          </strong>
+        </div>
+
+
+        <div class="outreach-info-item">
+          <span>
+            Remaining
+          </span>
+
+          <strong id="outreachRemainingTurn">
+            0
+          </strong>
+        </div>
+
+
+        <div class="outreach-info-item">
+          <span>
+            Scheduler updated
+          </span>
+
+          <strong id="outreachSchedulerUpdatedAt">
+            —
+          </strong>
+        </div>
+
+      </div>
+
+    </article>
+
+
+    <!-- ACCOUNTS -->
+    <article class="panel">
+
+      <div class="panel-header">
+
+        <div>
+          <p class="panel-kicker">
+            Outreach accounts
+          </p>
+
+          <h2>
+            Account Pool
+          </h2>
+        </div>
+
+        <span
+          id="outreachAccountCount"
+          class="panel-meta"
+        >
+          0 accounts
+        </span>
+
+      </div>
+
+
+      <div
+        id="outreachAccountsList"
+        class="outreach-accounts-list"
+      >
+        <div class="outreach-job-empty">
+          Chưa có dữ liệu account.
+        </div>
+      </div>
+
+    </article>
+
+  </section>
+
+
+  <!-- RECENT JOBS -->
+  <article class="panel outreach-history-panel">
+
+    <div class="panel-header">
+
+      <div>
+        <p class="panel-kicker">
+          History
+        </p>
+
+        <h2>
+          Recent Connect Jobs
+        </h2>
+      </div>
+
+
+      <span
+        id="outreachDashboardUpdatedAt"
+        class="panel-meta"
+      >
+        —
+      </span>
+
+    </div>
+
+
+    <div
+      id="outreachHistoryEmpty"
+      class="outreach-job-empty"
+    >
+      Chưa có Connect Job.
+    </div>
+
+
+    <div
+      id="outreachHistoryTableWrap"
+      class="table-wrap"
+      hidden
+    >
+
+      <table class="outreach-history-table">
+
+        <thead>
+          <tr>
+            <th>
+              Job
+            </th>
+
+            <th>
+              Status
+            </th>
+
+            <th>
+              Input
+            </th>
+
+            <th>
+              Ready
+            </th>
+
+            <th>
+              Processed
+            </th>
+
+            <th>
+              Success
+            </th>
+
+            <th>
+              Failed
+            </th>
+
+            <th>
+              Duplicate
+            </th>
+
+            <th>
+              Invalid
+            </th>
+
+            <th>
+              Created
+            </th>
+          </tr>
+        </thead>
+
+
+        <tbody id="outreachHistoryBody">
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </article>
+
 </section>
     
     <!-- HEALTH -->
