@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import signal
 import sys
+import time
 from dataclasses import dataclass
+from typing import Any
 
 from supabase import Client, create_client
 
 from app.linkedin_connect_action import (
     LinkedInConnectResult,
     connect_profile,
+)
+from app.outreach_job_queue import (
+    OutreachConnectJob,
+    OutreachJobQueue,
 )
 from app.outreach_result_store import (
     save_connect_result,
@@ -16,13 +23,14 @@ from app.outreach_scheduler import (
     OutreachScheduler,
 )
 from app.settings import (
+    Settings,
     load_settings,
 )
 
 
-JOB_TABLE = "outreach_jobs"
 TARGET_TABLE = "outreach_job_targets"
-PROSPECT_TABLE = "outreach_prospects"
+
+IDLE_POLL_SECONDS = 10
 
 
 # =========================================================
@@ -43,53 +51,14 @@ class OutreachTarget:
 # =========================================================
 
 
-def get_client() -> Client:
-    settings = load_settings()
-
+def get_client(
+    *,
+    settings: Settings,
+) -> Client:
     return create_client(
         settings.outreach_supabase_url,
         settings.outreach_supabase_secret_key,
     )
-
-
-# =========================================================
-# LOAD JOB
-# =========================================================
-
-
-def load_job_by_code(
-    *,
-    client: Client,
-    job_code: str,
-) -> dict:
-    response = (
-        client.table(
-            JOB_TABLE
-        )
-        .select("*")
-        .eq(
-            "job_code",
-            job_code,
-        )
-        .limit(1)
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    if not rows:
-        raise RuntimeError(
-            f"Job not found: {job_code}"
-        )
-
-    return rows[0]
 
 
 # =========================================================
@@ -103,7 +72,7 @@ def load_pending_targets(
     job_id: str,
 ) -> list[OutreachTarget]:
     """
-    Chỉ lấy target thuộc đúng job user chọn
+    Chỉ lấy target thuộc đúng job đang chạy
     và chưa được worker xử lý.
     """
 
@@ -184,33 +153,6 @@ def load_pending_targets(
 
 
 # =========================================================
-# JOB STATUS
-# =========================================================
-
-
-def mark_job_running(
-    *,
-    client: Client,
-    job_id: str,
-) -> None:
-    (
-        client.table(
-            JOB_TABLE
-        )
-        .update(
-            {
-                "status": "running",
-            }
-        )
-        .eq(
-            "id",
-            job_id,
-        )
-        .execute()
-    )
-
-
-# =========================================================
 # PROCESS ONE ACCOUNT TURN
 # =========================================================
 
@@ -224,6 +166,15 @@ def process_account_turn(
     """
     Xử lý tối đa quota còn lại
     của account hiện tại.
+
+    Ví dụ:
+
+    account_01 đang 7/10
+    còn 3 slots
+
+    Nếu job còn 8 targets:
+        account_01 xử lý 3
+        sau đó scheduler chuyển account tiếp theo.
 
     Return:
         số target đã xử lý.
@@ -257,19 +208,20 @@ def process_account_turn(
     print("=" * 60)
 
     print(
-        f"Account: "
-        f"{account.account_id}"
+        "Account:",
+        account.account_id,
     )
 
     print(
-        "Used before: "
+        "Used before:",
         f"{turn.used_in_current_turn}"
         "/"
-        f"{turn.turn_limit}"
+        f"{turn.turn_limit}",
     )
 
     print(
-        f"Batch size: {len(batch)}"
+        "Batch size:",
+        len(batch),
     )
 
     browser = (
@@ -294,8 +246,13 @@ def process_account_turn(
             )
 
             print(
-                f"URL: {target.linkedin_url}"
+                "URL:",
+                target.linkedin_url,
             )
+
+            # ---------------------------------------------
+            # CONNECT
+            # ---------------------------------------------
 
             try:
                 result = connect_profile(
@@ -318,6 +275,10 @@ def process_account_turn(
                         f"{exc}"
                     ),
                 )
+
+            # ---------------------------------------------
+            # SAVE RESULT
+            # ---------------------------------------------
 
             success = (
                 save_connect_result(
@@ -368,170 +329,434 @@ def process_account_turn(
             )
 
     finally:
-        browser.stop()
+        try:
+            browser.stop()
+
+        except Exception as exc:
+            print(
+                "Could not close browser:",
+                (
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
+                file=sys.stderr,
+            )
 
     return processed
 
 
 # =========================================================
-# RUN ONE JOB
+# CONNECT WORKER
 # =========================================================
 
 
-def run_connect_job(
-    *,
-    job_code: str,
-) -> None:
-    settings = load_settings()
+class OutreachConnectWorker:
+    """
+    Worker LinkedIn Outreach Connect chạy thường trực.
 
-    client = get_client()
+    Flow:
 
-    scheduler = OutreachScheduler(
-        settings=settings
-    )
+    idle
+    -> check Outreach Supabase
+    -> claim Connect job pending
+    -> status = running
+    -> process targets
+    -> status = completed
+    -> idle
 
-    # -----------------------------------------------------
-    # LOAD JOB
-    # -----------------------------------------------------
+    Nếu không có job:
+        sleep 10 giây
+        rồi check lại.
+    """
 
-    job = load_job_by_code(
-        client=client,
-        job_code=job_code,
-    )
+    def __init__(
+        self,
+        *,
+        settings: Settings,
+    ) -> None:
+        self.settings = settings
 
-    job_id = str(
-        job["id"]
-    )
+        self.client = get_client(
+            settings=settings
+        )
 
-    print("")
-    print("=" * 60)
-    print("OUTREACH CONNECT JOB")
-    print("=" * 60)
+        self.queue = OutreachJobQueue(
+            settings=settings
+        )
 
-    print(
-        f"job_code: {job_code}"
-    )
+        self.scheduler = OutreachScheduler(
+            settings=settings
+        )
 
-    print(
-        f"job_id: {job_id}"
-    )
+        self._stop_requested = False
 
-    print(
-        "input_count:",
-        job.get(
-            "input_count",
-            0,
-        ),
-    )
+    # =====================================================
+    # RUN FOREVER
+    # =====================================================
 
-    print(
-        "target_count:",
-        job.get(
-            "target_count",
-            0,
-        ),
-    )
+    def run_forever(
+        self,
+    ) -> int:
+        self._register_signal_handlers()
 
-    print(
-        "duplicate_count:",
-        job.get(
-            "duplicate_count",
-            0,
-        ),
-    )
+        print("")
+        print("=" * 60)
+        print("OUTREACH CONNECT WORKER")
+        print("=" * 60)
 
-    # -----------------------------------------------------
-    # LOAD TARGETS
-    # -----------------------------------------------------
-
-    targets = load_pending_targets(
-        client=client,
-        job_id=job_id,
-    )
-
-    print(
-        "pending targets:",
-        len(targets),
-    )
-
-    if not targets:
         print(
-            "Nothing to process."
-        )
-        return
-
-    mark_job_running(
-        client=client,
-        job_id=job_id,
-    )
-
-    # -----------------------------------------------------
-    # RUN
-    # -----------------------------------------------------
-
-    offset = 0
-
-    while offset < len(
-        targets
-    ):
-        remaining_targets = (
-            targets[offset:]
+            "Status: idle"
         )
 
-        processed = (
-            process_account_turn(
-                client=client,
-                scheduler=scheduler,
-                targets=(
-                    remaining_targets
+        print(
+            "Poll interval:",
+            f"{IDLE_POLL_SECONDS}s",
+        )
+
+        print(
+            "Press Ctrl+C to stop."
+        )
+
+        try:
+            while not self._stop_requested:
+                # -----------------------------------------
+                # CLAIM NEXT JOB
+                # -----------------------------------------
+
+                job = (
+                    self._claim_next_job_safely()
+                )
+
+                if job is None:
+                    self._sleep_interruptibly(
+                        IDLE_POLL_SECONDS
+                    )
+                    continue
+
+                # -----------------------------------------
+                # PROCESS JOB
+                # -----------------------------------------
+
+                self._process_job(
+                    job
+                )
+
+            return 0
+
+        except KeyboardInterrupt:
+            self.request_stop()
+            return 0
+
+        finally:
+            print("")
+            print(
+                "Outreach Connect Worker stopped."
+            )
+
+    # =====================================================
+    # CLAIM
+    # =====================================================
+
+    def _claim_next_job_safely(
+        self,
+    ) -> OutreachConnectJob | None:
+        try:
+            return (
+                self.queue
+                .claim_next_job()
+            )
+
+        except Exception as exc:
+            print(
+                (
+                    "Could not claim Outreach job: "
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
                 ),
-            )
-        )
-
-        if processed <= 0:
-            raise RuntimeError(
-                "Worker made no progress."
+                file=sys.stderr,
             )
 
-        offset += processed
+            return None
 
-    print("")
-    print("=" * 60)
-    print("JOB FINISHED")
-    print("=" * 60)
+    # =====================================================
+    # PROCESS ONE JOB
+    # =====================================================
 
-    print(
-        f"Processed this run: "
-        f"{offset}"
-    )
+    def _process_job(
+        self,
+        job: OutreachConnectJob,
+    ) -> None:
+        print("")
+        print("=" * 60)
+        print("OUTREACH CONNECT JOB CLAIMED")
+        print("=" * 60)
 
-
-# =========================================================
-# CLI
-# =========================================================
-
-
-def main() -> None:
-    if len(sys.argv) < 2:
         print(
-            "Usage:"
+            "job_code:",
+            job.job_code,
         )
 
         print(
-            "python3 outreach_connect_worker.py "
-            "<job_code>"
+            "job_id:",
+            job.id,
         )
 
-        raise SystemExit(1)
+        print(
+            "input_count:",
+            job.input_count,
+        )
 
-    job_code = str(
-        sys.argv[1]
-    ).strip()
+        print(
+            "target_count:",
+            job.target_count,
+        )
 
-    run_connect_job(
-        job_code=job_code
-    )
+        print(
+            "duplicate_count:",
+            job.duplicate_count,
+        )
+
+        try:
+            # ---------------------------------------------
+            # LOAD TARGETS
+            # ---------------------------------------------
+
+            targets = load_pending_targets(
+                client=self.client,
+                job_id=job.id,
+            )
+
+            print(
+                "pending targets:",
+                len(targets),
+            )
+
+            # ---------------------------------------------
+            # EMPTY JOB
+            # ---------------------------------------------
+
+            if not targets:
+                print(
+                    "Nothing to process."
+                )
+
+                self.queue.complete_job(
+                    job_id=job.id,
+                )
+
+                print(
+                    "Job completed."
+                )
+
+                return
+
+            # ---------------------------------------------
+            # PROCESS TARGETS
+            # ---------------------------------------------
+
+            offset = 0
+
+            while (
+                offset < len(targets)
+                and not self._stop_requested
+            ):
+                remaining_targets = (
+                    targets[offset:]
+                )
+
+                processed = (
+                    process_account_turn(
+                        client=self.client,
+                        scheduler=self.scheduler,
+                        targets=(
+                            remaining_targets
+                        ),
+                    )
+                )
+
+                if processed <= 0:
+                    raise RuntimeError(
+                        "Worker made no progress."
+                    )
+
+                offset += processed
+
+                print("")
+                print(
+                    "Job progress:",
+                    f"{offset}/{len(targets)}",
+                )
+
+            # ---------------------------------------------
+            # STOP REQUESTED
+            # ---------------------------------------------
+
+            if self._stop_requested:
+                raise RuntimeError(
+                    "Worker stop requested "
+                    "before job completed."
+                )
+
+            # ---------------------------------------------
+            # COMPLETE
+            # ---------------------------------------------
+
+            self.queue.complete_job(
+                job_id=job.id,
+            )
+
+            print("")
+            print("=" * 60)
+            print("JOB FINISHED")
+            print("=" * 60)
+
+            print(
+                "job_code:",
+                job.job_code,
+            )
+
+            print(
+                "Processed this run:",
+                offset,
+            )
+
+        except Exception as exc:
+            error_message = (
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            )
+
+            print(
+                (
+                    "Outreach job failed: "
+                    f"{error_message}"
+                ),
+                file=sys.stderr,
+            )
+
+            # ---------------------------------------------
+            # JOB-LEVEL FAILURE
+            # ---------------------------------------------
+            #
+            # Đây chỉ dùng khi cả worker/job bị lỗi.
+            #
+            # Một profile timeout / 404 / unavailable
+            # không vào đây vì process_account_turn()
+            # đã convert thành profile FAILED và
+            # tiếp tục profile tiếp theo.
+            #
+
+            try:
+                self.queue.fail_job(
+                    job_id=job.id,
+                    error_message=(
+                        error_message
+                    ),
+                )
+
+            except Exception as queue_exc:
+                print(
+                    (
+                        "Could not mark job failed: "
+                        f"{type(queue_exc).__name__}: "
+                        f"{queue_exc}"
+                    ),
+                    file=sys.stderr,
+                )
+
+    # =====================================================
+    # STOP
+    # =====================================================
+
+    def request_stop(
+        self,
+        signum: int | None = None,
+        frame: Any = None,
+    ) -> None:
+        del frame
+
+        self._stop_requested = True
+
+        print("")
+
+        if signum is not None:
+            print(
+                "Stop signal received:",
+                signum,
+            )
+
+        print(
+            "Outreach worker will stop safely."
+        )
+
+    def _register_signal_handlers(
+        self,
+    ) -> None:
+        signal.signal(
+            signal.SIGINT,
+            self.request_stop,
+        )
+
+        if hasattr(
+            signal,
+            "SIGTERM",
+        ):
+            signal.signal(
+                signal.SIGTERM,
+                self.request_stop,
+            )
+
+    # =====================================================
+    # IDLE WAIT
+    # =====================================================
+
+    def _sleep_interruptibly(
+        self,
+        seconds: int,
+    ) -> None:
+        remaining = max(
+            0,
+            int(seconds),
+        )
+
+        while (
+            remaining > 0
+            and not self._stop_requested
+        ):
+            time.sleep(1)
+            remaining -= 1
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+
+def main() -> int:
+    try:
+        settings = load_settings()
+
+        worker = OutreachConnectWorker(
+            settings=settings
+        )
+
+        return worker.run_forever()
+
+    except Exception as exc:
+        print(
+            (
+                "Could not start Outreach "
+                "Connect Worker: "
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            ),
+            file=sys.stderr,
+        )
+
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(
+        main()
+    )
