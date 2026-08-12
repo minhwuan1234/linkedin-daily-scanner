@@ -147,6 +147,12 @@ const els = {
   outreachLastError:
     document.querySelector("#outreachLastError"),
 
+  outreachCurrentTargets:
+  document.querySelector("#outreachCurrentTargets"),
+
+  outreachCurrentTargetCount:
+  document.querySelector("#outreachCurrentTargetCount"),
+
   outreachError:
     document.querySelector("#outreachError"),
 
@@ -945,6 +951,15 @@ function renderYoutubeResearch() {
               channel.email_status ||
               "unavailable"
             );
+        if (els.outreachCurrentTargetCount) {
+  els.outreachCurrentTargetCount.textContent =
+    "0 profiles";
+}
+
+if (els.outreachCurrentTargets) {
+  els.outreachCurrentTargets.innerHTML =
+    "";
+}
 
         return `
           <tr>
@@ -1342,6 +1357,23 @@ function renderOutreachJob(job) {
     els.outreachLastError.textContent =
       lastError;
   }
+    const targets = Array.isArray(
+    job.targets
+  )
+    ? job.targets
+    : [];
+
+  if (els.outreachCurrentTargetCount) {
+    els.outreachCurrentTargetCount.textContent =
+      `${targets.length} profiles`;
+  }
+
+  if (els.outreachCurrentTargets) {
+    els.outreachCurrentTargets.innerHTML =
+      renderOutreachTargetRows(
+        targets
+      );
+  }
 }
 
 
@@ -1441,7 +1473,225 @@ function renderOutreachScheduler(
 // ---------------------------------------------------------
 // ACCOUNTS
 // ---------------------------------------------------------
+function getOutreachTargetPillClass(
+  status
+) {
+  const normalized = String(
+    status || ""
+  ).toLowerCase();
 
+  if (
+    normalized === "completed" ||
+    normalized === "invitation_sent" ||
+    normalized === "already_connected"
+  ) {
+    return "pill-green";
+  }
+
+  if (normalized === "failed") {
+    return "pill-red";
+  }
+
+  if (normalized === "running") {
+    return "pill-purple";
+  }
+
+  if (normalized === "pending") {
+    return "pill-amber";
+  }
+
+  return "pill-neutral";
+}
+
+
+function renderOutreachTargetRows(
+  targets
+) {
+  const rows = Array.isArray(targets)
+    ? targets
+    : [];
+
+  if (!rows.length) {
+    return `
+      <div class="outreach-job-empty outreach-target-empty">
+        Chưa có profile target.
+      </div>
+    `;
+  }
+
+  return rows
+    .map((target, index) => {
+      const targetStatus = String(
+        target.target_status || "pending"
+      );
+
+      const connectStatus = String(
+        target.connect_status || "pending"
+      );
+
+      const error = String(
+        target.last_error || ""
+      ).trim();
+
+      const linkedinUrl = String(
+        target.linkedin_url || ""
+      );
+
+      const normalizedUrl = String(
+        target.normalized_url || ""
+      );
+
+      return `
+        <div class="outreach-target-card">
+
+          <div class="outreach-target-main">
+
+            <div class="outreach-target-index">
+              ${index + 1}
+            </div>
+
+            <div class="outreach-target-url-block">
+
+              <a
+                class="outreach-target-url"
+                href="${escapeHtml(linkedinUrl)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ${escapeHtml(linkedinUrl || "—")}
+              </a>
+
+              ${
+                normalizedUrl &&
+                normalizedUrl !== linkedinUrl
+                  ? `
+                    <span class="outreach-target-normalized">
+                      ${escapeHtml(normalizedUrl)}
+                    </span>
+                  `
+                  : ""
+              }
+
+            </div>
+
+            <div class="outreach-target-statuses">
+
+              <span class="pill ${getOutreachTargetPillClass(targetStatus)}">
+                ${escapeHtml(targetStatus)}
+              </span>
+
+              <span class="pill ${getOutreachTargetPillClass(connectStatus)}">
+                ${escapeHtml(connectStatus)}
+              </span>
+
+            </div>
+
+          </div>
+
+
+          <div class="outreach-target-meta">
+
+            <div>
+              <span>
+                Account
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  target.assigned_account_id || "—"
+                )}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Retry
+              </span>
+
+              <strong>
+                ${Number(
+                  target.retry_count || 0
+                )}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Last attempt
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  formatDate(
+                    target.last_connect_attempt_at
+                  )
+                )}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Completed
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  formatDate(
+                    target.completed_at
+                  )
+                )}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Accepted
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  formatDate(
+                    target.accepted_at
+                  )
+                )}
+              </strong>
+            </div>
+
+
+            <div>
+              <span>
+                Message
+              </span>
+
+              <strong>
+                ${escapeHtml(
+                  target.message_status || "—"
+                )}
+              </strong>
+            </div>
+
+          </div>
+
+
+          ${
+            error
+              ? `
+                <div class="outreach-target-error">
+                  ${escapeHtml(error)}
+                </div>
+              `
+              : ""
+          }
+
+        </div>
+      `;
+    })
+    .join("");
+}
 
 function renderOutreachAccounts(
   accounts
@@ -1483,19 +1733,68 @@ function renderOutreachAccounts(
             account.status || "unknown"
           );
 
-        const profileDirectory =
-          escapeHtml(
-            account.profile_directory || "—"
+        const current =
+          Boolean(
+            account.is_current_account
           );
 
+        const used =
+          Number(
+            account.used_in_current_turn || 0
+          );
+
+        const limit =
+          Number(
+            account.turn_limit || 0
+          );
+
+        const remaining =
+          Number(
+            account.remaining_in_current_turn || 0
+          );
+
+        const assigned =
+          Number(
+            account.total_assigned || 0
+          );
+
+        const completed =
+          Number(
+            account.completed_count || 0
+          );
+
+        const failed =
+          Number(
+            account.failed_count || 0
+          );
+
+        const lastError = String(
+          account.last_error || ""
+        ).trim();
+
         return `
-          <div class="outreach-account-card">
+          <div class="
+            outreach-account-card
+            ${current ? "is-current" : ""}
+          ">
 
             <div class="outreach-account-card-header">
 
-              <strong>
-                ${accountId}
-              </strong>
+              <div>
+                <strong>
+                  ${accountId}
+                </strong>
+
+                ${
+                  current
+                    ? `
+                      <span class="outreach-current-label">
+                        Current
+                      </span>
+                    `
+                    : ""
+                }
+              </div>
 
               <span class="pill pill-neutral">
                 ${status}
@@ -1503,9 +1802,134 @@ function renderOutreachAccounts(
 
             </div>
 
-            <span class="panel-meta">
-              ${profileDirectory}
-            </span>
+
+            <div class="outreach-account-quota">
+
+              <div>
+                <span>
+                  Turn
+                </span>
+
+                <strong>
+                  ${used} / ${limit}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Remaining
+                </span>
+
+                <strong>
+                  ${remaining}
+                </strong>
+              </div>
+
+            </div>
+
+
+            <div class="outreach-account-stats">
+
+              <div>
+                <span>
+                  Assigned
+                </span>
+
+                <strong>
+                  ${assigned}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Success
+                </span>
+
+                <strong>
+                  ${completed}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Failed
+                </span>
+
+                <strong>
+                  ${failed}
+                </strong>
+              </div>
+
+            </div>
+
+
+            <div class="outreach-account-last">
+
+              <div>
+                <span>
+                  Last job
+                </span>
+
+                <strong>
+                  ${escapeHtml(
+                    account.last_job_code || "—"
+                  )}
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Last used
+                </span>
+
+                <strong>
+                  ${escapeHtml(
+                    formatDate(
+                      account.last_used_at
+                    )
+                  )}
+                </strong>
+              </div>
+
+
+              <div>
+                <span>
+                  Last URL
+                </span>
+
+                ${
+                  account.last_linkedin_url
+                    ? `
+                      <a
+                        href="${escapeHtml(account.last_linkedin_url)}"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        ${escapeHtml(account.last_linkedin_url)}
+                      </a>
+                    `
+                    : `
+                      <strong>
+                        —
+                      </strong>
+                    `
+                }
+
+              </div>
+
+            </div>
+
+
+            ${
+              lastError
+                ? `
+                  <div class="outreach-target-error">
+                    ${escapeHtml(lastError)}
+                  </div>
+                `
+                : ""
+            }
 
           </div>
         `;
@@ -1549,23 +1973,47 @@ function renderOutreachHistory(
 
   els.outreachHistoryBody.innerHTML =
     rows
-      .map((job) => {
+      .map((job, index) => {
         const status = String(
           job.status || ""
         ).toLowerCase();
 
+        const targets = Array.isArray(
+          job.targets
+        )
+          ? job.targets
+          : [];
+
+        const detailId =
+          `outreach-job-detail-${index}`;
+
         return `
-          <tr>
+          <tr class="outreach-history-main-row">
 
             <td>
               <strong>
-                ${escapeHtml(job.job_code || "—")}
+                ${escapeHtml(
+                  job.job_code || "—"
+                )}
               </strong>
+
+              <button
+                type="button"
+                class="outreach-history-expand"
+                data-target="${detailId}"
+              >
+                ${targets.length} profiles
+                <span>
+                  ▾
+                </span>
+              </button>
             </td>
 
             <td>
               <span class="pill ${getOutreachPillClass(status)}">
-                ${escapeHtml(statusLabel(status))}
+                ${escapeHtml(
+                  statusLabel(status)
+                )}
               </span>
             </td>
 
@@ -1604,9 +2052,89 @@ function renderOutreachHistory(
             </td>
 
           </tr>
+
+
+          <tr
+            id="${detailId}"
+            class="outreach-history-detail-row"
+            hidden
+          >
+            <td colspan="10">
+
+              <div class="outreach-history-detail">
+
+                <div class="outreach-history-detail-header">
+
+                  <strong>
+                    ${escapeHtml(
+                      job.job_code || "—"
+                    )}
+                  </strong>
+
+                  <span class="panel-meta">
+                    ${targets.length} profiles
+                  </span>
+
+                </div>
+
+                ${renderOutreachTargetRows(
+                  targets
+                )}
+
+              </div>
+
+            </td>
+          </tr>
         `;
       })
       .join("");
+
+
+  els.outreachHistoryBody
+    .querySelectorAll(
+      ".outreach-history-expand"
+    )
+    .forEach((button) => {
+      button.addEventListener(
+        "click",
+        () => {
+          const targetId =
+            button.dataset.target;
+
+          const detail =
+            document.getElementById(
+              targetId
+            );
+
+          if (!detail) {
+            return;
+          }
+
+          const willOpen =
+            detail.hidden;
+
+          detail.hidden =
+            !willOpen;
+
+          button.classList.toggle(
+            "is-open",
+            willOpen
+          );
+
+          const arrow =
+            button.querySelector(
+              "span"
+            );
+
+          if (arrow) {
+            arrow.textContent =
+              willOpen
+                ? "▴"
+                : "▾";
+          }
+        }
+      );
+    });
 }
 
 
