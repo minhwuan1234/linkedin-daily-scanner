@@ -584,145 +584,141 @@ def _click_more_button(
     deadline: float,
 ) -> bool:
     """
-    Click nút More trong profile header.
+    Tìm và click đúng button More
+    trong profile header.
 
-    DOM hiện tại của LinkedIn có thể là:
+    DOM thực tế:
 
-    <button aria-expanded="false">
+    <button ...>
         <span>
             <span>More</span>
         </span>
     </button>
-
-    Không nhất thiết có aria-label="More".
     """
 
     _check_deadline(
         deadline
     )
 
-    selectors = (
-        "button:has-text('More')",
-        "button[aria-expanded='false']:has-text('More')",
-        "button[aria-expanded='true']:has-text('More')",
-        "button[aria-label='More']",
-        "button[aria-label*='More']",
-    )
-
-    viewport = page.viewport_size
-
-    if viewport:
-        max_x = (
-            viewport["width"]
-            * 0.78
-        )
-    else:
-        max_x = 1050
-
-    valid_candidates = []
-
     try:
-        for selector in selectors:
+        # Tìm text More chính xác trước.
+        more_texts = (
+            page
+            .get_by_text(
+                "More",
+                exact=True,
+            )
+        )
+
+        count = (
+            more_texts.count()
+        )
+
+        valid_buttons = []
+
+        for index in range(
+            count
+        ):
             _check_deadline(
                 deadline
             )
 
-            candidates = (
-                page.locator(
-                    selector
+            text_node = (
+                more_texts.nth(
+                    index
                 )
             )
 
-            count = candidates.count()
-
-            for index in range(
-                count
-            ):
-                _check_deadline(
-                    deadline
+            try:
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=300,
                 )
 
-                button = (
-                    candidates
-                    .nth(index)
-                )
-
-                try:
-                    timeout = _remaining_ms(
-                        deadline,
-                        maximum_ms=250,
-                    )
-
-                    if not button.is_visible(
-                        timeout=timeout
-                    ):
-                        continue
-
-                    box = (
-                        button
-                        .bounding_box()
-                    )
-
-                    if not box:
-                        continue
-
-                    x = box["x"]
-                    y = box["y"]
-
-                    text = (
-                        button
-                        .inner_text()
-                        .strip()
-                    )
-
-                    print(
-                        "MORE candidate:",
-                        "selector=",
-                        selector,
-                        "text=",
-                        text,
-                        "x=",
-                        x,
-                        "y=",
-                        y,
-                    )
-
-                    # Chỉ nút More nằm trong
-                    # khu vực profile header.
-                    if y > 650:
-                        continue
-
-                    # Tránh sidebar phải.
-                    if x > max_x:
-                        continue
-
-                    # Chỉ nhận đúng button
-                    # có text More.
-                    if text.lower() != "more":
-                        continue
-
-                    valid_candidates.append(
-                        (
-                            y,
-                            x,
-                            button,
-                        )
-                    )
-
-                except LinkedInProfileActionTimeout:
-                    raise
-
-                except Exception:
+                if not text_node.is_visible(
+                    timeout=timeout
+                ):
                     continue
 
-        if not valid_candidates:
+                # Leo từ span More lên button cha.
+                button = (
+                    text_node.locator(
+                        "xpath=ancestor::button[1]"
+                    )
+                )
+
+                if button.count() == 0:
+                    continue
+
+                if not button.is_visible(
+                    timeout=timeout
+                ):
+                    continue
+
+                box = (
+                    button.bounding_box()
+                )
+
+                if not box:
+                    continue
+
+                x = box["x"]
+                y = box["y"]
+
+                text = (
+                    button
+                    .inner_text()
+                    .strip()
+                )
+
+                print(
+                    "MORE exact candidate:",
+                    "text=",
+                    repr(text),
+                    "x=",
+                    x,
+                    "y=",
+                    y,
+                )
+
+                # More của profile header
+                if y > 650:
+                    continue
+
+                # Chính xác button More
+                if text.lower() != "more":
+                    continue
+
+                valid_buttons.append(
+                    (
+                        y,
+                        x,
+                        button,
+                    )
+                )
+
+            except LinkedInProfileActionTimeout:
+                raise
+
+            except Exception as exc:
+                print(
+                    "MORE candidate skipped:",
+                    f"{type(exc).__name__}: {exc}",
+                )
+
+                continue
+
+        if not valid_buttons:
             print(
-                "No header More button found."
+                "No exact More button "
+                "found in profile header."
             )
 
             return False
 
-        valid_candidates.sort(
+        # Nút cao nhất trên profile
+        # được ưu tiên.
+        valid_buttons.sort(
             key=lambda item: (
                 item[0],
                 item[1],
@@ -730,7 +726,7 @@ def _click_more_button(
         )
 
         y, x, button = (
-            valid_candidates[0]
+            valid_buttons[0]
         )
 
         print(
@@ -741,75 +737,38 @@ def _click_more_button(
             y,
         )
 
-        before = (
-            button.get_attribute(
-                "aria-expanded"
-            )
+        # Click chính button DOM cha.
+        button.evaluate(
+            """
+            (element) => {
+                element.scrollIntoView({
+                    block: 'center',
+                    inline: 'center'
+                });
+
+                element.click();
+            }
+            """
         )
 
         print(
-            "MORE before:",
-            before,
+            "MORE clicked."
         )
 
-        # DOM click vì LinkedIn
-        # đôi lúc có overlay.
-        button.evaluate(
-            "(element) => element.click()"
-        )
-
+        # Cho menu thời gian render.
         timeout = _remaining_ms(
             deadline,
-            maximum_ms=500,
+            maximum_ms=700,
         )
 
         page.wait_for_timeout(
             min(
                 timeout,
-                500,
+                700,
             )
         )
 
-        after = (
-            button.get_attribute(
-                "aria-expanded"
-            )
-        )
-
-        print(
-            "MORE after:",
-            after,
-        )
-
-        # Trường hợp chuẩn:
-        # false -> true
-        if after == "true":
-            return True
-
-        # Một số version không update
-        # aria-expanded ngay, check menu.
-        menu_connect_selectors = (
-            "a[href*='/preload/custom-invite/']",
-            "[role='menuitem']:has-text('Connect')",
-            "button:has-text('Connect')",
-            "li:has-text('Connect')",
-        )
-
-        for selector in menu_connect_selectors:
-            if _is_visible(
-                page,
-                selector,
-                deadline=deadline,
-                maximum_ms=300,
-            ):
-                print(
-                    "More menu detected "
-                    "via Connect item."
-                )
-
-                return True
-
-        return False
+        return True
 
     except LinkedInProfileActionTimeout:
         raise
