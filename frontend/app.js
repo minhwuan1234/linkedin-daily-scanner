@@ -39,7 +39,8 @@ const els = {
   queueEmptyState: document.querySelector("#queueEmptyState"),
   queueTableWrap: document.querySelector("#queueTableWrap"),
   queueTableBody: document.querySelector("#queueTableBody"),
-
+  accountsGrid: document.querySelector("#accountsGrid"),
+  
   youtubeTabCount: document.querySelector("#youtubeTabCount"),
   youtubeResearchForm: document.querySelector("#youtubeResearchForm"),
   youtubeKeywordInput: document.querySelector("#youtubeKeywordInput"),
@@ -61,8 +62,7 @@ const els = {
   youtubeEmptyState: document.querySelector("#youtubeEmptyState"),
   youtubeTableWrap: document.querySelector("#youtubeTableWrap"),
   youtubeTableBody: document.querySelector("#youtubeTableBody"),
-
-    youtubeTableBody: document.querySelector("#youtubeTableBody"),
+  youtubeTableBody: document.querySelector("#youtubeTableBody"),
 
     // OUTREACH
   outreachConnectForm:
