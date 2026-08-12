@@ -1077,7 +1077,7 @@ function parseOutreachUrls() {
   );
 
   const matches = rawText.match(
-    /https?:\/\/(?:www\.)?linkedin\.com\/in\/[^\s,;]+/gi
+    /https?:\/\/(?:[a-z0-9-]+\.)?linkedin\.com\/in\/[^\s,;]+/gi
   );
 
   if (!matches) {
