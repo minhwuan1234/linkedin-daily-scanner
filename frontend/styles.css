@@ -2652,3 +2652,42 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 }
+
+.outreach-current-targets-toggle {
+  width: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+
+  padding: 12px 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+
+  background: var(--bg-soft);
+
+  color: var(--text);
+
+  cursor: pointer;
+}
+
+.outreach-current-targets-toggle span,
+.outreach-current-targets-toggle strong {
+  font-size: 11px;
+}
+
+.outreach-current-targets-toggle strong {
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.outreach-target-list[hidden] {
+  display: none;
+}
+
+.outreach-target-list {
+  margin-top: 10px;
+}
