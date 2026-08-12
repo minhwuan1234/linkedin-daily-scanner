@@ -192,6 +192,11 @@ const state = {
   youtubeRealtimeReloadTimer: null,
   outreachSubmitting: false,
   outreachCurrentJob: null,
+  outreachScheduler: null,
+  outreachAccounts: [],
+  outreachRecentJobs: [],
+  outreachPollTimer: null,
+  outreachDashboardLoading: false,
   tableErrors: {},
   tableErrors: {},
   commandPending: false
