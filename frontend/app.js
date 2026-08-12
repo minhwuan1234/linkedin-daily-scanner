@@ -1076,12 +1076,22 @@ function parseOutreachUrls() {
     els.outreachUrlInput?.value || ""
   );
 
-  return rawText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
+  const matches = rawText.match(
+    /https?:\/\/(?:www\.)?linkedin\.com\/in\/[^\s,;]+/gi
+  );
+
+  if (!matches) {
+    return [];
+  }
+
+  return matches
+    .map((url) =>
+      url
+        .trim()
+        .replace(/[),.;]+$/g, "")
+    )
     .filter(Boolean);
 }
-
 
 function updateOutreachDetectedCount() {
   const urls = parseOutreachUrls();
