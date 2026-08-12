@@ -40,6 +40,14 @@ const els = {
   queueTableWrap: document.querySelector("#queueTableWrap"),
   queueTableBody: document.querySelector("#queueTableBody"),
   accountsGrid: document.querySelector("#accountsGrid"),
+
+  healthOverallBadge: document.querySelector("#healthOverallBadge"),
+  healthServiceList: document.querySelector("#healthServiceList"),
+  workerDetailGrid: document.querySelector("#workerDetailGrid"),
+  healthHeartbeatAge: document.querySelector("#healthHeartbeatAge"),
+  healthStaleJobs: document.querySelector("#healthStaleJobs"),
+  healthUnsentLark: document.querySelector("#healthUnsentLark"),
+  healthNeedsLogin: document.querySelector("#healthNeedsLogin"),
   
   youtubeTabCount: document.querySelector("#youtubeTabCount"),
   youtubeResearchForm: document.querySelector("#youtubeResearchForm"),
@@ -61,7 +69,6 @@ const els = {
   youtubeSortSelect: document.querySelector("#youtubeSortSelect"),
   youtubeEmptyState: document.querySelector("#youtubeEmptyState"),
   youtubeTableWrap: document.querySelector("#youtubeTableWrap"),
-  youtubeTableBody: document.querySelector("#youtubeTableBody"),
   youtubeTableBody: document.querySelector("#youtubeTableBody"),
 
     // OUTREACH
