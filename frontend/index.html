@@ -86,7 +86,11 @@
       <button class="tab-button" type="button" data-tab="youtube">
         YouTube Research
         <span id="youtubeTabCount" class="tab-count">0</span>
-      </button>
+      </button
+
+        <button class="tab-button" type="button" data-tab="outreach">
+  Outreach
+</button>
 
       <button class="tab-button" type="button" data-tab="health">
         Health
@@ -464,6 +468,148 @@
       </article>
     </section>
 
+    <!-- OUTREACH -->
+<section id="tab-outreach" class="tab-panel" hidden>
+  <section class="outreach-grid">
+
+    <!-- CONNECT INPUT -->
+    <article class="panel outreach-launch-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">LinkedIn Outreach</p>
+          <h2>Connect Profiles</h2>
+          <p class="panel-meta">
+            Paste danh sách LinkedIn profile URLs.
+            Mỗi lần submit sẽ tạo một Connect Job riêng.
+          </p>
+        </div>
+
+        <span
+          id="outreachJobBadge"
+          class="pill pill-neutral"
+        >
+          Idle
+        </span>
+      </div>
+
+      <form
+        id="outreachConnectForm"
+        class="outreach-connect-form"
+      >
+        <label class="outreach-url-field">
+          <span>LinkedIn Profile URLs</span>
+
+          <textarea
+            id="outreachUrlInput"
+            rows="12"
+            placeholder="https://www.linkedin.com/in/profile-1/&#10;https://www.linkedin.com/in/profile-2/&#10;https://www.linkedin.com/in/profile-3/"
+            spellcheck="false"
+            required
+          ></textarea>
+        </label>
+
+        <div class="outreach-input-footer">
+          <div>
+            <strong id="outreachDetectedCount">
+              0 URLs detected
+            </strong>
+
+            <p class="panel-meta">
+              Mỗi URL nên nằm trên một dòng.
+            </p>
+          </div>
+
+          <button
+            id="outreachStartButton"
+            class="primary-button"
+            type="submit"
+          >
+            <span class="button-icon">▶</span>
+            <span id="outreachStartButtonText">
+              Start Connect
+            </span>
+          </button>
+        </div>
+      </form>
+    </article>
+
+
+    <!-- JOB RESULT -->
+    <article class="panel outreach-result-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Current job</p>
+          <h2>Connect Job</h2>
+        </div>
+
+        <span
+          id="outreachJobCode"
+          class="panel-meta"
+        >
+          Chưa có job
+        </span>
+      </div>
+
+      <div
+        id="outreachJobEmpty"
+        class="outreach-job-empty"
+      >
+        Submit một list LinkedIn URLs để tạo job.
+      </div>
+
+      <div
+        id="outreachJobResult"
+        class="outreach-job-result"
+        hidden
+      >
+        <div class="outreach-stat-grid">
+
+          <div class="outreach-stat">
+            <span>Input</span>
+            <strong id="outreachInputCount">0</strong>
+          </div>
+
+          <div class="outreach-stat">
+            <span>Ready</span>
+            <strong id="outreachReadyCount">0</strong>
+          </div>
+
+          <div class="outreach-stat">
+            <span>Duplicate</span>
+            <strong id="outreachDuplicateCount">0</strong>
+          </div>
+
+          <div class="outreach-stat">
+            <span>Invalid</span>
+            <strong id="outreachInvalidCount">0</strong>
+          </div>
+
+        </div>
+
+        <div class="outreach-job-status-row">
+          <span>Status</span>
+
+          <strong id="outreachJobStatus">
+            Pending
+          </strong>
+        </div>
+
+        <p
+          id="outreachJobMessage"
+          class="panel-meta"
+        ></p>
+      </div>
+
+      <p
+        id="outreachError"
+        class="outreach-error"
+        hidden
+      ></p>
+    </article>
+
+  </section>
+</section>
+    
     <!-- HEALTH -->
     <section id="tab-health" class="tab-panel" hidden>
       <section class="health-grid">
