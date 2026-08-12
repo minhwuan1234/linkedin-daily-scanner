@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from datetime import datetime
+
 from supabase import Client, create_client
 
 from app.settings import (
@@ -9,6 +12,8 @@ from app.settings import (
 
 
 JOB_TABLE = "outreach_jobs"
+TARGET_TABLE = "outreach_job_targets"
+PROSPECT_TABLE = "outreach_prospects"
 SCHEDULER_TABLE = "outreach_scheduler_state"
 ACCOUNT_TABLE = "outreach_accounts"
 
@@ -58,7 +63,7 @@ def get_outreach_client(
 
 
 # =========================================================
-# HELPERS
+# BASIC HELPERS
 # =========================================================
 
 
@@ -75,6 +80,42 @@ def _to_int(
         ValueError,
     ):
         return 0
+
+
+def _safe_text(
+    value,
+) -> str:
+    return str(
+        value or ""
+    ).strip()
+
+
+def _timestamp_value(
+    value,
+) -> float:
+    if not value:
+        return 0.0
+
+    try:
+        return (
+            datetime
+            .fromisoformat(
+                str(value)
+                .replace(
+                    "Z",
+                    "+00:00",
+                )
+            )
+            .timestamp()
+        )
+
+    except Exception:
+        return 0.0
+
+
+# =========================================================
+# JOB NORMALIZATION
+# =========================================================
 
 
 def _normalize_job(
@@ -104,45 +145,39 @@ def _normalize_job(
             ),
         )
 
-    elif str(
-        row.get(
-            "status",
-            "",
-        )
-    ) == "completed":
+    elif (
+        _safe_text(
+            row.get(
+                "status"
+            )
+        ).lower()
+        == "completed"
+    ):
         progress_percent = 100
 
     return {
-        "id": str(
+        "id": _safe_text(
             row.get(
-                "id",
-                "",
+                "id"
             )
-            or ""
         ),
 
-        "job_code": str(
+        "job_code": _safe_text(
             row.get(
-                "job_code",
-                "",
+                "job_code"
             )
-            or ""
         ),
 
-        "job_type": str(
+        "job_type": _safe_text(
             row.get(
-                "job_type",
-                "",
+                "job_type"
             )
-            or ""
         ),
 
-        "status": str(
+        "status": _safe_text(
             row.get(
-                "status",
-                "",
+                "status"
             )
-            or ""
         ),
 
         "input_count": _to_int(
@@ -216,7 +251,34 @@ def _normalize_job(
                 "updated_at"
             )
         ),
+
+        "targets": [],
     }
+
+
+# =========================================================
+# JOB QUERY FIELDS
+# =========================================================
+
+
+JOB_SELECT_FIELDS = (
+    "id,"
+    "job_code,"
+    "job_type,"
+    "status,"
+    "input_count,"
+    "target_count,"
+    "duplicate_count,"
+    "invalid_count,"
+    "processed_count,"
+    "success_count,"
+    "failed_count,"
+    "last_error,"
+    "created_at,"
+    "started_at,"
+    "completed_at,"
+    "updated_at"
+)
 
 
 # =========================================================
@@ -229,45 +291,21 @@ def get_current_job(
     client: Client,
 ) -> dict | None:
     """
-    Ưu tiên job đang chạy.
+    Ưu tiên:
 
-    Nếu không có running:
-    lấy job pending cũ nhất.
-
-    Nếu không có pending:
-    lấy job mới nhất.
+    running
+    -> pending
+    -> latest
     """
 
-    select_fields = (
-        "id,"
-        "job_code,"
-        "job_type,"
-        "status,"
-        "input_count,"
-        "target_count,"
-        "duplicate_count,"
-        "invalid_count,"
-        "processed_count,"
-        "success_count,"
-        "failed_count,"
-        "last_error,"
-        "created_at,"
-        "started_at,"
-        "completed_at,"
-        "updated_at"
-    )
-
-    # -----------------------------------------------------
     # RUNNING
-    # -----------------------------------------------------
-
     response = (
         client
         .table(
             JOB_TABLE
         )
         .select(
-            select_fields
+            JOB_SELECT_FIELDS
         )
         .eq(
             "job_type",
@@ -297,17 +335,14 @@ def get_current_job(
             rows[0]
         )
 
-    # -----------------------------------------------------
     # PENDING
-    # -----------------------------------------------------
-
     response = (
         client
         .table(
             JOB_TABLE
         )
         .select(
-            select_fields
+            JOB_SELECT_FIELDS
         )
         .eq(
             "job_type",
@@ -337,17 +372,14 @@ def get_current_job(
             rows[0]
         )
 
-    # -----------------------------------------------------
     # LATEST
-    # -----------------------------------------------------
-
     response = (
         client
         .table(
             JOB_TABLE
         )
         .select(
-            select_fields
+            JOB_SELECT_FIELDS
         )
         .eq(
             "job_type",
@@ -392,24 +424,7 @@ def get_recent_jobs(
             JOB_TABLE
         )
         .select(
-            (
-                "id,"
-                "job_code,"
-                "job_type,"
-                "status,"
-                "input_count,"
-                "target_count,"
-                "duplicate_count,"
-                "invalid_count,"
-                "processed_count,"
-                "success_count,"
-                "failed_count,"
-                "last_error,"
-                "created_at,"
-                "started_at,"
-                "completed_at,"
-                "updated_at"
-            )
+            JOB_SELECT_FIELDS
         )
         .eq(
             "job_type",
@@ -436,6 +451,264 @@ def get_recent_jobs(
         )
         for row in rows
     ]
+
+
+# =========================================================
+# TARGET NORMALIZATION
+# =========================================================
+
+
+def _normalize_target(
+    row: dict,
+) -> dict:
+    prospect = (
+        row.get(
+            "outreach_prospects"
+        )
+        or {}
+    )
+
+    return {
+        "target_id": _safe_text(
+            row.get(
+                "id"
+            )
+        ),
+
+        "job_id": _safe_text(
+            row.get(
+                "job_id"
+            )
+        ),
+
+        "prospect_id": _safe_text(
+            row.get(
+                "prospect_id"
+            )
+        ),
+
+        "target_status": _safe_text(
+            row.get(
+                "status"
+            )
+        ),
+
+        "assigned_account_id": _safe_text(
+            row.get(
+                "assigned_account_id"
+            )
+        ),
+
+        "retry_count": _to_int(
+            row.get(
+                "retry_count"
+            )
+        ),
+
+        "last_error": (
+            row.get(
+                "last_error"
+            )
+        ),
+
+        "target_created_at": (
+            row.get(
+                "created_at"
+            )
+        ),
+
+        "target_updated_at": (
+            row.get(
+                "updated_at"
+            )
+        ),
+
+        "completed_at": (
+            row.get(
+                "completed_at"
+            )
+        ),
+
+        # -----------------------------
+        # PROSPECT
+        # -----------------------------
+
+        "linkedin_url": _safe_text(
+            prospect.get(
+                "linkedin_url"
+            )
+        ),
+
+        "normalized_url": _safe_text(
+            prospect.get(
+                "normalized_url"
+            )
+        ),
+
+        "connect_status": _safe_text(
+            prospect.get(
+                "connect_status"
+            )
+        ),
+
+        "message_status": _safe_text(
+            prospect.get(
+                "message_status"
+            )
+        ),
+
+        "last_connect_attempt_at": (
+            prospect.get(
+                "last_connect_attempt_at"
+            )
+        ),
+
+        "accepted_at": (
+            prospect.get(
+                "accepted_at"
+            )
+        ),
+
+        "last_messaged_at": (
+            prospect.get(
+                "last_messaged_at"
+            )
+        ),
+
+        "prospect_created_at": (
+            prospect.get(
+                "created_at"
+            )
+        ),
+
+        "prospect_updated_at": (
+            prospect.get(
+                "updated_at"
+            )
+        ),
+    }
+
+
+# =========================================================
+# LOAD TARGETS FOR JOBS
+# =========================================================
+
+
+def load_targets_for_jobs(
+    *,
+    client: Client,
+    job_ids: list[str],
+) -> dict[str, list[dict]]:
+    cleaned_job_ids = [
+        str(job_id).strip()
+        for job_id in job_ids
+        if str(job_id).strip()
+    ]
+
+    if not cleaned_job_ids:
+        return {}
+
+    response = (
+        client
+        .table(
+            TARGET_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "job_id,"
+                "prospect_id,"
+                "status,"
+                "assigned_account_id,"
+                "retry_count,"
+                "last_error,"
+                "created_at,"
+                "updated_at,"
+                "completed_at,"
+                "outreach_prospects("
+                "id,"
+                "linkedin_url,"
+                "normalized_url,"
+                "connect_status,"
+                "message_status,"
+                "last_connect_attempt_at,"
+                "accepted_at,"
+                "last_messaged_at,"
+                "created_at,"
+                "updated_at"
+                ")"
+            )
+        )
+        .in_(
+            "job_id",
+            cleaned_job_ids,
+        )
+        .order(
+            "created_at",
+            desc=False,
+        )
+        .execute()
+    )
+
+    rows = list(
+        response.data
+        or []
+    )
+
+    grouped: dict[
+        str,
+        list[dict],
+    ] = defaultdict(
+        list
+    )
+
+    for row in rows:
+        target = (
+            _normalize_target(
+                row
+            )
+        )
+
+        grouped[
+            target["job_id"]
+        ].append(
+            target
+        )
+
+    return dict(
+        grouped
+    )
+
+
+# =========================================================
+# ATTACH TARGETS
+# =========================================================
+
+
+def attach_targets_to_jobs(
+    *,
+    current_job: dict | None,
+    recent_jobs: list[dict],
+    targets_by_job: dict[
+        str,
+        list[dict],
+    ],
+) -> None:
+    if current_job:
+        current_job["targets"] = (
+            targets_by_job.get(
+                current_job["id"],
+                [],
+            )
+        )
+
+    for job in recent_jobs:
+        job["targets"] = (
+            targets_by_job.get(
+                job["id"],
+                [],
+            )
+        )
 
 
 # =========================================================
@@ -494,20 +767,16 @@ def get_scheduler_state(
     )
 
     return {
-        "scheduler_name": str(
+        "scheduler_name": _safe_text(
             row.get(
-                "scheduler_name",
-                "",
+                "scheduler_name"
             )
-            or ""
         ),
 
-        "current_account_id": str(
+        "current_account_id": _safe_text(
             row.get(
-                "current_account_id",
-                "",
+                "current_account_id"
             )
-            or ""
         ),
 
         "used_in_current_turn": (
@@ -532,11 +801,11 @@ def get_scheduler_state(
 
 
 # =========================================================
-# ACCOUNTS
+# RAW ACCOUNTS
 # =========================================================
 
 
-def get_accounts(
+def get_raw_accounts(
     *,
     client: Client,
 ) -> list[dict]:
@@ -561,51 +830,322 @@ def get_accounts(
         .execute()
     )
 
-    rows = list(
+    return list(
         response.data
         or []
     )
 
-    return [
-        {
-            "account_id": str(
-                row.get(
-                    "account_id",
-                    "",
+
+# =========================================================
+# ACCOUNT STATS
+# =========================================================
+
+
+def build_account_stats(
+    *,
+    accounts: list[dict],
+    recent_jobs: list[dict],
+    scheduler: dict | None,
+) -> list[dict]:
+    job_code_by_id = {
+        job["id"]: (
+            job.get(
+                "job_code"
+            )
+            or ""
+        )
+        for job in recent_jobs
+    }
+
+    targets: list[dict] = []
+
+    for job in recent_jobs:
+        targets.extend(
+            job.get(
+                "targets",
+                []
+            )
+            or []
+        )
+
+    targets_by_account: dict[
+        str,
+        list[dict],
+    ] = defaultdict(
+        list
+    )
+
+    for target in targets:
+        account_id = _safe_text(
+            target.get(
+                "assigned_account_id"
+            )
+        )
+
+        if not account_id:
+            continue
+
+        targets_by_account[
+            account_id
+        ].append(
+            target
+        )
+
+    current_account_id = ""
+
+    used_in_current_turn = 0
+    turn_limit = 0
+
+    if scheduler:
+        current_account_id = (
+            _safe_text(
+                scheduler.get(
+                    "current_account_id"
+                )
+            )
+        )
+
+        used_in_current_turn = (
+            _to_int(
+                scheduler.get(
+                    "used_in_current_turn"
+                )
+            )
+        )
+
+        turn_limit = (
+            _to_int(
+                scheduler.get(
+                    "turn_limit"
+                )
+            )
+        )
+
+    result: list[dict] = []
+
+    for account in accounts:
+        account_id = _safe_text(
+            account.get(
+                "account_id"
+            )
+        )
+
+        account_targets = (
+            targets_by_account.get(
+                account_id,
+                [],
+            )
+        )
+
+        completed_count = sum(
+            1
+            for target in account_targets
+            if (
+                _safe_text(
+                    target.get(
+                        "target_status"
+                    )
+                ).lower()
+                == "completed"
+            )
+        )
+
+        failed_count = sum(
+            1
+            for target in account_targets
+            if (
+                _safe_text(
+                    target.get(
+                        "target_status"
+                    )
+                ).lower()
+                == "failed"
+            )
+        )
+
+        pending_count = sum(
+            1
+            for target in account_targets
+            if (
+                _safe_text(
+                    target.get(
+                        "target_status"
+                    )
+                ).lower()
+                == "pending"
+            )
+        )
+
+        sorted_targets = sorted(
+            account_targets,
+            key=lambda target: (
+                _timestamp_value(
+                    target.get(
+                        "completed_at"
+                    )
+                    or target.get(
+                        "target_updated_at"
+                    )
+                )
+            ),
+            reverse=True,
+        )
+
+        latest_target = (
+            sorted_targets[0]
+            if sorted_targets
+            else None
+        )
+
+        last_used_at = None
+        last_job_id = ""
+        last_job_code = ""
+        last_error = None
+        last_linkedin_url = ""
+
+        if latest_target:
+            last_used_at = (
+                latest_target.get(
+                    "completed_at"
+                )
+                or latest_target.get(
+                    "target_updated_at"
+                )
+            )
+
+            last_job_id = (
+                latest_target.get(
+                    "job_id"
                 )
                 or ""
-            ),
+            )
 
-            "status": str(
-                row.get(
-                    "status",
+            last_job_code = (
+                job_code_by_id.get(
+                    last_job_id,
                     "",
                 )
-                or ""
-            ),
+            )
 
-            "profile_directory": str(
-                row.get(
-                    "profile_directory",
-                    "",
+            last_error = (
+                latest_target.get(
+                    "last_error"
+                )
+            )
+
+            last_linkedin_url = (
+                latest_target.get(
+                    "linkedin_url"
                 )
                 or ""
-            ),
+            )
 
-            "created_at": (
-                row.get(
-                    "created_at"
-                )
-            ),
+        is_current = (
+            account_id
+            == current_account_id
+        )
 
-            "updated_at": (
-                row.get(
-                    "updated_at"
-                )
-            ),
-        }
-        for row in rows
-    ]
+        if is_current:
+            account_used = (
+                used_in_current_turn
+            )
+
+            account_remaining = max(
+                turn_limit
+                - used_in_current_turn,
+                0,
+            )
+        else:
+            account_used = 0
+            account_remaining = (
+                turn_limit
+            )
+
+        result.append(
+            {
+                "account_id": (
+                    account_id
+                ),
+
+                "status": _safe_text(
+                    account.get(
+                        "status"
+                    )
+                ),
+
+                "profile_directory": _safe_text(
+                    account.get(
+                        "profile_directory"
+                    )
+                ),
+
+                "created_at": (
+                    account.get(
+                        "created_at"
+                    )
+                ),
+
+                "updated_at": (
+                    account.get(
+                        "updated_at"
+                    )
+                ),
+
+                "is_current_account": (
+                    is_current
+                ),
+
+                "used_in_current_turn": (
+                    account_used
+                ),
+
+                "turn_limit": (
+                    turn_limit
+                ),
+
+                "remaining_in_current_turn": (
+                    account_remaining
+                ),
+
+                "total_assigned": len(
+                    account_targets
+                ),
+
+                "completed_count": (
+                    completed_count
+                ),
+
+                "failed_count": (
+                    failed_count
+                ),
+
+                "pending_count": (
+                    pending_count
+                ),
+
+                "last_used_at": (
+                    last_used_at
+                ),
+
+                "last_job_id": (
+                    last_job_id
+                ),
+
+                "last_job_code": (
+                    last_job_code
+                ),
+
+                "last_linkedin_url": (
+                    last_linkedin_url
+                ),
+
+                "last_error": (
+                    last_error
+                ),
+            }
+        )
+
+    return result
 
 
 # =========================================================
@@ -621,21 +1161,88 @@ def get_outreach_dashboard(
         settings
     )
 
-    return {
-        "current_job": get_current_job(
-            client=client
-        ),
+    current_job = get_current_job(
+        client=client
+    )
 
-        "scheduler": get_scheduler_state(
-            client=client
-        ),
+    recent_jobs = get_recent_jobs(
+        client=client,
+        limit=10,
+    )
 
-        "accounts": get_accounts(
-            client=client
-        ),
+    scheduler = get_scheduler_state(
+        client=client
+    )
 
-        "recent_jobs": get_recent_jobs(
+    raw_accounts = get_raw_accounts(
+        client=client
+    )
+
+    # -----------------------------------------------------
+    # COLLECT JOB IDS
+    # -----------------------------------------------------
+
+    job_ids: list[str] = []
+
+    if current_job:
+        job_ids.append(
+            current_job["id"]
+        )
+
+    for job in recent_jobs:
+        if (
+            job["id"]
+            not in job_ids
+        ):
+            job_ids.append(
+                job["id"]
+            )
+
+    # -----------------------------------------------------
+    # LOAD TARGET DETAIL ONCE
+    # -----------------------------------------------------
+
+    targets_by_job = (
+        load_targets_for_jobs(
             client=client,
-            limit=10,
+            job_ids=job_ids,
+        )
+    )
+
+    # -----------------------------------------------------
+    # ATTACH TARGETS
+    # -----------------------------------------------------
+
+    attach_targets_to_jobs(
+        current_job=current_job,
+        recent_jobs=recent_jobs,
+        targets_by_job=targets_by_job,
+    )
+
+    # -----------------------------------------------------
+    # BUILD ACCOUNT STATS
+    # -----------------------------------------------------
+
+    accounts = build_account_stats(
+        accounts=raw_accounts,
+        recent_jobs=recent_jobs,
+        scheduler=scheduler,
+    )
+
+    return {
+        "current_job": (
+            current_job
+        ),
+
+        "scheduler": (
+            scheduler
+        ),
+
+        "accounts": (
+            accounts
+        ),
+
+        "recent_jobs": (
+            recent_jobs
         ),
     }
