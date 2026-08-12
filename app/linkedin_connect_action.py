@@ -586,14 +586,15 @@ def _click_more_button(
     """
     Click nút More trong profile header.
 
-    Hỗ trợ các case:
-    - dấu ... có aria-label="More"
-    - aria-label chứa "More"
-    - button có text "More"
-    - button title="More"
+    DOM hiện tại của LinkedIn có thể là:
 
-    Chỉ lấy button nằm trong vùng header,
-    tránh More ở sidebar hoặc section khác.
+    <button aria-expanded="false">
+        <span>
+            <span>More</span>
+        </span>
+    </button>
+
+    Không nhất thiết có aria-label="More".
     """
 
     _check_deadline(
@@ -601,11 +602,11 @@ def _click_more_button(
     )
 
     selectors = (
+        "button:has-text('More')",
+        "button[aria-expanded='false']:has-text('More')",
+        "button[aria-expanded='true']:has-text('More')",
         "button[aria-label='More']",
         "button[aria-label*='More']",
-        "button[aria-label*='more']",
-        "button[title='More']",
-        "button:has-text('More')",
     )
 
     viewport = page.viewport_size
@@ -618,7 +619,7 @@ def _click_more_button(
     else:
         max_x = 1050
 
-    candidates_found = []
+    valid_candidates = []
 
     try:
         for selector in selectors:
@@ -632,9 +633,7 @@ def _click_more_button(
                 )
             )
 
-            count = (
-                candidates.count()
-            )
+            count = candidates.count()
 
             for index in range(
                 count
@@ -670,37 +669,10 @@ def _click_more_button(
                     x = box["x"]
                     y = box["y"]
 
-                    # Chỉ vùng profile header
-                    if y > 650:
-                        continue
-
-                    # Tránh sidebar phải
-                    if x > max_x:
-                        continue
-
-                    text = ""
-
-                    try:
-                        text = (
-                            button
-                            .inner_text()
-                            .strip()
-                        )
-                    except Exception:
-                        pass
-
-                    aria_label = (
-                        button.get_attribute(
-                            "aria-label"
-                        )
-                        or ""
-                    )
-
-                    title = (
-                        button.get_attribute(
-                            "title"
-                        )
-                        or ""
+                    text = (
+                        button
+                        .inner_text()
+                        .strip()
                     )
 
                     print(
@@ -709,17 +681,27 @@ def _click_more_button(
                         selector,
                         "text=",
                         text,
-                        "aria=",
-                        aria_label,
-                        "title=",
-                        title,
                         "x=",
                         x,
                         "y=",
                         y,
                     )
 
-                    candidates_found.append(
+                    # Chỉ nút More nằm trong
+                    # khu vực profile header.
+                    if y > 650:
+                        continue
+
+                    # Tránh sidebar phải.
+                    if x > max_x:
+                        continue
+
+                    # Chỉ nhận đúng button
+                    # có text More.
+                    if text.lower() != "more":
+                        continue
+
+                    valid_candidates.append(
                         (
                             y,
                             x,
@@ -733,16 +715,14 @@ def _click_more_button(
                 except Exception:
                     continue
 
-        if not candidates_found:
+        if not valid_candidates:
             print(
                 "No header More button found."
             )
 
             return False
 
-        # Ưu tiên button nằm cao nhất,
-        # rồi bên trái hơn.
-        candidates_found.sort(
+        valid_candidates.sort(
             key=lambda item: (
                 item[0],
                 item[1],
@@ -750,7 +730,7 @@ def _click_more_button(
         )
 
         y, x, button = (
-            candidates_found[0]
+            valid_candidates[0]
         )
 
         print(
@@ -772,20 +752,21 @@ def _click_more_button(
             before,
         )
 
-        # DOM click tránh overlay.
+        # DOM click vì LinkedIn
+        # đôi lúc có overlay.
         button.evaluate(
             "(element) => element.click()"
         )
 
         timeout = _remaining_ms(
             deadline,
-            maximum_ms=400,
+            maximum_ms=500,
         )
 
         page.wait_for_timeout(
             min(
                 timeout,
-                400,
+                500,
             )
         )
 
@@ -800,19 +781,17 @@ def _click_more_button(
             after,
         )
 
-        # Một số version LinkedIn không đổi
-        # aria-expanded nhưng menu vẫn mở.
-        if (
-            after == "true"
-            or before != after
-        ):
+        # Trường hợp chuẩn:
+        # false -> true
+        if after == "true":
             return True
 
-        # Fallback: check xem Connect
-        # đã xuất hiện trong menu chưa.
+        # Một số version không update
+        # aria-expanded ngay, check menu.
         menu_connect_selectors = (
             "a[href*='/preload/custom-invite/']",
             "[role='menuitem']:has-text('Connect')",
+            "button:has-text('Connect')",
             "li:has-text('Connect')",
         )
 
@@ -821,7 +800,7 @@ def _click_more_button(
                 page,
                 selector,
                 deadline=deadline,
-                maximum_ms=250,
+                maximum_ms=300,
             ):
                 print(
                     "More menu detected "
