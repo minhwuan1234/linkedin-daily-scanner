@@ -594,19 +594,21 @@ async def create_outreach_connect_job(
     # -----------------------------------------------------
 
     logger.info(
-        (
-            "OUTREACH CONNECT JOB CREATED | "
-            "job_id=%s | "
-            "job_code=%s | "
-            "input=%s | "
-            "targets=%s | "
-            "duplicates=%s"
-        ),
-        result.job_id,
-        result.job_code,
-        result.input_count,
-        result.target_count,
-        result.duplicate_count,
+    (
+        "OUTREACH CONNECT JOB CREATED | "
+        "job_id=%s | "
+        "job_code=%s | "
+        "input=%s | "
+        "targets=%s | "
+        "duplicates=%s | "
+        "invalid=%s"
+    ),
+    result.job_id,
+    result.job_code,
+    result.input_count,
+    result.target_count,
+    result.duplicate_count,
+    result.invalid_count,
     )
 
     # -----------------------------------------------------
@@ -628,6 +630,9 @@ async def create_outreach_connect_job(
                 ),
                 "duplicate_count": (
                     result.duplicate_count
+                ),
+                "invalid_count": (
+                    result.invalid_count
                 ),
                 "status": "pending",
             },
