@@ -64,47 +64,117 @@ const els = {
 
     youtubeTableBody: document.querySelector("#youtubeTableBody"),
 
-  // OUTREACH
-  outreachConnectForm: document.querySelector("#outreachConnectForm"),
-  outreachUrlInput: document.querySelector("#outreachUrlInput"),
-  outreachStartButton: document.querySelector("#outreachStartButton"),
-  outreachStartButtonText: document.querySelector("#outreachStartButtonText"),
+    // OUTREACH
+  outreachConnectForm:
+    document.querySelector("#outreachConnectForm"),
 
-  outreachDetectedCount: document.querySelector("#outreachDetectedCount"),
+  outreachUrlInput:
+    document.querySelector("#outreachUrlInput"),
 
-  outreachJobBadge: document.querySelector("#outreachJobBadge"),
-  outreachJobCode: document.querySelector("#outreachJobCode"),
+  outreachStartButton:
+    document.querySelector("#outreachStartButton"),
 
-  outreachJobEmpty: document.querySelector("#outreachJobEmpty"),
-  outreachJobResult: document.querySelector("#outreachJobResult"),
+  outreachStartButtonText:
+    document.querySelector("#outreachStartButtonText"),
 
-  outreachInputCount: document.querySelector("#outreachInputCount"),
-  outreachReadyCount: document.querySelector("#outreachReadyCount"),
-  outreachDuplicateCount: document.querySelector("#outreachDuplicateCount"),
-  outreachInvalidCount: document.querySelector("#outreachInvalidCount"),
+  outreachDetectedCount:
+    document.querySelector("#outreachDetectedCount"),
 
-  outreachJobStatus: document.querySelector("#outreachJobStatus"),
-  outreachJobMessage: document.querySelector("#outreachJobMessage"),
-  outreachError: document.querySelector("#outreachError"),
+  outreachJobBadge:
+    document.querySelector("#outreachJobBadge"),
 
-  accountsGrid: document.querySelector("#accountsGrid"),
-  
-  accountsGrid: document.querySelector("#accountsGrid"),
+  outreachJobCode:
+    document.querySelector("#outreachJobCode"),
 
-  healthOverallBadge: document.querySelector("#healthOverallBadge"),
-  healthServiceList: document.querySelector("#healthServiceList"),
-  workerDetailGrid: document.querySelector("#workerDetailGrid"),
-  healthHeartbeatAge: document.querySelector("#healthHeartbeatAge"),
-  healthStaleJobs: document.querySelector("#healthStaleJobs"),
-  healthUnsentLark: document.querySelector("#healthUnsentLark"),
-  healthNeedsLogin: document.querySelector("#healthNeedsLogin"),
+  outreachJobEmpty:
+    document.querySelector("#outreachJobEmpty"),
 
-  drawerBackdrop: document.querySelector("#drawerBackdrop"),
-  detailDrawer: document.querySelector("#detailDrawer"),
-  drawerName: document.querySelector("#drawerName"),
-  drawerContent: document.querySelector("#drawerContent"),
-  closeDrawerButton: document.querySelector("#closeDrawerButton")
-};
+  outreachJobResult:
+    document.querySelector("#outreachJobResult"),
+
+  outreachInputCount:
+    document.querySelector("#outreachInputCount"),
+
+  outreachReadyCount:
+    document.querySelector("#outreachReadyCount"),
+
+  outreachProcessedCount:
+    document.querySelector("#outreachProcessedCount"),
+
+  outreachSuccessCount:
+    document.querySelector("#outreachSuccessCount"),
+
+  outreachFailedCount:
+    document.querySelector("#outreachFailedCount"),
+
+  outreachDuplicateCount:
+    document.querySelector("#outreachDuplicateCount"),
+
+  outreachInvalidCount:
+    document.querySelector("#outreachInvalidCount"),
+
+  outreachProgressText:
+    document.querySelector("#outreachProgressText"),
+
+  outreachProgressBar:
+    document.querySelector("#outreachProgressBar"),
+
+  outreachProgressPercent:
+    document.querySelector("#outreachProgressPercent"),
+
+  outreachJobStatus:
+    document.querySelector("#outreachJobStatus"),
+
+  outreachCreatedAt:
+    document.querySelector("#outreachCreatedAt"),
+
+  outreachStartedAt:
+    document.querySelector("#outreachStartedAt"),
+
+  outreachCompletedAt:
+    document.querySelector("#outreachCompletedAt"),
+
+  outreachJobMessage:
+    document.querySelector("#outreachJobMessage"),
+
+  outreachLastError:
+    document.querySelector("#outreachLastError"),
+
+  outreachError:
+    document.querySelector("#outreachError"),
+
+  outreachSchedulerBadge:
+    document.querySelector("#outreachSchedulerBadge"),
+
+  outreachCurrentAccount:
+    document.querySelector("#outreachCurrentAccount"),
+
+  outreachUsedTurn:
+    document.querySelector("#outreachUsedTurn"),
+
+  outreachRemainingTurn:
+    document.querySelector("#outreachRemainingTurn"),
+
+  outreachSchedulerUpdatedAt:
+    document.querySelector("#outreachSchedulerUpdatedAt"),
+
+  outreachAccountCount:
+    document.querySelector("#outreachAccountCount"),
+
+  outreachAccountsList:
+    document.querySelector("#outreachAccountsList"),
+
+  outreachDashboardUpdatedAt:
+    document.querySelector("#outreachDashboardUpdatedAt"),
+
+  outreachHistoryEmpty:
+    document.querySelector("#outreachHistoryEmpty"),
+
+  outreachHistoryTableWrap:
+    document.querySelector("#outreachHistoryTableWrap"),
+
+  outreachHistoryBody:
+    document.querySelector("#outreachHistoryBody"),
 
 const state = {
   profiles: [],
