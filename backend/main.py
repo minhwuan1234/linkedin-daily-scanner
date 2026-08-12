@@ -25,6 +25,10 @@ from app.outreach_job_store import (
     OutreachJobStoreError,
     create_connect_job,
 )
+from app.outreach_dashboard_store import (
+    OutreachDashboardStoreError,
+    get_outreach_dashboard,
+)
 
 
 # =========================================================
@@ -636,6 +640,73 @@ async def create_outreach_connect_job(
                 ),
                 "status": "pending",
             },
+        },
+    )
+
+# =========================================================
+# OUTREACH DASHBOARD API
+# =========================================================
+
+
+@app.get("/api/outreach/dashboard")
+async def get_outreach_dashboard_api() -> JSONResponse:
+    """
+    Dashboard data cho LinkedIn Outreach.
+
+    Frontend dùng endpoint này để đọc:
+
+    - current Connect job
+    - progress
+    - counters
+    - scheduler/account quota
+    - Outreach accounts
+    - recent jobs
+    """
+
+    try:
+        dashboard = (
+            get_outreach_dashboard()
+        )
+
+    except OutreachDashboardStoreError as exc:
+        logger.exception(
+            "Could not load Outreach dashboard"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load "
+                    "Outreach dashboard"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach dashboard error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while "
+                    "loading Outreach dashboard"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "dashboard": dashboard,
         },
     )
 # =========================================================
