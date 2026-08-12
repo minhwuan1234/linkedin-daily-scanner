@@ -62,6 +62,33 @@ const els = {
   youtubeTableWrap: document.querySelector("#youtubeTableWrap"),
   youtubeTableBody: document.querySelector("#youtubeTableBody"),
 
+    youtubeTableBody: document.querySelector("#youtubeTableBody"),
+
+  // OUTREACH
+  outreachConnectForm: document.querySelector("#outreachConnectForm"),
+  outreachUrlInput: document.querySelector("#outreachUrlInput"),
+  outreachStartButton: document.querySelector("#outreachStartButton"),
+  outreachStartButtonText: document.querySelector("#outreachStartButtonText"),
+
+  outreachDetectedCount: document.querySelector("#outreachDetectedCount"),
+
+  outreachJobBadge: document.querySelector("#outreachJobBadge"),
+  outreachJobCode: document.querySelector("#outreachJobCode"),
+
+  outreachJobEmpty: document.querySelector("#outreachJobEmpty"),
+  outreachJobResult: document.querySelector("#outreachJobResult"),
+
+  outreachInputCount: document.querySelector("#outreachInputCount"),
+  outreachReadyCount: document.querySelector("#outreachReadyCount"),
+  outreachDuplicateCount: document.querySelector("#outreachDuplicateCount"),
+  outreachInvalidCount: document.querySelector("#outreachInvalidCount"),
+
+  outreachJobStatus: document.querySelector("#outreachJobStatus"),
+  outreachJobMessage: document.querySelector("#outreachJobMessage"),
+  outreachError: document.querySelector("#outreachError"),
+
+  accountsGrid: document.querySelector("#accountsGrid"),
+  
   accountsGrid: document.querySelector("#accountsGrid"),
 
   healthOverallBadge: document.querySelector("#healthOverallBadge"),
@@ -93,6 +120,9 @@ const state = {
   youtubePollTimer: null,
   youtubeRealtimeChannel: null,
   youtubeRealtimeReloadTimer: null,
+  outreachSubmitting: false,
+  outreachCurrentJob: null,
+  tableErrors: {},
   tableErrors: {},
   commandPending: false
 };
@@ -927,6 +957,176 @@ async function createYoutubeResearchJob(event) {
   } finally {
     state.youtubeSubmitting = false;
     renderYoutubeResearch();
+  }
+}
+
+// =========================================================
+// OUTREACH
+// =========================================================
+
+function parseOutreachUrls() {
+  const rawText = String(
+    els.outreachUrlInput?.value || ""
+  );
+
+  return rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+
+function updateOutreachDetectedCount() {
+  const urls = parseOutreachUrls();
+
+  if (!els.outreachDetectedCount) {
+    return;
+  }
+
+  els.outreachDetectedCount.textContent =
+    `${urls.length} URLs detected`;
+}
+
+
+function renderOutreachSubmittingState() {
+  if (!els.outreachStartButton) {
+    return;
+  }
+
+  els.outreachStartButton.disabled =
+    state.outreachSubmitting;
+
+  els.outreachStartButtonText.textContent =
+    state.outreachSubmitting
+      ? "Creating job..."
+      : "Start Connect";
+}
+
+
+function renderOutreachJob(job) {
+  if (!job) {
+    els.outreachJobEmpty.hidden = false;
+    els.outreachJobResult.hidden = true;
+
+    els.outreachJobCode.textContent =
+      "Chưa có job";
+
+    els.outreachJobBadge.textContent =
+      "Idle";
+
+    els.outreachJobBadge.className =
+      "pill pill-neutral";
+
+    return;
+  }
+
+  els.outreachJobEmpty.hidden = true;
+  els.outreachJobResult.hidden = false;
+
+  els.outreachJobCode.textContent =
+    job.job_code || "—";
+
+  els.outreachInputCount.textContent =
+    String(job.input_count ?? 0);
+
+  els.outreachReadyCount.textContent =
+    String(job.target_count ?? 0);
+
+  els.outreachDuplicateCount.textContent =
+    String(job.duplicate_count ?? 0);
+
+  els.outreachInvalidCount.textContent =
+    String(job.invalid_count ?? 0);
+
+  const status = String(
+    job.status || "pending"
+  ).toLowerCase();
+
+  els.outreachJobStatus.textContent =
+    statusLabel(status);
+
+  els.outreachJobBadge.textContent =
+    statusLabel(status);
+
+  els.outreachJobBadge.className =
+    `pill ${
+      status === "completed"
+        ? "pill-green"
+        : status === "failed"
+          ? "pill-red"
+          : status === "running"
+            ? "pill-purple"
+            : "pill-amber"
+    }`;
+
+  els.outreachJobMessage.textContent =
+    (
+      `${job.target_count ?? 0} profiles ready`
+      + ` · ${job.duplicate_count ?? 0} duplicates`
+      + ` · ${job.invalid_count ?? 0} invalid`
+    );
+}
+
+
+async function createOutreachConnectJob(
+  event
+) {
+  event.preventDefault();
+
+  const urls = parseOutreachUrls();
+
+  if (!urls.length) {
+    window.alert(
+      "Hãy nhập ít nhất một LinkedIn profile URL."
+    );
+    return;
+  }
+
+  state.outreachSubmitting = true;
+  renderOutreachSubmittingState();
+
+  els.outreachError.hidden = true;
+  els.outreachError.textContent = "";
+
+  try {
+    const response = await fetch(
+      "/api/outreach/connect/jobs",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          urls
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể tạo Outreach Connect job."
+      );
+    }
+
+    state.outreachCurrentJob =
+      result.job || null;
+
+    renderOutreachJob(
+      state.outreachCurrentJob
+    );
+
+  } catch (error) {
+    els.outreachError.hidden = false;
+    els.outreachError.textContent =
+      error.message || String(error);
+
+  } finally {
+    state.outreachSubmitting = false;
+    renderOutreachSubmittingState();
   }
 }
 
@@ -2171,6 +2371,26 @@ els.youtubeResearchForm.addEventListener(
   createYoutubeResearchJob
 );
 
+els.youtubeResearchForm.addEventListener(
+  "submit",
+  createYoutubeResearchJob
+);
+
+els.outreachConnectForm.addEventListener(
+  "submit",
+  createOutreachConnectJob
+);
+
+els.outreachUrlInput.addEventListener(
+  "input",
+  updateOutreachDetectedCount
+);
+
+els.youtubeSearchInput.addEventListener(
+  "input",
+  renderYoutubeResearch
+);
+
 els.youtubeSearchInput.addEventListener(
   "input",
   renderYoutubeResearch
@@ -2209,6 +2429,14 @@ document.addEventListener(
     }
   }
 );
+
+updateOutreachDetectedCount();
+
+renderOutreachJob(
+  state.outreachCurrentJob
+);
+
+renderOutreachSubmittingState();
 
 setupYoutubeRealtime();
 loadDashboard();
