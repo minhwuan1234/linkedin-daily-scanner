@@ -255,6 +255,46 @@ def _has_invite_modal(page: Page, *, deadline: float) -> bool:
     )
 
 
+def _get_profile_vanity_name(
+    page: Page,
+) -> str:
+    """
+    Lấy vanity name trực tiếp từ URL profile hiện tại.
+
+    Ví dụ:
+        https://www.linkedin.com/in/austinsena/
+    ->
+        austinsena
+    """
+    try:
+        parsed = urlsplit(
+            page.url
+            or ""
+        )
+
+        path = (
+            parsed.path
+            .strip()
+            .rstrip("/")
+        )
+
+        if not path.startswith(
+            "/in/"
+        ):
+            return ""
+
+        vanity_name = (
+            path[4:]
+            .strip("/")
+            .strip()
+        )
+
+        return vanity_name
+
+    except Exception:
+        return ""
+
+
 # =========================================================
 # PATH 1: DIRECT CONNECT
 # =========================================================
@@ -575,23 +615,22 @@ def _click_more_button(
     """
     Open đúng More button trong profile header.
 
-    DOM thật đã xác nhận:
-    - text "More" nằm trong <span>
-    - clickable là ancestor <button>
-    - button có aria-expanded="false" trước khi mở
-    - sau click, aria-expanded chuyển thành "true"
+    DOM thật đã xác nhận có thể có nhiều text "More" trên page.
+    Hai nhóm thường gặp:
+    - top/navigation More ở y rất nhỏ
+    - profile-header More ở khoảng giữa page
 
-    Strategy:
-    1. Tìm exact text More
-    2. Leo lên ancestor button gần nhất
-    3. Chỉ nhận button có aria-expanded attribute
-    4. Click
-    5. Verify aria-expanded == "true"
-    6. Retry đúng 1 lần nếu cần
+    Chỉ nhận button trong vùng profile header:
+        150 <= y <= 650
+
+    Đồng thời dedupe nhiều span cùng trỏ về một button.
     """
     _check_deadline(deadline)
 
-    for attempt in range(1, MORE_MAX_ATTEMPTS + 1):
+    for attempt in range(
+        1,
+        MORE_MAX_ATTEMPTS + 1,
+    ):
         print(
             f"MORE attempt {attempt}/{MORE_MAX_ATTEMPTS}"
         )
@@ -603,11 +642,16 @@ def _click_more_button(
             )
 
             candidates = []
+            seen_buttons = set()
 
-            for index in range(more_texts.count()):
+            for index in range(
+                more_texts.count()
+            ):
                 _check_deadline(deadline)
 
-                text_node = more_texts.nth(index)
+                text_node = more_texts.nth(
+                    index
+                )
 
                 if not _is_visible_locator(
                     text_node,
@@ -632,17 +676,6 @@ def _click_more_button(
                 ):
                     continue
 
-                try:
-                    aria_expanded = button.get_attribute(
-                        "aria-expanded"
-                    )
-                except Exception:
-                    aria_expanded = None
-
-                # DOM thật của More header có attribute này.
-                if aria_expanded is None:
-                    continue
-
                 box = button.bounding_box()
 
                 if not box:
@@ -651,32 +684,65 @@ def _click_more_button(
                 x = box["x"]
                 y = box["y"]
 
-                # Chỉ lấy vùng profile header.
+                # IMPORTANT:
+                # bỏ More ở top navigation,
+                # chỉ nhận vùng profile header.
+                if y < 150:
+                    continue
+
                 if y > 650:
                     continue
+
+                # Dedupe nhiều span cùng trỏ về cùng button.
+                key = (
+                    round(x),
+                    round(y),
+                    round(box.get("width", 0)),
+                    round(box.get("height", 0)),
+                )
+
+                if key in seen_buttons:
+                    continue
+
+                seen_buttons.add(
+                    key
+                )
+
+                try:
+                    aria_expanded = (
+                        button
+                        .get_attribute("aria-expanded")
+                    )
+                except Exception:
+                    aria_expanded = None
 
                 candidates.append(
                     (
                         y,
                         x,
+                        aria_expanded,
                         button,
                     )
                 )
 
             if not candidates:
                 print(
-                    "MORE: no exact header button with aria-expanded"
+                    "MORE: no profile-header More button found"
                 )
                 return False
 
+            # Trong vùng profile header, ưu tiên button thấp nhất một chút
+            # để tránh action khác ở gần top nếu LinkedIn có nhiều More.
             candidates.sort(
                 key=lambda item: (
-                    item[0],
+                    -item[0],
                     item[1],
                 )
             )
 
-            y, x, button = candidates[0]
+            y, x, aria_expanded, button = (
+                candidates[0]
+            )
 
             print(
                 "MORE selected:",
@@ -684,15 +750,18 @@ def _click_more_button(
                 x,
                 "y=",
                 y,
+                "aria-expanded=",
+                aria_expanded,
             )
 
-            try:
-                current_expanded = (
-                    button.get_attribute("aria-expanded")
+            current_expanded = (
+                str(
+                    aria_expanded
                     or ""
-                ).strip().lower()
-            except Exception:
-                current_expanded = ""
+                )
+                .strip()
+                .lower()
+            )
 
             if current_expanded == "true":
                 print(
@@ -712,16 +781,32 @@ def _click_more_button(
                 verify_deadline = min(
                     deadline,
                     time.monotonic()
-                    + (MORE_VERIFY_WINDOW_MS / 1000),
+                    + (
+                        MORE_VERIFY_WINDOW_MS
+                        / 1000
+                    ),
                 )
 
-                while time.monotonic() < verify_deadline:
-                    _check_deadline(deadline)
+                vanity_name = (
+                    _get_profile_vanity_name(
+                        page
+                    )
+                )
+
+                while (
+                    time.monotonic()
+                    < verify_deadline
+                ):
+                    _check_deadline(
+                        deadline
+                    )
 
                     try:
                         expanded = (
                             button
-                            .get_attribute("aria-expanded")
+                            .get_attribute(
+                                "aria-expanded"
+                            )
                             or ""
                         ).strip().lower()
                     except Exception:
@@ -734,36 +819,38 @@ def _click_more_button(
                         return True
 
                     # Strong fallback:
-                    # menu may already render custom-invite before
-                    # aria-expanded is observed by Playwright.
-                    try:
-                        invite_links = page.locator(
-                            "a[href*='/preload/custom-invite/'], "
-                            "a[href*='custom-invite']"
-                        )
-
-                        for link_index in range(
-                            invite_links.count()
-                        ):
-                            link = invite_links.nth(
-                                link_index
+                    # đúng custom-invite của profile hiện tại xuất hiện.
+                    if vanity_name:
+                        try:
+                            exact_link = page.locator(
+                                (
+                                    "a[href*='/preload/custom-invite/']"
+                                    f"[href*='vanityName={vanity_name}']"
+                                )
                             )
 
-                            if _is_visible_locator(
-                                link,
-                                deadline=deadline,
-                                maximum_ms=100,
+                            for link_index in range(
+                                exact_link.count()
                             ):
-                                print(
-                                    "MORE verified open via custom-invite link"
+                                link = exact_link.nth(
+                                    link_index
                                 )
-                                return True
 
-                    except LinkedInProfileActionTimeout:
-                        raise
+                                if _is_visible_locator(
+                                    link,
+                                    deadline=deadline,
+                                    maximum_ms=100,
+                                ):
+                                    print(
+                                        "MORE verified open via exact profile custom-invite"
+                                    )
+                                    return True
 
-                    except Exception:
-                        pass
+                        except LinkedInProfileActionTimeout:
+                            raise
+
+                        except Exception:
+                            pass
 
                     _sleep(
                         page,
@@ -777,7 +864,10 @@ def _click_more_button(
         except Exception as exc:
             print(
                 "MORE error:",
-                f"{type(exc).__name__}: {exc}",
+                (
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
             )
 
         if attempt < MORE_MAX_ATTEMPTS:
@@ -802,18 +892,41 @@ def _click_connect_via_custom_invite(
     """
     PATH 2 - strongest More-menu path.
 
-    DOM thật đã xác nhận Connect là:
-        <a href="/preload/custom-invite/?vanityName=...">
-            ...
-            <span>Connect</span>
-        </a>
+    Quan trọng:
+    LinkedIn page có thể có nhiều custom-invite links
+    ở sidebar / recommendation.
 
-    Ưu tiên selector cụ thể /preload/custom-invite/,
-    sau đó fallback generic custom-invite.
+    Vì vậy phải match đúng vanityName của profile hiện tại.
+
+    Ví dụ profile:
+        /in/austinsena/
+
+    chỉ click:
+        /preload/custom-invite/?vanityName=austinsena
     """
+    _check_deadline(deadline)
+
+    vanity_name = (
+        _get_profile_vanity_name(
+            page
+        )
+    )
+
+    if not vanity_name:
+        print(
+            "PATH 2: could not derive current profile vanityName"
+        )
+        return False
+
     selectors = (
-        "a[href*='/preload/custom-invite/']",
-        "a[href*='custom-invite']",
+        (
+            "a[href*='/preload/custom-invite/']"
+            f"[href*='vanityName={vanity_name}']"
+        ),
+        (
+            "a[href*='custom-invite']"
+            f"[href*='vanityName={vanity_name}']"
+        ),
     )
 
     for selector in selectors:
@@ -829,7 +942,9 @@ def _click_connect_via_custom_invite(
             ):
                 _check_deadline(deadline)
 
-                link = links.nth(index)
+                link = links.nth(
+                    index
+                )
 
                 if not _is_visible_locator(
                     link,
@@ -840,7 +955,8 @@ def _click_connect_via_custom_invite(
 
                 try:
                     href = (
-                        link.get_attribute("href")
+                        link
+                        .get_attribute("href")
                         or ""
                     )
                 except Exception:
@@ -855,23 +971,34 @@ def _click_connect_via_custom_invite(
                 except Exception:
                     text_value = ""
 
+                try:
+                    role = (
+                        link
+                        .get_attribute("role")
+                        or ""
+                    )
+                except Exception:
+                    role = ""
+
                 print(
-                    "PATH 2 candidate:",
+                    "PATH 2 exact candidate:",
                     "href=",
                     href,
+                    "role=",
+                    role,
                     "text=",
                     repr(text_value),
                 )
 
-                # Strong guard: action phải thật sự là Connect.
                 if (
-                    "custom-invite" not in href
+                    "custom-invite"
+                    not in href
                 ):
                     continue
 
                 if (
-                    text_value
-                    and "connect" not in text_value.lower()
+                    f"vanityName={vanity_name}"
+                    not in href
                 ):
                     continue
 
@@ -881,7 +1008,7 @@ def _click_connect_via_custom_invite(
                     maximum_ms=420,
                 ):
                     print(
-                        "PATH 2: clicked custom-invite anchor"
+                        "PATH 2: clicked exact profile custom-invite"
                     )
                     return True
 
@@ -891,7 +1018,10 @@ def _click_connect_via_custom_invite(
         except Exception as exc:
             print(
                 "PATH 2 error:",
-                f"{type(exc).__name__}: {exc}",
+                (
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
             )
 
     return False
@@ -908,12 +1038,18 @@ def _click_connect_via_menu_text(
 ) -> bool:
     """
     PATH 3 fallback:
-    exact text Connect -> closest <a> / <button>.
+    exact text Connect trong vùng menu vừa mở.
 
-    DOM thật cho thấy Connect thường nằm trong <span>
-    bên trong clickable <a>.
+    Ưu tiên clickable <a> có vanityName đúng profile hiện tại.
+    Chỉ khi không có href mới fallback a/button text.
     """
     _check_deadline(deadline)
+
+    vanity_name = (
+        _get_profile_vanity_name(
+            page
+        )
+    )
 
     try:
         texts = page.get_by_text(
@@ -926,7 +1062,9 @@ def _click_connect_via_menu_text(
         ):
             _check_deadline(deadline)
 
-            node = texts.nth(index)
+            node = texts.nth(
+                index
+            )
 
             if not _is_visible_locator(
                 node,
@@ -940,89 +1078,88 @@ def _click_connect_via_menu_text(
             if not box:
                 continue
 
-            # Tránh Connect ở quá sâu dưới profile.
+            # Menu của profile nằm gần header;
+            # loại recommendation Connect sâu phía dưới.
+            if box["y"] < 120:
+                continue
+
             if box["y"] > 900:
                 continue
 
-            print(
-                "PATH 3 Connect text:",
-                "x=",
-                box["x"],
-                "y=",
-                box["y"],
-            )
-
-            # DOM thật: span -> nearest clickable <a>.
             clickable = node.locator(
                 "xpath=ancestor-or-self::*["
                 "self::a or self::button"
                 "][1]"
             )
 
-            if clickable.count() > 0:
-                clickable = clickable.first
+            if clickable.count() == 0:
+                continue
 
-                if _is_visible_locator(
-                    clickable,
-                    deadline=deadline,
-                    maximum_ms=150,
-                ):
-                    try:
-                        href = (
-                            clickable
-                            .get_attribute("href")
-                            or ""
-                        )
-                    except Exception:
-                        href = ""
+            clickable = (
+                clickable.first
+            )
 
-                    print(
-                        "PATH 3 clickable:",
-                        "href=",
-                        href,
-                    )
+            if not _is_visible_locator(
+                clickable,
+                deadline=deadline,
+                maximum_ms=150,
+            ):
+                continue
 
-                    if _click_locator(
-                        clickable,
-                        deadline=deadline,
-                        maximum_ms=420,
-                    ):
-                        print(
-                            "PATH 3: clicked closest a/button"
-                        )
-                        return True
-
-            # Last fallback: JS closest.
             try:
-                clicked = node.evaluate(
-                    """
-                    (element) => {
-                        const target =
-                            element.closest('a, button');
-
-                        if (!target) {
-                            return false;
-                        }
-
-                        target.scrollIntoView({
-                            block: 'center',
-                            inline: 'center'
-                        });
-
-                        target.click();
-                        return true;
-                    }
-                    """
+                href = (
+                    clickable
+                    .get_attribute("href")
+                    or ""
                 )
-
-                if clicked:
-                    print(
-                        "PATH 3: clicked via JS closest(a, button)"
-                    )
-                    return True
-
             except Exception:
-                pass
+                href = ""
+
+            try:
+                role = (
+                    clickable
+                    .get_attribute("role")
+                    or ""
+                )
+            except Exception:
+                role = ""
+
+            # Nếu có href custom-invite,
+            # bắt buộc đúng vanityName hiện tại.
+            if (
+                "custom-invite"
+                in href
+            ):
+                if (
+                    not vanity_name
+                    or (
+                        f"vanityName={vanity_name}"
+                        not in href
+                    )
+                ):
+                    continue
+
+            print(
+                "PATH 3 candidate:",
+                "x=",
+                box["x"],
+                "y=",
+                box["y"],
+                "href=",
+                href,
+                "role=",
+                role,
+            )
+
+            if _click_locator(
+                clickable,
+                deadline=deadline,
+                maximum_ms=420,
+            ):
+                print(
+                    "PATH 3: clicked profile-scoped Connect"
+                )
+                return True
 
     except LinkedInProfileActionTimeout:
         raise
@@ -1030,7 +1167,10 @@ def _click_connect_via_menu_text(
     except Exception as exc:
         print(
             "PATH 3 error:",
-            f"{type(exc).__name__}: {exc}",
+            (
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            ),
         )
 
     return False
