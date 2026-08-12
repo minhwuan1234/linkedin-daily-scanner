@@ -3062,11 +3062,6 @@ els.youtubeResearchForm.addEventListener(
   createYoutubeResearchJob
 );
 
-els.youtubeResearchForm.addEventListener(
-  "submit",
-  createYoutubeResearchJob
-);
-
 els.outreachConnectForm.addEventListener(
   "submit",
   createOutreachConnectJob
@@ -3075,11 +3070,6 @@ els.outreachConnectForm.addEventListener(
 els.outreachUrlInput.addEventListener(
   "input",
   updateOutreachDetectedCount
-);
-
-els.youtubeSearchInput.addEventListener(
-  "input",
-  renderYoutubeResearch
 );
 
 els.youtubeSearchInput.addEventListener(
@@ -3123,11 +3113,14 @@ document.addEventListener(
 
 updateOutreachDetectedCount();
 
-renderOutreachJob(
-  state.outreachCurrentJob
-);
+renderOutreachDashboard();
 
 renderOutreachSubmittingState();
 
 setupYoutubeRealtime();
+
+loadOutreachDashboard();
+
+startOutreachPolling();
+
 loadDashboard();
