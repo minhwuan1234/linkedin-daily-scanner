@@ -792,55 +792,215 @@ def _click_connect_in_more_menu(
     *,
     deadline: float,
 ) -> bool:
-    strong_selectors = (
-        (
-            "a[href*="
-            "'/preload/custom-invite/']"
-        ),
-        (
-            "a[href*="
-            "'preload/custom-invite']"
-        ),
+    """
+    Sau khi More đã mở:
+
+    tìm đúng text Connect,
+    sau đó leo lên clickable parent
+    và click action Connect.
+    """
+
+    _check_deadline(
+        deadline
     )
 
-    if _click_first_visible(
-        page,
-        strong_selectors,
-        deadline=deadline,
-        maximum_ms=700,
-    ):
-        print(
-            "Connect clicked using "
-            "invite href."
+    try:
+        # -------------------------------------------------
+        # 1. STRONG SIGNAL:
+        # custom invite href
+        # -------------------------------------------------
+
+        invite_links = (
+            page.locator(
+                "a[href*='custom-invite']"
+            )
         )
 
-        return True
-
-    fallback_selectors = (
-        (
-            "[role='menuitem']"
-            ":has-text('Connect')"
-        ),
-        "a:has-text('Connect')",
-        "li:has-text('Connect')",
-        "span:has-text('Connect')",
-    )
-
-    if _click_first_visible(
-        page,
-        fallback_selectors,
-        deadline=deadline,
-        maximum_ms=500,
-    ):
-        print(
-            "Connect clicked using "
-            "text fallback."
+        link_count = (
+            invite_links.count()
         )
 
-        return True
+        for index in range(
+            link_count
+        ):
+            _check_deadline(
+                deadline
+            )
 
-    return False
+            link = (
+                invite_links.nth(
+                    index
+                )
+            )
 
+            try:
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=300,
+                )
+
+                if not link.is_visible(
+                    timeout=timeout
+                ):
+                    continue
+
+                text = (
+                    link
+                    .inner_text()
+                    .strip()
+                )
+
+                print(
+                    "CONNECT menu href candidate:",
+                    repr(text),
+                )
+
+                link.evaluate(
+                    "(element) => element.click()"
+                )
+
+                print(
+                    "CONNECT clicked "
+                    "via custom-invite href."
+                )
+
+                return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+
+            except Exception:
+                continue
+
+        # -------------------------------------------------
+        # 2. EXACT TEXT CONNECT
+        # -------------------------------------------------
+
+        connect_texts = (
+            page
+            .get_by_text(
+                "Connect",
+                exact=True,
+            )
+        )
+
+        count = (
+            connect_texts.count()
+        )
+
+        print(
+            "Exact Connect texts found:",
+            count,
+        )
+
+        for index in range(
+            count
+        ):
+            _check_deadline(
+                deadline
+            )
+
+            text_node = (
+                connect_texts.nth(
+                    index
+                )
+            )
+
+            try:
+                timeout = _remaining_ms(
+                    deadline,
+                    maximum_ms=350,
+                )
+
+                if not text_node.is_visible(
+                    timeout=timeout
+                ):
+                    continue
+
+                box = (
+                    text_node
+                    .bounding_box()
+                )
+
+                if not box:
+                    continue
+
+                print(
+                    "CONNECT exact candidate:",
+                    "x=",
+                    box["x"],
+                    "y=",
+                    box["y"],
+                )
+
+                # Leo lên clickable ancestor gần nhất.
+                clickable = (
+                    text_node.locator(
+                        (
+                            "xpath=ancestor-or-self::*["
+                            "self::button "
+                            "or self::a "
+                            "or @role='menuitem'"
+                            "][1]"
+                        )
+                    )
+                )
+
+                if clickable.count() == 0:
+                    # Một số LinkedIn menu
+                    # clickable nằm ở li/div cha.
+                    clickable = (
+                        text_node.locator(
+                            "xpath=parent::*"
+                        )
+                    )
+
+                if clickable.count() == 0:
+                    continue
+
+                clickable.evaluate(
+                    """
+                    (element) => {
+                        element.click();
+                    }
+                    """
+                )
+
+                print(
+                    "CONNECT clicked "
+                    "from More menu."
+                )
+
+                return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+
+            except Exception as exc:
+                print(
+                    "CONNECT candidate skipped:",
+                    f"{type(exc).__name__}: {exc}",
+                )
+
+                continue
+
+        print(
+            "No Connect action found "
+            "inside More menu."
+        )
+
+        return False
+
+    except LinkedInProfileActionTimeout:
+        raise
+
+    except Exception as exc:
+        print(
+            "CONNECT IN MORE ERROR:",
+            f"{type(exc).__name__}: {exc}",
+        )
+
+        return False
 
 # =========================================================
 # CONNECT DISCOVERY
