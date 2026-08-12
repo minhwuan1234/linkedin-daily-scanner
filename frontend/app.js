@@ -198,7 +198,6 @@ const state = {
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   tableErrors: {},
-  tableErrors: {},
   commandPending: false
 };
 
@@ -1039,6 +1038,15 @@ async function createYoutubeResearchJob(event) {
 // OUTREACH
 // =========================================================
 
+
+const OUTREACH_POLL_INTERVAL_MS = 3000;
+
+
+// ---------------------------------------------------------
+// URL INPUT
+// ---------------------------------------------------------
+
+
 function parseOutreachUrls() {
   const rawText = String(
     els.outreachUrlInput?.value || ""
@@ -1063,6 +1071,11 @@ function updateOutreachDetectedCount() {
 }
 
 
+// ---------------------------------------------------------
+// SUBMIT BUTTON
+// ---------------------------------------------------------
+
+
 function renderOutreachSubmittingState() {
   if (!els.outreachStartButton) {
     return;
@@ -1071,76 +1084,641 @@ function renderOutreachSubmittingState() {
   els.outreachStartButton.disabled =
     state.outreachSubmitting;
 
-  els.outreachStartButtonText.textContent =
-    state.outreachSubmitting
-      ? "Creating job..."
-      : "Start Connect";
+  if (els.outreachStartButtonText) {
+    els.outreachStartButtonText.textContent =
+      state.outreachSubmitting
+        ? "Creating job..."
+        : "Start Connect";
+  }
 }
 
 
+// ---------------------------------------------------------
+// STATUS
+// ---------------------------------------------------------
+
+
+function getOutreachPillClass(status) {
+  const normalized = String(
+    status || ""
+  ).toLowerCase();
+
+  if (normalized === "completed") {
+    return "pill-green";
+  }
+
+  if (normalized === "failed") {
+    return "pill-red";
+  }
+
+  if (normalized === "running") {
+    return "pill-purple";
+  }
+
+  if (normalized === "pending") {
+    return "pill-amber";
+  }
+
+  return "pill-neutral";
+}
+
+
+// ---------------------------------------------------------
+// CURRENT JOB
+// ---------------------------------------------------------
+
+
 function renderOutreachJob(job) {
+  if (!els.outreachJobEmpty) {
+    return;
+  }
+
   if (!job) {
     els.outreachJobEmpty.hidden = false;
-    els.outreachJobResult.hidden = true;
 
-    els.outreachJobCode.textContent =
-      "Chưa có job";
+    if (els.outreachJobResult) {
+      els.outreachJobResult.hidden = true;
+    }
 
-    els.outreachJobBadge.textContent =
-      "Idle";
+    if (els.outreachJobCode) {
+      els.outreachJobCode.textContent =
+        "Chưa có job";
+    }
 
-    els.outreachJobBadge.className =
-      "pill pill-neutral";
+    if (els.outreachJobBadge) {
+      els.outreachJobBadge.textContent =
+        "Idle";
+
+      els.outreachJobBadge.className =
+        "pill pill-neutral";
+    }
 
     return;
   }
 
   els.outreachJobEmpty.hidden = true;
-  els.outreachJobResult.hidden = false;
 
-  els.outreachJobCode.textContent =
-    job.job_code || "—";
-
-  els.outreachInputCount.textContent =
-    String(job.input_count ?? 0);
-
-  els.outreachReadyCount.textContent =
-    String(job.target_count ?? 0);
-
-  els.outreachDuplicateCount.textContent =
-    String(job.duplicate_count ?? 0);
-
-  els.outreachInvalidCount.textContent =
-    String(job.invalid_count ?? 0);
+  if (els.outreachJobResult) {
+    els.outreachJobResult.hidden = false;
+  }
 
   const status = String(
     job.status || "pending"
   ).toLowerCase();
 
-  els.outreachJobStatus.textContent =
-    statusLabel(status);
+  const targetCount =
+    Number(job.target_count || 0);
 
-  els.outreachJobBadge.textContent =
-    statusLabel(status);
+  const processedCount =
+    Number(job.processed_count || 0);
 
-  els.outreachJobBadge.className =
-    `pill ${
-      status === "completed"
-        ? "pill-green"
-        : status === "failed"
-          ? "pill-red"
-          : status === "running"
-            ? "pill-purple"
-            : "pill-amber"
-    }`;
+  let progressPercent =
+    Number(job.progress_percent || 0);
 
-  els.outreachJobMessage.textContent =
-    (
-      `${job.target_count ?? 0} profiles ready`
-      + ` · ${job.duplicate_count ?? 0} duplicates`
-      + ` · ${job.invalid_count ?? 0} invalid`
+  if (
+    !Number.isFinite(progressPercent) ||
+    progressPercent < 0
+  ) {
+    progressPercent = 0;
+  }
+
+  progressPercent = Math.min(
+    100,
+    progressPercent
+  );
+
+
+  if (els.outreachJobCode) {
+    els.outreachJobCode.textContent =
+      job.job_code || "—";
+  }
+
+
+  if (els.outreachJobBadge) {
+    els.outreachJobBadge.textContent =
+      statusLabel(status);
+
+    els.outreachJobBadge.className =
+      `pill ${getOutreachPillClass(status)}`;
+  }
+
+
+  if (els.outreachInputCount) {
+    els.outreachInputCount.textContent =
+      String(job.input_count ?? 0);
+  }
+
+
+  if (els.outreachReadyCount) {
+    els.outreachReadyCount.textContent =
+      String(targetCount);
+  }
+
+
+  if (els.outreachProcessedCount) {
+    els.outreachProcessedCount.textContent =
+      String(processedCount);
+  }
+
+
+  if (els.outreachSuccessCount) {
+    els.outreachSuccessCount.textContent =
+      String(job.success_count ?? 0);
+  }
+
+
+  if (els.outreachFailedCount) {
+    els.outreachFailedCount.textContent =
+      String(job.failed_count ?? 0);
+  }
+
+
+  if (els.outreachDuplicateCount) {
+    els.outreachDuplicateCount.textContent =
+      String(job.duplicate_count ?? 0);
+  }
+
+
+  if (els.outreachInvalidCount) {
+    els.outreachInvalidCount.textContent =
+      String(job.invalid_count ?? 0);
+  }
+
+
+  if (els.outreachJobStatus) {
+    els.outreachJobStatus.textContent =
+      statusLabel(status);
+  }
+
+
+  if (els.outreachProgressText) {
+    els.outreachProgressText.textContent =
+      `${processedCount} / ${targetCount}`;
+  }
+
+
+  if (els.outreachProgressBar) {
+    els.outreachProgressBar.style.width =
+      `${progressPercent}%`;
+  }
+
+
+  if (els.outreachProgressPercent) {
+    els.outreachProgressPercent.textContent =
+      `${progressPercent}%`;
+  }
+
+
+  if (els.outreachCreatedAt) {
+    els.outreachCreatedAt.textContent =
+      formatDate(job.created_at);
+  }
+
+
+  if (els.outreachStartedAt) {
+    els.outreachStartedAt.textContent =
+      formatDate(job.started_at);
+  }
+
+
+  if (els.outreachCompletedAt) {
+    els.outreachCompletedAt.textContent =
+      formatDate(job.completed_at);
+  }
+
+
+  if (els.outreachJobMessage) {
+    els.outreachJobMessage.textContent =
+      (
+        `${processedCount}/${targetCount} processed`
+        + ` · ${job.success_count ?? 0} success`
+        + ` · ${job.failed_count ?? 0} failed`
+      );
+  }
+
+
+  if (els.outreachLastError) {
+    const lastError = String(
+      job.last_error || ""
+    ).trim();
+
+    els.outreachLastError.hidden =
+      !lastError;
+
+    els.outreachLastError.textContent =
+      lastError;
+  }
+}
+
+
+// ---------------------------------------------------------
+// SCHEDULER
+// ---------------------------------------------------------
+
+
+function renderOutreachScheduler(
+  scheduler
+) {
+  if (!scheduler) {
+    if (els.outreachSchedulerBadge) {
+      els.outreachSchedulerBadge.textContent =
+        "No data";
+
+      els.outreachSchedulerBadge.className =
+        "pill pill-neutral";
+    }
+
+    if (els.outreachCurrentAccount) {
+      els.outreachCurrentAccount.textContent =
+        "—";
+    }
+
+    if (els.outreachUsedTurn) {
+      els.outreachUsedTurn.textContent =
+        "0 / 0";
+    }
+
+    if (els.outreachRemainingTurn) {
+      els.outreachRemainingTurn.textContent =
+        "0";
+    }
+
+    if (els.outreachSchedulerUpdatedAt) {
+      els.outreachSchedulerUpdatedAt.textContent =
+        "—";
+    }
+
+    return;
+  }
+
+
+  const used =
+    Number(
+      scheduler.used_in_current_turn || 0
+    );
+
+  const limit =
+    Number(
+      scheduler.turn_limit || 0
+    );
+
+  const remaining =
+    Number(
+      scheduler.remaining_in_current_turn || 0
+    );
+
+
+  if (els.outreachSchedulerBadge) {
+    els.outreachSchedulerBadge.textContent =
+      `${used}/${limit}`;
+
+    els.outreachSchedulerBadge.className =
+      "pill pill-purple";
+  }
+
+
+  if (els.outreachCurrentAccount) {
+    els.outreachCurrentAccount.textContent =
+      scheduler.current_account_id || "—";
+  }
+
+
+  if (els.outreachUsedTurn) {
+    els.outreachUsedTurn.textContent =
+      `${used} / ${limit}`;
+  }
+
+
+  if (els.outreachRemainingTurn) {
+    els.outreachRemainingTurn.textContent =
+      String(remaining);
+  }
+
+
+  if (els.outreachSchedulerUpdatedAt) {
+    els.outreachSchedulerUpdatedAt.textContent =
+      formatDate(
+        scheduler.updated_at
+      );
+  }
+}
+
+
+// ---------------------------------------------------------
+// ACCOUNTS
+// ---------------------------------------------------------
+
+
+function renderOutreachAccounts(
+  accounts
+) {
+  const rows = Array.isArray(accounts)
+    ? accounts
+    : [];
+
+  if (els.outreachAccountCount) {
+    els.outreachAccountCount.textContent =
+      `${rows.length} accounts`;
+  }
+
+  if (!els.outreachAccountsList) {
+    return;
+  }
+
+  if (!rows.length) {
+    els.outreachAccountsList.innerHTML = `
+      <div class="outreach-job-empty">
+        Chưa có dữ liệu account.
+      </div>
+    `;
+
+    return;
+  }
+
+
+  els.outreachAccountsList.innerHTML =
+    rows
+      .map((account) => {
+        const accountId =
+          escapeHtml(
+            account.account_id || "—"
+          );
+
+        const status =
+          escapeHtml(
+            account.status || "unknown"
+          );
+
+        const profileDirectory =
+          escapeHtml(
+            account.profile_directory || "—"
+          );
+
+        return `
+          <div class="outreach-account-card">
+
+            <div class="outreach-account-card-header">
+
+              <strong>
+                ${accountId}
+              </strong>
+
+              <span class="pill pill-neutral">
+                ${status}
+              </span>
+
+            </div>
+
+            <span class="panel-meta">
+              ${profileDirectory}
+            </span>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+
+// ---------------------------------------------------------
+// HISTORY
+// ---------------------------------------------------------
+
+
+function renderOutreachHistory(
+  jobs
+) {
+  const rows = Array.isArray(jobs)
+    ? jobs
+    : [];
+
+  if (
+    !els.outreachHistoryEmpty ||
+    !els.outreachHistoryTableWrap ||
+    !els.outreachHistoryBody
+  ) {
+    return;
+  }
+
+
+  if (!rows.length) {
+    els.outreachHistoryEmpty.hidden = false;
+    els.outreachHistoryTableWrap.hidden = true;
+    els.outreachHistoryBody.innerHTML = "";
+    return;
+  }
+
+
+  els.outreachHistoryEmpty.hidden = true;
+  els.outreachHistoryTableWrap.hidden = false;
+
+
+  els.outreachHistoryBody.innerHTML =
+    rows
+      .map((job) => {
+        const status = String(
+          job.status || ""
+        ).toLowerCase();
+
+        return `
+          <tr>
+
+            <td>
+              <strong>
+                ${escapeHtml(job.job_code || "—")}
+              </strong>
+            </td>
+
+            <td>
+              <span class="pill ${getOutreachPillClass(status)}">
+                ${escapeHtml(statusLabel(status))}
+              </span>
+            </td>
+
+            <td>
+              ${Number(job.input_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.target_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.processed_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.success_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.failed_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.duplicate_count || 0)}
+            </td>
+
+            <td>
+              ${Number(job.invalid_count || 0)}
+            </td>
+
+            <td>
+              ${escapeHtml(
+                formatDate(job.created_at)
+              )}
+            </td>
+
+          </tr>
+        `;
+      })
+      .join("");
+}
+
+
+// ---------------------------------------------------------
+// FULL DASHBOARD RENDER
+// ---------------------------------------------------------
+
+
+function renderOutreachDashboard() {
+  renderOutreachJob(
+    state.outreachCurrentJob
+  );
+
+  renderOutreachScheduler(
+    state.outreachScheduler
+  );
+
+  renderOutreachAccounts(
+    state.outreachAccounts
+  );
+
+  renderOutreachHistory(
+    state.outreachRecentJobs
+  );
+
+  if (els.outreachDashboardUpdatedAt) {
+    els.outreachDashboardUpdatedAt.textContent =
+      `Updated ${formatDate(
+        new Date().toISOString()
+      )}`;
+  }
+}
+
+
+// ---------------------------------------------------------
+// LOAD DASHBOARD
+// ---------------------------------------------------------
+
+
+async function loadOutreachDashboard() {
+  if (state.outreachDashboardLoading) {
+    return;
+  }
+
+  state.outreachDashboardLoading = true;
+
+  try {
+    const response = await fetch(
+      "/api/outreach/dashboard",
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Outreach dashboard."
+      );
+    }
+
+
+    const dashboard =
+      result.dashboard || {};
+
+
+    state.outreachCurrentJob =
+      dashboard.current_job || null;
+
+    state.outreachScheduler =
+      dashboard.scheduler || null;
+
+    state.outreachAccounts =
+      Array.isArray(
+        dashboard.accounts
+      )
+        ? dashboard.accounts
+        : [];
+
+    state.outreachRecentJobs =
+      Array.isArray(
+        dashboard.recent_jobs
+      )
+        ? dashboard.recent_jobs
+        : [];
+
+
+    if (els.outreachError) {
+      els.outreachError.hidden = true;
+      els.outreachError.textContent = "";
+    }
+
+
+    renderOutreachDashboard();
+
+  } catch (error) {
+    console.error(
+      "Outreach dashboard error:",
+      error
+    );
+
+    if (els.outreachError) {
+      els.outreachError.hidden = false;
+
+      els.outreachError.textContent =
+        error.message || String(error);
+    }
+
+  } finally {
+    state.outreachDashboardLoading = false;
+  }
+}
+
+
+// ---------------------------------------------------------
+// POLLING
+// ---------------------------------------------------------
+
+
+function startOutreachPolling() {
+  if (state.outreachPollTimer) {
+    return;
+  }
+
+  state.outreachPollTimer =
+    window.setInterval(
+      loadOutreachDashboard,
+      OUTREACH_POLL_INTERVAL_MS
     );
 }
+
+
+// ---------------------------------------------------------
+// CREATE CONNECT JOB
+// ---------------------------------------------------------
 
 
 async function createOutreachConnectJob(
@@ -1148,38 +1726,55 @@ async function createOutreachConnectJob(
 ) {
   event.preventDefault();
 
-  const urls = parseOutreachUrls();
+  const urls =
+    parseOutreachUrls();
 
   if (!urls.length) {
     window.alert(
       "Hãy nhập ít nhất một LinkedIn profile URL."
     );
+
     return;
   }
 
+
   state.outreachSubmitting = true;
+
   renderOutreachSubmittingState();
 
-  els.outreachError.hidden = true;
-  els.outreachError.textContent = "";
+
+  if (els.outreachError) {
+    els.outreachError.hidden = true;
+    els.outreachError.textContent = "";
+  }
+
 
   try {
     const response = await fetch(
       "/api/outreach/connect/jobs",
       {
         method: "POST",
+
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type":
+            "application/json"
         },
+
         body: JSON.stringify({
           urls
         })
       }
     );
 
-    const result = await response.json();
 
-    if (!response.ok || !result.ok) {
+    const result =
+      await response.json();
+
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
       throw new Error(
         result.detail ||
         result.error ||
@@ -1187,20 +1782,41 @@ async function createOutreachConnectJob(
       );
     }
 
+
     state.outreachCurrentJob =
       result.job || null;
+
 
     renderOutreachJob(
       state.outreachCurrentJob
     );
 
+
+    if (els.outreachUrlInput) {
+      els.outreachUrlInput.value =
+        "";
+    }
+
+
+    updateOutreachDetectedCount();
+
+
+    // Load lại ngay từ DB.
+    // Không cần chờ poll 3 giây.
+    await loadOutreachDashboard();
+
+
   } catch (error) {
-    els.outreachError.hidden = false;
-    els.outreachError.textContent =
-      error.message || String(error);
+    if (els.outreachError) {
+      els.outreachError.hidden = false;
+
+      els.outreachError.textContent =
+        error.message || String(error);
+    }
 
   } finally {
     state.outreachSubmitting = false;
+
     renderOutreachSubmittingState();
   }
 }
