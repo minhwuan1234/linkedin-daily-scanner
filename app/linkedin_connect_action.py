@@ -573,110 +573,211 @@ def _click_more_button(
     deadline: float,
 ) -> bool:
     """
-    Click More tối đa 2 lần.
+    Open đúng More button trong profile header.
 
-    Quan trọng:
-    - Không click lại More nếu Connect trong menu đã xuất hiện,
-      vì click lần hai có thể đóng menu.
-    - Nếu DOM không có aria-expanded/menu role thì exact Connect
-      vẫn được coi là menu đã mở.
+    DOM thật đã xác nhận:
+    - text "More" nằm trong <span>
+    - clickable là ancestor <button>
+    - button có aria-expanded="false" trước khi mở
+    - sau click, aria-expanded chuyển thành "true"
+
+    Strategy:
+    1. Tìm exact text More
+    2. Leo lên ancestor button gần nhất
+    3. Chỉ nhận button có aria-expanded attribute
+    4. Click
+    5. Verify aria-expanded == "true"
+    6. Retry đúng 1 lần nếu cần
     """
-    for attempt in range(
-        1,
-        MORE_MAX_ATTEMPTS + 1,
-    ):
+    _check_deadline(deadline)
+
+    for attempt in range(1, MORE_MAX_ATTEMPTS + 1):
         print(
             f"MORE attempt {attempt}/{MORE_MAX_ATTEMPTS}"
         )
 
-        # Menu có thể đã mở từ attempt trước.
-        if _visible_exact_connect_exists(
-            page,
-            deadline=deadline,
-        ):
-            print(
-                "MORE menu already exposes Connect"
-            )
-            return True
-
-        candidates = _collect_more_buttons(
-            page,
-            deadline=deadline,
-        )
-
-        if not candidates:
-            print(
-                "MORE: no valid profile-header candidate"
+        try:
+            more_texts = page.get_by_text(
+                "More",
+                exact=True,
             )
 
-            if attempt < MORE_MAX_ATTEMPTS:
-                _sleep(
-                    page,
+            candidates = []
+
+            for index in range(more_texts.count()):
+                _check_deadline(deadline)
+
+                text_node = more_texts.nth(index)
+
+                if not _is_visible_locator(
+                    text_node,
                     deadline=deadline,
-                    milliseconds=140,
+                    maximum_ms=180,
+                ):
+                    continue
+
+                button = text_node.locator(
+                    "xpath=ancestor::button[1]"
                 )
-                continue
 
-            return False
+                if button.count() == 0:
+                    continue
 
-        for y, x, button in candidates:
+                button = button.first
+
+                if not _is_visible_locator(
+                    button,
+                    deadline=deadline,
+                    maximum_ms=180,
+                ):
+                    continue
+
+                try:
+                    aria_expanded = button.get_attribute(
+                        "aria-expanded"
+                    )
+                except Exception:
+                    aria_expanded = None
+
+                # DOM thật của More header có attribute này.
+                if aria_expanded is None:
+                    continue
+
+                box = button.bounding_box()
+
+                if not box:
+                    continue
+
+                x = box["x"]
+                y = box["y"]
+
+                # Chỉ lấy vùng profile header.
+                if y > 650:
+                    continue
+
+                candidates.append(
+                    (
+                        y,
+                        x,
+                        button,
+                    )
+                )
+
+            if not candidates:
+                print(
+                    "MORE: no exact header button with aria-expanded"
+                )
+                return False
+
+            candidates.sort(
+                key=lambda item: (
+                    item[0],
+                    item[1],
+                )
+            )
+
+            y, x, button = candidates[0]
+
             print(
-                "MORE candidate",
+                "MORE selected:",
+                "x=",
                 x,
+                "y=",
                 y,
             )
 
-            if _more_menu_is_open(
-                page,
-                button=button,
-                deadline=deadline,
-            ):
+            try:
+                current_expanded = (
+                    button.get_attribute("aria-expanded")
+                    or ""
+                ).strip().lower()
+            except Exception:
+                current_expanded = ""
+
+            if current_expanded == "true":
                 print(
                     "MORE already open"
                 )
                 return True
 
-            clicked = _click_locator(
+            if not _click_locator(
                 button,
                 deadline=deadline,
                 maximum_ms=420,
-            )
-
-            if not clicked:
-                print(
-                    "MORE candidate click failed"
-                )
-                continue
-
-            # Give LinkedIn one short render beat first.
-            _sleep(
-                page,
-                deadline=deadline,
-                milliseconds=120,
-            )
-
-            # Check Connect immediately before any retry can close menu.
-            if _visible_exact_connect_exists(
-                page,
-                deadline=deadline,
             ):
                 print(
-                    "MORE opened: exact Connect visible"
+                    "MORE click failed"
                 )
-                return True
-
-            if _wait_for_more_menu(
-                page,
-                button=button,
-                deadline=deadline,
-            ):
-                print(
-                    "MORE verified open"
+            else:
+                verify_deadline = min(
+                    deadline,
+                    time.monotonic()
+                    + (MORE_VERIFY_WINDOW_MS / 1000),
                 )
-                return True
 
+                while time.monotonic() < verify_deadline:
+                    _check_deadline(deadline)
+
+                    try:
+                        expanded = (
+                            button
+                            .get_attribute("aria-expanded")
+                            or ""
+                        ).strip().lower()
+                    except Exception:
+                        expanded = ""
+
+                    if expanded == "true":
+                        print(
+                            "MORE verified open via aria-expanded=true"
+                        )
+                        return True
+
+                    # Strong fallback:
+                    # menu may already render custom-invite before
+                    # aria-expanded is observed by Playwright.
+                    try:
+                        invite_links = page.locator(
+                            "a[href*='/preload/custom-invite/'], "
+                            "a[href*='custom-invite']"
+                        )
+
+                        for link_index in range(
+                            invite_links.count()
+                        ):
+                            link = invite_links.nth(
+                                link_index
+                            )
+
+                            if _is_visible_locator(
+                                link,
+                                deadline=deadline,
+                                maximum_ms=100,
+                            ):
+                                print(
+                                    "MORE verified open via custom-invite link"
+                                )
+                                return True
+
+                    except LinkedInProfileActionTimeout:
+                        raise
+
+                    except Exception:
+                        pass
+
+                    _sleep(
+                        page,
+                        deadline=deadline,
+                        milliseconds=80,
+                    )
+
+        except LinkedInProfileActionTimeout:
+            raise
+
+        except Exception as exc:
             print(
-                "MORE click produced no visible Connect yet"
+                "MORE error:",
+                f"{type(exc).__name__}: {exc}",
             )
 
         if attempt < MORE_MAX_ATTEMPTS:
@@ -698,23 +799,101 @@ def _click_connect_via_custom_invite(
     *,
     deadline: float,
 ) -> bool:
-    try:
-        links = page.locator("a[href*='custom-invite']")
-        for index in range(links.count()):
-            link = links.nth(index)
-            if not _is_visible_locator(
-                link,
-                deadline=deadline,
-                maximum_ms=160,
+    """
+    PATH 2 - strongest More-menu path.
+
+    DOM thật đã xác nhận Connect là:
+        <a href="/preload/custom-invite/?vanityName=...">
+            ...
+            <span>Connect</span>
+        </a>
+
+    Ưu tiên selector cụ thể /preload/custom-invite/,
+    sau đó fallback generic custom-invite.
+    """
+    selectors = (
+        "a[href*='/preload/custom-invite/']",
+        "a[href*='custom-invite']",
+    )
+
+    for selector in selectors:
+        _check_deadline(deadline)
+
+        try:
+            links = page.locator(
+                selector
+            )
+
+            for index in range(
+                links.count()
             ):
-                continue
-            if _click_locator(link, deadline=deadline):
-                print("PATH 2: clicked custom-invite")
-                return True
-    except LinkedInProfileActionTimeout:
-        raise
-    except Exception:
-        pass
+                _check_deadline(deadline)
+
+                link = links.nth(index)
+
+                if not _is_visible_locator(
+                    link,
+                    deadline=deadline,
+                    maximum_ms=180,
+                ):
+                    continue
+
+                try:
+                    href = (
+                        link.get_attribute("href")
+                        or ""
+                    )
+                except Exception:
+                    href = ""
+
+                try:
+                    text_value = (
+                        link
+                        .inner_text()
+                        .strip()
+                    )
+                except Exception:
+                    text_value = ""
+
+                print(
+                    "PATH 2 candidate:",
+                    "href=",
+                    href,
+                    "text=",
+                    repr(text_value),
+                )
+
+                # Strong guard: action phải thật sự là Connect.
+                if (
+                    "custom-invite" not in href
+                ):
+                    continue
+
+                if (
+                    text_value
+                    and "connect" not in text_value.lower()
+                ):
+                    continue
+
+                if _click_locator(
+                    link,
+                    deadline=deadline,
+                    maximum_ms=420,
+                ):
+                    print(
+                        "PATH 2: clicked custom-invite anchor"
+                    )
+                    return True
+
+        except LinkedInProfileActionTimeout:
+            raise
+
+        except Exception as exc:
+            print(
+                "PATH 2 error:",
+                f"{type(exc).__name__}: {exc}",
+            )
+
     return False
 
 
@@ -728,25 +907,23 @@ def _click_connect_via_menu_text(
     deadline: float,
 ) -> bool:
     """
-    PATH 3:
-    More -> exact text Connect.
+    PATH 3 fallback:
+    exact text Connect -> closest <a> / <button>.
 
-    LinkedIn có nhiều DOM variants:
-    - button
-    - a
-    - role=menuitem
-    - li/div wrapper với text span bên trong
-
-    Dùng JS closest() để click clickable ancestor gần nhất,
-    thay vì phụ thuộc một cấu trúc menu cố định.
+    DOM thật cho thấy Connect thường nằm trong <span>
+    bên trong clickable <a>.
     """
+    _check_deadline(deadline)
+
     try:
         texts = page.get_by_text(
             "Connect",
             exact=True,
         )
 
-        for index in range(texts.count()):
+        for index in range(
+            texts.count()
+        ):
             _check_deadline(deadline)
 
             node = texts.nth(index)
@@ -754,7 +931,7 @@ def _click_connect_via_menu_text(
             if not _is_visible_locator(
                 node,
                 deadline=deadline,
-                maximum_ms=160,
+                maximum_ms=180,
             ):
                 continue
 
@@ -763,28 +940,69 @@ def _click_connect_via_menu_text(
             if not box:
                 continue
 
-            # Bỏ các Connect nằm quá sâu dưới trang.
+            # Tránh Connect ở quá sâu dưới profile.
             if box["y"] > 900:
                 continue
 
             print(
-                "PATH 3 Connect candidate:",
+                "PATH 3 Connect text:",
                 "x=",
                 box["x"],
                 "y=",
                 box["y"],
             )
 
+            # DOM thật: span -> nearest clickable <a>.
+            clickable = node.locator(
+                "xpath=ancestor-or-self::*["
+                "self::a or self::button"
+                "][1]"
+            )
+
+            if clickable.count() > 0:
+                clickable = clickable.first
+
+                if _is_visible_locator(
+                    clickable,
+                    deadline=deadline,
+                    maximum_ms=150,
+                ):
+                    try:
+                        href = (
+                            clickable
+                            .get_attribute("href")
+                            or ""
+                        )
+                    except Exception:
+                        href = ""
+
+                    print(
+                        "PATH 3 clickable:",
+                        "href=",
+                        href,
+                    )
+
+                    if _click_locator(
+                        clickable,
+                        deadline=deadline,
+                        maximum_ms=420,
+                    ):
+                        print(
+                            "PATH 3: clicked closest a/button"
+                        )
+                        return True
+
+            # Last fallback: JS closest.
             try:
                 clicked = node.evaluate(
                     """
                     (element) => {
                         const target =
-                            element.closest(
-                                'button, a, [role="menuitem"], li'
-                            )
-                            || element.parentElement
-                            || element;
+                            element.closest('a, button');
+
+                        if (!target) {
+                            return false;
+                        }
 
                         target.scrollIntoView({
                             block: 'center',
@@ -799,51 +1017,12 @@ def _click_connect_via_menu_text(
 
                 if clicked:
                     print(
-                        "PATH 3: clicked exact Connect via DOM ancestor"
+                        "PATH 3: clicked via JS closest(a, button)"
                     )
                     return True
 
-            except Exception as exc:
-                print(
-                    "PATH 3 DOM click failed:",
-                    f"{type(exc).__name__}: {exc}",
-                )
-
-            # Playwright fallback through several ancestors.
-            ancestors = (
-                "xpath=ancestor-or-self::*["
-                "self::button or self::a or @role='menuitem'"
-                "][1]",
-                "xpath=ancestor::li[1]",
-                "xpath=parent::*",
-            )
-
-            for selector in ancestors:
-                clickable = node.locator(
-                    selector
-                )
-
-                if clickable.count() == 0:
-                    continue
-
-                clickable = clickable.first
-
-                if not _is_visible_locator(
-                    clickable,
-                    deadline=deadline,
-                    maximum_ms=120,
-                ):
-                    continue
-
-                if _click_locator(
-                    clickable,
-                    deadline=deadline,
-                    maximum_ms=300,
-                ):
-                    print(
-                        "PATH 3: clicked exact Connect via Playwright fallback"
-                    )
-                    return True
+            except Exception:
+                pass
 
     except LinkedInProfileActionTimeout:
         raise
@@ -851,8 +1030,7 @@ def _click_connect_via_menu_text(
     except Exception as exc:
         print(
             "PATH 3 error:",
-            type(exc).__name__,
-            exc,
+            f"{type(exc).__name__}: {exc}",
         )
 
     return False
