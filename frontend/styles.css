@@ -1650,3 +1650,258 @@ tbody tr:last-child td {
     max-width: none;
   }
 }
+
+/* =========================================================
+   OUTREACH
+   ========================================================= */
+
+.outreach-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.15fr)
+    minmax(340px, 0.85fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.outreach-launch-panel,
+.outreach-result-panel {
+  min-width: 0;
+}
+
+.outreach-connect-form {
+  padding: 20px;
+}
+
+.outreach-url-field {
+  display: grid;
+  gap: 9px;
+}
+
+.outreach-url-field > span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.outreach-url-field textarea {
+  width: 100%;
+  min-height: 300px;
+  resize: vertical;
+
+  padding: 14px 15px;
+
+  border: 1px solid var(--border);
+  border-radius: 13px;
+
+  outline: none;
+
+  background: var(--bg-soft);
+  color: var(--text);
+
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.outreach-url-field textarea::placeholder {
+  color: var(--faint);
+}
+
+.outreach-url-field textarea:hover {
+  border-color: var(--border-strong);
+}
+
+.outreach-url-field textarea:focus {
+  border-color: rgba(
+    124,
+    109,
+    242,
+    0.7
+  );
+
+  box-shadow:
+    0 0 0 3px
+    rgba(
+      124,
+      109,
+      242,
+      0.1
+    );
+}
+
+.outreach-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+  margin-top: 15px;
+}
+
+.outreach-input-footer strong {
+  display: block;
+
+  margin-bottom: 4px;
+
+  color: var(--text);
+  font-size: 11px;
+}
+
+.outreach-input-footer .panel-meta {
+  margin: 0;
+}
+
+#outreachStartButton {
+  flex: 0 0 auto;
+}
+
+.outreach-job-empty {
+  display: grid;
+  min-height: 250px;
+  place-items: center;
+
+  padding: 24px;
+
+  color: var(--faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.outreach-job-result {
+  padding: 20px;
+}
+
+.outreach-stat-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 10px;
+}
+
+.outreach-stat {
+  padding: 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 13px;
+
+  background: var(--bg-soft);
+}
+
+.outreach-stat span {
+  display: block;
+
+  margin-bottom: 9px;
+
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.outreach-stat strong {
+  display: block;
+
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.outreach-stat:nth-child(2) strong {
+  color: #79e4b7;
+}
+
+.outreach-stat:nth-child(3) strong {
+  color: #f8ca72;
+}
+
+.outreach-stat:nth-child(4) strong {
+  color: #ff9ba6;
+}
+
+.outreach-job-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 16px;
+
+  margin-top: 14px;
+  padding: 13px 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 13px;
+
+  background: var(--bg-soft);
+}
+
+.outreach-job-status-row span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.outreach-job-status-row strong {
+  color: #f8ca72;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+#outreachJobMessage {
+  margin-top: 14px;
+  margin-bottom: 0;
+}
+
+.outreach-error {
+  margin: 20px;
+
+  padding: 13px 14px;
+
+  border: 1px solid rgba(
+    255,
+    107,
+    122,
+    0.3
+  );
+
+  border-radius: 13px;
+
+  background: var(--red-soft);
+  color: #ffabb4;
+
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+
+/* =========================================================
+   OUTREACH RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 980px) {
+  .outreach-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .outreach-input-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #outreachStartButton {
+    width: 100%;
+  }
+
+  .outreach-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-url-field textarea {
+    min-height: 240px;
+  }
+}
