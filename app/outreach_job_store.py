@@ -117,8 +117,8 @@ def normalize_linkedin_url(
     
     if (
     host == "linkedin.com"
-        or host.endswith(".linkedin.com")
-    ):
+    or host.endswith(".linkedin.com")
+):
     host = "www.linkedin.com"
         else:
         return ""
