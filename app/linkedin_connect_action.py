@@ -613,19 +613,26 @@ def _click_more_button(
     deadline: float,
 ) -> bool:
     """
-    Open đúng More button trong profile header.
+    Open đúng More button mà không dùng bất kỳ logic vị trí x/y nào.
 
-    DOM thật đã xác nhận có thể có nhiều text "More" trên page.
-    Hai nhóm thường gặp:
-    - top/navigation More ở y rất nhỏ
-    - profile-header More ở khoảng giữa page
+    Strategy:
+    1. Tìm exact text "More"
+    2. Leo lên ancestor button gần nhất
+    3. Chỉ nhận button có attribute aria-expanded
+    4. Dedupe nhiều span cùng trỏ về cùng button
+    5. Ưu tiên button đang đóng (aria-expanded=false)
+    6. Click và verify aria-expanded=true
+    7. Fallback verify bằng exact custom-invite của profile hiện tại
 
-    Chỉ nhận button trong vùng profile header:
-        150 <= y <= 650
-
-    Đồng thời dedupe nhiều span cùng trỏ về một button.
+    Không phụ thuộc viewport, x, y hay layout.
     """
     _check_deadline(deadline)
+
+    vanity_name = (
+        _get_profile_vanity_name(
+            page
+        )
+    )
 
     for attempt in range(
         1,
@@ -642,7 +649,7 @@ def _click_more_button(
             )
 
             candidates = []
-            seen_buttons = set()
+            seen = set()
 
             for index in range(
                 more_texts.count()
@@ -676,38 +683,6 @@ def _click_more_button(
                 ):
                     continue
 
-                box = button.bounding_box()
-
-                if not box:
-                    continue
-
-                x = box["x"]
-                y = box["y"]
-
-                # IMPORTANT:
-                # bỏ More ở top navigation,
-                # chỉ nhận vùng profile header.
-                if y < 150:
-                    continue
-
-                if y > 650:
-                    continue
-
-                # Dedupe nhiều span cùng trỏ về cùng button.
-                key = (
-                    round(x),
-                    round(y),
-                    round(box.get("width", 0)),
-                    round(box.get("height", 0)),
-                )
-
-                if key in seen_buttons:
-                    continue
-
-                seen_buttons.add(
-                    key
-                )
-
                 try:
                     aria_expanded = (
                         button
@@ -716,68 +691,84 @@ def _click_more_button(
                 except Exception:
                     aria_expanded = None
 
+                # More thật mà ta đã inspect có aria-expanded.
+                if aria_expanded is None:
+                    continue
+
+                # Dedupe bằng DOM identity, không bằng vị trí.
+                try:
+                    dom_key = button.evaluate(
+                        """
+                        (el) => {
+                            if (!el.dataset.__outreachMoreKey) {
+                                el.dataset.__outreachMoreKey =
+                                    Math.random().toString(36).slice(2);
+                            }
+                            return el.dataset.__outreachMoreKey;
+                        }
+                        """
+                    )
+                except Exception:
+                    dom_key = None
+
+                if dom_key and dom_key in seen:
+                    continue
+
+                if dom_key:
+                    seen.add(dom_key)
+
                 candidates.append(
                     (
-                        y,
-                        x,
-                        aria_expanded,
+                        str(
+                            aria_expanded
+                            or ""
+                        )
+                        .strip()
+                        .lower(),
                         button,
                     )
                 )
 
             if not candidates:
                 print(
-                    "MORE: no profile-header More button found"
+                    "MORE: no exact button with aria-expanded found"
                 )
                 return False
 
-            # Trong vùng profile header, ưu tiên button thấp nhất một chút
-            # để tránh action khác ở gần top nếu LinkedIn có nhiều More.
-            candidates.sort(
-                key=lambda item: (
-                    -item[0],
-                    item[1],
-                )
-            )
+            # Nếu có button đang mở rồi thì dùng luôn.
+            for expanded_state, button in candidates:
+                if expanded_state == "true":
+                    print(
+                        "MORE already open"
+                    )
+                    return True
 
-            y, x, aria_expanded, button = (
-                candidates[0]
-            )
-
-            print(
-                "MORE selected:",
-                "x=",
-                x,
-                "y=",
-                y,
-                "aria-expanded=",
-                aria_expanded,
-            )
-
-            current_expanded = (
-                str(
-                    aria_expanded
-                    or ""
-                )
-                .strip()
-                .lower()
-            )
-
-            if current_expanded == "true":
-                print(
-                    "MORE already open"
-                )
-                return True
-
-            if not _click_locator(
+            # Thử từng candidate theo DOM order,
+            # không dựa vào vị trí.
+            for candidate_index, (
+                expanded_state,
                 button,
-                deadline=deadline,
-                maximum_ms=420,
+            ) in enumerate(
+                candidates,
+                start=1,
             ):
                 print(
-                    "MORE click failed"
+                    "MORE candidate:",
+                    candidate_index,
+                    "aria-expanded=",
+                    expanded_state,
                 )
-            else:
+
+                if not _click_locator(
+                    button,
+                    deadline=deadline,
+                    maximum_ms=420,
+                ):
+                    print(
+                        "MORE candidate click failed"
+                    )
+                    continue
+
                 verify_deadline = min(
                     deadline,
                     time.monotonic()
@@ -785,12 +776,6 @@ def _click_more_button(
                         MORE_VERIFY_WINDOW_MS
                         / 1000
                     ),
-                )
-
-                vanity_name = (
-                    _get_profile_vanity_name(
-                        page
-                    )
                 )
 
                 while (
@@ -818,11 +803,11 @@ def _click_more_button(
                         )
                         return True
 
-                    # Strong fallback:
+                    # Fallback mạnh:
                     # đúng custom-invite của profile hiện tại xuất hiện.
                     if vanity_name:
                         try:
-                            exact_link = page.locator(
+                            exact_links = page.locator(
                                 (
                                     "a[href*='/preload/custom-invite/']"
                                     f"[href*='vanityName={vanity_name}']"
@@ -830,9 +815,9 @@ def _click_more_button(
                             )
 
                             for link_index in range(
-                                exact_link.count()
+                                exact_links.count()
                             ):
-                                link = exact_link.nth(
+                                link = exact_links.nth(
                                     link_index
                                 )
 
@@ -857,6 +842,10 @@ def _click_more_button(
                         deadline=deadline,
                         milliseconds=80,
                     )
+
+                print(
+                    "MORE candidate did not open"
+                )
 
         except LinkedInProfileActionTimeout:
             raise
@@ -1038,10 +1027,11 @@ def _click_connect_via_menu_text(
 ) -> bool:
     """
     PATH 3 fallback:
-    exact text Connect trong vùng menu vừa mở.
+    exact text Connect -> closest <a>/<button>.
 
-    Ưu tiên clickable <a> có vanityName đúng profile hiện tại.
-    Chỉ khi không có href mới fallback a/button text.
+    Không dùng bất kỳ logic vị trí nào.
+    Nếu clickable có custom-invite href thì bắt buộc vanityName
+    phải khớp profile hiện tại.
     """
     _check_deadline(deadline)
 
@@ -1071,19 +1061,6 @@ def _click_connect_via_menu_text(
                 deadline=deadline,
                 maximum_ms=180,
             ):
-                continue
-
-            box = node.bounding_box()
-
-            if not box:
-                continue
-
-            # Menu của profile nằm gần header;
-            # loại recommendation Connect sâu phía dưới.
-            if box["y"] < 120:
-                continue
-
-            if box["y"] > 900:
                 continue
 
             clickable = node.locator(
@@ -1125,7 +1102,7 @@ def _click_connect_via_menu_text(
                 role = ""
 
             # Nếu có href custom-invite,
-            # bắt buộc đúng vanityName hiện tại.
+            # bắt buộc đúng profile hiện tại.
             if (
                 "custom-invite"
                 in href
@@ -1141,10 +1118,6 @@ def _click_connect_via_menu_text(
 
             print(
                 "PATH 3 candidate:",
-                "x=",
-                box["x"],
-                "y=",
-                box["y"],
                 "href=",
                 href,
                 "role=",
