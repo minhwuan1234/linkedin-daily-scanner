@@ -175,6 +175,7 @@ const els = {
 
   outreachHistoryBody:
     document.querySelector("#outreachHistoryBody"),
+}
 
 const state = {
   profiles: [],
