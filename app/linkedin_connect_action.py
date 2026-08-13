@@ -607,6 +607,169 @@ def _wait_for_more_menu(
     return False
 
 
+
+def _click_ellipsis_button(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Restore the existing three-dot / overflow action path.
+
+    IMPORTANT:
+    - This is separate from the text "More" path.
+    - No x/y/viewport logic.
+    - It only targets icon/overflow buttons by semantic attributes.
+    - It intentionally ignores buttons whose visible text is "More",
+      so the new More logic remains isolated.
+
+    Common LinkedIn forms covered:
+    - aria-label="More actions"
+    - aria-label containing "More actions"
+    - aria-label="More"
+    - title="More actions"
+    - title="More"
+    """
+    _check_deadline(deadline)
+
+    selectors = (
+        "button[aria-label='More actions']",
+        "button[aria-label*='More actions']",
+        "button[aria-label='More']",
+        "button[title='More actions']",
+        "button[title='More']",
+    )
+
+    seen = set()
+
+    for selector in selectors:
+        _check_deadline(deadline)
+
+        try:
+            candidates = page.locator(selector)
+
+            for index in range(candidates.count()):
+                _check_deadline(deadline)
+
+                button = candidates.nth(index)
+
+                if not _is_visible_locator(
+                    button,
+                    deadline=deadline,
+                    maximum_ms=180,
+                ):
+                    continue
+
+                # Keep the text-More path completely separate.
+                try:
+                    visible_text = (
+                        button.inner_text()
+                        or ""
+                    ).strip().lower()
+                except Exception:
+                    visible_text = ""
+
+                if visible_text == "more":
+                    continue
+
+                # DOM identity dedupe; no coordinates.
+                try:
+                    key = button.evaluate(
+                        """
+                        (el) => {
+                            if (!el.dataset.outreachEllipsisKey) {
+                                el.dataset.outreachEllipsisKey =
+                                    Math.random().toString(36).slice(2);
+                            }
+                            return el.dataset.outreachEllipsisKey;
+                        }
+                        """
+                    )
+                except Exception:
+                    key = f"{selector}:{index}"
+
+                if key in seen:
+                    continue
+
+                seen.add(key)
+
+                try:
+                    aria_label = (
+                        button.get_attribute("aria-label")
+                        or ""
+                    )
+                except Exception:
+                    aria_label = ""
+
+                try:
+                    title = (
+                        button.get_attribute("title")
+                        or ""
+                    )
+                except Exception:
+                    title = ""
+
+                print(
+                    "ELLIPSIS candidate:",
+                    "aria-label=",
+                    repr(aria_label),
+                    "title=",
+                    repr(title),
+                )
+
+                try:
+                    expanded = (
+                        button.get_attribute("aria-expanded")
+                        or ""
+                    ).strip().lower()
+                except Exception:
+                    expanded = ""
+
+                if expanded == "true":
+                    print(
+                        "ELLIPSIS menu already open"
+                    )
+                    return True
+
+                if not _click_locator(
+                    button,
+                    deadline=deadline,
+                    maximum_ms=500,
+                ):
+                    print(
+                        "ELLIPSIS candidate click failed"
+                    )
+                    continue
+
+                # Do not over-gate the old working path:
+                # a successful click is enough to continue to PATH 2/3.
+                # Give LinkedIn a very short moment to render the menu.
+                _sleep(
+                    page,
+                    deadline=deadline,
+                    milliseconds=120,
+                )
+
+                print(
+                    "ELLIPSIS clicked"
+                )
+                return True
+
+        except LinkedInProfileActionTimeout:
+            raise
+
+        except Exception as exc:
+            print(
+                "ELLIPSIS selector error:",
+                f"{type(exc).__name__}: {exc}",
+            )
+
+    print(
+        "ELLIPSIS: no overflow button found"
+    )
+    return False
+
+
 def _click_more_button(
     page: Page,
     *,
@@ -1122,21 +1285,104 @@ def _click_connect_via_menu_text(
     return False
 
 
-def _click_connect_once(page: Page, *, deadline: float) -> bool:
-    print("Checking PATH 1: direct Connect")
-    if _click_direct_connect(page, deadline=deadline):
+def _click_connect_once(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Keep all three UI cases independent:
+
+    CASE 1:
+        direct Connect
+
+    CASE 2:
+        three-dot / overflow button -> Connect
+
+    CASE 3:
+        text More button -> Connect
+
+    Opening one case must not replace or disable the others.
+    """
+    print(
+        "Checking CASE 1: direct Connect"
+    )
+
+    if _click_direct_connect(
+        page,
+        deadline=deadline,
+    ):
         return True
 
-    print("Opening More for PATH 2/3")
-    if not _click_more_button(page, deadline=deadline):
+    # -----------------------------------------------------
+    # CASE 2: existing three-dot / overflow path
+    # -----------------------------------------------------
+    print(
+        "Checking CASE 2: three-dot / overflow menu"
+    )
+
+    if _click_ellipsis_button(
+        page,
+        deadline=deadline,
+    ):
+        print(
+            "CASE 2 menu opened; checking custom-invite"
+        )
+
+        if _click_connect_via_custom_invite(
+            page,
+            deadline=deadline,
+        ):
+            return True
+
+        print(
+            "CASE 2: checking exact Connect text"
+        )
+
+        if _click_connect_via_menu_text(
+            page,
+            deadline=deadline,
+        ):
+            return True
+
+        print(
+            "CASE 2: Connect not found in overflow menu"
+        )
+
+    # -----------------------------------------------------
+    # CASE 3: new text-More path
+    # -----------------------------------------------------
+    print(
+        "Checking CASE 3: text More menu"
+    )
+
+    if not _click_more_button(
+        page,
+        deadline=deadline,
+    ):
+        print(
+            "CASE 3: More button not opened"
+        )
         return False
 
-    print("Checking PATH 2: custom-invite")
-    if _click_connect_via_custom_invite(page, deadline=deadline):
+    print(
+        "CASE 3 menu opened; checking custom-invite"
+    )
+
+    if _click_connect_via_custom_invite(
+        page,
+        deadline=deadline,
+    ):
         return True
 
-    print("Checking PATH 3: exact Connect text")
-    if _click_connect_via_menu_text(page, deadline=deadline):
+    print(
+        "CASE 3: checking exact Connect text"
+    )
+
+    if _click_connect_via_menu_text(
+        page,
+        deadline=deadline,
+    ):
         return True
 
     return False
