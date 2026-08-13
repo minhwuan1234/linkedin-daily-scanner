@@ -31,11 +31,11 @@ DEFAULT_OUTREACH_ACCOUNT_IDS = (
 # - Supabase records
 #
 OUTREACH_ACCOUNT_DISPLAY_NAMES = {
-    "outreach_account_01": "Account 1",
-    "outreach_account_02": "Account 2",
-    "outreach_account_03": "Account 3",
-    "outreach_account_04": "Account 4",
-    "outreach_account_05": "Account 5",
+    "outreach_account_01": "Minh Anh",
+    "outreach_account_02": "Hân",
+    "outreach_account_03": "Minh Ánh",
+    "outreach_account_04": "Linh Giang",
+    "outreach_account_05": "Huyền Linh",
 }
 
 DEFAULT_OUTREACH_PROFILE_ROOT = (
