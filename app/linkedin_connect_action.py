@@ -1655,6 +1655,127 @@ def _click_connect_in_ellipsis_menu(
     return False
 
 
+
+def _click_connect_in_more_menu(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Click Connect bên trong popup của nút text "More".
+
+    IMPORTANT:
+    - Chỉ dùng cho CASE 3 (text More).
+    - Không thay đổi Direct Connect.
+    - Không thay đổi dấu ... / overflow.
+    - Chỉ return True sau khi click chính Connect action.
+
+    DOM thật đã xác nhận:
+        <div
+            componentkey="ConnectButtonState:..."
+            aria-label="Invite <name> to connect"
+        >
+            ...
+        </div>
+    """
+    _check_deadline(deadline)
+
+    wait_deadline = min(
+        deadline,
+        time.monotonic() + 1.4,
+    )
+
+    while time.monotonic() < wait_deadline:
+        _check_deadline(deadline)
+
+        selectors = (
+            (
+                "[componentkey^='ConnectButtonState']"
+                "[aria-label^='Invite ']"
+                "[aria-label$=' to connect']"
+            ),
+            (
+                "[aria-label^='Invite ']"
+                "[aria-label$=' to connect']"
+            ),
+        )
+
+        for selector in selectors:
+            try:
+                candidates = page.locator(selector)
+
+                for index in range(candidates.count()):
+                    candidate = candidates.nth(index)
+
+                    if not _is_visible_locator(
+                        candidate,
+                        deadline=deadline,
+                        maximum_ms=120,
+                    ):
+                        continue
+
+                    try:
+                        aria_label = (
+                            candidate.get_attribute("aria-label")
+                            or ""
+                        ).strip()
+                    except Exception:
+                        aria_label = ""
+
+                    try:
+                        component_key = (
+                            candidate.get_attribute("componentkey")
+                            or ""
+                        ).strip()
+                    except Exception:
+                        component_key = ""
+
+                    label_lower = aria_label.lower()
+
+                    if not (
+                        label_lower.startswith("invite ")
+                        and label_lower.endswith(" to connect")
+                    ):
+                        continue
+
+                    print(
+                        "MORE CONNECT candidate:",
+                        "tag=",
+                        candidate.evaluate("(el) => el.tagName"),
+                        "aria-label=",
+                        repr(aria_label),
+                        "componentkey=",
+                        repr(component_key),
+                    )
+
+                    if _click_locator(
+                        candidate,
+                        deadline=deadline,
+                        maximum_ms=500,
+                    ):
+                        print(
+                            "MORE CONNECT clicked"
+                        )
+                        return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+
+            except Exception:
+                pass
+
+        _sleep(
+            page,
+            deadline=deadline,
+            milliseconds=80,
+        )
+
+    print(
+        "MORE CONNECT not found/clicked"
+    )
+    return False
+
+
 def _click_connect_once(
     page: Page,
     *,
@@ -1732,41 +1853,17 @@ def _click_connect_once(
         return False
 
     print(
-        "CASE 3 menu opened; waiting for Connect action"
+        "CASE 3 popup opened; clicking Connect"
     )
 
-    if not _wait_for_profile_connect_action(
-        page,
-        deadline=deadline,
-        maximum_wait_ms=900,
-    ):
-        print(
-            "CASE 3: Connect action did not appear"
-        )
-        return False
-
-    print(
-        "CASE 3: checking custom-invite"
-    )
-
-    if _click_connect_via_custom_invite(
+    if _click_connect_in_more_menu(
         page,
         deadline=deadline,
     ):
         return True
 
     print(
-        "CASE 3: checking exact Connect text"
-    )
-
-    if _click_connect_via_menu_text(
-        page,
-        deadline=deadline,
-    ):
-        return True
-
-    print(
-        "CASE 3: Connect action not clicked"
+        "CASE 3: popup opened but Connect was NOT clicked"
     )
     return False
 
