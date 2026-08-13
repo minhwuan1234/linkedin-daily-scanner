@@ -1076,7 +1076,21 @@ async function createYoutubeResearchJob(event) {
 
 
 const OUTREACH_POLL_INTERVAL_MS = 3000;
+const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
+  outreach_account_01: "Minh Anh",
+  outreach_account_02: "Hân",
+  outreach_account_03: "Minh Ánh",
+  outreach_account_04: "Linh Giang",
+  outreach_account_05: "Huyền Linh"
+};
 
+function getOutreachAccountDisplayName(accountId) {
+  return (
+    OUTREACH_ACCOUNT_DISPLAY_NAMES[accountId] ||
+    accountId ||
+    "—"
+  );
+}
 
 // ---------------------------------------------------------
 // URL INPUT
@@ -1448,9 +1462,10 @@ function renderOutreachScheduler(
 
   if (els.outreachCurrentAccount) {
     els.outreachCurrentAccount.textContent =
+     getOutreachAccountDisplayName(
       scheduler.current_account_id || "—";
+    );
   }
-
 
   if (els.outreachUsedTurn) {
     els.outreachUsedTurn.textContent =
@@ -1601,7 +1616,9 @@ function renderOutreachTargetRows(
 
               <strong>
                 ${escapeHtml(
+                getOutreachAccountDisplayName(
                   target.assigned_account_id || "—"
+                  )
                 )}
               </strong>
             </div>
@@ -1727,8 +1744,10 @@ function renderOutreachAccounts(
     rows
       .map((account) => {
         const accountId =
-          escapeHtml(
+          escapeHtml
+              getOutreachAccountDisplayName(
             account.account_id || "—"
+            )    
           );
 
         const status =
