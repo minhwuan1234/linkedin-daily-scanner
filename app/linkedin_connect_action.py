@@ -348,6 +348,65 @@ def _get_profile_vanity_name(
         return ""
 
 
+def _get_profile_display_name(
+    page: Page,
+    *,
+    deadline: float,
+) -> str:
+    """
+    Lấy tên của profile hiện tại từ heading chính.
+
+    Dùng để match chính xác:
+        aria-label="Invite <CURRENT PROFILE NAME> to connect"
+
+    Mục đích:
+    không bao giờ click nhầm Connect của sidebar/recommendation.
+    """
+    _check_deadline(deadline)
+
+    selectors = (
+        "main h1",
+        "h1",
+    )
+
+    for selector in selectors:
+        try:
+            candidates = page.locator(selector)
+
+            for index in range(candidates.count()):
+                node = candidates.nth(index)
+
+                if not _is_visible_locator(
+                    node,
+                    deadline=deadline,
+                    maximum_ms=120,
+                ):
+                    continue
+
+                try:
+                    value = (
+                        node.inner_text()
+                        or ""
+                    )
+                except Exception:
+                    value = ""
+
+                value = " ".join(
+                    value.split()
+                ).strip()
+
+                if value:
+                    return value
+
+        except LinkedInProfileActionTimeout:
+            raise
+
+        except Exception:
+            continue
+
+    return ""
+
+
 # =========================================================
 # PATH 1: DIRECT CONNECT
 # =========================================================
@@ -1434,23 +1493,35 @@ def _click_connect_in_ellipsis_menu(
     deadline: float,
 ) -> bool:
     """
-    Click Connect bên trong popup dấu ...
+    CASE 2 ONLY: click Connect trong popup dấu ...
 
-    DOM thật đã xác nhận case này có thể là:
-        <div
-            aria-label="Invite <name> to connect"
-            componentkey="ConnectButtonState:..."
-        >
-            <svg ...>
-            ...
-        </div>
-
-    Vì vậy KHÔNG giới hạn ở <a>, <button> hay role=menuitem.
-
-    Chỉ trả True sau khi click chính Connect action.
-    Không dùng vị trí.
+    CRITICAL:
+    - Chỉ click 1 lần.
+    - Chỉ click Connect có aria-label đúng TÊN PROFILE HIỆN TẠI.
+    - Không dùng selector broad "Invite ... to connect".
+    - Không click recommendation/sidebar.
     """
     _check_deadline(deadline)
+
+    profile_name = _get_profile_display_name(
+        page,
+        deadline=deadline,
+    )
+
+    if not profile_name:
+        print(
+            "ELLIPSIS CONNECT: current profile name not found"
+        )
+        return False
+
+    expected_label = (
+        f"Invite {profile_name} to connect"
+    )
+
+    print(
+        "ELLIPSIS CONNECT expected:",
+        repr(expected_label),
+    )
 
     wait_deadline = min(
         deadline,
@@ -1460,241 +1531,65 @@ def _click_connect_in_ellipsis_menu(
     while time.monotonic() < wait_deadline:
         _check_deadline(deadline)
 
-        # -------------------------------------------------
-        # PATH A - DOM thật của popup dấu ...
-        # aria-label dạng:
-        # "Invite Marvin Te to connect"
-        # -------------------------------------------------
-        selectors = (
-            "[aria-label^='Invite '][aria-label$=' to connect']",
-            "[aria-label*='Invite '][aria-label*=' to connect']",
-            "[componentkey^='ConnectButtonState']",
-        )
-
-        for selector in selectors:
-            try:
-                candidates = page.locator(
-                    selector
-                )
-
-                for index in range(
-                    candidates.count()
-                ):
-                    candidate = candidates.nth(
-                        index
-                    )
-
-                    if not _is_visible_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=120,
-                    ):
-                        continue
-
-                    try:
-                        aria_label = (
-                            candidate
-                            .get_attribute(
-                                "aria-label"
-                            )
-                            or ""
-                        ).strip()
-                    except Exception:
-                        aria_label = ""
-
-                    try:
-                        component_key = (
-                            candidate
-                            .get_attribute(
-                                "componentkey"
-                            )
-                            or ""
-                        ).strip()
-                    except Exception:
-                        component_key = ""
-
-                    # Guard: chỉ nhận action Connect thật.
-                    label_lower = (
-                        aria_label.lower()
-                    )
-
-                    is_connect = (
-                        (
-                            label_lower.startswith(
-                                "invite "
-                            )
-                            and label_lower.endswith(
-                                " to connect"
-                            )
-                        )
-                        or component_key.startswith(
-                            "ConnectButtonState"
-                        )
-                    )
-
-                    if not is_connect:
-                        continue
-
-                    print(
-                        "ELLIPSIS CONNECT candidate:",
-                        "tag=",
-                        candidate.evaluate(
-                            "(el) => el.tagName"
-                        ),
-                        "aria-label=",
-                        repr(aria_label),
-                        "componentkey=",
-                        repr(component_key),
-                    )
-
-                    if _click_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=500,
-                    ):
-                        print(
-                            "ELLIPSIS CONNECT clicked"
-                        )
-                        return True
-
-            except LinkedInProfileActionTimeout:
-                raise
-
-            except Exception:
-                pass
-
-        # -------------------------------------------------
-        # PATH B - legacy/fallback:
-        # role=menuitem exact Connect
-        # -------------------------------------------------
         try:
-            menu_items = page.locator(
-                "[role='menuitem']"
+            candidates = page.locator(
+                f'[aria-label="{expected_label}"]'
             )
 
-            for index in range(
-                menu_items.count()
-            ):
-                item = menu_items.nth(
-                    index
-                )
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
 
                 if not _is_visible_locator(
-                    item,
+                    candidate,
                     deadline=deadline,
                     maximum_ms=120,
                 ):
                     continue
 
                 try:
-                    text_value = (
-                        item.inner_text()
-                        or ""
-                    ).strip()
-                except Exception:
-                    text_value = ""
-
-                if text_value != "Connect":
-                    continue
-
-                print(
-                    "ELLIPSIS CONNECT fallback:",
-                    "role=menuitem text=Connect",
-                )
-
-                if _click_locator(
-                    item,
-                    deadline=deadline,
-                    maximum_ms=500,
-                ):
-                    print(
-                        "ELLIPSIS CONNECT clicked"
-                    )
-                    return True
-
-        except LinkedInProfileActionTimeout:
-            raise
-
-        except Exception:
-            pass
-
-        # -------------------------------------------------
-        # PATH C - exact text Connect, then climb to
-        # nearest clickable-ish ancestor including div.
-        # -------------------------------------------------
-        try:
-            texts = page.get_by_text(
-                "Connect",
-                exact=True,
-            )
-
-            for index in range(
-                texts.count()
-            ):
-                node = texts.nth(
-                    index
-                )
-
-                if not _is_visible_locator(
-                    node,
-                    deadline=deadline,
-                    maximum_ms=100,
-                ):
-                    continue
-
-                clickable = node.locator(
-                    "xpath=ancestor-or-self::*["
-                    "self::a or self::button or "
-                    "@role='menuitem' or "
-                    "@aria-label"
-                    "][1]"
-                )
-
-                if clickable.count() == 0:
-                    continue
-
-                clickable = clickable.first
-
-                try:
-                    aria_label = (
-                        clickable
-                        .get_attribute(
+                    actual_label = (
+                        candidate.get_attribute(
                             "aria-label"
                         )
                         or ""
                     ).strip()
                 except Exception:
-                    aria_label = ""
+                    actual_label = ""
 
-                if (
-                    aria_label
-                    and "connect"
-                    not in aria_label.lower()
-                ):
+                if actual_label != expected_label:
                     continue
 
                 print(
-                    "ELLIPSIS CONNECT fallback:",
-                    "exact text Connect",
-                    "aria-label=",
-                    repr(aria_label),
+                    "ELLIPSIS CONNECT matched current profile:",
+                    repr(actual_label),
                 )
 
-                if _click_locator(
-                    clickable,
+                # EXACTLY ONE Connect click.
+                clicked = _click_locator(
+                    candidate,
                     deadline=deadline,
                     maximum_ms=500,
-                ):
+                )
+
+                if clicked:
                     print(
-                        "ELLIPSIS CONNECT clicked"
+                        "ELLIPSIS CONNECT clicked ONCE"
                     )
                     return True
+
+                print(
+                    "ELLIPSIS CONNECT click failed"
+                )
+                return False
 
         except LinkedInProfileActionTimeout:
             raise
 
-        except Exception:
-            pass
+        except Exception as exc:
+            print(
+                "ELLIPSIS CONNECT error:",
+                f"{type(exc).__name__}: {exc}",
+            )
 
         _sleep(
             page,
@@ -1703,10 +1598,9 @@ def _click_connect_in_ellipsis_menu(
         )
 
     print(
-        "ELLIPSIS CONNECT not found/clicked"
+        "ELLIPSIS CONNECT: exact current-profile Connect not found"
     )
     return False
-
 
 
 def _click_connect_in_more_menu(
@@ -1715,23 +1609,35 @@ def _click_connect_in_more_menu(
     deadline: float,
 ) -> bool:
     """
-    Click Connect bên trong popup của nút text "More".
+    CASE 3 ONLY: click Connect trong popup More.
 
-    IMPORTANT:
-    - Chỉ dùng cho CASE 3 (text More).
-    - Không thay đổi Direct Connect.
-    - Không thay đổi dấu ... / overflow.
-    - Chỉ return True sau khi click chính Connect action.
-
-    DOM thật đã xác nhận:
-        <div
-            componentkey="ConnectButtonState:..."
-            aria-label="Invite <name> to connect"
-        >
-            ...
-        </div>
+    CRITICAL:
+    - Chỉ click 1 lần.
+    - Chỉ click Connect có aria-label đúng TÊN PROFILE HIỆN TẠI.
+    - Không dùng selector broad.
+    - Không ảnh hưởng CASE 1 / CASE 2.
     """
     _check_deadline(deadline)
+
+    profile_name = _get_profile_display_name(
+        page,
+        deadline=deadline,
+    )
+
+    if not profile_name:
+        print(
+            "MORE CONNECT: current profile name not found"
+        )
+        return False
+
+    expected_label = (
+        f"Invite {profile_name} to connect"
+    )
+
+    print(
+        "MORE CONNECT expected:",
+        repr(expected_label),
+    )
 
     wait_deadline = min(
         deadline,
@@ -1741,81 +1647,65 @@ def _click_connect_in_more_menu(
     while time.monotonic() < wait_deadline:
         _check_deadline(deadline)
 
-        selectors = (
-            (
-                "[componentkey^='ConnectButtonState']"
-                "[aria-label^='Invite ']"
-                "[aria-label$=' to connect']"
-            ),
-            (
-                "[aria-label^='Invite ']"
-                "[aria-label$=' to connect']"
-            ),
-        )
+        try:
+            candidates = page.locator(
+                f'[aria-label="{expected_label}"]'
+            )
 
-        for selector in selectors:
-            try:
-                candidates = page.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
 
-                for index in range(candidates.count()):
-                    candidate = candidates.nth(index)
+                if not _is_visible_locator(
+                    candidate,
+                    deadline=deadline,
+                    maximum_ms=120,
+                ):
+                    continue
 
-                    if not _is_visible_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=120,
-                    ):
-                        continue
-
-                    try:
-                        aria_label = (
-                            candidate.get_attribute("aria-label")
-                            or ""
-                        ).strip()
-                    except Exception:
-                        aria_label = ""
-
-                    try:
-                        component_key = (
-                            candidate.get_attribute("componentkey")
-                            or ""
-                        ).strip()
-                    except Exception:
-                        component_key = ""
-
-                    label_lower = aria_label.lower()
-
-                    if not (
-                        label_lower.startswith("invite ")
-                        and label_lower.endswith(" to connect")
-                    ):
-                        continue
-
-                    print(
-                        "MORE CONNECT candidate:",
-                        "tag=",
-                        candidate.evaluate("(el) => el.tagName"),
-                        "aria-label=",
-                        repr(aria_label),
-                        "componentkey=",
-                        repr(component_key),
-                    )
-
-                    if _click_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=500,
-                    ):
-                        print(
-                            "MORE CONNECT clicked"
+                try:
+                    actual_label = (
+                        candidate.get_attribute(
+                            "aria-label"
                         )
-                        return True
+                        or ""
+                    ).strip()
+                except Exception:
+                    actual_label = ""
 
-            except LinkedInProfileActionTimeout:
-                raise
+                if actual_label != expected_label:
+                    continue
 
-            except Exception:
-                pass
+                print(
+                    "MORE CONNECT matched current profile:",
+                    repr(actual_label),
+                )
+
+                # EXACTLY ONE Connect click.
+                clicked = _click_locator(
+                    candidate,
+                    deadline=deadline,
+                    maximum_ms=500,
+                )
+
+                if clicked:
+                    print(
+                        "MORE CONNECT clicked ONCE"
+                    )
+                    return True
+
+                print(
+                    "MORE CONNECT click failed"
+                )
+                return False
+
+        except LinkedInProfileActionTimeout:
+            raise
+
+        except Exception as exc:
+            print(
+                "MORE CONNECT error:",
+                f"{type(exc).__name__}: {exc}",
+            )
 
         _sleep(
             page,
@@ -1824,7 +1714,7 @@ def _click_connect_in_more_menu(
         )
 
     print(
-        "MORE CONNECT not found/clicked"
+        "MORE CONNECT: exact current-profile Connect not found"
     )
     return False
 
@@ -1921,17 +1811,21 @@ def _click_connect_once(
     return False
 
 
-def _click_connect(page: Page, *, deadline: float) -> bool:
-    if _click_connect_once(page, deadline=deadline):
-        return True
+def _click_connect(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Run Connect discovery exactly ONE time.
 
-    # One short second discovery round when enough time remains.
-    if (deadline - time.monotonic()) < 1.4:
-        return False
-
-    print("Connect discovery retry")
-    _sleep(page, deadline=deadline, milliseconds=180)
-    return _click_connect_once(page, deadline=deadline)
+    No second discovery round.
+    No second Connect click.
+    """
+    return _click_connect_once(
+        page,
+        deadline=deadline,
+    )
 
 
 # =========================================================
