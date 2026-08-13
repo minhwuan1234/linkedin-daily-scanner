@@ -19,6 +19,25 @@ DEFAULT_OUTREACH_ACCOUNT_IDS = (
     "outreach_account_05",
 )
 
+
+# =========================================================
+# DISPLAY NAMES
+# =========================================================
+#
+# CHỈ ĐỔI TÊN HIỂN THỊ Ở ĐÂY.
+# KHÔNG đổi account_id vì account_id đang gắn với:
+# - browser profile folder
+# - scheduler state
+# - Supabase records
+#
+OUTREACH_ACCOUNT_DISPLAY_NAMES = {
+    "outreach_account_01": "Account 1",
+    "outreach_account_02": "Account 2",
+    "outreach_account_03": "Account 3",
+    "outreach_account_04": "Account 4",
+    "outreach_account_05": "Account 5",
+}
+
 DEFAULT_OUTREACH_PROFILE_ROOT = (
     "outreach_browser_profiles"
 )
@@ -123,6 +142,7 @@ class OutreachAccount:
     """
 
     account_id: str
+    display_name: str
     profile_directory: Path
     enabled: bool = True
 
@@ -269,6 +289,13 @@ class OutreachAccountPool:
         self.accounts = tuple(
             OutreachAccount(
                 account_id=account_id,
+                display_name=(
+                    OUTREACH_ACCOUNT_DISPLAY_NAMES
+                    .get(
+                        account_id,
+                        account_id,
+                    )
+                ),
                 profile_directory=(
                     self.settings
                     .profile_root
@@ -468,6 +495,9 @@ class OutreachAccountPool:
             {
                 "account_id": (
                     account.account_id
+                ),
+                "display_name": (
+                    account.display_name
                 ),
                 "profile_directory": str(
                     account.profile_directory
