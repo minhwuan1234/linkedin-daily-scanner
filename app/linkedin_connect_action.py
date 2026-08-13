@@ -613,67 +613,61 @@ def _click_more_button(
     deadline: float,
 ) -> bool:
     """
-    Click đúng More của profile action row.
+    Click More của profile chính.
 
-    KHÔNG dùng x/y/viewport.
+    Không dùng x/y.
+    Không dùng Message/Follow để suy ra action row.
+    Không thay đổi PATH direct Connect hay các action khác.
 
-    DOM strategy:
-    - tìm exact text "More"
-    - leo lên button cha gần nhất
-    - kiểm tra ancestor gần nhất của button đó
-      có cùng action group với "Message" và "Follow"
-    - đây mới được coi là More của profile header
+    LinkedIn có nhiều "More" trên page, nhưng More của profile
+    nằm trong <main>, còn More của global navigation nằm ngoài <main>.
 
-    Các More khác trên navigation/header toàn trang sẽ bị bỏ qua.
-
-    Sau click:
-    - ưu tiên verify aria-expanded == "true"
-    - fallback verify bằng custom-invite đúng vanityName profile hiện tại
-
-    Hàm này chỉ thay logic tìm/click More.
-    PATH 1 direct Connect và PATH 2/PATH 3 Connect giữ nguyên.
+    Strategy:
+    1. Scope vào <main>
+    2. Tìm exact text "More"
+    3. Leo lên ancestor <button> gần nhất
+    4. Chỉ nhận button có aria-expanded
+    5. Click button đó
+    6. Verify aria-expanded=true hoặc exact custom-invite
+       của profile hiện tại xuất hiện.
     """
     _check_deadline(deadline)
 
-    vanity_name = (
-        _get_profile_vanity_name(
-            page
-        )
-    )
+    vanity_name = _get_profile_vanity_name(page)
 
-    for attempt in range(
-        1,
-        MORE_MAX_ATTEMPTS + 1,
-    ):
+    for attempt in range(1, MORE_MAX_ATTEMPTS + 1):
         print(
             f"MORE attempt {attempt}/{MORE_MAX_ATTEMPTS}"
         )
 
         try:
-            more_texts = page.get_by_text(
+            main = page.locator("main")
+
+            if main.count() == 0:
+                print("MORE: <main> not found")
+                return False
+
+            more_texts = main.get_by_text(
                 "More",
                 exact=True,
             )
 
-            matched_candidates = []
+            buttons = []
+            seen = set()
 
-            for index in range(
-                more_texts.count()
-            ):
+            for index in range(more_texts.count()):
                 _check_deadline(deadline)
 
-                text_node = more_texts.nth(
-                    index
-                )
+                node = more_texts.nth(index)
 
                 if not _is_visible_locator(
-                    text_node,
+                    node,
                     deadline=deadline,
                     maximum_ms=180,
                 ):
                     continue
 
-                button = text_node.locator(
+                button = node.locator(
                     "xpath=ancestor::button[1]"
                 )
 
@@ -689,271 +683,145 @@ def _click_more_button(
                 ):
                     continue
 
-                # -------------------------------------------------
-                # IMPORTANT:
-                # Identify the profile action-group structurally.
-                #
-                # We walk up a few ancestors and look for a container
-                # that contains the sibling actions Message + Follow.
-                # No position / coordinate logic is used.
-                # -------------------------------------------------
                 try:
-                    match_info = button.evaluate(
-                        """
-                        (button) => {
-                            const clean = (value) =>
-                                String(value || '')
-                                    .replace(/\\s+/g, ' ')
-                                    .trim()
-                                    .toLowerCase();
-
-                            let node = button.parentElement;
-
-                            for (let depth = 0; depth <= 8 && node; depth += 1) {
-                                const clickables = [
-                                    ...node.querySelectorAll(
-                                        'button, a, [role="button"]'
-                                    )
-                                ];
-
-                                const texts = clickables
-                                    .map((el) => clean(el.innerText))
-                                    .filter(Boolean);
-
-                                const hasMessage =
-                                    texts.includes('message');
-
-                                const hasFollow =
-                                    texts.includes('follow');
-
-                                // Strong signature of the profile action row.
-                                if (hasMessage && hasFollow) {
-                                    return {
-                                        matched: true,
-                                        depth,
-                                        texts
-                                    };
-                                }
-
-                                node = node.parentElement;
-                            }
-
-                            return {
-                                matched: false,
-                                depth: null,
-                                texts: []
-                            };
-                        }
-                        """
-                    )
-                except Exception as exc:
-                    print(
-                        "MORE structural check error:",
-                        (
-                            f"{type(exc).__name__}: "
-                            f"{exc}"
-                        ),
-                    )
-                    continue
-
-                matched = bool(
-                    isinstance(match_info, dict)
-                    and match_info.get(
-                        "matched"
-                    )
-                )
-
-                try:
-                    aria_expanded = (
-                        button
-                        .get_attribute(
-                            "aria-expanded"
-                        )
+                    aria_expanded = button.get_attribute(
+                        "aria-expanded"
                     )
                 except Exception:
                     aria_expanded = None
 
-                print(
-                    "MORE candidate",
-                    index,
-                    "profile-action-row=",
-                    matched,
-                    "aria-expanded=",
-                    aria_expanded,
-                )
-
-                if not matched:
+                if aria_expanded is None:
                     continue
 
-                depth = (
-                    match_info.get(
-                        "depth"
+                # DOM identity dedupe; no coordinates.
+                try:
+                    key = button.evaluate(
+                        """
+                        (el) => {
+                            if (!el.dataset.outreachMoreKey) {
+                                el.dataset.outreachMoreKey =
+                                    Math.random().toString(36).slice(2);
+                            }
+                            return el.dataset.outreachMoreKey;
+                        }
+                        """
                     )
-                    if isinstance(
-                        match_info,
-                        dict,
-                    )
-                    else None
-                )
+                except Exception:
+                    key = str(index)
 
-                matched_candidates.append(
-                    (
-                        (
-                            depth
-                            if isinstance(
-                                depth,
-                                int,
-                            )
-                            else 999
-                        ),
-                        button,
-                    )
-                )
-
-            if not matched_candidates:
-                print(
-                    "MORE: no More button inside the Message/Follow action group"
-                )
-
-                if attempt < MORE_MAX_ATTEMPTS:
-                    _sleep(
-                        page,
-                        deadline=deadline,
-                        milliseconds=120,
-                    )
+                if key in seen:
                     continue
 
-                return False
-
-            # The closest matching action-group wins.
-            # Still DOM-based; no visual coordinates.
-            matched_candidates.sort(
-                key=lambda item: item[0]
-            )
-
-            _, button = (
-                matched_candidates[0]
-            )
-
-            try:
-                current_expanded = (
-                    button
-                    .get_attribute(
-                        "aria-expanded"
-                    )
-                    or ""
-                ).strip().lower()
-            except Exception:
-                current_expanded = ""
-
-            if current_expanded == "true":
-                print(
-                    "MORE already open"
-                )
-                return True
+                seen.add(key)
+                buttons.append(button)
 
             print(
-                "MORE: clicking profile action-row button"
+                "MORE: profile candidates inside <main> =",
+                len(buttons),
             )
 
-            if not _click_locator(
-                button,
-                deadline=deadline,
-                maximum_ms=500,
-            ):
+            if not buttons:
                 print(
-                    "MORE: profile button click failed"
+                    "MORE: no button[aria-expanded] with exact text More inside <main>"
                 )
-
-                if attempt < MORE_MAX_ATTEMPTS:
-                    _sleep(
-                        page,
-                        deadline=deadline,
-                        milliseconds=120,
-                    )
-                    continue
-
                 return False
 
-            verify_deadline = min(
-                deadline,
-                time.monotonic()
-                + (
-                    MORE_VERIFY_WINDOW_MS
-                    / 1000
-                ),
-            )
-
-            while (
-                time.monotonic()
-                < verify_deadline
+            for candidate_index, button in enumerate(
+                buttons,
+                start=1,
             ):
-                _check_deadline(
-                    deadline
-                )
-
-                # Primary verification:
-                # same More button flips aria-expanded.
                 try:
-                    expanded = (
-                        button
-                        .get_attribute(
-                            "aria-expanded"
-                        )
+                    current_state = (
+                        button.get_attribute("aria-expanded")
                         or ""
                     ).strip().lower()
                 except Exception:
-                    expanded = ""
+                    current_state = ""
 
-                if expanded == "true":
-                    print(
-                        "MORE verified open via aria-expanded=true"
-                    )
-                    return True
-
-                # Strong profile-scoped fallback:
-                # exact custom-invite for the current vanityName appears.
-                if vanity_name:
-                    try:
-                        exact_links = page.locator(
-                            (
-                                "a[href*='/preload/custom-invite/']"
-                                f"[href*='vanityName={vanity_name}']"
-                            )
-                        )
-
-                        for link_index in range(
-                            exact_links.count()
-                        ):
-                            link = exact_links.nth(
-                                link_index
-                            )
-
-                            if _is_visible_locator(
-                                link,
-                                deadline=deadline,
-                                maximum_ms=100,
-                            ):
-                                print(
-                                    "MORE verified open via exact profile custom-invite"
-                                )
-                                return True
-
-                    except LinkedInProfileActionTimeout:
-                        raise
-
-                    except Exception:
-                        pass
-
-                _sleep(
-                    page,
-                    deadline=deadline,
-                    milliseconds=80,
+                print(
+                    "MORE profile candidate",
+                    candidate_index,
+                    "aria-expanded=",
+                    current_state,
                 )
 
-            print(
-                "MORE: clicked profile button but menu was not confirmed"
-            )
+                if current_state == "true":
+                    print("MORE already open")
+                    return True
+
+                if not _click_locator(
+                    button,
+                    deadline=deadline,
+                    maximum_ms=500,
+                ):
+                    print(
+                        "MORE profile candidate click failed"
+                    )
+                    continue
+
+                verify_deadline = min(
+                    deadline,
+                    time.monotonic()
+                    + (MORE_VERIFY_WINDOW_MS / 1000),
+                )
+
+                while time.monotonic() < verify_deadline:
+                    _check_deadline(deadline)
+
+                    try:
+                        expanded = (
+                            button.get_attribute(
+                                "aria-expanded"
+                            )
+                            or ""
+                        ).strip().lower()
+                    except Exception:
+                        expanded = ""
+
+                    if expanded == "true":
+                        print(
+                            "MORE verified open via aria-expanded=true"
+                        )
+                        return True
+
+                    if vanity_name:
+                        try:
+                            links = page.locator(
+                                (
+                                    "a[href*='/preload/custom-invite/']"
+                                    f"[href*='vanityName={vanity_name}']"
+                                )
+                            )
+
+                            for link_index in range(
+                                links.count()
+                            ):
+                                link = links.nth(link_index)
+
+                                if _is_visible_locator(
+                                    link,
+                                    deadline=deadline,
+                                    maximum_ms=100,
+                                ):
+                                    print(
+                                        "MORE verified open via exact profile custom-invite"
+                                    )
+                                    return True
+
+                        except LinkedInProfileActionTimeout:
+                            raise
+                        except Exception:
+                            pass
+
+                    _sleep(
+                        page,
+                        deadline=deadline,
+                        milliseconds=80,
+                    )
+
+                print(
+                    "MORE: click completed but menu was not confirmed"
+                )
 
         except LinkedInProfileActionTimeout:
             raise
@@ -961,10 +829,7 @@ def _click_more_button(
         except Exception as exc:
             print(
                 "MORE error:",
-                (
-                    f"{type(exc).__name__}: "
-                    f"{exc}"
-                ),
+                f"{type(exc).__name__}: {exc}",
             )
 
         if attempt < MORE_MAX_ATTEMPTS:
