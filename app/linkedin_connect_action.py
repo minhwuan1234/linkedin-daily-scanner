@@ -17,7 +17,7 @@ from app.linkedin_browser import (
 )
 
 
-PROFILE_TIMEOUT_MS = 10_000
+PROFILE_TIMEOUT_MS = 15_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
 FINAL_STATE_VERIFY_WINDOW_MS = 3_500
@@ -1958,42 +1958,61 @@ def _has_visible_connect_action(
     deadline: float,
 ) -> bool:
     """
-    Check whether the current profile still exposes an actionable Connect control.
+    Check whether THIS CURRENT PROFILE still exposes its Connect action.
 
-    Used only as a post-send confirmation signal.
+    IMPORTANT:
+    Do NOT use broad selectors such as:
+        [aria-label^='Invite '][aria-label$=' to connect']
+
+    because LinkedIn can show many other Connect actions in sidebars /
+    recommendations. Those caused false connect_visible=True results.
+
+    For the current profile, use vanityName from page.url and match only
+    the exact custom-invite href belonging to that profile.
     """
     vanity_name = _get_profile_vanity_name(page)
 
-    selectors = [
-        (
-            "[componentkey^='ConnectButtonState']"
-            "[aria-label^='Invite ']"
-            "[aria-label$=' to connect']"
-        ),
-        (
-            "[aria-label^='Invite ']"
-            "[aria-label$=' to connect']"
-        ),
-    ]
+    if not vanity_name:
+        # No safe profile-scoped selector available.
+        # Return False rather than treating unrelated sidebar Connect
+        # controls as the current profile's Connect state.
+        return False
 
-    if vanity_name:
-        selectors.append(
-            (
-                "a[href*='custom-invite']"
-                f"[href*='vanityName={vanity_name}']"
-            )
-        )
+    selectors = (
+        (
+            "a[href*='custom-invite']"
+            f"[href*='vanityName={vanity_name}']"
+        ),
+        (
+            "a[href*='/preload/custom-invite/']"
+            f"[href*='vanityName={vanity_name}']"
+        ),
+    )
 
     for selector in selectors:
         try:
             candidates = page.locator(selector)
 
             for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+
                 if _is_visible_locator(
-                    candidates.nth(index),
+                    candidate,
                     deadline=deadline,
                     maximum_ms=100,
                 ):
+                    try:
+                        href = (
+                            candidate.get_attribute("href")
+                            or ""
+                        )
+                    except Exception:
+                        href = ""
+
+                    print(
+                        "CURRENT PROFILE CONNECT still visible:",
+                        href,
+                    )
                     return True
 
         except LinkedInProfileActionTimeout:
@@ -2146,7 +2165,7 @@ def _confirm_after_connect_click(
                 and not connect_still_visible
             ):
                 print(
-                    "FINAL STATE: invitation accepted by UI transition"
+                    "FINAL STATE: invitation accepted by profile-scoped UI transition"
                 )
                 return "invitation_sent"
 
@@ -2186,7 +2205,7 @@ def _confirm_after_connect_click(
                 and not connect_still_visible
             ):
                 print(
-                    "FINAL STATE: invitation accepted by final UI transition check"
+                    "FINAL STATE: invitation accepted by final profile-scoped UI transition check"
                 )
                 return "invitation_sent"
 
