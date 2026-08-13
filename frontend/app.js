@@ -1462,9 +1462,9 @@ function renderOutreachScheduler(
 
   if (els.outreachCurrentAccount) {
     els.outreachCurrentAccount.textContent =
-     getOutreachAccountDisplayName(
-      scheduler.current_account_id || "—"
-    );
+      getOutreachAccountDisplayName(
+        scheduler.current_account_id
+      );
   }
 
   if (els.outreachUsedTurn) {
@@ -1745,9 +1745,9 @@ function renderOutreachAccounts(
       .map((account) => {
         const accountId =
           escapeHtml(
-              getOutreachAccountDisplayName(
-            account.account_id || "—"
-            )    
+            getOutreachAccountDisplayName(
+              account.account_id
+            )
           );
 
         const status =
@@ -1790,6 +1790,45 @@ function renderOutreachAccounts(
             account.failed_count || 0
           );
 
+        const dailySent =
+          Number(
+            account.daily_success_count || 0
+          );
+
+        const dailyLimit =
+          Number(
+            account.daily_limit || 50
+          );
+
+        const dailyRemaining =
+          Number(
+            account.daily_remaining ?? (
+              dailyLimit - dailySent
+            )
+          );
+
+        const weeklySent =
+          Number(
+            account.weekly_success_count || 0
+          );
+
+        const weeklyLimit =
+          Number(
+            account.weekly_limit || 250
+          );
+
+        const weeklyRemaining =
+          Number(
+            account.weekly_remaining ?? (
+              weeklyLimit - weeklySent
+            )
+          );
+
+        const quotaAvailable =
+          account.quota_available !== false &&
+          dailyRemaining > 0 &&
+          weeklyRemaining > 0;
+
         const lastError = String(
           account.last_error || ""
         ).trim();
@@ -1812,6 +1851,16 @@ function renderOutreachAccounts(
                     ? `
                       <span class="outreach-current-label">
                         Current
+                      </span>
+                    `
+                    : ""
+                }
+
+                ${
+                  !quotaAvailable
+                    ? `
+                      <span class="outreach-current-label">
+                        Limit reached
                       </span>
                     `
                     : ""
@@ -1844,6 +1893,51 @@ function renderOutreachAccounts(
 
                 <strong>
                   ${remaining}
+                </strong>
+              </div>
+
+            </div>
+
+
+            <div class="outreach-account-quota">
+
+              <div>
+                <span>
+                  Daily sent
+                </span>
+
+                <strong>
+                  ${dailySent} / ${dailyLimit}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Daily remaining
+                </span>
+
+                <strong>
+                  ${Math.max(dailyRemaining, 0)}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Weekly sent
+                </span>
+
+                <strong>
+                  ${weeklySent} / ${weeklyLimit}
+                </strong>
+              </div>
+
+              <div>
+                <span>
+                  Weekly remaining
+                </span>
+
+                <strong>
+                  ${Math.max(weeklyRemaining, 0)}
                 </strong>
               </div>
 
