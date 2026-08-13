@@ -1383,64 +1383,119 @@ def _click_connect_in_ellipsis_menu(
     """
     Click Connect bên trong popup dấu ...
 
-    IMPORTANT:
-    - Chỉ trả True sau khi click chính Connect.
-    - Không coi việc mở popup là Connect success.
-    - Ưu tiên role=menuitem + exact text Connect.
-    - Nếu có href custom-invite thì bắt buộc vanityName đúng profile hiện tại.
-    - Không dùng vị trí.
+    DOM thật đã xác nhận case này có thể là:
+        <div
+            aria-label="Invite <name> to connect"
+            componentkey="ConnectButtonState:..."
+        >
+            <svg ...>
+            ...
+        </div>
+
+    Vì vậy KHÔNG giới hạn ở <a>, <button> hay role=menuitem.
+
+    Chỉ trả True sau khi click chính Connect action.
+    Không dùng vị trí.
     """
     _check_deadline(deadline)
 
-    vanity_name = _get_profile_vanity_name(page)
-
     wait_deadline = min(
         deadline,
-        time.monotonic() + 1.2,
+        time.monotonic() + 1.4,
     )
 
     while time.monotonic() < wait_deadline:
         _check_deadline(deadline)
 
-        # 1) Strongest path: menuitem Connect đúng profile hiện tại.
-        if vanity_name:
+        # -------------------------------------------------
+        # PATH A - DOM thật của popup dấu ...
+        # aria-label dạng:
+        # "Invite Marvin Te to connect"
+        # -------------------------------------------------
+        selectors = (
+            "[aria-label^='Invite '][aria-label$=' to connect']",
+            "[aria-label*='Invite '][aria-label*=' to connect']",
+            "[componentkey^='ConnectButtonState']",
+        )
+
+        for selector in selectors:
             try:
-                exact_links = page.locator(
-                    (
-                        "a[role='menuitem']"
-                        "[href*='custom-invite']"
-                        f"[href*='vanityName={vanity_name}']"
-                    )
+                candidates = page.locator(
+                    selector
                 )
 
-                for index in range(exact_links.count()):
-                    link = exact_links.nth(index)
+                for index in range(
+                    candidates.count()
+                ):
+                    candidate = candidates.nth(
+                        index
+                    )
 
                     if not _is_visible_locator(
-                        link,
+                        candidate,
                         deadline=deadline,
                         maximum_ms=120,
                     ):
                         continue
 
                     try:
-                        text_value = (
-                            link.inner_text()
+                        aria_label = (
+                            candidate
+                            .get_attribute(
+                                "aria-label"
+                            )
                             or ""
                         ).strip()
                     except Exception:
-                        text_value = ""
+                        aria_label = ""
 
-                    if text_value != "Connect":
+                    try:
+                        component_key = (
+                            candidate
+                            .get_attribute(
+                                "componentkey"
+                            )
+                            or ""
+                        ).strip()
+                    except Exception:
+                        component_key = ""
+
+                    # Guard: chỉ nhận action Connect thật.
+                    label_lower = (
+                        aria_label.lower()
+                    )
+
+                    is_connect = (
+                        (
+                            label_lower.startswith(
+                                "invite "
+                            )
+                            and label_lower.endswith(
+                                " to connect"
+                            )
+                        )
+                        or component_key.startswith(
+                            "ConnectButtonState"
+                        )
+                    )
+
+                    if not is_connect:
                         continue
 
                     print(
                         "ELLIPSIS CONNECT candidate:",
-                        "exact profile menuitem",
+                        "tag=",
+                        candidate.evaluate(
+                            "(el) => el.tagName"
+                        ),
+                        "aria-label=",
+                        repr(aria_label),
+                        "componentkey=",
+                        repr(component_key),
                     )
 
                     if _click_locator(
-                        link,
+                        candidate,
                         deadline=deadline,
                         maximum_ms=500,
                     ):
@@ -1451,17 +1506,25 @@ def _click_connect_in_ellipsis_menu(
 
             except LinkedInProfileActionTimeout:
                 raise
+
             except Exception:
                 pass
 
-        # 2) Fallback: visible exact Connect menuitem.
+        # -------------------------------------------------
+        # PATH B - legacy/fallback:
+        # role=menuitem exact Connect
+        # -------------------------------------------------
         try:
             menu_items = page.locator(
                 "[role='menuitem']"
             )
 
-            for index in range(menu_items.count()):
-                item = menu_items.nth(index)
+            for index in range(
+                menu_items.count()
+            ):
+                item = menu_items.nth(
+                    index
+                )
 
                 if not _is_visible_locator(
                     item,
@@ -1481,27 +1544,9 @@ def _click_connect_in_ellipsis_menu(
                 if text_value != "Connect":
                     continue
 
-                try:
-                    href = (
-                        item.get_attribute("href")
-                        or ""
-                    )
-                except Exception:
-                    href = ""
-
-                # Nếu có custom-invite href thì phải đúng current profile.
-                if "custom-invite" in href:
-                    if (
-                        not vanity_name
-                        or f"vanityName={vanity_name}" not in href
-                    ):
-                        continue
-
                 print(
-                    "ELLIPSIS CONNECT candidate:",
-                    "visible exact menuitem",
-                    "href=",
-                    href,
+                    "ELLIPSIS CONNECT fallback:",
+                    "role=menuitem text=Connect",
                 )
 
                 if _click_locator(
@@ -1516,6 +1561,85 @@ def _click_connect_in_ellipsis_menu(
 
         except LinkedInProfileActionTimeout:
             raise
+
+        except Exception:
+            pass
+
+        # -------------------------------------------------
+        # PATH C - exact text Connect, then climb to
+        # nearest clickable-ish ancestor including div.
+        # -------------------------------------------------
+        try:
+            texts = page.get_by_text(
+                "Connect",
+                exact=True,
+            )
+
+            for index in range(
+                texts.count()
+            ):
+                node = texts.nth(
+                    index
+                )
+
+                if not _is_visible_locator(
+                    node,
+                    deadline=deadline,
+                    maximum_ms=100,
+                ):
+                    continue
+
+                clickable = node.locator(
+                    "xpath=ancestor-or-self::*["
+                    "self::a or self::button or "
+                    "@role='menuitem' or "
+                    "@aria-label"
+                    "][1]"
+                )
+
+                if clickable.count() == 0:
+                    continue
+
+                clickable = clickable.first
+
+                try:
+                    aria_label = (
+                        clickable
+                        .get_attribute(
+                            "aria-label"
+                        )
+                        or ""
+                    ).strip()
+                except Exception:
+                    aria_label = ""
+
+                if (
+                    aria_label
+                    and "connect"
+                    not in aria_label.lower()
+                ):
+                    continue
+
+                print(
+                    "ELLIPSIS CONNECT fallback:",
+                    "exact text Connect",
+                    "aria-label=",
+                    repr(aria_label),
+                )
+
+                if _click_locator(
+                    clickable,
+                    deadline=deadline,
+                    maximum_ms=500,
+                ):
+                    print(
+                        "ELLIPSIS CONNECT clicked"
+                    )
+                    return True
+
+        except LinkedInProfileActionTimeout:
+            raise
+
         except Exception:
             pass
 
