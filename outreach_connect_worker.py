@@ -12,6 +12,9 @@ from app.linkedin_connect_action import (
     LinkedInConnectResult,
     connect_profile,
 )
+from app.outreach_account_usage import (
+    OutreachAccountUsageStore,
+)
 from app.outreach_job_queue import (
     OutreachConnectJob,
     OutreachJobQueue,
@@ -20,6 +23,7 @@ from app.outreach_result_store import (
     save_connect_result,
 )
 from app.outreach_scheduler import (
+    OutreachAccountTurn,
     OutreachScheduler,
 )
 from app.settings import (
@@ -34,6 +38,10 @@ IDLE_POLL_SECONDS = 10
 
 PROFILE_DELAY_SECONDS = 2.5
 
+ACCOUNT_SWITCH_DELAY_SECONDS = 5
+
+NO_ACCOUNT_QUOTA_RECHECK_SECONDS = 60
+
 
 # =========================================================
 # DATA
@@ -46,6 +54,12 @@ class OutreachTarget:
     job_id: str
     prospect_id: str
     linkedin_url: str
+
+
+@dataclass(frozen=True)
+class AccountTurnResult:
+    processed: int
+    quota_exhausted: bool
 
 
 # =========================================================
@@ -163,34 +177,54 @@ def process_account_turn(
     *,
     client: Client,
     scheduler: OutreachScheduler,
+    usage_store: OutreachAccountUsageStore,
+    turn: OutreachAccountTurn,
     targets: list[OutreachTarget],
-) -> int:
+) -> AccountTurnResult:
     """
-    Xử lý tối đa quota còn lại
-    của account hiện tại.
+    Xử lý tối đa quota của round-robin turn hiện tại.
 
-    Ví dụ:
+    Daily / weekly quota là quota riêng:
+    - daily: 50 invitation_sent
+    - weekly: 250 invitation_sent
+    - chỉ invitation_sent mới cộng usage
 
-    account_01 đang 7/10
-    còn 3 slots
-
-    Nếu job còn 8 targets:
-        account_01 xử lý 3
-        sau đó scheduler chuyển account tiếp theo.
-
-    Return:
-        số target đã xử lý.
+    Turn quota hiện tại vẫn hoạt động như cũ:
+    mỗi target được xử lý vẫn tính 1 turn attempt.
     """
 
     if not targets:
-        return 0
-
-    turn = (
-        scheduler
-        .get_current_turn()
-    )
+        return AccountTurnResult(
+            processed=0,
+            quota_exhausted=False,
+        )
 
     account = turn.account
+
+    usage = usage_store.get_usage(
+        account_id=account.account_id
+    )
+
+    if not usage.is_available:
+        print(
+            "Account quota exhausted before turn:",
+            account.account_id,
+        )
+
+        print(
+            "Daily:",
+            f"{usage.daily_success_count}/{usage.daily_limit}",
+        )
+
+        print(
+            "Weekly:",
+            f"{usage.weekly_success_count}/{usage.weekly_limit}",
+        )
+
+        return AccountTurnResult(
+            processed=0,
+            quota_exhausted=True,
+        )
 
     capacity = min(
         len(targets),
@@ -198,7 +232,10 @@ def process_account_turn(
     )
 
     if capacity <= 0:
-        return 0
+        return AccountTurnResult(
+            processed=0,
+            quota_exhausted=False,
+        )
 
     batch = targets[
         :capacity
@@ -211,7 +248,12 @@ def process_account_turn(
 
     print(
         "Account:",
-        account.account_id,
+        getattr(
+            account,
+            "display_name",
+            account.account_id,
+        ),
+        f"({account.account_id})",
     )
 
     print(
@@ -219,6 +261,20 @@ def process_account_turn(
         f"{turn.used_in_current_turn}"
         "/"
         f"{turn.turn_limit}",
+    )
+
+    print(
+        "Daily sent:",
+        f"{usage.daily_success_count}"
+        "/"
+        f"{usage.daily_limit}",
+    )
+
+    print(
+        "Weekly sent:",
+        f"{usage.weekly_success_count}"
+        "/"
+        f"{usage.weekly_limit}",
     )
 
     print(
@@ -232,6 +288,7 @@ def process_account_turn(
     )
 
     processed = 0
+    quota_exhausted = False
 
     try:
         browser.start()
@@ -240,6 +297,38 @@ def process_account_turn(
             batch,
             start=1,
         ):
+            # ---------------------------------------------
+            # CHECK DAILY / WEEKLY QUOTA BEFORE NEXT URL
+            # ---------------------------------------------
+
+            usage = usage_store.get_usage(
+                account_id=account.account_id
+            )
+
+            if not usage.is_available:
+                quota_exhausted = True
+
+                print("")
+                print(
+                    "Account reached daily/weekly quota."
+                )
+
+                print(
+                    "Daily:",
+                    f"{usage.daily_success_count}"
+                    "/"
+                    f"{usage.daily_limit}",
+                )
+
+                print(
+                    "Weekly:",
+                    f"{usage.weekly_success_count}"
+                    "/"
+                    f"{usage.weekly_limit}",
+                )
+
+                break
+
             print("")
             print("-" * 60)
 
@@ -298,11 +387,53 @@ def process_account_turn(
             )
 
             # ---------------------------------------------
-            # QUOTA
+            # DAILY / WEEKLY SUCCESS USAGE
             # ---------------------------------------------
             #
-            # Dù success hay failed thì account
-            # đã dùng 1 attempt cho profile này.
+            # CHỈ invitation_sent mới tính.
+            #
+            # Không tính:
+            # - failed
+            # - pending
+            # - already_connected
+            # - connect_unavailable
+            # - timeout
+            #
+
+            if result.status == "invitation_sent":
+                usage = (
+                    usage_store
+                    .record_invitation_sent(
+                        account_id=(
+                            account.account_id
+                        )
+                    )
+                )
+
+                print(
+                    "Connect quota:",
+                    (
+                        f"daily "
+                        f"{usage.daily_success_count}"
+                        f"/{usage.daily_limit}"
+                    ),
+                    "·",
+                    (
+                        f"weekly "
+                        f"{usage.weekly_success_count}"
+                        f"/{usage.weekly_limit}"
+                    ),
+                )
+
+                if not usage.is_available:
+                    quota_exhausted = True
+
+            # ---------------------------------------------
+            # ROUND-ROBIN TURN QUOTA
+            # ---------------------------------------------
+            #
+            # Giữ nguyên logic cũ:
+            # mọi target đã xử lý đều tính 1 turn attempt.
             #
 
             scheduler.record_profile_processed(
@@ -330,11 +461,18 @@ def process_account_turn(
                 result.message,
             )
 
+            # Nếu vừa chạm daily/weekly limit,
+            # dừng account ngay sau target vừa thành công.
+            if quota_exhausted:
+                print(
+                    "Account quota reached; "
+                    "switching account after this URL."
+                )
+                break
+
             # ---------------------------------------------
             # DELAY BETWEEN PROFILES
             # ---------------------------------------------
-            # Giảm tải browser / LinkedIn giữa 2 URL.
-            # Không delay sau URL cuối cùng của batch.
 
             if index < len(batch):
                 print(
@@ -359,7 +497,10 @@ def process_account_turn(
                 file=sys.stderr,
             )
 
-    return processed
+    return AccountTurnResult(
+        processed=processed,
+        quota_exhausted=quota_exhausted,
+    )
 
 
 # =========================================================
@@ -371,19 +512,19 @@ class OutreachConnectWorker:
     """
     Worker LinkedIn Outreach Connect chạy thường trực.
 
-    Flow:
+    Daily/weekly success quota:
+    - 50 invitation_sent / account / day
+    - 250 invitation_sent / account / week
 
-    idle
-    -> check Outreach Supabase
-    -> claim Connect job pending
-    -> status = running
-    -> process targets
-    -> status = completed
-    -> idle
+    Nếu account hết quota:
+    - skip account
+    - chuyển account kế tiếp
+    - delay 5 giây trước account mới
 
-    Nếu không có job:
-        sleep 10 giây
-        rồi check lại.
+    Nếu tất cả account đều hết quota:
+    - không fail job
+    - giữ job đang chạy
+    - recheck quota định kỳ
     """
 
     def __init__(
@@ -403,6 +544,13 @@ class OutreachConnectWorker:
 
         self.scheduler = OutreachScheduler(
             settings=settings
+        )
+
+        self.usage_store = (
+            OutreachAccountUsageStore(
+                settings=settings,
+                client=self.client,
+            )
         )
 
         self._stop_requested = False
@@ -431,15 +579,26 @@ class OutreachConnectWorker:
         )
 
         print(
+            "Daily Connect success limit:",
+            "50/account",
+        )
+
+        print(
+            "Weekly Connect success limit:",
+            "250/account",
+        )
+
+        print(
+            "Account switch delay:",
+            f"{ACCOUNT_SWITCH_DELAY_SECONDS}s",
+        )
+
+        print(
             "Press Ctrl+C to stop."
         )
 
         try:
             while not self._stop_requested:
-                # -----------------------------------------
-                # CLAIM NEXT JOB
-                # -----------------------------------------
-
                 job = (
                     self._claim_next_job_safely()
                 )
@@ -449,10 +608,6 @@ class OutreachConnectWorker:
                         IDLE_POLL_SECONDS
                     )
                     continue
-
-                # -----------------------------------------
-                # PROCESS JOB
-                # -----------------------------------------
 
                 self._process_job(
                     job
@@ -496,6 +651,82 @@ class OutreachConnectWorker:
             return None
 
     # =====================================================
+    # ACCOUNT QUOTA SELECTION
+    # =====================================================
+
+    def _get_available_turn(
+        self,
+    ) -> OutreachAccountTurn | None:
+        """
+        Tìm account tiếp theo còn daily + weekly quota.
+
+        Tối đa scan đúng số account trong pool.
+        Nếu cả pool đều hết quota -> None.
+        """
+
+        account_count = len(
+            self.scheduler
+            .account_pool
+            .accounts
+        )
+
+        for _ in range(account_count):
+            turn = (
+                self.scheduler
+                .get_current_turn()
+            )
+
+            account = turn.account
+
+            usage = (
+                self.usage_store
+                .get_usage(
+                    account_id=(
+                        account.account_id
+                    )
+                )
+            )
+
+            if usage.is_available:
+                return turn
+
+            print("")
+            print(
+                "Skipping account with no quota:",
+                getattr(
+                    account,
+                    "display_name",
+                    account.account_id,
+                ),
+                f"({account.account_id})",
+            )
+
+            print(
+                "Daily:",
+                (
+                    f"{usage.daily_success_count}"
+                    f"/{usage.daily_limit}"
+                ),
+            )
+
+            print(
+                "Weekly:",
+                (
+                    f"{usage.weekly_success_count}"
+                    f"/{usage.weekly_limit}"
+                ),
+            )
+
+            self.scheduler.move_to_next_account(
+                state=(
+                    self.scheduler
+                    .load_state()
+                )
+            )
+
+        return None
+
+    # =====================================================
     # PROCESS ONE JOB
     # =====================================================
 
@@ -534,10 +765,6 @@ class OutreachConnectWorker:
         )
 
         try:
-            # ---------------------------------------------
-            # LOAD TARGETS
-            # ---------------------------------------------
-
             targets = load_pending_targets(
                 client=self.client,
                 job_id=job.id,
@@ -547,10 +774,6 @@ class OutreachConnectWorker:
                 "pending targets:",
                 len(targets),
             )
-
-            # ---------------------------------------------
-            # EMPTY JOB
-            # ---------------------------------------------
 
             if not targets:
                 print(
@@ -567,36 +790,136 @@ class OutreachConnectWorker:
 
                 return
 
-            # ---------------------------------------------
-            # PROCESS TARGETS
-            # ---------------------------------------------
-
             offset = 0
+
+            previous_account_id: str | None = None
 
             while (
                 offset < len(targets)
                 and not self._stop_requested
             ):
+                # -----------------------------------------
+                # FIND ACCOUNT WITH QUOTA
+                # -----------------------------------------
+
+                turn = self._get_available_turn()
+
+                if turn is None:
+                    print("")
+                    print(
+                        "All Outreach accounts are at "
+                        "daily/weekly Connect limit."
+                    )
+
+                    print(
+                        "Job remains running."
+                    )
+
+                    print(
+                        (
+                            "Rechecking quota in "
+                            f"{NO_ACCOUNT_QUOTA_RECHECK_SECONDS}s..."
+                        )
+                    )
+
+                    self._sleep_interruptibly(
+                        NO_ACCOUNT_QUOTA_RECHECK_SECONDS
+                    )
+
+                    continue
+
+                current_account_id = (
+                    turn.account.account_id
+                )
+
+                # -----------------------------------------
+                # DELAY WHEN ACCOUNT CHANGES
+                # -----------------------------------------
+
+                if (
+                    previous_account_id is not None
+                    and current_account_id
+                    != previous_account_id
+                ):
+                    print("")
+                    print(
+                        "Account switched:",
+                        previous_account_id,
+                        "->",
+                        current_account_id,
+                    )
+
+                    print(
+                        (
+                            f"Waiting "
+                            f"{ACCOUNT_SWITCH_DELAY_SECONDS}s "
+                            "before starting next account..."
+                        )
+                    )
+
+                    self._sleep_interruptibly(
+                        ACCOUNT_SWITCH_DELAY_SECONDS
+                    )
+
+                    if self._stop_requested:
+                        break
+
                 remaining_targets = (
                     targets[offset:]
                 )
 
-                processed = (
+                turn_result = (
                     process_account_turn(
                         client=self.client,
                         scheduler=self.scheduler,
+                        usage_store=(
+                            self.usage_store
+                        ),
+                        turn=turn,
                         targets=(
                             remaining_targets
                         ),
                     )
                 )
 
-                if processed <= 0:
+                # -----------------------------------------
+                # ACCOUNT HIT DAILY/WEEKLY LIMIT
+                # -----------------------------------------
+
+                if turn_result.quota_exhausted:
+                    current_state = (
+                        self.scheduler
+                        .load_state()
+                    )
+
+                    # Nếu round-robin turn chưa tự complete,
+                    # chủ động chuyển account ngay.
+                    if (
+                        current_state.current_account_id
+                        == current_account_id
+                    ):
+                        self.scheduler.move_to_next_account(
+                            state=current_state
+                        )
+
+                if turn_result.processed <= 0:
+                    if turn_result.quota_exhausted:
+                        previous_account_id = (
+                            current_account_id
+                        )
+                        continue
+
                     raise RuntimeError(
                         "Worker made no progress."
                     )
 
-                offset += processed
+                offset += (
+                    turn_result.processed
+                )
+
+                previous_account_id = (
+                    current_account_id
+                )
 
                 print("")
                 print(
@@ -604,19 +927,11 @@ class OutreachConnectWorker:
                     f"{offset}/{len(targets)}",
                 )
 
-            # ---------------------------------------------
-            # STOP REQUESTED
-            # ---------------------------------------------
-
             if self._stop_requested:
                 raise RuntimeError(
                     "Worker stop requested "
                     "before job completed."
                 )
-
-            # ---------------------------------------------
-            # COMPLETE
-            # ---------------------------------------------
 
             self.queue.complete_job(
                 job_id=job.id,
@@ -650,18 +965,6 @@ class OutreachConnectWorker:
                 ),
                 file=sys.stderr,
             )
-
-            # ---------------------------------------------
-            # JOB-LEVEL FAILURE
-            # ---------------------------------------------
-            #
-            # Đây chỉ dùng khi cả worker/job bị lỗi.
-            #
-            # Một profile timeout / 404 / unavailable
-            # không vào đây vì process_account_turn()
-            # đã convert thành profile FAILED và
-            # tiếp tục profile tiếp theo.
-            #
 
             try:
                 self.queue.fail_job(
