@@ -1374,24 +1374,187 @@ def _click_connect_via_menu_text(
     return False
 
 
+
+def _click_connect_in_ellipsis_menu(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """
+    Click Connect bên trong popup dấu ...
+
+    IMPORTANT:
+    - Chỉ trả True sau khi click chính Connect.
+    - Không coi việc mở popup là Connect success.
+    - Ưu tiên role=menuitem + exact text Connect.
+    - Nếu có href custom-invite thì bắt buộc vanityName đúng profile hiện tại.
+    - Không dùng vị trí.
+    """
+    _check_deadline(deadline)
+
+    vanity_name = _get_profile_vanity_name(page)
+
+    wait_deadline = min(
+        deadline,
+        time.monotonic() + 1.2,
+    )
+
+    while time.monotonic() < wait_deadline:
+        _check_deadline(deadline)
+
+        # 1) Strongest path: menuitem Connect đúng profile hiện tại.
+        if vanity_name:
+            try:
+                exact_links = page.locator(
+                    (
+                        "a[role='menuitem']"
+                        "[href*='custom-invite']"
+                        f"[href*='vanityName={vanity_name}']"
+                    )
+                )
+
+                for index in range(exact_links.count()):
+                    link = exact_links.nth(index)
+
+                    if not _is_visible_locator(
+                        link,
+                        deadline=deadline,
+                        maximum_ms=120,
+                    ):
+                        continue
+
+                    try:
+                        text_value = (
+                            link.inner_text()
+                            or ""
+                        ).strip()
+                    except Exception:
+                        text_value = ""
+
+                    if text_value != "Connect":
+                        continue
+
+                    print(
+                        "ELLIPSIS CONNECT candidate:",
+                        "exact profile menuitem",
+                    )
+
+                    if _click_locator(
+                        link,
+                        deadline=deadline,
+                        maximum_ms=500,
+                    ):
+                        print(
+                            "ELLIPSIS CONNECT clicked"
+                        )
+                        return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+            except Exception:
+                pass
+
+        # 2) Fallback: visible exact Connect menuitem.
+        try:
+            menu_items = page.locator(
+                "[role='menuitem']"
+            )
+
+            for index in range(menu_items.count()):
+                item = menu_items.nth(index)
+
+                if not _is_visible_locator(
+                    item,
+                    deadline=deadline,
+                    maximum_ms=120,
+                ):
+                    continue
+
+                try:
+                    text_value = (
+                        item.inner_text()
+                        or ""
+                    ).strip()
+                except Exception:
+                    text_value = ""
+
+                if text_value != "Connect":
+                    continue
+
+                try:
+                    href = (
+                        item.get_attribute("href")
+                        or ""
+                    )
+                except Exception:
+                    href = ""
+
+                # Nếu có custom-invite href thì phải đúng current profile.
+                if "custom-invite" in href:
+                    if (
+                        not vanity_name
+                        or f"vanityName={vanity_name}" not in href
+                    ):
+                        continue
+
+                print(
+                    "ELLIPSIS CONNECT candidate:",
+                    "visible exact menuitem",
+                    "href=",
+                    href,
+                )
+
+                if _click_locator(
+                    item,
+                    deadline=deadline,
+                    maximum_ms=500,
+                ):
+                    print(
+                        "ELLIPSIS CONNECT clicked"
+                    )
+                    return True
+
+        except LinkedInProfileActionTimeout:
+            raise
+        except Exception:
+            pass
+
+        _sleep(
+            page,
+            deadline=deadline,
+            milliseconds=80,
+        )
+
+    print(
+        "ELLIPSIS CONNECT not found/clicked"
+    )
+    return False
+
+
 def _click_connect_once(
     page: Page,
     *,
     deadline: float,
 ) -> bool:
     """
-    Keep all three UI cases independent.
+    Three independent UI cases.
 
     CASE 1:
         direct Connect
 
     CASE 2:
-        three-dot / overflow -> WAIT Connect -> click Connect
+        three-dot / overflow
+        -> open popup
+        -> click exact Connect menuitem
+        -> only then return True
 
     CASE 3:
-        text More -> WAIT Connect -> click Connect
+        text More
+        -> open
+        -> wait for profile-scoped Connect
+        -> click Connect
 
-    Opening the menu itself is NOT treated as Connect success.
+    Opening a popup/menu is NEVER treated as Connect success.
     """
     print(
         "Checking CASE 1: direct Connect"
@@ -1415,36 +1578,17 @@ def _click_connect_once(
         deadline=deadline,
     ):
         print(
-            "CASE 2 menu opened; waiting for Connect action"
+            "CASE 2 popup opened; clicking Connect"
         )
 
-        if _wait_for_profile_connect_action(
+        if _click_connect_in_ellipsis_menu(
             page,
             deadline=deadline,
-            maximum_wait_ms=900,
         ):
-            print(
-                "CASE 2: checking custom-invite"
-            )
-
-            if _click_connect_via_custom_invite(
-                page,
-                deadline=deadline,
-            ):
-                return True
-
-            print(
-                "CASE 2: checking exact Connect text"
-            )
-
-            if _click_connect_via_menu_text(
-                page,
-                deadline=deadline,
-            ):
-                return True
+            return True
 
         print(
-            "CASE 2: Connect action not clicked"
+            "CASE 2: popup opened but Connect was NOT clicked"
         )
 
     # -----------------------------------------------------
