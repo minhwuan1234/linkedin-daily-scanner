@@ -32,6 +32,8 @@ TARGET_TABLE = "outreach_job_targets"
 
 IDLE_POLL_SECONDS = 10
 
+PROFILE_DELAY_SECONDS = 2.5
+
 
 # =========================================================
 # DATA
@@ -327,6 +329,21 @@ def process_account_turn(
                 "Message:",
                 result.message,
             )
+
+    # ---------------------------------------------
+# DELAY BETWEEN PROFILES
+# ---------------------------------------------
+# Giảm tải browser / LinkedIn giữa 2 URL.
+# Không delay sau URL cuối cùng của batch.
+
+if index < len(batch):
+    print(
+        f"Waiting {PROFILE_DELAY_SECONDS}s before next URL..."
+    )
+
+    time.sleep(
+        PROFILE_DELAY_SECONDS
+    )
 
     finally:
         try:
