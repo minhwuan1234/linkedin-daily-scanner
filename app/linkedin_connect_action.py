@@ -20,7 +20,7 @@ from app.linkedin_browser import (
 PROFILE_TIMEOUT_MS = 10_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
-FINAL_STATE_VERIFY_WINDOW_MS = 1_500
+FINAL_STATE_VERIFY_WINDOW_MS = 3_500
 FINAL_STATE_POLL_MS = 180
 
 ConnectStatus = Literal[
@@ -1005,6 +1005,95 @@ def _click_more_button(
     return False
 
 
+def _wait_for_profile_connect_action(
+    page: Page,
+    *,
+    deadline: float,
+    maximum_wait_ms: int = 900,
+) -> bool:
+    """
+    Sau khi mở dấu ... hoặc More, chờ Connect action của đúng
+    profile hiện tại xuất hiện trước khi click.
+
+    Không dùng vị trí.
+    Không thay đổi logic mở menu.
+    """
+    vanity_name = _get_profile_vanity_name(page)
+
+    wait_deadline = min(
+        deadline,
+        time.monotonic()
+        + (maximum_wait_ms / 1000),
+    )
+
+    while time.monotonic() < wait_deadline:
+        _check_deadline(deadline)
+
+        # Strongest signal: exact custom-invite for current profile.
+        if vanity_name:
+            try:
+                exact_links = page.locator(
+                    (
+                        "a[href*='custom-invite']"
+                        f"[href*='vanityName={vanity_name}']"
+                    )
+                )
+
+                for index in range(exact_links.count()):
+                    link = exact_links.nth(index)
+
+                    if _is_visible_locator(
+                        link,
+                        deadline=deadline,
+                        maximum_ms=100,
+                    ):
+                        print(
+                            "CONNECT ACTION ready via exact custom-invite"
+                        )
+                        return True
+
+            except LinkedInProfileActionTimeout:
+                raise
+            except Exception:
+                pass
+
+        # Fallback: exact visible Connect.
+        try:
+            connects = page.get_by_text(
+                "Connect",
+                exact=True,
+            )
+
+            for index in range(connects.count()):
+                node = connects.nth(index)
+
+                if _is_visible_locator(
+                    node,
+                    deadline=deadline,
+                    maximum_ms=100,
+                ):
+                    print(
+                        "CONNECT ACTION ready via exact text"
+                    )
+                    return True
+
+        except LinkedInProfileActionTimeout:
+            raise
+        except Exception:
+            pass
+
+        _sleep(
+            page,
+            deadline=deadline,
+            milliseconds=80,
+        )
+
+    print(
+        "CONNECT ACTION did not become visible in time"
+    )
+    return False
+
+
 # =========================================================
 # PATH 2: MORE -> custom-invite
 # =========================================================
@@ -1291,18 +1380,18 @@ def _click_connect_once(
     deadline: float,
 ) -> bool:
     """
-    Keep all three UI cases independent:
+    Keep all three UI cases independent.
 
     CASE 1:
         direct Connect
 
     CASE 2:
-        three-dot / overflow button -> Connect
+        three-dot / overflow -> WAIT Connect -> click Connect
 
     CASE 3:
-        text More button -> Connect
+        text More -> WAIT Connect -> click Connect
 
-    Opening one case must not replace or disable the others.
+    Opening the menu itself is NOT treated as Connect success.
     """
     print(
         "Checking CASE 1: direct Connect"
@@ -1315,7 +1404,7 @@ def _click_connect_once(
         return True
 
     # -----------------------------------------------------
-    # CASE 2: existing three-dot / overflow path
+    # CASE 2: three-dot / overflow
     # -----------------------------------------------------
     print(
         "Checking CASE 2: three-dot / overflow menu"
@@ -1326,31 +1415,40 @@ def _click_connect_once(
         deadline=deadline,
     ):
         print(
-            "CASE 2 menu opened; checking custom-invite"
+            "CASE 2 menu opened; waiting for Connect action"
         )
 
-        if _click_connect_via_custom_invite(
+        if _wait_for_profile_connect_action(
             page,
             deadline=deadline,
+            maximum_wait_ms=900,
         ):
-            return True
+            print(
+                "CASE 2: checking custom-invite"
+            )
+
+            if _click_connect_via_custom_invite(
+                page,
+                deadline=deadline,
+            ):
+                return True
+
+            print(
+                "CASE 2: checking exact Connect text"
+            )
+
+            if _click_connect_via_menu_text(
+                page,
+                deadline=deadline,
+            ):
+                return True
 
         print(
-            "CASE 2: checking exact Connect text"
-        )
-
-        if _click_connect_via_menu_text(
-            page,
-            deadline=deadline,
-        ):
-            return True
-
-        print(
-            "CASE 2: Connect not found in overflow menu"
+            "CASE 2: Connect action not clicked"
         )
 
     # -----------------------------------------------------
-    # CASE 3: new text-More path
+    # CASE 3: text More
     # -----------------------------------------------------
     print(
         "Checking CASE 3: text More menu"
@@ -1366,7 +1464,21 @@ def _click_connect_once(
         return False
 
     print(
-        "CASE 3 menu opened; checking custom-invite"
+        "CASE 3 menu opened; waiting for Connect action"
+    )
+
+    if not _wait_for_profile_connect_action(
+        page,
+        deadline=deadline,
+        maximum_wait_ms=900,
+    ):
+        print(
+            "CASE 3: Connect action did not appear"
+        )
+        return False
+
+    print(
+        "CASE 3: checking custom-invite"
     )
 
     if _click_connect_via_custom_invite(
@@ -1385,6 +1497,9 @@ def _click_connect_once(
     ):
         return True
 
+    print(
+        "CASE 3: Connect action not clicked"
+    )
     return False
 
 
@@ -1452,7 +1567,7 @@ def _confirm_after_connect_click(
             if _click_send_without_note(page, deadline=deadline):
                 print("Send without note clicked")
                 send_attempted = True
-                _sleep(page, deadline=deadline, milliseconds=180)
+                _sleep(page, deadline=deadline, milliseconds=650)
                 continue
             send_attempted = True
 
@@ -1591,7 +1706,7 @@ def connect_profile(
 
         # Last-chance short state check before action_error.
         if (deadline - time.monotonic()) > 0.35:
-            _sleep(page, deadline=deadline, milliseconds=220)
+            _sleep(page, deadline=deadline, milliseconds=500)
 
             if _has_pending_state(page, deadline=deadline):
                 return LinkedInConnectResult(
