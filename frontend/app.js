@@ -1463,7 +1463,7 @@ function renderOutreachScheduler(
   if (els.outreachCurrentAccount) {
     els.outreachCurrentAccount.textContent =
      getOutreachAccountDisplayName(
-      scheduler.current_account_id || "—";
+      scheduler.current_account_id || "—"
     );
   }
 
@@ -1744,7 +1744,7 @@ function renderOutreachAccounts(
     rows
       .map((account) => {
         const accountId =
-          escapeHtml
+          escapeHtml(
               getOutreachAccountDisplayName(
             account.account_id || "—"
             )    
