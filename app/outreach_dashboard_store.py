@@ -16,6 +16,10 @@ TARGET_TABLE = "outreach_job_targets"
 PROSPECT_TABLE = "outreach_prospects"
 SCHEDULER_TABLE = "outreach_scheduler_state"
 ACCOUNT_TABLE = "outreach_accounts"
+ACCOUNT_USAGE_TABLE = "outreach_account_usage"
+
+DAILY_SUCCESS_LIMIT = 50
+WEEKLY_SUCCESS_LIMIT = 250
 
 SCHEDULER_NAME = "linkedin_outreach"
 
@@ -837,6 +841,60 @@ def get_raw_accounts(
 
 
 # =========================================================
+# ACCOUNT USAGE
+# =========================================================
+
+
+def get_account_usage(
+    *,
+    client: Client,
+) -> dict[str, dict]:
+    """
+    Load persistent daily/weekly Connect usage.
+
+    Counts are written by outreach_connect_worker and only
+    increment when result.status == "invitation_sent".
+    """
+
+    response = (
+        client
+        .table(
+            ACCOUNT_USAGE_TABLE
+        )
+        .select(
+            (
+                "account_id,"
+                "daily_success_count,"
+                "daily_date,"
+                "weekly_success_count,"
+                "week_start,"
+                "updated_at"
+            )
+        )
+        .execute()
+    )
+
+    rows = list(
+        response.data
+        or []
+    )
+
+    return {
+        _safe_text(
+            row.get(
+                "account_id"
+            )
+        ): row
+        for row in rows
+        if _safe_text(
+            row.get(
+                "account_id"
+            )
+        )
+    }
+
+
+# =========================================================
 # ACCOUNT STATS
 # =========================================================
 
@@ -846,6 +904,7 @@ def build_account_stats(
     accounts: list[dict],
     recent_jobs: list[dict],
     scheduler: dict | None,
+    usage_by_account: dict[str, dict],
 ) -> list[dict]:
     job_code_by_id = {
         job["id"]: (
@@ -928,6 +987,43 @@ def build_account_stats(
             account.get(
                 "account_id"
             )
+        )
+
+        usage_row = (
+            usage_by_account.get(
+                account_id,
+                {},
+            )
+            or {}
+        )
+
+        daily_success_count = _to_int(
+            usage_row.get(
+                "daily_success_count"
+            )
+        )
+
+        weekly_success_count = _to_int(
+            usage_row.get(
+                "weekly_success_count"
+            )
+        )
+
+        daily_remaining = max(
+            DAILY_SUCCESS_LIMIT
+            - daily_success_count,
+            0,
+        )
+
+        weekly_remaining = max(
+            WEEKLY_SUCCESS_LIMIT
+            - weekly_success_count,
+            0,
+        )
+
+        quota_available = (
+            daily_remaining > 0
+            and weekly_remaining > 0
         )
 
         account_targets = (
@@ -1107,6 +1203,40 @@ def build_account_stats(
                     account_remaining
                 ),
 
+                "daily_success_count": (
+                    daily_success_count
+                ),
+
+                "daily_limit": (
+                    DAILY_SUCCESS_LIMIT
+                ),
+
+                "daily_remaining": (
+                    daily_remaining
+                ),
+
+                "weekly_success_count": (
+                    weekly_success_count
+                ),
+
+                "weekly_limit": (
+                    WEEKLY_SUCCESS_LIMIT
+                ),
+
+                "weekly_remaining": (
+                    weekly_remaining
+                ),
+
+                "quota_available": (
+                    quota_available
+                ),
+
+                "usage_updated_at": (
+                    usage_row.get(
+                        "updated_at"
+                    )
+                ),
+
                 "total_assigned": len(
                     account_targets
                 ),
@@ -1178,6 +1308,10 @@ def get_outreach_dashboard(
         client=client
     )
 
+    usage_by_account = get_account_usage(
+        client=client
+    )
+
     # -----------------------------------------------------
     # COLLECT JOB IDS
     # -----------------------------------------------------
@@ -1227,6 +1361,7 @@ def get_outreach_dashboard(
         accounts=raw_accounts,
         recent_jobs=recent_jobs,
         scheduler=scheduler,
+        usage_by_account=usage_by_account,
     )
 
     return {
