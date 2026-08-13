@@ -330,20 +330,20 @@ def process_account_turn(
                 result.message,
             )
 
-    # ---------------------------------------------
-# DELAY BETWEEN PROFILES
-# ---------------------------------------------
-# Giảm tải browser / LinkedIn giữa 2 URL.
-# Không delay sau URL cuối cùng của batch.
+            # ---------------------------------------------
+            # DELAY BETWEEN PROFILES
+            # ---------------------------------------------
+            # Giảm tải browser / LinkedIn giữa 2 URL.
+            # Không delay sau URL cuối cùng của batch.
 
-if index < len(batch):
-    print(
-        f"Waiting {PROFILE_DELAY_SECONDS}s before next URL..."
-    )
+            if index < len(batch):
+                print(
+                    f"Waiting {PROFILE_DELAY_SECONDS}s before next URL..."
+                )
 
-    time.sleep(
-        PROFILE_DELAY_SECONDS
-    )
+                time.sleep(
+                    PROFILE_DELAY_SECONDS
+                )
 
     finally:
         try:
