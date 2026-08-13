@@ -1487,6 +1487,200 @@ def _click_connect_via_menu_text(
 
 
 
+
+def _snapshot_visible_connect_actions(
+    page: Page,
+    *,
+    deadline: float,
+) -> set[tuple[str, str]]:
+    """
+    Snapshot các Connect action đang visible TRƯỚC khi mở menu.
+
+    Mục đích:
+    sidebar/recommendation Connect đã có sẵn sẽ nằm trong baseline.
+    Sau khi mở ... hoặc More, chỉ click Connect MỚI xuất hiện.
+    """
+    _check_deadline(deadline)
+
+    baseline: set[tuple[str, str]] = set()
+
+    selectors = (
+        "[aria-label^='Invite '][aria-label$=' to connect']",
+        "[componentkey^='ConnectButtonState']",
+        "[componentkey^='ConnectButtonstate']",
+    )
+
+    for selector in selectors:
+        try:
+            candidates = page.locator(selector)
+
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+
+                if not _is_visible_locator(
+                    candidate,
+                    deadline=deadline,
+                    maximum_ms=100,
+                ):
+                    continue
+
+                try:
+                    aria_label = (
+                        candidate.get_attribute("aria-label")
+                        or ""
+                    ).strip()
+                except Exception:
+                    aria_label = ""
+
+                try:
+                    component_key = (
+                        candidate.get_attribute("componentkey")
+                        or ""
+                    ).strip()
+                except Exception:
+                    component_key = ""
+
+                if not aria_label and not component_key:
+                    continue
+
+                baseline.add(
+                    (
+                        aria_label,
+                        component_key,
+                    )
+                )
+
+        except LinkedInProfileActionTimeout:
+            raise
+        except Exception:
+            continue
+
+    print(
+        "CONNECT baseline visible count:",
+        len(baseline),
+    )
+
+    return baseline
+
+
+def _click_new_menu_connect(
+    page: Page,
+    *,
+    deadline: float,
+    baseline: set[tuple[str, str]],
+    source: str,
+) -> bool:
+    """
+    Sau khi popup mở, click DUY NHẤT Connect action MỚI xuất hiện.
+
+    Không cần biết tên profile.
+    Không click sidebar/recommendation vì chúng đã có trong baseline.
+    Không click lần 2.
+    """
+    _check_deadline(deadline)
+
+    wait_deadline = min(
+        deadline,
+        time.monotonic() + 1.5,
+    )
+
+    selectors = (
+        "[aria-label^='Invite '][aria-label$=' to connect']",
+        "[componentkey^='ConnectButtonState']",
+        "[componentkey^='ConnectButtonstate']",
+    )
+
+    while time.monotonic() < wait_deadline:
+        _check_deadline(deadline)
+
+        for selector in selectors:
+            try:
+                candidates = page.locator(selector)
+
+                for index in range(candidates.count()):
+                    candidate = candidates.nth(index)
+
+                    if not _is_visible_locator(
+                        candidate,
+                        deadline=deadline,
+                        maximum_ms=120,
+                    ):
+                        continue
+
+                    try:
+                        aria_label = (
+                            candidate.get_attribute("aria-label")
+                            or ""
+                        ).strip()
+                    except Exception:
+                        aria_label = ""
+
+                    try:
+                        component_key = (
+                            candidate.get_attribute("componentkey")
+                            or ""
+                        ).strip()
+                    except Exception:
+                        component_key = ""
+
+                    key = (
+                        aria_label,
+                        component_key,
+                    )
+
+                    if key in baseline:
+                        continue
+
+                    label_lower = aria_label.lower()
+
+                    if aria_label:
+                        if not (
+                            label_lower.startswith("invite ")
+                            and label_lower.endswith(" to connect")
+                        ):
+                            continue
+
+                    print(
+                        f"{source} CONNECT new candidate:",
+                        "aria-label=",
+                        repr(aria_label),
+                        "componentkey=",
+                        repr(component_key),
+                    )
+
+                    # EXACTLY ONE click.
+                    if _click_locator(
+                        candidate,
+                        deadline=deadline,
+                        maximum_ms=500,
+                    ):
+                        print(
+                            f"{source} CONNECT clicked ONCE"
+                        )
+                        return True
+
+                    print(
+                        f"{source} CONNECT click failed"
+                    )
+                    return False
+
+            except LinkedInProfileActionTimeout:
+                raise
+            except Exception:
+                continue
+
+        _sleep(
+            page,
+            deadline=deadline,
+            milliseconds=80,
+        )
+
+    print(
+        f"{source} CONNECT: no new menu Connect appeared"
+    )
+    return False
+
+
 def _click_connect_in_ellipsis_menu(
     page: Page,
     *,
@@ -1725,24 +1919,22 @@ def _click_connect_once(
     deadline: float,
 ) -> bool:
     """
-    Three independent UI cases.
-
     CASE 1:
         direct Connect
 
     CASE 2:
-        three-dot / overflow
-        -> open popup
-        -> click exact Connect menuitem
-        -> only then return True
+        snapshot Connect hiện có
+        -> mở dấu ...
+        -> click đúng Connect MỚI xuất hiện, đúng 1 lần
 
     CASE 3:
-        text More
-        -> open
-        -> wait for profile-scoped Connect
-        -> click Connect
+        snapshot Connect hiện có
+        -> mở More
+        -> click đúng Connect MỚI xuất hiện, đúng 1 lần
 
-    Opening a popup/menu is NEVER treated as Connect success.
+    Không tìm tên profile.
+    Không dùng vị trí.
+    Không discovery retry lần 2.
     """
     print(
         "Checking CASE 1: direct Connect"
@@ -1761,22 +1953,29 @@ def _click_connect_once(
         "Checking CASE 2: three-dot / overflow menu"
     )
 
+    ellipsis_baseline = _snapshot_visible_connect_actions(
+        page,
+        deadline=deadline,
+    )
+
     if _click_ellipsis_button(
         page,
         deadline=deadline,
     ):
         print(
-            "CASE 2 popup opened; clicking Connect"
+            "CASE 2 popup opened; clicking NEW Connect"
         )
 
-        if _click_connect_in_ellipsis_menu(
+        if _click_new_menu_connect(
             page,
             deadline=deadline,
+            baseline=ellipsis_baseline,
+            source="ELLIPSIS",
         ):
             return True
 
         print(
-            "CASE 2: popup opened but Connect was NOT clicked"
+            "CASE 2: popup opened but new Connect was NOT clicked"
         )
 
     # -----------------------------------------------------
@@ -1784,6 +1983,11 @@ def _click_connect_once(
     # -----------------------------------------------------
     print(
         "Checking CASE 3: text More menu"
+    )
+
+    more_baseline = _snapshot_visible_connect_actions(
+        page,
+        deadline=deadline,
     )
 
     if not _click_more_button(
@@ -1796,18 +2000,21 @@ def _click_connect_once(
         return False
 
     print(
-        "CASE 3 popup opened; clicking Connect"
+        "CASE 3 popup opened; clicking NEW Connect"
     )
 
-    if _click_connect_in_more_menu(
+    if _click_new_menu_connect(
         page,
         deadline=deadline,
+        baseline=more_baseline,
+        source="MORE",
     ):
         return True
 
     print(
-        "CASE 3: popup opened but Connect was NOT clicked"
+        "CASE 3: popup opened but new Connect was NOT clicked"
     )
+
     return False
 
 
@@ -1818,9 +2025,6 @@ def _click_connect(
 ) -> bool:
     """
     Run Connect discovery exactly ONE time.
-
-    No second discovery round.
-    No second Connect click.
     """
     return _click_connect_once(
         page,
