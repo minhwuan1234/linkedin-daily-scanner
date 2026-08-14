@@ -1378,19 +1378,24 @@ function renderOutreachJob(job) {
   }
 
   if (els.outreachCurrentTargets) {
-    els.outreachCurrentTargets.innerHTML =
-      renderOutreachTargetRows(
-        targets
-      );
+  const wasOpen =
+    !els.outreachCurrentTargets.hidden;
 
-    // Current Job luôn collapse sau mỗi dashboard refresh.
-    els.outreachCurrentTargets.hidden = true;
-  }
+  els.outreachCurrentTargets.innerHTML =
+    renderOutreachTargetRows(
+      targets
+    );
+
+  els.outreachCurrentTargets.hidden =
+    !wasOpen;
 
   if (els.outreachCurrentTargetsArrow) {
     els.outreachCurrentTargetsArrow.textContent =
-      "▾";
+      wasOpen
+        ? "▴"
+        : "▾";
   }
+}
 }
 
 
