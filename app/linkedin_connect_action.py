@@ -1642,94 +1642,132 @@ def _click_connect_in_more_menu(
     deadline: float,
 ) -> bool:
     """
-    CASE 3 ONLY: click Connect trong popup More.
+    CASE 3 ONLY: click Connect inside the visible More popup.
 
-    CRITICAL:
-    - Chỉ click 1 lần.
-    - Chỉ click Connect có aria-label đúng TÊN PROFILE HIỆN TẠI.
-    - Không dùng selector broad.
-    - Không ảnh hưởng CASE 1 / CASE 2.
+    IMPORTANT:
+    - This function is completely separate from CASE 2.
+    - It does NOT call or modify _click_connect_in_ellipsis_menu().
+    - It does NOT depend on profile display name.
+    - It only searches inside a VISIBLE role="menu" container.
+    - Inside that menu, it only accepts a VISIBLE role="menuitem"
+      whose exact text is "Connect".
+    - It clicks Connect exactly once.
+
+    DOM confirmed from the user's LinkedIn More popup:
+        <div role="menu"> ... </div>
+        <a role="menuitem">...</a>
+        <div role="menuitem">...</div>
     """
     _check_deadline(deadline)
 
-    profile_name = _get_profile_display_name(
-        page,
-        deadline=deadline,
-    )
-
-    if not profile_name:
-        print(
-            "MORE CONNECT: current profile name not found"
-        )
-        return False
-
-    expected_label = (
-        f"Invite {profile_name} to connect"
-    )
-
-    print(
-        "MORE CONNECT expected:",
-        repr(expected_label),
-    )
-
     wait_deadline = min(
         deadline,
-        time.monotonic() + 1.4,
+        time.monotonic() + 1.5,
     )
 
     while time.monotonic() < wait_deadline:
         _check_deadline(deadline)
 
         try:
-            candidates = page.locator(
-                f'[aria-label="{expected_label}"]'
+            menus = page.locator(
+                "[role='menu']"
             )
 
-            for index in range(candidates.count()):
-                candidate = candidates.nth(index)
+            visible_menu_count = 0
+
+            for menu_index in range(
+                menus.count()
+            ):
+                menu = menus.nth(
+                    menu_index
+                )
 
                 if not _is_visible_locator(
-                    candidate,
+                    menu,
                     deadline=deadline,
                     maximum_ms=120,
                 ):
                     continue
 
-                try:
-                    actual_label = (
-                        candidate.get_attribute(
-                            "aria-label"
-                        )
-                        or ""
-                    ).strip()
-                except Exception:
-                    actual_label = ""
+                visible_menu_count += 1
 
-                if actual_label != expected_label:
-                    continue
+                menuitems = menu.locator(
+                    "[role='menuitem']"
+                )
 
                 print(
-                    "MORE CONNECT matched current profile:",
-                    repr(actual_label),
+                    "MORE MENU:",
+                    menu_index,
+                    "visible menuitems=",
+                    menuitems.count(),
                 )
 
-                # EXACTLY ONE Connect click.
-                clicked = _click_locator(
-                    candidate,
-                    deadline=deadline,
-                    maximum_ms=500,
-                )
-
-                if clicked:
-                    print(
-                        "MORE CONNECT clicked ONCE"
+                for item_index in range(
+                    menuitems.count()
+                ):
+                    item = menuitems.nth(
+                        item_index
                     )
-                    return True
 
+                    if not _is_visible_locator(
+                        item,
+                        deadline=deadline,
+                        maximum_ms=120,
+                    ):
+                        continue
+
+                    try:
+                        text_value = " ".join(
+                            (
+                                item.inner_text()
+                                or ""
+                            ).split()
+                        ).strip()
+                    except Exception:
+                        text_value = ""
+
+                    print(
+                        "MORE MENUITEM:",
+                        item_index,
+                        repr(text_value),
+                    )
+
+                    if (
+                        text_value.lower()
+                        != "connect"
+                    ):
+                        continue
+
+                    print(
+                        "MORE CONNECT matched "
+                        "visible menuitem:",
+                        repr(text_value),
+                    )
+
+                    # CASE 3: EXACTLY ONE Connect click.
+                    clicked = _click_locator(
+                        item,
+                        deadline=deadline,
+                        maximum_ms=500,
+                    )
+
+                    if clicked:
+                        print(
+                            "MORE CONNECT clicked ONCE"
+                        )
+                        return True
+
+                    print(
+                        "MORE CONNECT click failed"
+                    )
+                    return False
+
+            if visible_menu_count:
                 print(
-                    "MORE CONNECT click failed"
+                    "MORE: visible menu found, "
+                    "but exact Connect menuitem "
+                    "not found yet"
                 )
-                return False
 
         except LinkedInProfileActionTimeout:
             raise
@@ -1747,8 +1785,10 @@ def _click_connect_in_more_menu(
         )
 
     print(
-        "MORE CONNECT: exact current-profile Connect not found"
+        "MORE CONNECT: no visible "
+        "role=menu -> exact Connect menuitem found"
     )
+
     return False
 
 
