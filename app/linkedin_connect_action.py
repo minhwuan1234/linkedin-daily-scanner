@@ -1519,39 +1519,25 @@ def _click_connect_in_ellipsis_menu(
     deadline: float,
 ) -> bool:
     """
-    CASE 2 ONLY: click Connect trong popup dấu ...
+    CASE 2 ONLY: click Connect inside the visible ellipsis popup.
 
-    CRITICAL:
-    - Chỉ click 1 lần.
-    - Chỉ click Connect có aria-label đúng TÊN PROFILE HIỆN TẠI.
-    - Không dùng selector broad "Invite ... to connect".
-    - Không click recommendation/sidebar.
+    DOM confirmed from LinkedIn:
+    - popup actions are rendered as [role="menuitem"]
+    - Connect does NOT reliably expose
+      aria-label="Invite <profile name> to connect"
+
+    Therefore:
+    1. Do not depend on profile name.
+    2. Only inspect visible role=menuitem elements.
+    3. Require exact visible text "Connect".
+    4. Click exactly one matching menu item.
+    5. Do not scan broad Connect controls outside the popup/menu items.
     """
     _check_deadline(deadline)
 
-    profile_name = _get_profile_display_name(
-        page,
-        deadline=deadline,
-    )
-
-    if not profile_name:
-        print(
-            "ELLIPSIS CONNECT: current profile name not found"
-        )
-        return False
-
-    expected_label = (
-        f"Invite {profile_name} to connect"
-    )
-
-    print(
-        "ELLIPSIS CONNECT expected:",
-        repr(expected_label),
-    )
-
     wait_deadline = min(
         deadline,
-        time.monotonic() + 1.4,
+        time.monotonic() + 1.5,
     )
 
     while time.monotonic() < wait_deadline:
@@ -1559,11 +1545,17 @@ def _click_connect_in_ellipsis_menu(
 
         try:
             candidates = page.locator(
-                f'[aria-label="{expected_label}"]'
+                "[role='menuitem']"
             )
 
-            for index in range(candidates.count()):
-                candidate = candidates.nth(index)
+            visible_menuitems = 0
+
+            for index in range(
+                candidates.count()
+            ):
+                candidate = (
+                    candidates.nth(index)
+                )
 
                 if not _is_visible_locator(
                     candidate,
@@ -1572,25 +1564,33 @@ def _click_connect_in_ellipsis_menu(
                 ):
                     continue
 
+                visible_menuitems += 1
+
                 try:
-                    actual_label = (
-                        candidate.get_attribute(
-                            "aria-label"
-                        )
-                        or ""
+                    text_value = " ".join(
+                        (
+                            candidate.inner_text()
+                            or ""
+                        ).split()
                     ).strip()
                 except Exception:
-                    actual_label = ""
+                    text_value = ""
 
-                if actual_label != expected_label:
+                print(
+                    "ELLIPSIS MENUITEM:",
+                    index,
+                    repr(text_value),
+                )
+
+                if text_value.lower() != "connect":
                     continue
 
                 print(
-                    "ELLIPSIS CONNECT matched current profile:",
-                    repr(actual_label),
+                    "ELLIPSIS CONNECT matched "
+                    "visible role=menuitem:",
+                    repr(text_value),
                 )
 
-                # EXACTLY ONE Connect click.
                 clicked = _click_locator(
                     candidate,
                     deadline=deadline,
@@ -1608,6 +1608,13 @@ def _click_connect_in_ellipsis_menu(
                 )
                 return False
 
+            if visible_menuitems:
+                print(
+                    "ELLIPSIS visible menuitems:",
+                    visible_menuitems,
+                    "- exact Connect not found yet",
+                )
+
         except LinkedInProfileActionTimeout:
             raise
 
@@ -1624,10 +1631,10 @@ def _click_connect_in_ellipsis_menu(
         )
 
     print(
-        "ELLIPSIS CONNECT: exact current-profile Connect not found"
+        "ELLIPSIS CONNECT: visible menuitem "
+        "with exact text Connect not found"
     )
     return False
-
 
 def _click_connect_in_more_menu(
     page: Page,
