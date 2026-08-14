@@ -20,7 +20,7 @@ from app.linkedin_browser import (
 PROFILE_TIMEOUT_MS = 15_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
-FINAL_STATE_VERIFY_WINDOW_MS = 3_500
+FINAL_STATE_VERIFY_WINDOW_MS = 5_000
 FINAL_STATE_POLL_MS = 180
 
 ConnectStatus = Literal[
@@ -204,29 +204,47 @@ def _has_pending_state(
     deadline: float,
 ) -> bool:
     """
-    Detect LinkedIn Pending state across button/span/div layouts.
+    STRICT Pending detector for the CURRENT profile.
 
-    LinkedIn frequently renders action controls as div/a instead of button,
-    so do not restrict this check to buttons.
+    A Connect action is only considered successfully sent when
+    LinkedIn visibly changes the current profile action state to
+    Pending.
+
+    Important:
+    - Scope to <main> to avoid Pending text from unrelated page areas.
+    - Only accept clickable/action-like controls.
+    - Do not accept generic div/span text anywhere on the page.
     """
-    selectors = (
-        "[aria-label*='Pending']",
-        "[aria-label*='pending']",
-        "button:has-text('Pending')",
-        "[role='button']:has-text('Pending')",
-        "a:has-text('Pending')",
-        "div:has-text('Pending')",
-        "span:has-text('Pending')",
-    )
+    _check_deadline(deadline)
 
-    for selector in selectors:
-        _check_deadline(deadline)
+    try:
+        main = page.locator("main")
 
-        try:
-            candidates = page.locator(selector)
+        if main.count() == 0:
+            print("PENDING CHECK: <main> not found")
+            return False
 
-            for index in range(candidates.count()):
-                candidate = candidates.nth(index)
+        selectors = (
+            "button:has-text('Pending')",
+            "[role='button']:has-text('Pending')",
+            "a:has-text('Pending')",
+            "[aria-label*='Pending']",
+            "[aria-label*='pending']",
+        )
+
+        for selector in selectors:
+            _check_deadline(deadline)
+
+            candidates = main.locator(
+                selector
+            )
+
+            for index in range(
+                candidates.count()
+            ):
+                candidate = (
+                    candidates.nth(index)
+                )
 
                 if not _is_visible_locator(
                     candidate,
@@ -245,29 +263,37 @@ def _has_pending_state(
 
                 try:
                     aria_label = (
-                        candidate.get_attribute("aria-label")
+                        candidate.get_attribute(
+                            "aria-label"
+                        )
                         or ""
                     ).strip().lower()
                 except Exception:
                     aria_label = ""
 
+                # Strict evidence:
+                # - exact visible action text "Pending"
+                # - OR action aria-label explicitly contains pending
                 if (
                     text_value == "pending"
                     or "pending" in aria_label
                 ):
                     print(
-                        "FINAL STATE: Pending detected"
+                        "FINAL STATE: Pending detected "
+                        "on current profile"
                     )
                     return True
 
-        except LinkedInProfileActionTimeout:
-            raise
+    except LinkedInProfileActionTimeout:
+        raise
 
-        except Exception:
-            continue
+    except Exception as exc:
+        print(
+            "PENDING CHECK error:",
+            f"{type(exc).__name__}: {exc}",
+        )
 
     return False
-
 
 def _has_first_degree_state(page: Page, *, deadline: float) -> bool:
     try:
@@ -1487,200 +1513,6 @@ def _click_connect_via_menu_text(
 
 
 
-
-def _snapshot_visible_connect_actions(
-    page: Page,
-    *,
-    deadline: float,
-) -> set[tuple[str, str]]:
-    """
-    Snapshot các Connect action đang visible TRƯỚC khi mở menu.
-
-    Mục đích:
-    sidebar/recommendation Connect đã có sẵn sẽ nằm trong baseline.
-    Sau khi mở ... hoặc More, chỉ click Connect MỚI xuất hiện.
-    """
-    _check_deadline(deadline)
-
-    baseline: set[tuple[str, str]] = set()
-
-    selectors = (
-        "[aria-label^='Invite '][aria-label$=' to connect']",
-        "[componentkey^='ConnectButtonState']",
-        "[componentkey^='ConnectButtonstate']",
-    )
-
-    for selector in selectors:
-        try:
-            candidates = page.locator(selector)
-
-            for index in range(candidates.count()):
-                candidate = candidates.nth(index)
-
-                if not _is_visible_locator(
-                    candidate,
-                    deadline=deadline,
-                    maximum_ms=100,
-                ):
-                    continue
-
-                try:
-                    aria_label = (
-                        candidate.get_attribute("aria-label")
-                        or ""
-                    ).strip()
-                except Exception:
-                    aria_label = ""
-
-                try:
-                    component_key = (
-                        candidate.get_attribute("componentkey")
-                        or ""
-                    ).strip()
-                except Exception:
-                    component_key = ""
-
-                if not aria_label and not component_key:
-                    continue
-
-                baseline.add(
-                    (
-                        aria_label,
-                        component_key,
-                    )
-                )
-
-        except LinkedInProfileActionTimeout:
-            raise
-        except Exception:
-            continue
-
-    print(
-        "CONNECT baseline visible count:",
-        len(baseline),
-    )
-
-    return baseline
-
-
-def _click_new_menu_connect(
-    page: Page,
-    *,
-    deadline: float,
-    baseline: set[tuple[str, str]],
-    source: str,
-) -> bool:
-    """
-    Sau khi popup mở, click DUY NHẤT Connect action MỚI xuất hiện.
-
-    Không cần biết tên profile.
-    Không click sidebar/recommendation vì chúng đã có trong baseline.
-    Không click lần 2.
-    """
-    _check_deadline(deadline)
-
-    wait_deadline = min(
-        deadline,
-        time.monotonic() + 1.5,
-    )
-
-    selectors = (
-        "[aria-label^='Invite '][aria-label$=' to connect']",
-        "[componentkey^='ConnectButtonState']",
-        "[componentkey^='ConnectButtonstate']",
-    )
-
-    while time.monotonic() < wait_deadline:
-        _check_deadline(deadline)
-
-        for selector in selectors:
-            try:
-                candidates = page.locator(selector)
-
-                for index in range(candidates.count()):
-                    candidate = candidates.nth(index)
-
-                    if not _is_visible_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=120,
-                    ):
-                        continue
-
-                    try:
-                        aria_label = (
-                            candidate.get_attribute("aria-label")
-                            or ""
-                        ).strip()
-                    except Exception:
-                        aria_label = ""
-
-                    try:
-                        component_key = (
-                            candidate.get_attribute("componentkey")
-                            or ""
-                        ).strip()
-                    except Exception:
-                        component_key = ""
-
-                    key = (
-                        aria_label,
-                        component_key,
-                    )
-
-                    if key in baseline:
-                        continue
-
-                    label_lower = aria_label.lower()
-
-                    if aria_label:
-                        if not (
-                            label_lower.startswith("invite ")
-                            and label_lower.endswith(" to connect")
-                        ):
-                            continue
-
-                    print(
-                        f"{source} CONNECT new candidate:",
-                        "aria-label=",
-                        repr(aria_label),
-                        "componentkey=",
-                        repr(component_key),
-                    )
-
-                    # EXACTLY ONE click.
-                    if _click_locator(
-                        candidate,
-                        deadline=deadline,
-                        maximum_ms=500,
-                    ):
-                        print(
-                            f"{source} CONNECT clicked ONCE"
-                        )
-                        return True
-
-                    print(
-                        f"{source} CONNECT click failed"
-                    )
-                    return False
-
-            except LinkedInProfileActionTimeout:
-                raise
-            except Exception:
-                continue
-
-        _sleep(
-            page,
-            deadline=deadline,
-            milliseconds=80,
-        )
-
-    print(
-        f"{source} CONNECT: no new menu Connect appeared"
-    )
-    return False
-
-
 def _click_connect_in_ellipsis_menu(
     page: Page,
     *,
@@ -1919,22 +1751,24 @@ def _click_connect_once(
     deadline: float,
 ) -> bool:
     """
+    Three independent UI cases.
+
     CASE 1:
         direct Connect
 
     CASE 2:
-        snapshot Connect hiện có
-        -> mở dấu ...
-        -> click đúng Connect MỚI xuất hiện, đúng 1 lần
+        three-dot / overflow
+        -> open popup
+        -> click exact Connect menuitem
+        -> only then return True
 
     CASE 3:
-        snapshot Connect hiện có
-        -> mở More
-        -> click đúng Connect MỚI xuất hiện, đúng 1 lần
+        text More
+        -> open
+        -> wait for profile-scoped Connect
+        -> click Connect
 
-    Không tìm tên profile.
-    Không dùng vị trí.
-    Không discovery retry lần 2.
+    Opening a popup/menu is NEVER treated as Connect success.
     """
     print(
         "Checking CASE 1: direct Connect"
@@ -1953,29 +1787,22 @@ def _click_connect_once(
         "Checking CASE 2: three-dot / overflow menu"
     )
 
-    ellipsis_baseline = _snapshot_visible_connect_actions(
-        page,
-        deadline=deadline,
-    )
-
     if _click_ellipsis_button(
         page,
         deadline=deadline,
     ):
         print(
-            "CASE 2 popup opened; clicking NEW Connect"
+            "CASE 2 popup opened; clicking Connect"
         )
 
-        if _click_new_menu_connect(
+        if _click_connect_in_ellipsis_menu(
             page,
             deadline=deadline,
-            baseline=ellipsis_baseline,
-            source="ELLIPSIS",
         ):
             return True
 
         print(
-            "CASE 2: popup opened but new Connect was NOT clicked"
+            "CASE 2: popup opened but Connect was NOT clicked"
         )
 
     # -----------------------------------------------------
@@ -1983,11 +1810,6 @@ def _click_connect_once(
     # -----------------------------------------------------
     print(
         "Checking CASE 3: text More menu"
-    )
-
-    more_baseline = _snapshot_visible_connect_actions(
-        page,
-        deadline=deadline,
     )
 
     if not _click_more_button(
@@ -2000,21 +1822,18 @@ def _click_connect_once(
         return False
 
     print(
-        "CASE 3 popup opened; clicking NEW Connect"
+        "CASE 3 popup opened; clicking Connect"
     )
 
-    if _click_new_menu_connect(
+    if _click_connect_in_more_menu(
         page,
         deadline=deadline,
-        baseline=more_baseline,
-        source="MORE",
     ):
         return True
 
     print(
-        "CASE 3: popup opened but new Connect was NOT clicked"
+        "CASE 3: popup opened but Connect was NOT clicked"
     )
-
     return False
 
 
@@ -2025,6 +1844,9 @@ def _click_connect(
 ) -> bool:
     """
     Run Connect discovery exactly ONE time.
+
+    No second discovery round.
+    No second Connect click.
     """
     return _click_connect_once(
         page,
@@ -2167,41 +1989,56 @@ def _confirm_after_connect_click(
     deadline: float,
 ) -> ConnectStatus | None:
     """
-    Confirm the action after Connect was clicked.
+    STRICT post-Connect confirmation.
 
-    Success signals:
-    1. Pending appears.
-    2. Profile becomes 1st-degree.
-    3. After "Send without note" was actually clicked:
-       - invite modal disappears, AND
-       - the actionable Connect control is no longer visible.
+    Rule:
+        ONLY a visible Pending state on the CURRENT profile
+        can produce "invitation_sent".
 
-    Signal #3 handles LinkedIn layouts where the UI does not render a
-    literal "Pending" label immediately.
+    We explicitly DO NOT treat these as success anymore:
+    - Connect button was clicked
+    - Send without note was clicked
+    - invite modal disappeared
+    - Connect control disappeared
+    - generic UI transition
+
+    Those are only action attempts, not proof that LinkedIn
+    accepted the invitation.
     """
     verify_deadline = min(
         deadline,
         time.monotonic()
-        + (FINAL_STATE_VERIFY_WINDOW_MS / 1000),
+        + (
+            FINAL_STATE_VERIFY_WINDOW_MS
+            / 1000
+        ),
     )
 
     send_attempted = False
-    send_clicked = False
 
-    while time.monotonic() < verify_deadline:
+    while (
+        time.monotonic()
+        < verify_deadline
+    ):
         _check_deadline(deadline)
+
+        # -------------------------------------------------
+        # THE ONLY SUCCESS CONDITION
+        # -------------------------------------------------
 
         if _has_pending_state(
             page,
             deadline=deadline,
         ):
+            print(
+                "CONNECT CONFIRMED: Pending"
+            )
+
             return "invitation_sent"
 
-        if _has_first_degree_state(
-            page,
-            deadline=deadline,
-        ):
-            return "already_connected"
+        # -------------------------------------------------
+        # INVITE MODAL
+        # -------------------------------------------------
 
         if (
             not send_attempted
@@ -2221,15 +2058,14 @@ def _confirm_after_connect_click(
                 deadline=deadline,
             ):
                 print(
-                    "Send without note clicked"
+                    "Send without note clicked; "
+                    "waiting for Pending confirmation..."
                 )
-
-                send_clicked = True
 
                 _sleep(
                     page,
                     deadline=deadline,
-                    milliseconds=650,
+                    milliseconds=500,
                 )
 
                 continue
@@ -2238,80 +2074,33 @@ def _confirm_after_connect_click(
                 "Send without note was NOT clicked"
             )
 
-        # Strong post-send fallback.
-        if send_clicked:
-            modal_visible = _invite_modal_is_visible(
-                page,
-                deadline=deadline,
-            )
-
-            connect_still_visible = _has_visible_connect_action(
-                page,
-                deadline=deadline,
-            )
-
-            print(
-                "POST-SEND STATE:",
-                "modal_visible=",
-                modal_visible,
-                "connect_visible=",
-                connect_still_visible,
-            )
-
-            if (
-                not modal_visible
-                and not connect_still_visible
-            ):
-                print(
-                    "FINAL STATE: invitation accepted by profile-scoped UI transition"
-                )
-                return "invitation_sent"
-
         _sleep(
             page,
             deadline=deadline,
-            milliseconds=FINAL_STATE_POLL_MS,
+            milliseconds=(
+                FINAL_STATE_POLL_MS
+            ),
         )
 
-    # Final checks before giving up.
+    # -----------------------------------------------------
+    # ONE FINAL STRICT CHECK
+    # -----------------------------------------------------
+
     if _has_pending_state(
         page,
         deadline=deadline,
     ):
+        print(
+            "CONNECT CONFIRMED: Pending "
+            "on final check"
+        )
+
         return "invitation_sent"
 
-    if _has_first_degree_state(
-        page,
-        deadline=deadline,
-    ):
-        return "already_connected"
-
-    if send_clicked:
-        try:
-            modal_visible = _invite_modal_is_visible(
-                page,
-                deadline=deadline,
-            )
-
-            connect_still_visible = _has_visible_connect_action(
-                page,
-                deadline=deadline,
-            )
-
-            if (
-                not modal_visible
-                and not connect_still_visible
-            ):
-                print(
-                    "FINAL STATE: invitation accepted by final profile-scoped UI transition check"
-                )
-                return "invitation_sent"
-
-        except LinkedInProfileActionTimeout:
-            raise
-
-        except Exception:
-            pass
+    print(
+        "CONNECT NOT CONFIRMED: "
+        "Pending state was not detected"
+    )
 
     return None
 
@@ -2459,8 +2248,9 @@ def connect_profile(
             final_url=page.url,
             status="failed",
             message=(
-                "action_error: Connect was clicked but final state could not "
-                "be confirmed after repeated state checks."
+                "action_error: Connect action was attempted but LinkedIn did not "
+                "show Pending on the current profile, so the invitation "
+                "is NOT marked as successful."
             ),
         )
 
