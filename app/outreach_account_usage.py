@@ -11,8 +11,7 @@ from app.settings import Settings
 
 USAGE_TABLE = "outreach_account_usage"
 
-DAILY_SUCCESS_LIMIT = 50
-WEEKLY_SUCCESS_LIMIT = 250
+WEEKLY_SUCCESS_LIMIT = 100
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 
@@ -45,14 +44,11 @@ class OutreachAccountUsage:
 
     @property
     def remaining(self) -> int:
-        return min(
-            self.daily_remaining,
-            self.weekly_remaining,
-        )
+        return self.weekly_remaining
 
     @property
     def is_available(self) -> bool:
-        return self.remaining > 0
+        return self.weekly_remaining > 0
 
 
 def _utc_now_iso() -> str:
@@ -88,14 +84,13 @@ class OutreachAccountUsageStore:
 
     Chỉ tăng quota khi result.status == "invitation_sent".
 
-    Daily:
-        50 invitation_sent / account / local calendar day.
-
     Weekly:
-        250 invitation_sent / account / Monday-Sunday week.
+        100 invitation_sent / account / Monday-Sunday week.
+
+    Daily count vẫn được giữ trong DB để tương thích dữ liệu cũ,
+    nhưng KHÔNG còn dùng làm limit.
 
     Reset không cần cron:
-    - sang ngày mới -> daily count tự reset;
     - sang tuần mới -> weekly count tự reset.
     """
 
@@ -234,7 +229,7 @@ class OutreachAccountUsageStore:
             daily_success_count=(
                 daily_success_count
             ),
-            daily_limit=DAILY_SUCCESS_LIMIT,
+            daily_limit=0,
             weekly_success_count=(
                 weekly_success_count
             ),
@@ -287,8 +282,7 @@ class OutreachAccountUsageStore:
         if not usage.is_available:
             raise RuntimeError(
                 (
-                    f"{account_id} has no remaining "
-                    "daily/weekly Connect quota"
+                    f"{account_id} has no remaining weekly Connect quota"
                 )
             )
 
@@ -299,14 +293,6 @@ class OutreachAccountUsageStore:
         new_weekly = (
             usage.weekly_success_count + 1
         )
-
-        if new_daily > DAILY_SUCCESS_LIMIT:
-            raise RuntimeError(
-                (
-                    f"{account_id} daily Connect "
-                    "limit would be exceeded"
-                )
-            )
 
         if new_weekly > WEEKLY_SUCCESS_LIMIT:
             raise RuntimeError(
@@ -327,7 +313,7 @@ class OutreachAccountUsageStore:
         return OutreachAccountUsage(
             account_id=account_id,
             daily_success_count=new_daily,
-            daily_limit=DAILY_SUCCESS_LIMIT,
+            daily_limit=0,
             weekly_success_count=new_weekly,
             weekly_limit=WEEKLY_SUCCESS_LIMIT,
             daily_date=usage.daily_date,
