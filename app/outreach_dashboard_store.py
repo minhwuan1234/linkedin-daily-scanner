@@ -18,8 +18,7 @@ SCHEDULER_TABLE = "outreach_scheduler_state"
 ACCOUNT_TABLE = "outreach_accounts"
 ACCOUNT_USAGE_TABLE = "outreach_account_usage"
 
-DAILY_SUCCESS_LIMIT = 50
-WEEKLY_SUCCESS_LIMIT = 250
+WEEKLY_SUCCESS_LIMIT = 100
 
 SCHEDULER_NAME = "linkedin_outreach"
 
@@ -1009,12 +1008,6 @@ def build_account_stats(
             )
         )
 
-        daily_remaining = max(
-            DAILY_SUCCESS_LIMIT
-            - daily_success_count,
-            0,
-        )
-
         weekly_remaining = max(
             WEEKLY_SUCCESS_LIMIT
             - weekly_success_count,
@@ -1022,8 +1015,7 @@ def build_account_stats(
         )
 
         quota_available = (
-            daily_remaining > 0
-            and weekly_remaining > 0
+            weekly_remaining > 0
         )
 
         account_targets = (
@@ -1201,18 +1193,6 @@ def build_account_stats(
 
                 "remaining_in_current_turn": (
                     account_remaining
-                ),
-
-                "daily_success_count": (
-                    daily_success_count
-                ),
-
-                "daily_limit": (
-                    DAILY_SUCCESS_LIMIT
-                ),
-
-                "daily_remaining": (
-                    daily_remaining
                 ),
 
                 "weekly_success_count": (
