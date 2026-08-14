@@ -1378,24 +1378,19 @@ function renderOutreachJob(job) {
   }
 
   if (els.outreachCurrentTargets) {
-  const wasOpen =
-    !els.outreachCurrentTargets.hidden;
+    els.outreachCurrentTargets.innerHTML =
+      renderOutreachTargetRows(
+        targets
+      );
 
-  els.outreachCurrentTargets.innerHTML =
-    renderOutreachTargetRows(
-      targets
-    );
-
-  els.outreachCurrentTargets.hidden =
-    !wasOpen;
+    // Current Job luôn collapse sau mỗi dashboard refresh.
+    els.outreachCurrentTargets.hidden = true;
+  }
 
   if (els.outreachCurrentTargetsArrow) {
     els.outreachCurrentTargetsArrow.textContent =
-      wasOpen
-        ? "▴"
-        : "▾";
+      "▾";
   }
-}
 }
 
 
@@ -1795,23 +1790,6 @@ function renderOutreachAccounts(
             account.failed_count || 0
           );
 
-        const dailySent =
-          Number(
-            account.daily_success_count || 0
-          );
-
-        const dailyLimit =
-          Number(
-            account.daily_limit || 50
-          );
-
-        const dailyRemaining =
-          Number(
-            account.daily_remaining ?? (
-              dailyLimit - dailySent
-            )
-          );
-
         const weeklySent =
           Number(
             account.weekly_success_count || 0
@@ -1819,7 +1797,7 @@ function renderOutreachAccounts(
 
         const weeklyLimit =
           Number(
-            account.weekly_limit || 250
+            account.weekly_limit || 100
           );
 
         const weeklyRemaining =
@@ -1831,7 +1809,6 @@ function renderOutreachAccounts(
 
         const quotaAvailable =
           account.quota_available !== false &&
-          dailyRemaining > 0 &&
           weeklyRemaining > 0;
 
         const lastError = String(
@@ -1905,26 +1882,6 @@ function renderOutreachAccounts(
 
 
             <div class="outreach-account-quota">
-
-              <div>
-                <span>
-                  Daily sent
-                </span>
-
-                <strong>
-                  ${dailySent} / ${dailyLimit}
-                </strong>
-              </div>
-
-              <div>
-                <span>
-                  Daily remaining
-                </span>
-
-                <strong>
-                  ${Math.max(dailyRemaining, 0)}
-                </strong>
-              </div>
 
               <div>
                 <span>
