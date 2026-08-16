@@ -95,6 +95,7 @@ def create_acceptance_check_run(
     *,
     source_job_id: str,
     total_to_check: int,
+    status: str = "running",
     client: Client | None = None,
 ) -> dict:
     cleaned_job_id = str(
@@ -122,6 +123,19 @@ def create_acceptance_check_run(
         )
     )
 
+    cleaned_status = str(
+        status
+        or ""
+    ).strip()
+
+    if cleaned_status not in {
+        "pending",
+        "running",
+    }:
+        raise OutreachAcceptanceStoreError(
+            "status must be 'pending' or 'running'."
+        )
+
     now = _utc_now()
 
     response = (
@@ -134,7 +148,7 @@ def create_acceptance_check_run(
                     cleaned_job_id
                 ),
                 "run_number": run_number,
-                "status": "running",
+                "status": cleaned_status,
                 "total_to_check": max(
                     0,
                     int(total_to_check),
@@ -144,7 +158,11 @@ def create_acceptance_check_run(
                 "still_pending_count": 0,
                 "declined_or_unknown_count": 0,
                 "failed_count": 0,
-                "started_at": now,
+                "started_at": (
+                    now
+                    if cleaned_status == "running"
+                    else None
+                ),
                 "updated_at": now,
             }
         )
@@ -166,6 +184,163 @@ def create_acceptance_check_run(
         )
 
     return rows[0]
+
+
+
+# =========================================================
+# QUEUE CHECK RUN FROM RAILWAY
+# =========================================================
+
+def queue_acceptance_check_run(
+    *,
+    source_job_id: str,
+    client: Client | None = None,
+) -> dict:
+    """
+    Railway-facing helper.
+
+    It does NOT run LinkedIn.
+    It only:
+    1. loads eligible targets for the selected Connect Job;
+    2. creates one acceptance run with status='pending'.
+
+    The Mac acceptance worker will claim this row later.
+    """
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    targets = load_acceptance_targets(
+        source_job_id=source_job_id,
+        client=active_client,
+    )
+
+    return create_acceptance_check_run(
+        source_job_id=source_job_id,
+        total_to_check=len(targets),
+        status="pending",
+        client=active_client,
+    )
+
+
+
+# =========================================================
+# CLAIM NEXT PENDING CHECK RUN
+# =========================================================
+
+def claim_next_pending_acceptance_check(
+    *,
+    client: Client | None = None,
+) -> dict | None:
+    """
+    Mac worker helper.
+
+    Find the oldest pending Acceptance Check and move it to running.
+
+    Current system uses one Acceptance Worker, so a simple
+    select -> conditional update is sufficient for now.
+
+    The conditional update includes status='pending' so a row that
+    has already been claimed will not be claimed again.
+    """
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    response = (
+        active_client.table(
+            ACCEPTANCE_CHECK_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "source_job_id,"
+                "run_number,"
+                "status,"
+                "total_to_check,"
+                "created_at"
+            )
+        )
+        .eq(
+            "status",
+            "pending",
+        )
+        .order(
+            "created_at",
+            desc=False,
+        )
+        .limit(
+            1
+        )
+        .execute()
+    )
+
+    rows = (
+        response.data
+        if isinstance(
+            response.data,
+            list,
+        )
+        else []
+    )
+
+    if not rows:
+        return None
+
+    candidate = rows[0]
+
+    check_id = str(
+        candidate.get(
+            "id",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not check_id:
+        return None
+
+    now = _utc_now()
+
+    claim_response = (
+        active_client.table(
+            ACCEPTANCE_CHECK_TABLE
+        )
+        .update(
+            {
+                "status": "running",
+                "started_at": now,
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            check_id,
+        )
+        .eq(
+            "status",
+            "pending",
+        )
+        .execute()
+    )
+
+    claimed_rows = (
+        claim_response.data
+        if isinstance(
+            claim_response.data,
+            list,
+        )
+        else []
+    )
+
+    if not claimed_rows:
+        return None
+
+    return claimed_rows[0]
 
 
 # =========================================================
