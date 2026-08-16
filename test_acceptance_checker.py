@@ -6,7 +6,7 @@ from app.outreach_account_pool import (
 )
 
 
-ACCOUNT_ID = "outreach_account_2"
+ACCOUNT_ID = "outreach_account_02"
 LINKEDIN_URL = "https://www.linkedin.com/in/minh-quân-851170229/"
 
 
