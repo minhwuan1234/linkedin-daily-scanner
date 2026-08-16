@@ -233,6 +233,7 @@ const state = {
   outreachRecentJobs: [],
   outreachPollTimer: null,
   outreachDashboardLoading: false,
+  outreachAcceptanceSubmittingJobIds: new Set(),
   tableErrors: {},
   commandPending: false
 };
@@ -2017,6 +2018,302 @@ function renderOutreachAccounts(
 
 
 // ---------------------------------------------------------
+// ACCEPTANCE CHECK
+// ---------------------------------------------------------
+
+
+function getOutreachAcceptanceLabel(
+  acceptance
+) {
+  if (!acceptance) {
+    return "Not checked";
+  }
+
+  const status = normaliseStatus(
+    acceptance.status
+  );
+
+  if (status === "pending") {
+    return "Queued";
+  }
+
+  if (status === "running") {
+    return "Checking";
+  }
+
+  if (status === "completed") {
+    return "Completed";
+  }
+
+  if (status === "failed") {
+    return "Check failed";
+  }
+
+  return statusLabel(status);
+}
+
+
+function renderOutreachAcceptanceSummary(
+  job
+) {
+  const acceptance =
+    job?.acceptance || null;
+
+  if (!acceptance) {
+    return `
+      <div
+        class="outreach-acceptance-summary"
+        style="
+          margin-top: 8px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px 10px;
+          align-items: center;
+          font-size: 12px;
+        "
+      >
+        <span class="panel-meta">
+          Acceptance: Not checked
+        </span>
+      </div>
+    `;
+  }
+
+  const status = normaliseStatus(
+    acceptance.status
+  );
+
+  const checked = Number(
+    acceptance.checked_count || 0
+  );
+
+  const total = Number(
+    acceptance.total_to_check || 0
+  );
+
+  const accepted = Number(
+    acceptance.new_accepted_count || 0
+  );
+
+  const pending = Number(
+    acceptance.still_pending_count || 0
+  );
+
+  const unknown = Number(
+    acceptance.declined_or_unknown_count || 0
+  );
+
+  const failed = Number(
+    acceptance.failed_count || 0
+  );
+
+  const runNumber = Number(
+    acceptance.run_number || 0
+  );
+
+  return `
+    <div
+      class="outreach-acceptance-summary"
+      style="
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 10px;
+        align-items: center;
+        font-size: 12px;
+      "
+    >
+      <span class="panel-meta">
+        Acceptance #${runNumber || "—"}:
+        ${escapeHtml(
+          getOutreachAcceptanceLabel(
+            acceptance
+          )
+        )}
+      </span>
+
+      ${
+        status === "pending" ||
+        status === "running"
+          ? `
+            <span class="panel-meta">
+              ${checked} / ${total}
+            </span>
+          `
+          : ""
+      }
+
+      ${
+        status === "completed" ||
+        status === "failed"
+          ? `
+            <span class="panel-meta">
+              Accepted ${accepted}
+            </span>
+
+            <span class="panel-meta">
+              Pending ${pending}
+            </span>
+
+            <span class="panel-meta">
+              Unknown ${unknown}
+            </span>
+
+            <span class="panel-meta">
+              Failed ${failed}
+            </span>
+          `
+          : ""
+      }
+    </div>
+  `;
+}
+
+
+function renderOutreachAcceptanceButton(
+  job
+) {
+  const jobId = String(
+    job?.id || ""
+  ).trim();
+
+  const jobStatus = normaliseStatus(
+    job?.status
+  );
+
+  const acceptanceStatus =
+    normaliseStatus(
+      job?.acceptance?.status
+    );
+
+  const submitting =
+    state
+      .outreachAcceptanceSubmittingJobIds
+      .has(jobId);
+
+  const acceptanceBusy =
+    acceptanceStatus === "pending" ||
+    acceptanceStatus === "running";
+
+  const canCheck =
+    Boolean(jobId) &&
+    jobStatus === "completed" &&
+    !acceptanceBusy &&
+    !submitting;
+
+  let label = "Check Acceptance";
+
+  if (submitting) {
+    label = "Queueing...";
+  } else if (
+    acceptanceStatus === "pending"
+  ) {
+    label = "Acceptance queued";
+  } else if (
+    acceptanceStatus === "running"
+  ) {
+    label = "Checking...";
+  }
+
+  const title =
+    jobStatus !== "completed"
+      ? "Connect Job must be completed first."
+      : acceptanceBusy
+        ? "Acceptance Check is already queued or running."
+        : "Check whether sent invitations have been accepted.";
+
+  return `
+    <button
+      type="button"
+      class="outreach-check-acceptance-button"
+      data-job-id="${escapeHtml(jobId)}"
+      ${canCheck ? "" : "disabled"}
+      title="${escapeHtml(title)}"
+      style="
+        margin-top: 8px;
+        padding: 7px 10px;
+        border-radius: 8px;
+        cursor: ${canCheck ? "pointer" : "default"};
+      "
+    >
+      ${escapeHtml(label)}
+    </button>
+  `;
+}
+
+
+async function queueOutreachAcceptanceCheck(
+  jobId
+) {
+  const cleanedJobId = String(
+    jobId || ""
+  ).trim();
+
+  if (!cleanedJobId) {
+    throw new Error(
+      "Không tìm thấy Outreach job_id."
+    );
+  }
+
+  if (
+    state
+      .outreachAcceptanceSubmittingJobIds
+      .has(cleanedJobId)
+  ) {
+    return;
+  }
+
+  state
+    .outreachAcceptanceSubmittingJobIds
+    .add(cleanedJobId);
+
+  renderOutreachHistory(
+    state.outreachRecentJobs
+  );
+
+  try {
+    const response = await fetch(
+      `/api/outreach/connect/jobs/${encodeURIComponent(
+        cleanedJobId
+      )}/check-acceptance`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể queue Acceptance Check."
+      );
+    }
+
+    await loadOutreachDashboard();
+
+  } finally {
+    state
+      .outreachAcceptanceSubmittingJobIds
+      .delete(cleanedJobId);
+
+    renderOutreachHistory(
+      state.outreachRecentJobs
+    );
+  }
+}
+
+
+// ---------------------------------------------------------
 // HISTORY
 // ---------------------------------------------------------
 
@@ -2085,6 +2382,14 @@ function renderOutreachHistory(
                   ▾
                 </span>
               </button>
+
+              ${renderOutreachAcceptanceSummary(
+                job
+              )}
+
+              ${renderOutreachAcceptanceButton(
+                job
+              )}
             </td>
 
             <td>
@@ -2209,6 +2514,51 @@ function renderOutreachHistory(
               willOpen
                 ? "▴"
                 : "▾";
+          }
+        }
+      );
+    });
+
+
+  els.outreachHistoryBody
+    .querySelectorAll(
+      ".outreach-check-acceptance-button"
+    )
+    .forEach((button) => {
+      button.addEventListener(
+        "click",
+        async () => {
+          const jobId =
+            button.dataset.jobId;
+
+          if (!jobId) {
+            return;
+          }
+
+          const confirmed =
+            window.confirm(
+              "Chạy Acceptance Check cho Connect Job này?"
+            );
+
+          if (!confirmed) {
+            return;
+          }
+
+          try {
+            await queueOutreachAcceptanceCheck(
+              jobId
+            );
+
+          } catch (error) {
+            console.error(
+              "Acceptance Check error:",
+              error
+            );
+
+            window.alert(
+              error.message ||
+              String(error)
+            );
           }
         }
       );
