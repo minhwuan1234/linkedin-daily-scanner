@@ -32,6 +32,78 @@ from playwright.sync_api import (
 # =========================================================
 
 
+
+def assert_profile_page_available(
+    page: Page,
+) -> None:
+    """
+    Stop early when LinkedIn did not open a usable profile page.
+
+    This prevents a misleading downstream error such as:
+        "Visible LinkedIn profile Message action was not found."
+
+    when the real problem is:
+        - 404 / Page not found
+        - profile unavailable
+        - authwall / checkpoint / login redirect
+    """
+
+    current_url = str(
+        page.url
+        or ""
+    ).strip()
+
+    lowered_url = current_url.lower()
+
+    blocked_fragments = (
+        "/404",
+        "/login",
+        "/checkpoint",
+        "/authwall",
+        "/challenge",
+    )
+
+    if any(
+        fragment in lowered_url
+        for fragment in blocked_fragments
+    ):
+        raise RuntimeError(
+            "LinkedIn profile page is unavailable or redirected | "
+            f"url={current_url}"
+        )
+
+    # Read a small amount of visible page text only for state detection.
+    try:
+        body_text = (
+            page.locator("body")
+            .inner_text(
+                timeout=3_000
+            )
+            .strip()
+            .lower()
+        )
+    except Exception:
+        body_text = ""
+
+    unavailable_markers = (
+        "page not found",
+        "this page doesn’t exist",
+        "this page doesn't exist",
+        "profile not found",
+        "profile unavailable",
+        "this profile is not available",
+    )
+
+    if any(
+        marker in body_text
+        for marker in unavailable_markers
+    ):
+        raise RuntimeError(
+            "LinkedIn profile page is unavailable / 404 | "
+            f"url={current_url}"
+        )
+
+
 def scroll_profile_to_bottom(
     page: Page,
 ) -> None:
@@ -188,6 +260,10 @@ def open_message_composer(
     """
     Open LinkedIn messaging composer từ profile page.
     """
+
+    assert_profile_page_available(
+        page
+    )
 
     scroll_profile_to_bottom(
         page
