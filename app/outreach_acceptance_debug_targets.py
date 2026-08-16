@@ -1,20 +1,35 @@
 from app.outreach_acceptance_store import (
     load_acceptance_targets,
+    resolve_source_job_id,
 )
 
 
 def print_acceptance_targets(
-    source_job_id: str,
+    source_job_id_or_code: str,
 ) -> None:
+    resolved_job_id = resolve_source_job_id(
+        source_job_id_or_code
+    )
+
     targets = load_acceptance_targets(
-        source_job_id=source_job_id
+        source_job_id=resolved_job_id
     )
 
     print("")
     print("ACCEPTANCE TARGETS")
     print("==================")
-    print("source_job_id:", source_job_id)
-    print("count:", len(targets))
+    print(
+        "input:",
+        source_job_id_or_code,
+    )
+    print(
+        "resolved_job_id:",
+        resolved_job_id,
+    )
+    print(
+        "count:",
+        len(targets),
+    )
 
     for index, target in enumerate(
         targets,
