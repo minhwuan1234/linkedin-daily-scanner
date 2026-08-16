@@ -17,6 +17,7 @@ PROSPECT_TABLE = "outreach_prospects"
 SCHEDULER_TABLE = "outreach_scheduler_state"
 ACCOUNT_TABLE = "outreach_accounts"
 ACCOUNT_USAGE_TABLE = "outreach_account_usage"
+ACCEPTANCE_CHECK_TABLE = "outreach_acceptance_checks"
 
 WEEKLY_SUCCESS_LIMIT = 100
 
@@ -256,6 +257,7 @@ def _normalize_job(
         ),
 
         "targets": [],
+        "acceptance": None,
     }
 
 
@@ -532,6 +534,30 @@ def _normalize_target(
             )
         ),
 
+        "acceptance_status": _safe_text(
+            row.get(
+                "acceptance_status"
+            )
+        ),
+
+        "acceptance_checked_at": (
+            row.get(
+                "acceptance_checked_at"
+            )
+        ),
+
+        "acceptance_check_count": _to_int(
+            row.get(
+                "acceptance_check_count"
+            )
+        ),
+
+        "acceptance_accepted_at": (
+            row.get(
+                "accepted_at"
+            )
+        ),
+
         # -----------------------------
         # PROSPECT
         # -----------------------------
@@ -628,6 +654,10 @@ def load_targets_for_jobs(
                 "created_at,"
                 "updated_at,"
                 "completed_at,"
+                "acceptance_status,"
+                "acceptance_checked_at,"
+                "acceptance_check_count,"
+                "accepted_at,"
                 "outreach_prospects("
                 "id,"
                 "linkedin_url,"
@@ -710,6 +740,210 @@ def attach_targets_to_jobs(
             targets_by_job.get(
                 job["id"],
                 [],
+            )
+        )
+
+
+
+# =========================================================
+# ACCEPTANCE CHECKS
+# =========================================================
+
+
+def _normalize_acceptance_check(
+    row: dict,
+) -> dict:
+    return {
+        "id": _safe_text(
+            row.get(
+                "id"
+            )
+        ),
+
+        "source_job_id": _safe_text(
+            row.get(
+                "source_job_id"
+            )
+        ),
+
+        "run_number": _to_int(
+            row.get(
+                "run_number"
+            )
+        ),
+
+        "status": _safe_text(
+            row.get(
+                "status"
+            )
+        ),
+
+        "total_to_check": _to_int(
+            row.get(
+                "total_to_check"
+            )
+        ),
+
+        "checked_count": _to_int(
+            row.get(
+                "checked_count"
+            )
+        ),
+
+        "new_accepted_count": _to_int(
+            row.get(
+                "new_accepted_count"
+            )
+        ),
+
+        "still_pending_count": _to_int(
+            row.get(
+                "still_pending_count"
+            )
+        ),
+
+        "declined_or_unknown_count": _to_int(
+            row.get(
+                "declined_or_unknown_count"
+            )
+        ),
+
+        "failed_count": _to_int(
+            row.get(
+                "failed_count"
+            )
+        ),
+
+        "created_at": (
+            row.get(
+                "created_at"
+            )
+        ),
+
+        "started_at": (
+            row.get(
+                "started_at"
+            )
+        ),
+
+        "completed_at": (
+            row.get(
+                "completed_at"
+            )
+        ),
+
+        "updated_at": (
+            row.get(
+                "updated_at"
+            )
+        ),
+    }
+
+
+def load_latest_acceptance_checks(
+    *,
+    client: Client,
+    job_ids: list[str],
+) -> dict[str, dict]:
+    """
+    Load all Acceptance Check rows for the visible Connect Jobs,
+    then keep only the latest run_number for each source_job_id.
+    """
+    cleaned_job_ids = [
+        str(job_id).strip()
+        for job_id in job_ids
+        if str(job_id).strip()
+    ]
+
+    if not cleaned_job_ids:
+        return {}
+
+    response = (
+        client
+        .table(
+            ACCEPTANCE_CHECK_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "source_job_id,"
+                "run_number,"
+                "status,"
+                "total_to_check,"
+                "checked_count,"
+                "new_accepted_count,"
+                "still_pending_count,"
+                "declined_or_unknown_count,"
+                "failed_count,"
+                "created_at,"
+                "started_at,"
+                "completed_at,"
+                "updated_at"
+            )
+        )
+        .in_(
+            "source_job_id",
+            cleaned_job_ids,
+        )
+        .order(
+            "run_number",
+            desc=True,
+        )
+        .execute()
+    )
+
+    rows = list(
+        response.data
+        or []
+    )
+
+    latest_by_job: dict[
+        str,
+        dict,
+    ] = {}
+
+    for row in rows:
+        source_job_id = _safe_text(
+            row.get(
+                "source_job_id"
+            )
+        )
+
+        if not source_job_id:
+            continue
+
+        if source_job_id in latest_by_job:
+            continue
+
+        latest_by_job[
+            source_job_id
+        ] = _normalize_acceptance_check(
+            row
+        )
+
+    return latest_by_job
+
+
+def attach_acceptance_to_jobs(
+    *,
+    current_job: dict | None,
+    recent_jobs: list[dict],
+    acceptance_by_job: dict[
+        str,
+        dict,
+    ],
+) -> None:
+    if current_job:
+        current_job["acceptance"] = (
+            acceptance_by_job.get(
+                current_job["id"]
+            )
+        )
+
+    for job in recent_jobs:
+        job["acceptance"] = (
+            acceptance_by_job.get(
+                job["id"]
             )
         )
 
@@ -1331,6 +1565,23 @@ def get_outreach_dashboard(
         current_job=current_job,
         recent_jobs=recent_jobs,
         targets_by_job=targets_by_job,
+    )
+
+    # -----------------------------------------------------
+    # LOAD + ATTACH LATEST ACCEPTANCE CHECKS
+    # -----------------------------------------------------
+
+    acceptance_by_job = (
+        load_latest_acceptance_checks(
+            client=client,
+            job_ids=job_ids,
+        )
+    )
+
+    attach_acceptance_to_jobs(
+        current_job=current_job,
+        recent_jobs=recent_jobs,
+        acceptance_by_job=acceptance_by_job,
     )
 
     # -----------------------------------------------------
