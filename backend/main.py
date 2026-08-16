@@ -30,6 +30,11 @@ from app.outreach_dashboard_store import (
     get_outreach_dashboard,
 )
 
+from app.outreach_acceptance_store import (
+    OutreachAcceptanceStoreError,
+    queue_acceptance_check_run,
+)
+
 
 # =========================================================
 # LOGGING
@@ -642,6 +647,109 @@ async def create_outreach_connect_job(
             },
         },
     )
+
+
+# =========================================================
+# OUTREACH ACCEPTANCE CHECK API
+# =========================================================
+
+
+@app.post(
+    "/api/outreach/connect/jobs/{job_id}/check-acceptance"
+)
+async def create_outreach_acceptance_check(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Queue one manual Acceptance Check for one Connect Job.
+
+    Flow:
+
+    Dashboard button
+    -> Railway API
+    -> outreach_acceptance_checks(status='pending')
+    -> Mac Acceptance Worker claims the run
+    -> LinkedIn browser checks the profiles
+
+    Railway NEVER opens LinkedIn.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        check_run = (
+            queue_acceptance_check_run(
+                source_job_id=cleaned_job_id
+            )
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        logger.exception(
+            "Could not queue Outreach Acceptance Check"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not queue "
+                    "Outreach Acceptance Check"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Acceptance Check error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while queueing "
+                    "Outreach Acceptance Check"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "OUTREACH ACCEPTANCE CHECK QUEUED | "
+            "source_job_id=%s | "
+            "check_id=%s | "
+            "run_number=%s | "
+            "total_to_check=%s"
+        ),
+        cleaned_job_id,
+        check_run.get("id"),
+        check_run.get("run_number"),
+        check_run.get("total_to_check"),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "acceptance_check": check_run,
+        },
+    )
+
 
 # =========================================================
 # OUTREACH DASHBOARD API
