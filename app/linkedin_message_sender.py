@@ -413,3 +413,75 @@ def inspect_message_composer(
             send_button.is_visible()
         ),
     }
+
+
+def fill_message_textbox(
+    textbox: Locator,
+    message: str,
+) -> None:
+    """
+    STEP 4 — fill the LinkedIn message textbox.
+
+    IMPORTANT:
+    - fills the textbox only;
+    - does NOT click Send;
+    - does NOT update any database state.
+    """
+
+    cleaned_message = str(
+        message
+        or ""
+    ).strip()
+
+    if not cleaned_message:
+        raise ValueError(
+            "Message cannot be empty."
+        )
+
+    textbox.click()
+
+    textbox.fill(
+        cleaned_message
+    )
+
+
+def prepare_message_in_composer(
+    page: Page,
+    message: str,
+) -> dict[str, bool]:
+    """
+    Open composer and place message text into the textbox.
+
+    This is the last safe test before actual sending.
+
+    It does NOT click Send.
+    """
+
+    open_message_composer(
+        page
+    )
+
+    textbox = find_message_textbox(
+        page
+    )
+
+    fill_message_textbox(
+        textbox,
+        message,
+    )
+
+    send_button = find_send_button(
+        page,
+        textbox,
+    )
+
+    return {
+        "composer_opened": True,
+        "textbox_found": (
+            textbox.is_visible()
+        ),
+        "message_filled": True,
+        "send_button_found": (
+            send_button.is_visible()
+        ),
+    }
