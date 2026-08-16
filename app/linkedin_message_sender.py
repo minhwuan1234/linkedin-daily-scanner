@@ -485,3 +485,163 @@ def prepare_message_in_composer(
             send_button.is_visible()
         ),
     }
+
+
+def verify_message_sent(
+    page: Page,
+    textbox: Locator,
+    message: str,
+    *,
+    timeout_ms: int = 8_000,
+) -> bool:
+    """
+    Strict confirmation after clicking Send.
+
+    Success requires BOTH:
+    1. the composer textbox becomes empty;
+    2. the sent message text becomes visible inside the same
+       messaging dialog.
+
+    This is intentionally stricter than the old repo, which
+    treated a successful click as "sent".
+    """
+
+    cleaned_message = str(
+        message
+        or ""
+    ).strip()
+
+    if not cleaned_message:
+        return False
+
+    try:
+        dialog = textbox.locator(
+            'xpath=ancestor::*[@role="dialog"][1]'
+        )
+
+        scope = (
+            dialog
+            if dialog.count() > 0
+            else page.locator("body")
+        )
+
+        deadline = (
+            page.evaluate("Date.now()")
+            + timeout_ms
+        )
+
+        while (
+            page.evaluate("Date.now()")
+            < deadline
+        ):
+            try:
+                current_value = (
+                    textbox
+                    .inner_text()
+                    .strip()
+                )
+            except Exception:
+                current_value = ""
+
+            textbox_cleared = (
+                current_value == ""
+            )
+
+            message_visible = False
+
+            try:
+                exact_matches = scope.get_by_text(
+                    cleaned_message,
+                    exact=True,
+                )
+
+                for index in range(
+                    exact_matches.count()
+                ):
+                    candidate = exact_matches.nth(
+                        index
+                    )
+
+                    if candidate.is_visible():
+                        message_visible = True
+                        break
+
+            except Exception:
+                message_visible = False
+
+            if (
+                textbox_cleared
+                and message_visible
+            ):
+                return True
+
+            page.wait_for_timeout(
+                300
+            )
+
+    except Exception:
+        return False
+
+    return False
+
+
+def send_message_once(
+    page: Page,
+    message: str,
+) -> dict[str, bool]:
+    """
+    STEP 5 — send ONE prepared message.
+
+    Flow:
+        open composer
+        -> find textbox
+        -> fill message
+        -> find Send button
+        -> click Send
+        -> STRICT verify
+
+    IMPORTANT:
+    This function performs a real LinkedIn Send click.
+    It does NOT update Supabase yet.
+    """
+
+    open_message_composer(
+        page
+    )
+
+    textbox = find_message_textbox(
+        page
+    )
+
+    fill_message_textbox(
+        textbox,
+        message,
+    )
+
+    send_button = find_send_button(
+        page,
+        textbox,
+    )
+
+    send_button.click()
+
+    sent_verified = verify_message_sent(
+        page,
+        textbox,
+        message,
+    )
+
+    if not sent_verified:
+        raise RuntimeError(
+            "Send was clicked but message delivery "
+            "could not be verified."
+        )
+
+    return {
+        "composer_opened": True,
+        "textbox_found": True,
+        "message_filled": True,
+        "send_button_found": True,
+        "send_clicked": True,
+        "sent_verified": True,
+    }
