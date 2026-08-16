@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Iterable
+from typing import TYPE_CHECKING, Iterable
 
-from supabase import Client
+from supabase import Client, create_client
 
-from app.linkedin_acceptance_checker import (
-    LinkedInAcceptanceResult,
-)
-from app.outreach_result_store import (
-    get_outreach_supabase_client,
-)
+from app.settings import load_settings
+
+if TYPE_CHECKING:
+    from app.linkedin_acceptance_checker import (
+        LinkedInAcceptanceResult,
+    )
 
 
 ACCEPTANCE_CHECK_TABLE = (
@@ -36,6 +36,36 @@ def _utc_now() -> str:
     return datetime.now(
         timezone.utc
     ).isoformat()
+
+
+# =========================================================
+# SUPABASE
+# =========================================================
+
+def get_outreach_supabase_client() -> Client:
+    """
+    Backend-safe Outreach Supabase client.
+
+    Important:
+    this module must NOT import LinkedIn browser/action modules
+    at runtime because Railway only queues/reads DB work.
+    """
+    settings = load_settings()
+
+    if not settings.outreach_supabase_url:
+        raise OutreachAcceptanceStoreError(
+            "Missing OUTREACH_SUPABASE_URL."
+        )
+
+    if not settings.outreach_supabase_secret_key:
+        raise OutreachAcceptanceStoreError(
+            "Missing OUTREACH_SUPABASE_SECRET_KEY."
+        )
+
+    return create_client(
+        settings.outreach_supabase_url,
+        settings.outreach_supabase_secret_key,
+    )
 
 
 # =========================================================
@@ -513,7 +543,7 @@ def load_acceptance_targets(
 def save_acceptance_result(
     *,
     target_id: str,
-    result: LinkedInAcceptanceResult,
+    result: "LinkedInAcceptanceResult",
     client: Client | None = None,
 ) -> None:
     cleaned_target_id = str(
