@@ -27,13 +27,8 @@ from app.outreach_message_executor import (
 )
 
 
-MESSAGE_BATCH_TABLE = (
-    "outreach_message_batches"
-)
-
-MESSAGE_TARGET_TABLE = (
-    "outreach_message_targets"
-)
+MESSAGE_BATCH_TABLE = "outreach_message_batches"
+MESSAGE_TARGET_TABLE = "outreach_message_targets"
 
 PROFILE_DELAY_SECONDS = 2.5
 ACCOUNT_SWITCH_DELAY_SECONDS = 5.0
@@ -60,21 +55,11 @@ def _safe_text(
     ).strip()
 
 
-# =========================================================
-# LOAD BATCH
-# =========================================================
-
-def load_prepared_message_batch(
+def load_message_batch(
     batch_id: str,
     *,
     client: Client | None = None,
 ) -> dict:
-    """
-    Load one message batch and all of its prepared targets.
-
-    This function does NOT send anything.
-    """
-
     active_client = (
         client
         if client is not None
@@ -100,10 +85,12 @@ def load_prepared_message_batch(
                 "id,"
                 "batch_code,"
                 "status,"
+                "message_template,"
                 "target_count,"
                 "processed_count,"
                 "sent_count,"
                 "failed_count,"
+                "queued_at,"
                 "started_at,"
                 "completed_at,"
                 "last_error,"
@@ -185,21 +172,9 @@ def load_prepared_message_batch(
     return batch
 
 
-# =========================================================
-# GROUP BY ORIGINAL ACCOUNT
-# =========================================================
-
 def group_prepared_targets_by_account(
     targets: list[dict],
 ) -> OrderedDict[str, list[dict]]:
-    """
-    Preserve target order while grouping by assigned_account_id.
-
-    Important:
-    message must be sent from the same account that originally
-    connected with the profile.
-    """
-
     grouped: OrderedDict[
         str,
         list[dict],
@@ -228,15 +203,15 @@ def group_prepared_targets_by_account(
     return grouped
 
 
-# =========================================================
-# BATCH STATE
-# =========================================================
-
-def mark_batch_processing(
+def claim_queued_batch(
     *,
     batch_id: str,
     client: Client,
 ) -> None:
+    """
+    Only queued batches may be claimed by the worker.
+    """
+
     now = _utc_now()
 
     response = (
@@ -259,7 +234,7 @@ def mark_batch_processing(
         )
         .eq(
             "status",
-            "prepared",
+            "queued",
         )
         .execute()
     )
@@ -271,8 +246,7 @@ def mark_batch_processing(
 
     if not rows:
         raise OutreachMessageBatchExecutorError(
-            "Could not claim prepared message batch. "
-            "It may already be processing or completed."
+            "Could not claim queued message batch."
         )
 
 
@@ -281,11 +255,6 @@ def refresh_batch_counters(
     batch_id: str,
     client: Client,
 ) -> dict:
-    """
-    Recalculate counters from target rows instead of trusting
-    in-memory increments.
-    """
-
     response = (
         client
         .table(
@@ -331,8 +300,6 @@ def refresh_batch_counters(
         + failed_count
     )
 
-    now = _utc_now()
-
     (
         client
         .table(
@@ -340,16 +307,10 @@ def refresh_batch_counters(
         )
         .update(
             {
-                "processed_count": (
-                    processed_count
-                ),
-                "sent_count": (
-                    sent_count
-                ),
-                "failed_count": (
-                    failed_count
-                ),
-                "updated_at": now,
+                "processed_count": processed_count,
+                "sent_count": sent_count,
+                "failed_count": failed_count,
+                "updated_at": _utc_now(),
             }
         )
         .eq(
@@ -360,15 +321,9 @@ def refresh_batch_counters(
     )
 
     return {
-        "processed_count": (
-            processed_count
-        ),
-        "sent_count": (
-            sent_count
-        ),
-        "failed_count": (
-            failed_count
-        ),
+        "processed_count": processed_count,
+        "sent_count": sent_count,
+        "failed_count": failed_count,
     }
 
 
@@ -377,14 +332,10 @@ def mark_batch_completed(
     batch_id: str,
     client: Client,
 ) -> dict:
-    counters = (
-        refresh_batch_counters(
-            batch_id=batch_id,
-            client=client,
-        )
+    counters = refresh_batch_counters(
+        batch_id=batch_id,
+        client=client,
     )
-
-    now = _utc_now()
 
     (
         client
@@ -394,9 +345,9 @@ def mark_batch_completed(
         .update(
             {
                 "status": "completed",
-                "completed_at": now,
+                "completed_at": _utc_now(),
                 "last_error": None,
-                "updated_at": now,
+                "updated_at": _utc_now(),
             }
         )
         .eq(
@@ -419,8 +370,6 @@ def mark_batch_failed(
     error_message: str,
     client: Client,
 ) -> None:
-    now = _utc_now()
-
     try:
         refresh_batch_counters(
             batch_id=batch_id,
@@ -437,13 +386,13 @@ def mark_batch_failed(
         .update(
             {
                 "status": "failed",
-                "completed_at": now,
+                "completed_at": _utc_now(),
                 "last_error": (
                     _safe_text(
                         error_message
                     )[:4000]
                 ),
-                "updated_at": now,
+                "updated_at": _utc_now(),
             }
         )
         .eq(
@@ -454,10 +403,6 @@ def mark_batch_failed(
     )
 
 
-# =========================================================
-# EXECUTE ONE CLAIMED TARGET USING AN EXISTING BROWSER
-# =========================================================
-
 def execute_target_with_browser(
     *,
     target: dict,
@@ -465,25 +410,15 @@ def execute_target_with_browser(
     browser,
     client: Client,
 ) -> dict:
-    """
-    Execute one target while reusing the browser session of its
-    assigned account.
-
-    This is the same real send logic already tested in Step 5,
-    but the browser is kept open for the whole account group.
-    """
-
     target_id = _safe_text(
         target.get(
             "id"
         )
     )
 
-    claimed = (
-        claim_prepared_message_target(
-            target_id,
-            client=client,
-        )
+    claimed = claim_prepared_message_target(
+        target_id,
+        client=client,
     )
 
     linkedin_url = _safe_text(
@@ -501,34 +436,26 @@ def execute_target_with_browser(
     final_message: str | None = None
 
     try:
-        page = (
-            browser.open_linkedin_url(
-                linkedin_url
-            )
+        page = browser.open_linkedin_url(
+            linkedin_url
         )
 
-        profile_name = (
-            get_profile_name(
-                page
-            )
+        profile_name = get_profile_name(
+            page
         )
 
-        final_message = (
-            build_message(
-                first_name=(
-                    profile_name[
-                        "first_name"
-                    ]
-                ),
-                template=template,
-            )
+        final_message = build_message(
+            first_name=(
+                profile_name[
+                    "first_name"
+                ]
+            ),
+            template=template,
         )
 
-        send_result = (
-            send_message_once(
-                page,
-                final_message,
-            )
+        send_result = send_message_once(
+            page,
+            final_message,
         )
 
         if not bool(
@@ -552,16 +479,6 @@ def execute_target_with_browser(
             "account_id": account_id,
             "linkedin_url": linkedin_url,
             "status": "sent",
-            "full_name": (
-                profile_name[
-                    "full_name"
-                ]
-            ),
-            "first_name": (
-                profile_name[
-                    "first_name"
-                ]
-            ),
         }
 
     except Exception as exc:
@@ -571,9 +488,7 @@ def execute_target_with_browser(
                 error_message=(
                     f"{type(exc).__name__}: {exc}"
                 ),
-                message_text=(
-                    final_message
-                ),
+                message_text=final_message,
                 client=client,
             )
         except Exception:
@@ -591,36 +506,15 @@ def execute_target_with_browser(
         }
 
 
-# =========================================================
-# REAL BATCH EXECUTOR
-# =========================================================
-
-def execute_prepared_message_batch(
+def execute_queued_message_batch(
     *,
     batch_id: str,
-    template: str,
     client: Client | None = None,
 ) -> dict:
     """
-    REAL SYSTEM — execute one prepared message batch.
+    Execute exactly one QUEUED batch.
 
-    Flow:
-        load prepared batch
-        -> group targets by assigned_account_id
-        -> account 01 browser opens once
-        -> process account 01 targets sequentially
-        -> close browser
-        -> wait account-switch delay
-        -> next account
-        -> ...
-        -> batch completed
-
-    Important:
-    - sequential only;
-    - no parallel browsers;
-    - failed target does not stop the whole batch;
-    - no automatic retry of failed targets;
-    - every target must still be status=prepared when claimed.
+    The exact message template is read from the batch row.
     """
 
     active_client = (
@@ -629,17 +523,7 @@ def execute_prepared_message_batch(
         else get_outreach_supabase_client()
     )
 
-    cleaned_template = str(
-        template
-        or ""
-    )
-
-    if not cleaned_template.strip():
-        raise ValueError(
-            "template is required."
-        )
-
-    batch = load_prepared_message_batch(
+    batch = load_message_batch(
         batch_id,
         client=active_client,
     )
@@ -656,12 +540,24 @@ def execute_prepared_message_batch(
                 "status"
             )
         ).lower()
-        != "prepared"
+        != "queued"
     ):
         raise OutreachMessageBatchExecutorError(
-            "Message batch is not prepared: "
+            "Message batch is not queued: "
             f"{cleaned_batch_id} | "
             f"status={batch.get('status')}"
+        )
+
+    template = str(
+        batch.get(
+            "message_template"
+        )
+        or ""
+    )
+
+    if not template.strip():
+        raise OutreachMessageBatchExecutorError(
+            "Queued batch has no message_template."
         )
 
     targets = list(
@@ -673,22 +569,19 @@ def execute_prepared_message_batch(
 
     if not targets:
         raise OutreachMessageBatchExecutorError(
-            "Prepared message batch has no prepared targets."
+            "Queued message batch has no prepared targets."
         )
 
-    grouped = (
-        group_prepared_targets_by_account(
-            targets
-        )
+    grouped = group_prepared_targets_by_account(
+        targets
     )
 
-    mark_batch_processing(
+    claim_queued_batch(
         batch_id=cleaned_batch_id,
         client=active_client,
     )
 
     pool = OutreachAccountPool()
-
     results: list[dict] = []
 
     try:
@@ -715,11 +608,9 @@ def execute_prepared_message_batch(
                     )
 
                     try:
-                        claimed = (
-                            claim_prepared_message_target(
-                                target_id,
-                                client=active_client,
-                            )
+                        claim_prepared_message_target(
+                            target_id,
+                            client=active_client,
                         )
 
                         mark_message_target_failed(
@@ -730,8 +621,7 @@ def execute_prepared_message_batch(
                             message_text=None,
                             client=active_client,
                         )
-
-                    except Exception as exc:
+                    except Exception:
                         pass
 
                     results.append(
@@ -750,13 +640,9 @@ def execute_prepared_message_batch(
                     batch_id=cleaned_batch_id,
                     client=active_client,
                 )
-
                 continue
 
-            browser = (
-                account
-                .create_browser_manager()
-            )
+            browser = account.create_browser_manager()
 
             try:
                 browser.start()
@@ -764,13 +650,11 @@ def execute_prepared_message_batch(
                 for target_index, target in enumerate(
                     account_targets
                 ):
-                    result = (
-                        execute_target_with_browser(
-                            target=target,
-                            template=cleaned_template,
-                            browser=browser,
-                            client=active_client,
-                        )
+                    result = execute_target_with_browser(
+                        target=target,
+                        template=template,
+                        browser=browser,
+                        client=active_client,
                     )
 
                     results.append(
@@ -852,48 +736,3 @@ def execute_prepared_message_batch(
             pass
 
         raise
-
-
-def print_batch_execution(
-    *,
-    batch_id: str,
-    template: str,
-) -> None:
-    """
-    Manual helper.
-
-    WARNING:
-    This sends real LinkedIn messages to all prepared targets
-    in the selected batch.
-    """
-
-    result = execute_prepared_message_batch(
-        batch_id=batch_id,
-        template=template,
-    )
-
-    print("")
-    print(
-        "MESSAGE BATCH RESULT"
-    )
-    print(
-        "===================="
-    )
-    print(
-        f"batch_id: {result['batch_id']}"
-    )
-    print(
-        f"batch_code: {result['batch_code']}"
-    )
-    print(
-        f"target_count: {result['target_count']}"
-    )
-    print(
-        f"processed_count: {result['processed_count']}"
-    )
-    print(
-        f"sent_count: {result['sent_count']}"
-    )
-    print(
-        f"failed_count: {result['failed_count']}"
-    )
