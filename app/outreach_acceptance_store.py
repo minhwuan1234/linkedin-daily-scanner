@@ -25,6 +25,10 @@ PROSPECT_TABLE = (
     "outreach_prospects"
 )
 
+JOB_TABLE = (
+    "outreach_jobs"
+)
+
 
 class OutreachAcceptanceStoreError(
     RuntimeError
@@ -65,6 +69,116 @@ def get_outreach_supabase_client() -> Client:
     return create_client(
         settings.outreach_supabase_url,
         settings.outreach_supabase_secret_key,
+    )
+
+
+# =========================================================
+# RESOLVE CONNECT JOB
+# =========================================================
+
+def resolve_source_job_id(
+    source_job_id_or_code: str,
+    *,
+    client: Client | None = None,
+) -> str:
+    """
+    Accept either:
+    - outreach_jobs.id UUID
+    - outreach_jobs.job_code, e.g. 1-20260816-01
+
+    Always return the canonical outreach_jobs.id UUID.
+    """
+
+    cleaned = str(
+        source_job_id_or_code
+        or ""
+    ).strip()
+
+    if not cleaned:
+        raise OutreachAcceptanceStoreError(
+            "source_job_id is required."
+        )
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    # First try UUID/id only when it looks like a UUID.
+    # This avoids Postgres uuid parse errors for job_code values.
+    looks_like_uuid = (
+        len(cleaned) == 36
+        and cleaned.count("-") == 4
+    )
+
+    if looks_like_uuid:
+        response = (
+            active_client.table(
+                JOB_TABLE
+            )
+            .select(
+                "id,job_code"
+            )
+            .eq(
+                "id",
+                cleaned,
+            )
+            .limit(
+                1
+            )
+            .execute()
+        )
+
+        rows = (
+            response.data
+            if isinstance(
+                response.data,
+                list,
+            )
+            else []
+        )
+
+        if rows:
+            return str(
+                rows[0]["id"]
+            )
+
+    # Fallback / explicit job_code lookup.
+    response = (
+        active_client.table(
+            JOB_TABLE
+        )
+        .select(
+            "id,job_code"
+        )
+        .eq(
+            "job_code",
+            cleaned,
+        )
+        .limit(
+            1
+        )
+        .execute()
+    )
+
+    rows = (
+        response.data
+        if isinstance(
+            response.data,
+            list,
+        )
+        else []
+    )
+
+    if not rows:
+        raise OutreachAcceptanceStoreError(
+            "Connect Job not found by id or job_code: "
+            f"{cleaned}"
+        )
+
+    return str(
+        rows[0]["id"]
     )
 
 
@@ -242,13 +356,18 @@ def queue_acceptance_check_run(
         else get_outreach_supabase_client()
     )
 
+    resolved_job_id = resolve_source_job_id(
+        source_job_id,
+        client=active_client,
+    )
+
     targets = load_acceptance_targets(
-        source_job_id=source_job_id,
+        source_job_id=resolved_job_id,
         client=active_client,
     )
 
     return create_acceptance_check_run(
-        source_job_id=source_job_id,
+        source_job_id=resolved_job_id,
         total_to_check=len(targets),
         status="pending",
         client=active_client,
@@ -421,6 +540,11 @@ def load_acceptance_targets(
         client
         if client is not None
         else get_outreach_supabase_client()
+    )
+
+    cleaned_job_id = resolve_source_job_id(
+        cleaned_job_id,
+        client=active_client,
     )
 
     response = (
