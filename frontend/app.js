@@ -234,6 +234,15 @@ const state = {
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   outreachAcceptanceSubmittingJobIds: new Set(),
+  outreachAcceptedPool: {
+    summary: {
+      total: 0,
+      not_sent: 0,
+      sent: 0
+    },
+    items: []
+  },
+  outreachAcceptedPoolFilter: "all",
   tableErrors: {},
   commandPending: false
 };
@@ -2567,6 +2576,499 @@ function renderOutreachHistory(
 
 
 // ---------------------------------------------------------
+// ACCEPTED POOL
+// ---------------------------------------------------------
+
+
+function ensureOutreachAcceptedPoolPanel() {
+  let panel = document.querySelector(
+    "#outreachAcceptedPoolPanel"
+  );
+
+  if (panel) {
+    return panel;
+  }
+
+  const historyWrap =
+    els.outreachHistoryTableWrap;
+
+  if (!historyWrap) {
+    return null;
+  }
+
+  panel = document.createElement(
+    "section"
+  );
+
+  panel.id =
+    "outreachAcceptedPoolPanel";
+
+  panel.className =
+    "panel outreach-accepted-pool-panel";
+
+  panel.style.marginBottom =
+    "18px";
+
+  panel.innerHTML = `
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+      "
+    >
+      <div>
+        <div
+          style="
+            font-size: 16px;
+            font-weight: 700;
+          "
+        >
+          Accepted Pool
+        </div>
+
+        <div
+          id="outreachAcceptedPoolSummary"
+          class="panel-meta"
+          style="margin-top: 4px;"
+        >
+          0 accepted profiles
+        </div>
+      </div>
+
+      <div
+        id="outreachAcceptedPoolFilters"
+        style="
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+        "
+      >
+        <button
+          type="button"
+          data-accepted-filter="all"
+          class="outreach-accepted-filter"
+        >
+          All 0
+        </button>
+
+        <button
+          type="button"
+          data-accepted-filter="not_sent"
+          class="outreach-accepted-filter"
+        >
+          Not sent 0
+        </button>
+
+        <button
+          type="button"
+          data-accepted-filter="sent"
+          class="outreach-accepted-filter"
+        >
+          Sent 0
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="outreachAcceptedPoolEmpty"
+      class="outreach-job-empty"
+    >
+      Chưa có user accepted.
+    </div>
+
+    <div
+      id="outreachAcceptedPoolTableWrap"
+      style="
+        overflow-x: auto;
+      "
+      hidden
+    >
+      <table
+        style="
+          width: 100%;
+          border-collapse: collapse;
+        "
+      >
+        <thead>
+          <tr>
+            <th style="text-align: left;">
+              LinkedIn
+            </th>
+            <th style="text-align: left;">
+              Account
+            </th>
+            <th style="text-align: left;">
+              Accepted
+            </th>
+            <th style="text-align: left;">
+              Message
+            </th>
+          </tr>
+        </thead>
+
+        <tbody
+          id="outreachAcceptedPoolBody"
+        ></tbody>
+      </table>
+    </div>
+  `;
+
+  historyWrap.parentElement.insertBefore(
+    panel,
+    historyWrap
+  );
+
+  panel
+    .querySelectorAll(
+      "[data-accepted-filter]"
+    )
+    .forEach((button) => {
+      button.addEventListener(
+        "click",
+        () => {
+          const filter =
+            button.dataset.acceptedFilter ||
+            "all";
+
+          state.outreachAcceptedPoolFilter =
+            filter;
+
+          renderOutreachAcceptedPool();
+        }
+      );
+    });
+
+  return panel;
+}
+
+
+function getAcceptedPoolFilteredItems() {
+  const pool =
+    state.outreachAcceptedPool || {};
+
+  const items =
+    Array.isArray(pool.items)
+      ? pool.items
+      : [];
+
+  const filter =
+    state.outreachAcceptedPoolFilter ||
+    "all";
+
+  if (filter === "not_sent") {
+    return items.filter(
+      (item) =>
+        String(
+          item.message_bucket || ""
+        ).toLowerCase() === "not_sent"
+    );
+  }
+
+  if (filter === "sent") {
+    return items.filter(
+      (item) =>
+        String(
+          item.message_bucket || ""
+        ).toLowerCase() === "sent"
+    );
+  }
+
+  return items;
+}
+
+
+function renderOutreachAcceptedPool() {
+  const panel =
+    ensureOutreachAcceptedPoolPanel();
+
+  if (!panel) {
+    return;
+  }
+
+  const pool =
+    state.outreachAcceptedPool || {};
+
+  const summary =
+    pool.summary || {};
+
+  const total = Number(
+    summary.total || 0
+  );
+
+  const notSent = Number(
+    summary.not_sent || 0
+  );
+
+  const sent = Number(
+    summary.sent || 0
+  );
+
+  const filteredItems =
+    getAcceptedPoolFilteredItems();
+
+  const summaryEl =
+    panel.querySelector(
+      "#outreachAcceptedPoolSummary"
+    );
+
+  const emptyEl =
+    panel.querySelector(
+      "#outreachAcceptedPoolEmpty"
+    );
+
+  const tableWrap =
+    panel.querySelector(
+      "#outreachAcceptedPoolTableWrap"
+    );
+
+  const body =
+    panel.querySelector(
+      "#outreachAcceptedPoolBody"
+    );
+
+  if (summaryEl) {
+    summaryEl.textContent =
+      `${total} accepted profiles · ` +
+      `${notSent} not sent · ` +
+      `${sent} sent`;
+  }
+
+  panel
+    .querySelectorAll(
+      "[data-accepted-filter]"
+    )
+    .forEach((button) => {
+      const filter =
+        button.dataset.acceptedFilter;
+
+      const count =
+        filter === "not_sent"
+          ? notSent
+          : filter === "sent"
+            ? sent
+            : total;
+
+      const label =
+        filter === "not_sent"
+          ? "Not sent"
+          : filter === "sent"
+            ? "Sent"
+            : "All";
+
+      button.textContent =
+        `${label} ${count}`;
+
+      const active =
+        filter ===
+        state.outreachAcceptedPoolFilter;
+
+      button.style.fontWeight =
+        active ? "700" : "500";
+
+      button.style.opacity =
+        active ? "1" : "0.65";
+    });
+
+  if (
+    !filteredItems.length
+  ) {
+    if (emptyEl) {
+      emptyEl.hidden = false;
+
+      emptyEl.textContent =
+        total > 0
+          ? "Không có user trong filter này."
+          : "Chưa có user accepted.";
+    }
+
+    if (tableWrap) {
+      tableWrap.hidden = true;
+    }
+
+    if (body) {
+      body.innerHTML = "";
+    }
+
+    return;
+  }
+
+  if (emptyEl) {
+    emptyEl.hidden = true;
+  }
+
+  if (tableWrap) {
+    tableWrap.hidden = false;
+  }
+
+  if (!body) {
+    return;
+  }
+
+  body.innerHTML =
+    filteredItems
+      .map((item) => {
+        const linkedinUrl =
+          String(
+            item.linkedin_url || ""
+          ).trim();
+
+        const accountName =
+          getOutreachAccountDisplayName(
+            item.assigned_account_id
+          );
+
+        const messageBucket =
+          String(
+            item.message_bucket ||
+            "not_sent"
+          ).toLowerCase();
+
+        const messageLabel =
+          messageBucket === "sent"
+            ? "Sent"
+            : "Not sent";
+
+        return `
+          <tr>
+            <td
+              style="
+                padding: 10px 8px;
+                vertical-align: top;
+              "
+            >
+              <a
+                href="${escapeHtml(linkedinUrl)}"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                ${escapeHtml(
+                  linkedinUrl
+                )}
+              </a>
+            </td>
+
+            <td
+              style="
+                padding: 10px 8px;
+                vertical-align: top;
+              "
+            >
+              ${escapeHtml(
+                accountName
+              )}
+            </td>
+
+            <td
+              style="
+                padding: 10px 8px;
+                vertical-align: top;
+              "
+            >
+              ${escapeHtml(
+                formatDate(
+                  item.accepted_at ||
+                  item.acceptance_checked_at
+                )
+              )}
+            </td>
+
+            <td
+              style="
+                padding: 10px 8px;
+                vertical-align: top;
+              "
+            >
+              <span
+                class="pill ${
+                  messageBucket === "sent"
+                    ? "pill-green"
+                    : "pill-neutral"
+                }"
+              >
+                ${escapeHtml(
+                  messageLabel
+                )}
+              </span>
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
+}
+
+
+async function loadOutreachAcceptedPool() {
+  try {
+    const response = await fetch(
+      "/api/outreach/accepted-pool",
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Accepted Pool."
+      );
+    }
+
+    const pool =
+      result.accepted_pool || {};
+
+    state.outreachAcceptedPool = {
+      summary: {
+        total: Number(
+          pool.summary?.total || 0
+        ),
+        not_sent: Number(
+          pool.summary?.not_sent || 0
+        ),
+        sent: Number(
+          pool.summary?.sent || 0
+        )
+      },
+      items: Array.isArray(
+        pool.items
+      )
+        ? pool.items
+        : []
+    };
+
+  } catch (error) {
+    console.error(
+      "Accepted Pool error:",
+      error
+    );
+
+    state.outreachAcceptedPool = {
+      summary: {
+        total: 0,
+        not_sent: 0,
+        sent: 0
+      },
+      items: []
+    };
+  }
+}
+
+
+// ---------------------------------------------------------
 // FULL DASHBOARD RENDER
 // ---------------------------------------------------------
 
@@ -2587,6 +3089,8 @@ function renderOutreachDashboard() {
   renderOutreachHistory(
     state.outreachRecentJobs
   );
+
+  renderOutreachAcceptedPool();
 
   if (els.outreachDashboardUpdatedAt) {
     els.outreachDashboardUpdatedAt.textContent =
@@ -2659,6 +3163,12 @@ async function loadOutreachDashboard() {
       )
         ? dashboard.recent_jobs
         : [];
+
+
+    // Accepted Pool is derived live from the same Outreach data.
+    // This runs on every existing Outreach poll, so newly accepted
+    // profiles appear automatically after Acceptance Check updates DB.
+    await loadOutreachAcceptedPool();
 
 
     if (els.outreachError) {
