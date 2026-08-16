@@ -25,6 +25,9 @@ PROFILE_TIMEOUT_MS = 15_000
 MENU_VERIFY_WINDOW_MS = 1_500
 STATE_POLL_MS = 120
 MORE_MAX_ATTEMPTS = 2
+PROFILE_SETTLE_DELAY_MS = 900
+BEFORE_MENU_OPEN_DELAY_MS = 450
+AFTER_MENU_OPEN_DELAY_MS = 500
 
 
 AcceptanceStatus = Literal[
@@ -566,6 +569,12 @@ def _open_acceptance_ellipsis_menu(
                     )
                     return True
 
+                _sleep(
+                    page,
+                    deadline=deadline,
+                    milliseconds=BEFORE_MENU_OPEN_DELAY_MS,
+                )
+
                 if not _click_locator(
                     button,
                     deadline=deadline,
@@ -585,6 +594,12 @@ def _open_acceptance_ellipsis_menu(
                     page,
                     deadline=deadline,
                 ):
+                    _sleep(
+                        page,
+                        deadline=deadline,
+                        milliseconds=AFTER_MENU_OPEN_DELAY_MS,
+                    )
+
                     print(
                         "ACCEPTANCE ELLIPSIS: "
                         "visible role=menu confirmed"
@@ -878,6 +893,12 @@ def _open_acceptance_more_menu(
                     )
                     return True
 
+                _sleep(
+                    page,
+                    deadline=deadline,
+                    milliseconds=BEFORE_MENU_OPEN_DELAY_MS,
+                )
+
                 if not _click_locator(
                     button,
                     deadline=deadline,
@@ -893,6 +914,12 @@ def _open_acceptance_more_menu(
                     page,
                     deadline=deadline,
                 ):
+                    _sleep(
+                        page,
+                        deadline=deadline,
+                        milliseconds=AFTER_MENU_OPEN_DELAY_MS,
+                    )
+
                     print(
                         "ACCEPTANCE MORE: "
                         "visible role=menu confirmed"
@@ -1111,6 +1138,14 @@ def check_profile_acceptance(
         )
 
         _check_deadline(deadline)
+
+        # Small fixed pause so LinkedIn's UI has time to finish rendering.
+        # This is stability pacing, not selector logic.
+        _sleep(
+            page,
+            deadline=deadline,
+            milliseconds=PROFILE_SETTLE_DELAY_MS,
+        )
 
         if _is_profile_not_found(
             page,
