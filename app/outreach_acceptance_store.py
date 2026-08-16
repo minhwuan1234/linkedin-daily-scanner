@@ -383,22 +383,30 @@ def load_acceptance_targets(
     client: Client | None = None,
 ) -> list[dict]:
     """
-    Load only targets that belong to the selected Connect Job
-    and still need acceptance checking.
+    Load finished targets from the selected Connect Job that
+    still need Acceptance Check.
 
-    We require:
-    - target.status == completed
-    - assigned_account_id is present
-    - acceptance_status != accepted
+    FIX:
+    The previous implementation filtered too aggressively:
+    - target.status had to be exactly "completed";
+    - outreach_prospects.connect_status had to be exactly
+      "invitation_sent".
 
-    This includes:
-    - not_checked
-    - pending
-    - declined_or_unknown
-    - check_failed
+    That can hide real profiles from Acceptance Check, including
+    profiles that the Connect flow misclassified as unavailable even
+    though LinkedIn already shows "Remove connection".
 
-    Accepted targets are never reopened.
+    New rule:
+    - same source job;
+    - acceptance_status != accepted;
+    - assigned_account_id exists;
+    - LinkedIn URL exists;
+    - target is finished: completed OR failed.
+
+    Acceptance Checker itself is read-only and is the authority for
+    the current LinkedIn relationship state.
     """
+
     cleaned_job_id = str(
         source_job_id
         or ""
@@ -438,10 +446,6 @@ def load_acceptance_targets(
             "job_id",
             cleaned_job_id,
         )
-        .eq(
-            "status",
-            "completed",
-        )
         .neq(
             "acceptance_status",
             "accepted",
@@ -461,6 +465,22 @@ def load_acceptance_targets(
     targets: list[dict] = []
 
     for row in rows:
+        target_status = str(
+            row.get(
+                "status",
+                "",
+            )
+            or ""
+        ).strip()
+
+        # Only inspect finished Connect targets.
+        # Do not touch pending/running work.
+        if target_status not in {
+            "completed",
+            "failed",
+        }:
+            continue
+
         account_id = str(
             row.get(
                 "assigned_account_id",
@@ -490,19 +510,6 @@ def load_acceptance_targets(
         if not linkedin_url:
             continue
 
-        # Production safety:
-        # only follow profiles the tool believes were sent/pending.
-        connect_status = str(
-            prospect.get(
-                "connect_status",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if connect_status != "invitation_sent":
-            continue
-
         targets.append(
             {
                 "target_id": str(
@@ -516,6 +523,14 @@ def load_acceptance_targets(
                 ),
                 "account_id": account_id,
                 "linkedin_url": linkedin_url,
+                "connect_status": str(
+                    prospect.get(
+                        "connect_status",
+                        "",
+                    )
+                    or ""
+                ).strip(),
+                "target_status": target_status,
                 "acceptance_status": str(
                     row.get(
                         "acceptance_status",
