@@ -1,624 +1,744 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Iterable
-
-from supabase import Client
+import signal
+import sys
+import time
+from dataclasses import dataclass
+from typing import Any
 
 from app.linkedin_acceptance_checker import (
     LinkedInAcceptanceResult,
+    check_profile_acceptance,
 )
-from app.outreach_result_store import (
+from app.outreach_acceptance_store import (
+    claim_next_pending_acceptance_check,
     get_outreach_supabase_client,
+    group_targets_by_account,
+    load_acceptance_targets,
+    save_acceptance_result,
+    update_acceptance_check_run,
 )
-
-
-ACCEPTANCE_CHECK_TABLE = (
-    "outreach_acceptance_checks"
+from app.outreach_account_pool import (
+    OutreachAccountPool,
 )
-
-TARGET_TABLE = (
-    "outreach_job_targets"
-)
-
-PROSPECT_TABLE = (
-    "outreach_prospects"
-)
-
-
-class OutreachAcceptanceStoreError(
-    RuntimeError
-):
-    pass
-
-
-def _utc_now() -> str:
-    return datetime.now(
-        timezone.utc
-    ).isoformat()
 
 
 # =========================================================
-# CREATE CHECK RUN
+# CONSTANTS
 # =========================================================
 
-def _get_next_run_number(
+IDLE_POLL_SECONDS = 10
+PROFILE_DELAY_SECONDS = 2.5
+ACCOUNT_SWITCH_DELAY_SECONDS = 5
+
+
+# =========================================================
+# DATA
+# =========================================================
+
+@dataclass
+class AcceptanceRunCounters:
+    checked_count: int = 0
+    new_accepted_count: int = 0
+    still_pending_count: int = 0
+    declined_or_unknown_count: int = 0
+    failed_count: int = 0
+
+
+def _record_result(
     *,
-    client: Client,
-    source_job_id: str,
-) -> int:
-    response = (
-        client.table(
-            ACCEPTANCE_CHECK_TABLE
+    counters: AcceptanceRunCounters,
+    result: LinkedInAcceptanceResult,
+) -> None:
+    counters.checked_count += 1
+
+    if result.status == "accepted":
+        counters.new_accepted_count += 1
+        return
+
+    if result.status == "pending":
+        counters.still_pending_count += 1
+        return
+
+    if result.status == "declined_or_unknown":
+        counters.declined_or_unknown_count += 1
+        return
+
+    counters.failed_count += 1
+
+
+# =========================================================
+# WORKER
+# =========================================================
+
+class OutreachAcceptanceWorker:
+    """
+    Always-on Mac worker for manual Acceptance Check runs.
+
+    Railway only queues:
+        outreach_acceptance_checks.status = pending
+
+    This worker:
+        pending
+        -> claim as running
+        -> read source_job_id
+        -> load eligible targets
+        -> group by assigned_account_id
+        -> open the correct LinkedIn browser profile
+        -> run read-only acceptance checker
+        -> save target states
+        -> complete the run
+
+    It NEVER sends Connect requests.
+    """
+
+    def __init__(
+        self,
+    ) -> None:
+        self.client = (
+            get_outreach_supabase_client()
         )
-        .select(
-            "run_number"
+
+        self.account_pool = (
+            OutreachAccountPool()
         )
-        .eq(
-            "source_job_id",
+
+        self._stop_requested = False
+
+    # =====================================================
+    # RUN FOREVER
+    # =====================================================
+
+    def run_forever(
+        self,
+    ) -> int:
+        self._register_signal_handlers()
+
+        print("")
+        print("=" * 60)
+        print("OUTREACH ACCEPTANCE WORKER")
+        print("=" * 60)
+        print("Status: idle")
+        print(
+            "Poll interval:",
+            f"{IDLE_POLL_SECONDS}s",
+        )
+        print(
+            "Profile delay:",
+            f"{PROFILE_DELAY_SECONDS}s",
+        )
+        print(
+            "Account switch delay:",
+            f"{ACCOUNT_SWITCH_DELAY_SECONDS}s",
+        )
+        print("Press Ctrl+C to stop.")
+
+        try:
+            while not self._stop_requested:
+                check_run = (
+                    self._claim_next_check_safely()
+                )
+
+                if check_run is None:
+                    self._sleep_interruptibly(
+                        IDLE_POLL_SECONDS
+                    )
+                    continue
+
+                self._process_check_run(
+                    check_run
+                )
+
+            return 0
+
+        except KeyboardInterrupt:
+            self.request_stop()
+            return 0
+
+        finally:
+            print("")
+            print(
+                "Outreach Acceptance Worker stopped."
+            )
+
+    # =====================================================
+    # CLAIM
+    # =====================================================
+
+    def _claim_next_check_safely(
+        self,
+    ) -> dict | None:
+        try:
+            return (
+                claim_next_pending_acceptance_check(
+                    client=self.client
+                )
+            )
+
+        except Exception as exc:
+            print(
+                (
+                    "Could not claim Acceptance Check: "
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
+                file=sys.stderr,
+            )
+            return None
+
+    # =====================================================
+    # PROCESS ONE CHECK RUN
+    # =====================================================
+
+    def _process_check_run(
+        self,
+        check_run: dict,
+    ) -> None:
+        check_id = str(
+            check_run.get(
+                "id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        source_job_id = str(
+            check_run.get(
+                "source_job_id",
+                "",
+            )
+            or ""
+        ).strip()
+
+        run_number = int(
+            check_run.get(
+                "run_number",
+                1,
+            )
+            or 1
+        )
+
+        print("")
+        print("=" * 60)
+        print("ACCEPTANCE CHECK CLAIMED")
+        print("=" * 60)
+        print(
+            "Check ID:",
+            check_id,
+        )
+        print(
+            "Run number:",
+            f"#{run_number}",
+        )
+        print(
+            "Source job:",
             source_job_id,
         )
-        .order(
-            "run_number",
-            desc=True,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
 
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
+        counters = (
+            AcceptanceRunCounters()
         )
-        else []
-    )
 
-    if not rows:
+        if (
+            not check_id
+            or not source_job_id
+        ):
+            print(
+                "Invalid acceptance check row.",
+                file=sys.stderr,
+            )
+            return
+
+        try:
+            targets = (
+                load_acceptance_targets(
+                    source_job_id=(
+                        source_job_id
+                    ),
+                    client=self.client,
+                )
+            )
+
+            print(
+                "Targets to check:",
+                len(targets),
+            )
+
+            # The queued total is a snapshot from button-click time.
+            # The live target list is authoritative when worker starts.
+            if not targets:
+                update_acceptance_check_run(
+                    check_id=check_id,
+                    checked_count=0,
+                    new_accepted_count=0,
+                    still_pending_count=0,
+                    declined_or_unknown_count=0,
+                    failed_count=0,
+                    completed=True,
+                    client=self.client,
+                )
+
+                print(
+                    "Nothing to check. Run completed."
+                )
+                return
+
+            grouped = (
+                group_targets_by_account(
+                    targets
+                )
+            )
+
+            previous_account_id: (
+                str | None
+            ) = None
+
+            for (
+                account_id,
+                account_targets,
+            ) in grouped.items():
+
+                if self._stop_requested:
+                    raise RuntimeError(
+                        "Worker stop requested "
+                        "before Acceptance Check completed."
+                    )
+
+                account = (
+                    self.account_pool
+                    .get_account(
+                        account_id
+                    )
+                )
+
+                # -----------------------------------------
+                # ACCOUNT SWITCH DELAY
+                # -----------------------------------------
+                if (
+                    previous_account_id
+                    is not None
+                    and previous_account_id
+                    != account_id
+                ):
+                    print("")
+                    print(
+                        "Switching account:",
+                        previous_account_id,
+                        "->",
+                        account_id,
+                    )
+
+                    print(
+                        f"Waiting "
+                        f"{ACCOUNT_SWITCH_DELAY_SECONDS}s "
+                        "before next account..."
+                    )
+
+                    self._sleep_interruptibly(
+                        ACCOUNT_SWITCH_DELAY_SECONDS
+                    )
+
+                    if self._stop_requested:
+                        raise RuntimeError(
+                            "Worker stop requested "
+                            "during account switch."
+                        )
+
+                print("")
+                print("=" * 60)
+                print("ACCEPTANCE ACCOUNT")
+                print("=" * 60)
+
+                print(
+                    "Account:",
+                    account.display_name,
+                    f"({account.account_id})",
+                )
+
+                print(
+                    "Targets:",
+                    len(account_targets),
+                )
+
+                browser = (
+                    account
+                    .create_browser_manager()
+                )
+
+                try:
+                    browser.start()
+
+                    for index, target in enumerate(
+                        account_targets,
+                        start=1,
+                    ):
+                        if self._stop_requested:
+                            raise RuntimeError(
+                                "Worker stop requested "
+                                "during Acceptance Check."
+                            )
+
+                        print("")
+                        print("-" * 60)
+
+                        print(
+                            f"[{index}/"
+                            f"{len(account_targets)}]"
+                        )
+
+                        print(
+                            "URL:",
+                            target[
+                                "linkedin_url"
+                            ],
+                        )
+
+                        print(
+                            "Previous acceptance state:",
+                            target[
+                                "acceptance_status"
+                            ],
+                        )
+
+                        # ---------------------------------
+                        # READ LINKEDIN STATE
+                        # ---------------------------------
+                        try:
+                            result = (
+                                check_profile_acceptance(
+                                    browser=browser,
+                                    linkedin_url=(
+                                        target[
+                                            "linkedin_url"
+                                        ]
+                                    ),
+                                )
+                            )
+
+                        except Exception as exc:
+                            result = (
+                                LinkedInAcceptanceResult(
+                                    linkedin_url=(
+                                        target[
+                                            "linkedin_url"
+                                        ]
+                                    ),
+                                    final_url="",
+                                    status="check_failed",
+                                    message=(
+                                        "worker_error: "
+                                        f"{type(exc).__name__}: "
+                                        f"{exc}"
+                                    ),
+                                )
+                            )
+
+                        # ---------------------------------
+                        # SAVE TARGET
+                        # ---------------------------------
+                        save_acceptance_result(
+                            target_id=(
+                                target[
+                                    "target_id"
+                                ]
+                            ),
+                            result=result,
+                            client=self.client,
+                        )
+
+                        _record_result(
+                            counters=counters,
+                            result=result,
+                        )
+
+                        # ---------------------------------
+                        # LIVE RUN PROGRESS
+                        # ---------------------------------
+                        update_acceptance_check_run(
+                            check_id=check_id,
+                            checked_count=(
+                                counters
+                                .checked_count
+                            ),
+                            new_accepted_count=(
+                                counters
+                                .new_accepted_count
+                            ),
+                            still_pending_count=(
+                                counters
+                                .still_pending_count
+                            ),
+                            declined_or_unknown_count=(
+                                counters
+                                .declined_or_unknown_count
+                            ),
+                            failed_count=(
+                                counters
+                                .failed_count
+                            ),
+                            client=self.client,
+                        )
+
+                        print(
+                            "Acceptance status:",
+                            result.status,
+                        )
+
+                        print(
+                            "Message:",
+                            result.message,
+                        )
+
+                        print(
+                            "Run progress:",
+                            (
+                                f"{counters.checked_count}"
+                                f"/{len(targets)}"
+                            ),
+                        )
+
+                        # ---------------------------------
+                        # PROFILE DELAY
+                        # ---------------------------------
+                        if (
+                            index
+                            < len(account_targets)
+                        ):
+                            print(
+                                f"Waiting "
+                                f"{PROFILE_DELAY_SECONDS}s "
+                                "before next profile..."
+                            )
+
+                            self._sleep_interruptibly(
+                                PROFILE_DELAY_SECONDS
+                            )
+
+                finally:
+                    try:
+                        browser.stop()
+
+                    except Exception as exc:
+                        print(
+                            "Could not close browser:",
+                            (
+                                f"{type(exc).__name__}: "
+                                f"{exc}"
+                            ),
+                            file=sys.stderr,
+                        )
+
+                previous_account_id = (
+                    account_id
+                )
+
+            # ---------------------------------------------
+            # COMPLETE RUN
+            # ---------------------------------------------
+            update_acceptance_check_run(
+                check_id=check_id,
+                checked_count=(
+                    counters.checked_count
+                ),
+                new_accepted_count=(
+                    counters
+                    .new_accepted_count
+                ),
+                still_pending_count=(
+                    counters
+                    .still_pending_count
+                ),
+                declined_or_unknown_count=(
+                    counters
+                    .declined_or_unknown_count
+                ),
+                failed_count=(
+                    counters.failed_count
+                ),
+                completed=True,
+                client=self.client,
+            )
+
+            print("")
+            print("=" * 60)
+            print("ACCEPTANCE CHECK FINISHED")
+            print("=" * 60)
+
+            print(
+                "Checked:",
+                counters.checked_count,
+            )
+
+            print(
+                "New accepted:",
+                counters.new_accepted_count,
+            )
+
+            print(
+                "Still pending:",
+                counters.still_pending_count,
+            )
+
+            print(
+                "Declined / unknown:",
+                counters.declined_or_unknown_count,
+            )
+
+            print(
+                "Check failed:",
+                counters.failed_count,
+            )
+
+        except Exception as exc:
+            error_message = (
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            )
+
+            print(
+                (
+                    "Acceptance Check failed: "
+                    f"{error_message}"
+                ),
+                file=sys.stderr,
+            )
+
+            try:
+                update_acceptance_check_run(
+                    check_id=check_id,
+                    checked_count=(
+                        counters.checked_count
+                    ),
+                    new_accepted_count=(
+                        counters
+                        .new_accepted_count
+                    ),
+                    still_pending_count=(
+                        counters
+                        .still_pending_count
+                    ),
+                    declined_or_unknown_count=(
+                        counters
+                        .declined_or_unknown_count
+                    ),
+                    failed_count=(
+                        counters.failed_count
+                    ),
+                    failed=True,
+                    client=self.client,
+                )
+
+            except Exception as save_exc:
+                print(
+                    (
+                        "Could not mark Acceptance "
+                        "Check failed: "
+                        f"{type(save_exc).__name__}: "
+                        f"{save_exc}"
+                    ),
+                    file=sys.stderr,
+                )
+
+    # =====================================================
+    # STOP
+    # =====================================================
+
+    def request_stop(
+        self,
+        signum: int | None = None,
+        frame: Any = None,
+    ) -> None:
+        del frame
+
+        self._stop_requested = True
+
+        print("")
+
+        if signum is not None:
+            print(
+                "Stop signal received:",
+                signum,
+            )
+
+        print(
+            "Acceptance worker will stop safely."
+        )
+
+    def _register_signal_handlers(
+        self,
+    ) -> None:
+        signal.signal(
+            signal.SIGINT,
+            self.request_stop,
+        )
+
+        if hasattr(
+            signal,
+            "SIGTERM",
+        ):
+            signal.signal(
+                signal.SIGTERM,
+                self.request_stop,
+            )
+
+    # =====================================================
+    # INTERRUPTIBLE WAIT
+    # =====================================================
+
+    def _sleep_interruptibly(
+        self,
+        seconds: float,
+    ) -> None:
+        remaining = max(
+            0.0,
+            float(seconds),
+        )
+
+        while (
+            remaining > 0
+            and not self._stop_requested
+        ):
+            step = min(
+                0.5,
+                remaining,
+            )
+
+            time.sleep(
+                step
+            )
+
+            remaining -= step
+
+
+# =========================================================
+# MAIN
+# =========================================================
+
+def main() -> int:
+    try:
+        worker = (
+            OutreachAcceptanceWorker()
+        )
+
+        return (
+            worker.run_forever()
+        )
+
+    except Exception as exc:
+        print(
+            (
+                "Could not start Outreach "
+                "Acceptance Worker: "
+                f"{type(exc).__name__}: "
+                f"{exc}"
+            ),
+            file=sys.stderr,
+        )
+
         return 1
 
-    current = int(
-        rows[0].get(
-            "run_number",
-            0,
-        )
-        or 0
+
+if __name__ == "__main__":
+    raise SystemExit(
+        main()
     )
-
-    return current + 1
-
-
-def create_acceptance_check_run(
-    *,
-    source_job_id: str,
-    total_to_check: int,
-    status: str = "running",
-    client: Client | None = None,
-) -> dict:
-    cleaned_job_id = str(
-        source_job_id
-        or ""
-    ).strip()
-
-    if not cleaned_job_id:
-        raise OutreachAcceptanceStoreError(
-            "source_job_id is required."
-        )
-
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    run_number = (
-        _get_next_run_number(
-            client=active_client,
-            source_job_id=(
-                cleaned_job_id
-            ),
-        )
-    )
-
-    cleaned_status = str(
-        status
-        or ""
-    ).strip()
-
-    if cleaned_status not in {
-        "pending",
-        "running",
-    }:
-        raise OutreachAcceptanceStoreError(
-            "status must be 'pending' or 'running'."
-        )
-
-    now = _utc_now()
-
-    response = (
-        active_client.table(
-            ACCEPTANCE_CHECK_TABLE
-        )
-        .insert(
-            {
-                "source_job_id": (
-                    cleaned_job_id
-                ),
-                "run_number": run_number,
-                "status": cleaned_status,
-                "total_to_check": max(
-                    0,
-                    int(total_to_check),
-                ),
-                "checked_count": 0,
-                "new_accepted_count": 0,
-                "still_pending_count": 0,
-                "declined_or_unknown_count": 0,
-                "failed_count": 0,
-                "started_at": (
-                    now
-                    if cleaned_status == "running"
-                    else None
-                ),
-                "updated_at": now,
-            }
-        )
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    if not rows:
-        raise OutreachAcceptanceStoreError(
-            "Could not create acceptance check run."
-        )
-
-    return rows[0]
-
-
-
-# =========================================================
-# QUEUE CHECK RUN FROM RAILWAY
-# =========================================================
-
-def queue_acceptance_check_run(
-    *,
-    source_job_id: str,
-    client: Client | None = None,
-) -> dict:
-    """
-    Railway-facing helper.
-
-    It does NOT run LinkedIn.
-    It only:
-    1. loads eligible targets for the selected Connect Job;
-    2. creates one acceptance run with status='pending'.
-
-    The Mac acceptance worker will claim this row later.
-    """
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    targets = load_acceptance_targets(
-        source_job_id=source_job_id,
-        client=active_client,
-    )
-
-    return create_acceptance_check_run(
-        source_job_id=source_job_id,
-        total_to_check=len(targets),
-        status="pending",
-        client=active_client,
-    )
-
-
-# =========================================================
-# LOAD TARGETS TO CHECK
-# =========================================================
-
-def load_acceptance_targets(
-    *,
-    source_job_id: str,
-    client: Client | None = None,
-) -> list[dict]:
-    """
-    Load only targets that belong to the selected Connect Job
-    and still need acceptance checking.
-
-    We require:
-    - target.status == completed
-    - assigned_account_id is present
-    - acceptance_status != accepted
-
-    This includes:
-    - not_checked
-    - pending
-    - declined_or_unknown
-    - check_failed
-
-    Accepted targets are never reopened.
-    """
-    cleaned_job_id = str(
-        source_job_id
-        or ""
-    ).strip()
-
-    if not cleaned_job_id:
-        raise OutreachAcceptanceStoreError(
-            "source_job_id is required."
-        )
-
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    response = (
-        active_client.table(
-            TARGET_TABLE
-        )
-        .select(
-            (
-                "id,"
-                "job_id,"
-                "prospect_id,"
-                "status,"
-                "assigned_account_id,"
-                "acceptance_status,"
-                "acceptance_check_count,"
-                "outreach_prospects("
-                "linkedin_url,"
-                "connect_status"
-                ")"
-            )
-        )
-        .eq(
-            "job_id",
-            cleaned_job_id,
-        )
-        .eq(
-            "status",
-            "completed",
-        )
-        .neq(
-            "acceptance_status",
-            "accepted",
-        )
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    targets: list[dict] = []
-
-    for row in rows:
-        account_id = str(
-            row.get(
-                "assigned_account_id",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if not account_id:
-            continue
-
-        prospect = (
-            row.get(
-                "outreach_prospects"
-            )
-            or {}
-        )
-
-        linkedin_url = str(
-            prospect.get(
-                "linkedin_url",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if not linkedin_url:
-            continue
-
-        # Production safety:
-        # only follow profiles the tool believes were sent/pending.
-        connect_status = str(
-            prospect.get(
-                "connect_status",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if connect_status != "invitation_sent":
-            continue
-
-        targets.append(
-            {
-                "target_id": str(
-                    row["id"]
-                ),
-                "job_id": str(
-                    row["job_id"]
-                ),
-                "prospect_id": str(
-                    row["prospect_id"]
-                ),
-                "account_id": account_id,
-                "linkedin_url": linkedin_url,
-                "acceptance_status": str(
-                    row.get(
-                        "acceptance_status",
-                        "not_checked",
-                    )
-                    or "not_checked"
-                ),
-                "acceptance_check_count": int(
-                    row.get(
-                        "acceptance_check_count",
-                        0,
-                    )
-                    or 0
-                ),
-            }
-        )
-
-    return targets
-
-
-# =========================================================
-# SAVE ONE TARGET RESULT
-# =========================================================
-
-def save_acceptance_result(
-    *,
-    target_id: str,
-    result: LinkedInAcceptanceResult,
-    client: Client | None = None,
-) -> None:
-    cleaned_target_id = str(
-        target_id
-        or ""
-    ).strip()
-
-    if not cleaned_target_id:
-        raise OutreachAcceptanceStoreError(
-            "target_id is required."
-        )
-
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    now = _utc_now()
-
-    # Read current count first.
-    response = (
-        active_client.table(
-            TARGET_TABLE
-        )
-        .select(
-            (
-                "acceptance_check_count,"
-                "accepted_at"
-            )
-        )
-        .eq(
-            "id",
-            cleaned_target_id,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    if not rows:
-        raise OutreachAcceptanceStoreError(
-            f"Target not found: {cleaned_target_id}"
-        )
-
-    current_count = int(
-        rows[0].get(
-            "acceptance_check_count",
-            0,
-        )
-        or 0
-    )
-
-    existing_accepted_at = (
-        rows[0].get(
-            "accepted_at"
-        )
-    )
-
-    update_data = {
-        "acceptance_status": (
-            result.status
-        ),
-        "acceptance_checked_at": now,
-        "acceptance_check_count": (
-            current_count + 1
-        ),
-        "updated_at": now,
-    }
-
-    if (
-        result.status == "accepted"
-        and not existing_accepted_at
-    ):
-        update_data[
-            "accepted_at"
-        ] = now
-
-    (
-        active_client.table(
-            TARGET_TABLE
-        )
-        .update(
-            update_data
-        )
-        .eq(
-            "id",
-            cleaned_target_id,
-        )
-        .execute()
-    )
-
-
-# =========================================================
-# CHECK RUN COUNTERS
-# =========================================================
-
-def update_acceptance_check_run(
-    *,
-    check_id: str,
-    checked_count: int,
-    new_accepted_count: int,
-    still_pending_count: int,
-    declined_or_unknown_count: int,
-    failed_count: int,
-    completed: bool = False,
-    failed: bool = False,
-    client: Client | None = None,
-) -> None:
-    cleaned_check_id = str(
-        check_id
-        or ""
-    ).strip()
-
-    if not cleaned_check_id:
-        raise OutreachAcceptanceStoreError(
-            "check_id is required."
-        )
-
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    now = _utc_now()
-
-    update_data = {
-        "checked_count": max(
-            0,
-            int(checked_count),
-        ),
-        "new_accepted_count": max(
-            0,
-            int(new_accepted_count),
-        ),
-        "still_pending_count": max(
-            0,
-            int(still_pending_count),
-        ),
-        "declined_or_unknown_count": max(
-            0,
-            int(
-                declined_or_unknown_count
-            ),
-        ),
-        "failed_count": max(
-            0,
-            int(failed_count),
-        ),
-        "updated_at": now,
-    }
-
-    if failed:
-        update_data[
-            "status"
-        ] = "failed"
-        update_data[
-            "completed_at"
-        ] = now
-
-    elif completed:
-        update_data[
-            "status"
-        ] = "completed"
-        update_data[
-            "completed_at"
-        ] = now
-
-    (
-        active_client.table(
-            ACCEPTANCE_CHECK_TABLE
-        )
-        .update(
-            update_data
-        )
-        .eq(
-            "id",
-            cleaned_check_id,
-        )
-        .execute()
-    )
-
-
-# =========================================================
-# GROUP BY ACCOUNT
-# =========================================================
-
-def group_targets_by_account(
-    targets: Iterable[dict],
-) -> dict[str, list[dict]]:
-    grouped: dict[
-        str,
-        list[dict],
-    ] = {}
-
-    for target in targets:
-        account_id = str(
-            target.get(
-                "account_id",
-                "",
-            )
-            or ""
-        ).strip()
-
-        if not account_id:
-            continue
-
-        grouped.setdefault(
-            account_id,
-            [],
-        ).append(
-            target
-        )
-
-    return grouped
