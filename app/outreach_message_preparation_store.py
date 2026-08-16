@@ -557,3 +557,160 @@ def prepare_all_unsent_accepted(
             inserted_count
         ),
     }
+
+
+# =========================================================
+# PREPARED BATCH READ API
+# =========================================================
+
+def list_prepared_message_batches(
+    *,
+    client: Client | None = None,
+    limit: int = 50,
+) -> list[dict]:
+    """
+    List recent message-preparation batches.
+
+    Preparation phase only:
+    this does NOT trigger messaging.
+    """
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    safe_limit = max(
+        1,
+        min(
+            int(limit),
+            100,
+        ),
+    )
+
+    response = (
+        active_client.table(
+            MESSAGE_BATCH_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "batch_code,"
+                "status,"
+                "target_count,"
+                "created_at,"
+                "updated_at"
+            )
+        )
+        .order(
+            "created_at",
+            desc=True,
+        )
+        .limit(
+            safe_limit
+        )
+        .execute()
+    )
+
+    return list(
+        response.data
+        or []
+    )
+
+
+def get_prepared_message_batch(
+    batch_id: str,
+    *,
+    client: Client | None = None,
+) -> dict | None:
+    """
+    Load one prepared batch plus its frozen recipient snapshot.
+    """
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    cleaned_batch_id = _safe_text(
+        batch_id
+    )
+
+    if not cleaned_batch_id:
+        raise OutreachMessagePreparationStoreError(
+            "Missing message batch id."
+        )
+
+    batch_response = (
+        active_client.table(
+            MESSAGE_BATCH_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "batch_code,"
+                "status,"
+                "target_count,"
+                "created_at,"
+                "updated_at"
+            )
+        )
+        .eq(
+            "id",
+            cleaned_batch_id,
+        )
+        .limit(
+            1
+        )
+        .execute()
+    )
+
+    batch_rows = list(
+        batch_response.data
+        or []
+    )
+
+    if not batch_rows:
+        return None
+
+    target_response = (
+        active_client.table(
+            MESSAGE_TARGET_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "batch_id,"
+                "prospect_id,"
+                "source_target_id,"
+                "assigned_account_id,"
+                "linkedin_url,"
+                "normalized_url,"
+                "status,"
+                "created_at,"
+                "updated_at"
+            )
+        )
+        .eq(
+            "batch_id",
+            cleaned_batch_id,
+        )
+        .order(
+            "created_at",
+            desc=False,
+        )
+        .execute()
+    )
+
+    batch = dict(
+        batch_rows[0]
+    )
+
+    batch[
+        "targets"
+    ] = list(
+        target_response.data
+        or []
+    )
+
+    return batch
