@@ -13,89 +13,124 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260812-1" />
+<link rel="stylesheet" href="./styles.css?v=20260816-sidebar-1" />
 </head>
 
 <body>
-  <main class="app-shell">
-    <header class="topbar">
-      <div class="brand-block">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <div class="sidebar-brand">
         <div class="brand-mark" aria-hidden="true">in</div>
+        <div class="sidebar-brand-copy">
+          <strong>LinkedIn Ops</strong>
+          <span>Operations Console</span>
+        </div>
+      </div>
 
-        <div>
-          <p class="eyebrow">LinkedIn Scanner</p>
-          <h1>Operations Dashboard</h1>
-          <p class="subtitle">
-            Theo dõi profile, queue, worker và tài khoản LinkedIn trong một màn hình.
+      <nav class="tab-navigation sidebar-navigation" aria-label="Dashboard sections">
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-label">Workspace</p>
+
+          <button class="tab-button is-active" type="button" data-tab="overview">
+            <span class="sidebar-nav-icon">⌂</span>
+            <span class="sidebar-nav-text">Tổng quan</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="profiles">
+            <span class="sidebar-nav-icon">P</span>
+            <span class="sidebar-nav-text">Profiles</span>
+            <span id="profilesTabCount" class="tab-count">0</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="queue">
+            <span class="sidebar-nav-icon">Q</span>
+            <span class="sidebar-nav-text">Queue</span>
+            <span id="queueTabCount" class="tab-count">0</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="accounts">
+            <span class="sidebar-nav-icon">A</span>
+            <span class="sidebar-nav-text">Accounts</span>
+          </button>
+        </div>
+
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-label">Research</p>
+
+          <button class="tab-button" type="button" data-tab="youtube">
+            <span class="sidebar-nav-icon">Y</span>
+            <span class="sidebar-nav-text">YouTube Research</span>
+            <span id="youtubeTabCount" class="tab-count">0</span>
+          </button>
+        </div>
+
+        <div class="sidebar-nav-group">
+          <p class="sidebar-nav-label">Outreach</p>
+
+          <button class="tab-button" type="button" data-tab="outreach">
+            <span class="sidebar-nav-icon">O</span>
+            <span class="sidebar-nav-text">Connect & Messaging</span>
+          </button>
+        </div>
+
+        <div class="sidebar-nav-group sidebar-nav-group-bottom">
+          <p class="sidebar-nav-label">System</p>
+
+          <button class="tab-button" type="button" data-tab="health">
+            <span class="sidebar-nav-icon">H</span>
+            <span class="sidebar-nav-text">Health</span>
+          </button>
+        </div>
+      </nav>
+
+      <div class="sidebar-footer">
+        <span class="status-dot"></span>
+        <span>LinkedIn operations</span>
+      </div>
+    </aside>
+
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="page-heading">
+          <p id="pageEyebrow" class="eyebrow">Workspace</p>
+          <h1 id="pageTitle">Tổng quan</h1>
+          <p id="pageSubtitle" class="subtitle">
+            Theo dõi toàn bộ scanner, queue, worker và outreach trong một workspace.
           </p>
         </div>
-      </div>
 
-      <div class="header-actions">
-        <div id="systemBadge" class="system-badge is-neutral">
-          <span class="status-dot"></span>
-          <span id="systemBadgeText">Đang kiểm tra hệ thống</span>
+        <div class="header-actions">
+          <div id="systemBadge" class="system-badge is-neutral">
+            <span class="status-dot"></span>
+            <span id="systemBadgeText">Đang kiểm tra hệ thống</span>
+          </div>
+
+          <button
+            id="killProcessButton"
+            class="control-button control-button-danger"
+            type="button"
+            title="Dừng ngay lượt quét hiện tại và trả job về queue"
+          >
+            <span class="button-icon">■</span>
+            <span>Kill process</span>
+          </button>
+
+          <button
+            id="stopScanButton"
+            class="control-button control-button-warning"
+            type="button"
+            title="Tạm dừng nhận batch mới sau source hiện tại"
+          >
+            <span class="button-icon">Ⅱ</span>
+            <span id="stopScanButtonText">Stop scan</span>
+          </button>
+
+          <button id="refreshButton" class="primary-button" type="button">
+            <span class="button-icon">↻</span>
+            <span>Làm mới</span>
+          </button>
         </div>
-
-        <button
-          id="killProcessButton"
-          class="control-button control-button-danger"
-          type="button"
-          title="Dừng ngay lượt quét hiện tại và trả job về queue"
-        >
-          <span class="button-icon">■</span>
-          <span>Kill process</span>
-        </button>
-
-        <button
-          id="stopScanButton"
-          class="control-button control-button-warning"
-          type="button"
-          title="Tạm dừng nhận batch mới sau source hiện tại"
-        >
-          <span class="button-icon">Ⅱ</span>
-          <span id="stopScanButtonText">Stop scan</span>
-        </button>
-
-        <button id="refreshButton" class="primary-button" type="button">
-          <span class="button-icon">↻</span>
-          <span>Làm mới</span>
-        </button>
-      </div>
-    </header>
-
-    <nav class="tab-navigation" aria-label="Dashboard sections">
-      <button class="tab-button is-active" type="button" data-tab="overview">
-        Tổng quan
-      </button>
-
-      <button class="tab-button" type="button" data-tab="profiles">
-        Profiles
-        <span id="profilesTabCount" class="tab-count">0</span>
-      </button>
-
-      <button class="tab-button" type="button" data-tab="queue">
-        Queue
-        <span id="queueTabCount" class="tab-count">0</span>
-      </button>
-
-      <button class="tab-button" type="button" data-tab="accounts">
-        Accounts
-      </button>
-
-      <button class="tab-button" type="button" data-tab="youtube">
-        YouTube Research
-        <span id="youtubeTabCount" class="tab-count">0</span>
-      </button>
-
-        <button class="tab-button" type="button" data-tab="outreach">
-  Outreach
-</button>
-
-      <button class="tab-button" type="button" data-tab="health">
-        Health
-      </button>
-    </nav>
+      </header>
 
     <section id="globalError" class="global-error" hidden></section>
 
@@ -939,6 +974,107 @@
   </section>
 
 
+  <!-- ACCEPTED POOL -->
+  <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel">
+    <div class="panel-toolbar outreach-pool-toolbar">
+      <div>
+        <p class="panel-kicker">Accepted connections</p>
+        <h2>Accepted Pool</h2>
+        <p id="outreachAcceptedPoolSummary" class="panel-meta">
+          0 accepted profiles
+        </p>
+      </div>
+
+      <div id="outreachAcceptedPoolFilters" class="segmented-filter">
+        <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">
+          All 0
+        </button>
+        <button type="button" data-accepted-filter="not_sent" class="outreach-accepted-filter">
+          Not sent 0
+        </button>
+        <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">
+          Sent 0
+        </button>
+      </div>
+    </div>
+
+    <div id="outreachAcceptedPoolEmpty" class="state">
+      Chưa có user accepted.
+    </div>
+
+    <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden>
+      <table class="outreach-accepted-pool-table">
+        <thead>
+          <tr>
+            <th>LinkedIn</th>
+            <th>Account</th>
+            <th>Accepted</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="outreachAcceptedPoolBody"></tbody>
+      </table>
+    </div>
+  </article>
+
+
+  <!-- MESSAGE PREPARATION -->
+  <section class="message-preparation-grid">
+    <article class="panel message-preparation-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Recipient preparation</p>
+          <h2>Prepare Message Recipients</h2>
+          <p class="panel-meta">
+            Snapshot toàn bộ accepted users chưa gửi message. Chưa có thao tác gửi tin nhắn ở bước này.
+          </p>
+        </div>
+
+        <span id="messagePreparationCount" class="pill pill-neutral">
+          0 eligible
+        </span>
+      </div>
+
+      <div class="message-preparation-body">
+        <div class="message-preparation-copy">
+          <strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong>
+          <span id="messagePreparationMeta">
+            Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.
+          </span>
+        </div>
+
+        <button
+          id="messagePrepareAllButton"
+          class="primary-button"
+          type="button"
+          disabled
+        >
+          Prepare all
+        </button>
+      </div>
+
+      <p id="messagePreparationError" class="outreach-error" hidden></p>
+    </article>
+
+    <article class="panel message-batches-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Prepared snapshots</p>
+          <h2>Message Batches</h2>
+        </div>
+
+        <span id="messageBatchCount" class="panel-meta">0 batches</span>
+      </div>
+
+      <div id="messageBatchEmpty" class="state">
+        Chưa có prepared batch.
+      </div>
+
+      <div id="messageBatchList" class="message-batch-list"></div>
+    </article>
+  </section>
+
+
   <!-- RECENT JOBS -->
   <article class="panel outreach-history-panel">
 
@@ -1098,7 +1234,8 @@
         </div>
       </article>
     </section>
-  </main>
+    </main>
+  </div>
 
   <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
 
@@ -1119,6 +1256,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260812-2"></script>
+  <script src="./app.js?v=20260816-sidebar-1"></script>
 </body>
 </html>
