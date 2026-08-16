@@ -43,6 +43,8 @@ from app.outreach_accepted_pool_store import (
 from app.outreach_message_preparation_store import (
     OutreachMessagePreparationStoreError,
     get_message_preparation_candidates,
+    get_prepared_message_batch,
+    list_prepared_message_batches,
     prepare_all_unsent_accepted,
 )
 
@@ -897,6 +899,128 @@ async def get_outreach_message_preparation_api() -> JSONResponse:
         content={
             "ok": True,
             "preparation": result,
+        },
+    )
+
+
+
+@app.get("/api/outreach/messages/batches")
+async def list_outreach_message_batches_api() -> JSONResponse:
+    """
+    Read-only list of prepared message batches.
+    """
+    try:
+        batches = (
+            list_prepared_message_batches()
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not load Outreach message batches"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "message batches"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message batch list error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach message batches"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "batches": batches,
+        },
+    )
+
+
+@app.get("/api/outreach/messages/batches/{batch_id}")
+async def get_outreach_message_batch_api(
+    batch_id: str,
+) -> JSONResponse:
+    """
+    Read-only detail view for one frozen recipient snapshot.
+    """
+    try:
+        batch = (
+            get_prepared_message_batch(
+                batch_id
+            )
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not load Outreach message batch"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message batch detail error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    if batch is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "ok": False,
+                "error": (
+                    "Message batch not found"
+                ),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "batch": batch,
         },
     )
 
