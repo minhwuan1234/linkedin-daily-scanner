@@ -3654,50 +3654,64 @@ body {
 
 
 /* =========================================================
-   RATE LIMITS — SIDEBAR TRIGGER + SLIDE-IN DRAWER
+   RATE LIMITS — NAV ROW + SLIDE-IN DRAWER
    ========================================================= */
 
-.sidebar-rate-limit-trigger {
-  width: 100%;
-  min-height: 36px;
+.outreach-workflow-nav-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
-  margin-top: 4px;
-  border: 1px solid transparent;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+}
+
+.outreach-workflow-tabs {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0;
+}
+
+.outreach-rate-limit-button {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+
+  padding: 0 12px;
+
+  border: 1px solid var(--border);
   border-radius: 9px;
-  background: transparent;
+
+  background: var(--panel);
   color: var(--muted);
+
   font: inherit;
   font-size: 10px;
-  font-weight: 650;
-  text-align: left;
+  font-weight: 700;
+
   cursor: pointer;
 }
 
-.sidebar-rate-limit-trigger:hover,
-.sidebar-rate-limit-trigger[aria-expanded="true"] {
-  border-color: var(--border);
+.outreach-rate-limit-button:hover,
+.outreach-rate-limit-button[aria-expanded="true"] {
+  border-color: var(--border-strong);
   background: var(--panel-hover);
   color: var(--text);
 }
 
-.sidebar-rate-limit-trigger .sidebar-nav-text {
-  flex: 1;
+.outreach-rate-limit-button .tab-count {
+  min-width: 36px;
 }
 
-.sidebar-rate-limit-trigger .tab-count {
-  min-width: 38px;
-}
-
-.sidebar-rate-limit-trigger.is-warning .tab-count {
+.outreach-rate-limit-button.is-warning .tab-count {
   border-color: rgba(245, 190, 78, 0.3);
   background: rgba(245, 190, 78, 0.12);
   color: #f6cf7a;
 }
 
-.sidebar-rate-limit-trigger.is-critical .tab-count {
+.outreach-rate-limit-button.is-critical .tab-count {
   border-color: rgba(255, 99, 99, 0.3);
   background: rgba(255, 99, 99, 0.12);
   color: #ff9b9b;
@@ -3855,5 +3869,17 @@ body.has-rate-limit-drawer-open {
 
   .rate-limit-scheduler-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+
+@media (max-width: 680px) {
+  .outreach-workflow-nav-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .outreach-rate-limit-button {
+    align-self: flex-end;
   }
 }
