@@ -2256,6 +2256,14 @@ function renderOutreachAcceptanceSummary(
             <span class="panel-meta">
               Failed ${failed}
             </span>
+
+            <span class="panel-meta">
+              Last checked at ${
+     lastCheckedAt
+      ? escapeHtml(formatDate(lastCheckedAt))
+      : "—"
+  }
+</span>
           `
           : ""
       }
