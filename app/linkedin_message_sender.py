@@ -737,22 +737,10 @@ def send_message_once(
 
     send_button.click()
 
-    sent_verified = verify_message_sent(
-        page,
-        textbox,
-        message,
-    )
-
-    if not sent_verified:
-        raise RuntimeError(
-            "Send was clicked but message delivery "
-            "could not be verified."
-        )
-
-    # IMPORTANT:
-    # Close the exact conversation only AFTER strict send verification.
-    # This ensures the next profile cannot accidentally reuse the
-    # previous messaging overlay.
+    # User-approved success rule:
+    # once the Send button click succeeds, treat the action as sent.
+    # We no longer require DOM delivery verification because LinkedIn's
+    # post-send rendering is not stable enough for this worker.
     composer_closed = close_message_composer(
         page,
         textbox,
