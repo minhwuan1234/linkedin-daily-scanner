@@ -46,6 +46,7 @@ from app.outreach_message_preparation_store import (
     get_prepared_message_batch,
     list_prepared_message_batches,
     prepare_all_unsent_accepted,
+    prepare_selected_unsent_accepted,
 )
 
 from app.outreach_message_queue_store import (
@@ -1152,6 +1153,98 @@ async def queue_outreach_message_batch_api(
         content={
             "ok": True,
             "batch": queued_batch,
+        },
+    )
+
+
+@app.post("/api/outreach/messages/prepare-selected")
+async def prepare_selected_outreach_messages_api(
+    request: Request,
+) -> JSONResponse:
+    """
+    Snapshot only selected currently eligible accepted users
+    into one prepared message batch.
+
+    This endpoint does NOT send LinkedIn messages.
+    """
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    prospect_ids = (
+        payload.get("prospect_ids", [])
+        if isinstance(payload, dict)
+        else []
+    )
+
+    if not isinstance(prospect_ids, list):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "prospect_ids must be a list",
+            },
+        )
+
+    try:
+        result = prepare_selected_unsent_accepted(
+            prospect_ids=prospect_ids
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not prepare selected Outreach message recipients"
+        )
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "error": "Could not prepare selected recipients",
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected selected message preparation error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while preparing "
+                    "selected recipients"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    batch = result.get("batch") or {}
+
+    logger.info(
+        (
+            "OUTREACH SELECTED MESSAGE BATCH PREPARED | "
+            "batch_id=%s | "
+            "batch_code=%s | "
+            "target_count=%s"
+        ),
+        batch.get("id"),
+        batch.get("batch_code"),
+        result.get("target_count", 0),
+    )
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "created": bool(result.get("created")),
+            "batch": batch,
+            "target_count": result.get("target_count", 0),
         },
     )
 
