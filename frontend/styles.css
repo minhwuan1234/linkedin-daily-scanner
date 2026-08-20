@@ -3318,3 +3318,96 @@ body {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   ACCEPTED POOL — SELECT + PAGINATION
+   ========================================================= */
+
+.outreach-pool-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.accepted-select-column {
+  width: 46px;
+  min-width: 46px;
+  text-align: center;
+}
+
+.accepted-select-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.accepted-select-control input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+.accepted-select-control input:disabled {
+  cursor: default;
+  opacity: 0.35;
+}
+
+.outreach-accepted-pool-table tr.is-selected {
+  background: var(--accent-soft);
+}
+
+.accepted-pagination {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.accepted-pagination-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accepted-page-button {
+  min-height: 32px;
+  padding: 0 11px;
+}
+
+.message-preparation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+@media (max-width: 680px) {
+  .outreach-pool-controls {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .accepted-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .accepted-pagination-actions {
+    width: 100%;
+  }
+
+  .accepted-pagination-actions button,
+  .message-preparation-actions,
+  .message-preparation-actions button {
+    width: 100%;
+  }
+}
