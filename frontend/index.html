@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-rate-limit-drawer-2" />
+<link rel="stylesheet" href="./styles.css?v=20260820-rate-limit-nav-row-2" />
 </head>
 
 <body>
@@ -71,6 +71,7 @@
             <span class="sidebar-nav-icon">O</span>
             <span class="sidebar-nav-text">Connect & Messaging</span>
           </button>
+
 
         </div>
 
@@ -734,64 +735,45 @@
   </div>
 
   <div class="outreach-workflow-nav-row">
-
   <div
     class="segmented-filter outreach-workflow-tabs"
     role="tablist"
     aria-label="Connect and messaging workflow"
   >
-    <button
-      type="button"
-      class="outreach-accepted-filter outreach-workflow-tab is-active"
-      data-outreach-process-tab="connect"
-    >
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
       Connect
     </button>
 
-    <button
-      type="button"
-      class="outreach-accepted-filter outreach-workflow-tab"
-      data-outreach-process-tab="acceptance"
-    >
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
       Acceptance
     </button>
 
-    <button
-      type="button"
-      class="outreach-accepted-filter outreach-workflow-tab"
-      data-outreach-process-tab="recipients"
-    >
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
       Recipients
     </button>
 
-    <button
-      type="button"
-      class="outreach-accepted-filter outreach-workflow-tab"
-      data-outreach-process-tab="messages"
-    >
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
       Messages
     </button>
   </div>
 
-
-  <button
-    id="rateLimitDrawerButton"
-    class="outreach-rate-limit-button"
-    type="button"
-    aria-controls="rateLimitDrawer"
-    aria-expanded="false"
-  >
-    <span>Rate Limits</span>
-
-    <span
-      id="rateLimitSidebarBadge"
-      class="tab-count"
+    <button
+      id="rateLimitDrawerButton"
+      class="outreach-rate-limit-button"
+      type="button"
+      aria-controls="rateLimitDrawer"
+      aria-expanded="false"
     >
-      —
-    </span>
-  </button>
+      <span>Rate Limits</span>
 
-</div>
+      <span
+        id="rateLimitSidebarBadge"
+        class="tab-count"
+      >
+        —
+      </span>
+    </button>
+  </div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <section class="outreach-grid outreach-connect-grid">
@@ -1198,6 +1180,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-rate-limit-drawer-2"></script>
+  <script src="./app.js?v=20260820-rate-limit-nav-row-2"></script>
 </body>
 </html>
