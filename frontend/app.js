@@ -234,6 +234,30 @@ const els = {
   messageBatchList:
     document.querySelector("#messageBatchList"),
 
+  messageBatchRowTemplate:
+    document.querySelector("#messageBatchRowTemplate"),
+
+  messageSendModal:
+    document.querySelector("#messageSendModal"),
+
+  messageSendDialogMeta:
+    document.querySelector("#messageSendDialogMeta"),
+
+  messageTemplateInput:
+    document.querySelector("#messageTemplateInput"),
+
+  messageSendError:
+    document.querySelector("#messageSendError"),
+
+  messageSendCloseButton:
+    document.querySelector("#messageSendCloseButton"),
+
+  messageSendCancelButton:
+    document.querySelector("#messageSendCancelButton"),
+
+  messageSendConfirmButton:
+    document.querySelector("#messageSendConfirmButton"),
+
   pageEyebrow:
     document.querySelector("#pageEyebrow"),
 
@@ -297,6 +321,8 @@ const state = {
   },
   messageBatches: [],
   messagePreparationSubmitting: false,
+  messageBatchQueueSubmittingIds: new Set(),
+  messageSendSelectedBatchId: null,
   tableErrors: {},
   commandPending: false
 };
@@ -1315,7 +1341,75 @@ function renderOutreachJob(job) {
     Number(job.progress_percent || 0);
 
   if (
-    !Number.isFinite(progressPercent) ||
+    !Number.isF
+if (els.messageSendCloseButton) {
+  els.messageSendCloseButton.addEventListener(
+    "click",
+    closeMessageSendModal
+  );
+}
+
+if (els.messageSendCancelButton) {
+  els.messageSendCancelButton.addEventListener(
+    "click",
+    closeMessageSendModal
+  );
+}
+
+if (els.messageSendModal) {
+  els.messageSendModal
+    .querySelectorAll(
+      "[data-message-send-close]"
+    )
+    .forEach((element) => {
+      element.addEventListener(
+        "click",
+        closeMessageSendModal
+      );
+    });
+}
+
+if (els.messageSendConfirmButton) {
+  els.messageSendConfirmButton.addEventListener(
+    "click",
+    async () => {
+      const batchId =
+        state.messageSendSelectedBatchId;
+
+      const template =
+        els.messageTemplateInput?.value ||
+        "";
+
+      try {
+        if (els.messageSendError) {
+          els.messageSendError.hidden = true;
+          els.messageSendError.textContent = "";
+        }
+
+        await queueMessageBatchForSending(
+          batchId,
+          template
+        );
+
+      } catch (error) {
+        console.error(
+          "Queue message batch error:",
+          error
+        );
+
+        if (els.messageSendError) {
+          els.messageSendError.textContent =
+            error.message ||
+            String(error);
+
+          els.messageSendError.hidden = false;
+        }
+      }
+    }
+  );
+}
+
+inite(progressPercent) ||
     progressPercent < 0
   ) {
     progressPercent = 0;
@@ -2996,6 +3090,34 @@ async function loadMessageBatches() {
 }
 
 
+function getMessageBatchSendLabel(
+  batchStatus,
+  queueSubmitting
+) {
+  if (queueSubmitting) {
+    return "Queueing...";
+  }
+
+  if (batchStatus === "queued") {
+    return "Queued";
+  }
+
+  if (batchStatus === "processing") {
+    return "Sending...";
+  }
+
+  if (batchStatus === "completed") {
+    return "Completed";
+  }
+
+  if (batchStatus === "failed") {
+    return "Failed";
+  }
+
+  return "Send messages";
+}
+
+
 function renderMessagePreparation() {
   const count = Number(
     state.messagePreparation?.count || 0
@@ -3051,51 +3173,326 @@ function renderMessagePreparation() {
       batches.length > 0;
   }
 
-  if (!els.messageBatchList) {
+  if (
+    !els.messageBatchList ||
+    !els.messageBatchRowTemplate
+  ) {
     return;
   }
 
-  els.messageBatchList.innerHTML =
-    batches
-      .map((batch) => `
-        <div class="message-batch-row">
-          <div class="message-batch-copy">
-            <strong>${escapeHtml(batch.batch_code || "Prepared batch")}</strong>
-            <span>
-              ${escapeHtml(String(batch.target_count || 0))} recipients
-              · ${escapeHtml(formatDate(batch.created_at))}
-            </span>
-          </div>
+  els.messageBatchList.replaceChildren();
 
-          <div class="message-batch-actions">
-            <span class="pill pill-neutral">
-              ${escapeHtml(batch.status || "prepared")}
-            </span>
+  batches.forEach((batch) => {
+    const batchId = String(
+      batch.id || ""
+    ).trim();
 
-            <button
-              type="button"
-              class="message-batch-detail-button"
-              data-message-batch-id="${escapeHtml(batch.id || "")}"
-            >
-              View snapshot
-            </button>
-          </div>
-        </div>
-      `)
-      .join("");
+    const batchStatus = normaliseStatus(
+      batch.status || "prepared"
+    );
 
-  els.messageBatchList
-    .querySelectorAll("[data-message-batch-id]")
-    .forEach((button) => {
-      button.addEventListener(
+    const queueSubmitting =
+      state
+        .messageBatchQueueSubmittingIds
+        .has(batchId);
+
+    const canSend =
+      Boolean(batchId) &&
+      batchStatus === "prepared" &&
+      !queueSubmitting;
+
+    const fragment =
+      els.messageBatchRowTemplate
+        .content
+        .cloneNode(true);
+
+    const code =
+      fragment.querySelector(
+        "[data-message-batch-code]"
+      );
+
+    const meta =
+      fragment.querySelector(
+        "[data-message-batch-meta]"
+      );
+
+    const status =
+      fragment.querySelector(
+        "[data-message-batch-status]"
+      );
+
+    const detailButton =
+      fragment.querySelector(
+        "[data-message-batch-detail]"
+      );
+
+    const sendButton =
+      fragment.querySelector(
+        "[data-message-batch-send]"
+      );
+
+    if (code) {
+      code.textContent =
+        batch.batch_code ||
+        "Prepared batch";
+    }
+
+    if (meta) {
+      meta.textContent =
+        `${Number(batch.target_count || 0)} recipients · ${formatDate(
+          batch.created_at
+        )}`;
+    }
+
+    if (status) {
+      status.textContent =
+        batchStatus;
+    }
+
+    if (detailButton) {
+      detailButton.dataset.messageBatchDetailId =
+        batchId;
+
+      detailButton.addEventListener(
         "click",
         () => {
           openPreparedMessageBatch(
-            button.dataset.messageBatchId
+            batchId
           );
         }
       );
-    });
+    }
+
+    if (sendButton) {
+      sendButton.dataset.messageBatchSendId =
+        batchId;
+
+      sendButton.disabled =
+        !canSend;
+
+      sendButton.textContent =
+        getMessageBatchSendLabel(
+          batchStatus,
+          queueSubmitting
+        );
+
+      sendButton.addEventListener(
+        "click",
+        () => {
+          openMessageSendModal(
+            batchId
+          );
+        }
+      );
+    }
+
+    els.messageBatchList.append(
+      fragment
+    );
+  });
+}
+
+
+function getMessageBatchById(
+  batchId
+) {
+  const cleanedBatchId = String(
+    batchId || ""
+  ).trim();
+
+  return (
+    Array.isArray(state.messageBatches)
+      ? state.messageBatches
+      : []
+  ).find(
+    (item) =>
+      String(item?.id || "").trim() ===
+      cleanedBatchId
+  ) || null;
+}
+
+
+function openMessageSendModal(
+  batchId
+) {
+  const batch = getMessageBatchById(
+    batchId
+  );
+
+  if (!batch) {
+    return;
+  }
+
+  if (
+    normaliseStatus(batch.status) !==
+    "prepared"
+  ) {
+    return;
+  }
+
+  state.messageSendSelectedBatchId =
+    String(batch.id || "").trim();
+
+  if (els.messageSendDialogMeta) {
+    els.messageSendDialogMeta.textContent =
+      `${batch.batch_code || "Message batch"} · ${Number(
+        batch.target_count || 0
+      )} recipients`;
+  }
+
+  if (els.messageTemplateInput) {
+    els.messageTemplateInput.value =
+      "Hi {first_name},\n\n";
+  }
+
+  if (els.messageSendError) {
+    els.messageSendError.hidden = true;
+    els.messageSendError.textContent = "";
+  }
+
+  if (els.messageSendModal) {
+    els.messageSendModal.hidden = false;
+  }
+
+  requestAnimationFrame(() => {
+    els.messageTemplateInput?.focus();
+  });
+}
+
+
+function closeMessageSendModal() {
+  state.messageSendSelectedBatchId =
+    null;
+
+  if (els.messageSendError) {
+    els.messageSendError.hidden = true;
+    els.messageSendError.textContent = "";
+  }
+
+  if (els.messageSendModal) {
+    els.messageSendModal.hidden = true;
+  }
+}
+
+
+async function queueMessageBatchForSending(
+  batchId,
+  messageTemplate
+) {
+  const cleanedBatchId = String(
+    batchId || ""
+  ).trim();
+
+  const cleanedTemplate = String(
+    messageTemplate || ""
+  ).trim();
+
+  if (!cleanedBatchId) {
+    throw new Error(
+      "Không tìm thấy Message Batch ID."
+    );
+  }
+
+  if (!cleanedTemplate) {
+    throw new Error(
+      "Message template không được để trống."
+    );
+  }
+
+  if (
+    state
+      .messageBatchQueueSubmittingIds
+      .has(cleanedBatchId)
+  ) {
+    return;
+  }
+
+  const batch = getMessageBatchById(
+    cleanedBatchId
+  );
+
+  if (!batch) {
+    throw new Error(
+      "Không tìm thấy Message Batch."
+    );
+  }
+
+  if (
+    normaliseStatus(batch.status) !==
+    "prepared"
+  ) {
+    throw new Error(
+      "Chỉ batch có status prepared mới được gửi."
+    );
+  }
+
+  state
+    .messageBatchQueueSubmittingIds
+    .add(cleanedBatchId);
+
+  if (els.messageSendConfirmButton) {
+    els.messageSendConfirmButton.disabled =
+      true;
+
+    els.messageSendConfirmButton.textContent =
+      "Queueing...";
+  }
+
+  renderMessagePreparation();
+
+  try {
+    const response = await fetch(
+      `/api/outreach/messages/batches/${encodeURIComponent(
+        cleanedBatchId
+      )}/queue`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        cache: "no-store",
+        body: JSON.stringify({
+          message_template: cleanedTemplate
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể queue Message Batch."
+      );
+    }
+
+    closeMessageSendModal();
+
+    await Promise.all([
+      loadMessageBatches(),
+      loadMessagePreparation()
+    ]);
+
+  } finally {
+    state
+      .messageBatchQueueSubmittingIds
+      .delete(cleanedBatchId);
+
+    if (els.messageSendConfirmButton) {
+      els.messageSendConfirmButton.disabled =
+        false;
+
+      els.messageSendConfirmButton.textContent =
+        "Queue & Send";
+    }
+
+    renderMessagePreparation();
+  }
 }
 
 
