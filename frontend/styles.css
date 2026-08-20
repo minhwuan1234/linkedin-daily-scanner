@@ -3883,3 +3883,241 @@ body.has-rate-limit-drawer-open {
     align-self: flex-end;
   }
 }
+
+
+/* =========================================================
+   CONNECT TAB — SMARTER UX
+   ========================================================= */
+
+.outreach-connect-grid-smart {
+  grid-template-columns:
+    minmax(360px, 0.82fr)
+    minmax(0, 1.18fr);
+  align-items: start;
+}
+
+.outreach-launch-panel-smart,
+.outreach-result-panel-smart {
+  align-self: start;
+}
+
+.outreach-connect-form-smart {
+  padding: 16px 18px 18px;
+}
+
+.outreach-url-field-smart {
+  gap: 7px;
+}
+
+.outreach-url-field-smart textarea {
+  min-height: 76px;
+  max-height: 240px;
+  resize: vertical;
+  padding: 12px 13px;
+  border-radius: 11px;
+  line-height: 1.5;
+  transition:
+    min-height 180ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.outreach-url-field-smart textarea:focus {
+  min-height: 210px;
+  background: var(--bg-soft);
+}
+
+.outreach-input-footer-smart {
+  margin-top: 12px;
+  align-items: flex-end;
+}
+
+.outreach-input-summary {
+  min-width: 0;
+}
+
+.outreach-input-summary strong {
+  margin-bottom: 3px;
+}
+
+.outreach-result-panel-smart .panel-header {
+  align-items: center;
+}
+
+.outreach-current-job-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.outreach-current-status {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.outreach-job-empty-smart {
+  min-height: 130px;
+}
+
+.outreach-job-result-smart {
+  padding: 16px 18px 18px;
+}
+
+.outreach-progress-block-smart {
+  margin-bottom: 12px;
+  padding: 12px 13px;
+}
+
+.outreach-progress-block-smart .outreach-progress-header {
+  margin-bottom: 8px;
+}
+
+.outreach-progress-block-smart .outreach-progress-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.outreach-progress-percent-smart {
+  margin: 0 !important;
+  color: var(--muted) !important;
+  font-size: 10px !important;
+  font-weight: 700;
+}
+
+.outreach-primary-stat-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.outreach-stat-primary {
+  padding: 11px 12px;
+  border-radius: 11px;
+}
+
+.outreach-stat-primary span {
+  margin-bottom: 7px;
+  font-size: 9px;
+}
+
+.outreach-stat-primary strong {
+  font-size: 18px;
+}
+
+.outreach-stat-success strong {
+  color: #79e4b7;
+}
+
+.outreach-stat-failed strong {
+  color: #ff9ba6;
+}
+
+.outreach-secondary-stat-row {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.outreach-secondary-stat-row > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.outreach-secondary-stat-row span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.outreach-secondary-stat-row strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.outreach-secondary-stat-row > div:nth-child(1) strong {
+  color: #79e4b7;
+}
+
+.outreach-secondary-stat-row > div:nth-child(2) strong {
+  color: #f8ca72;
+}
+
+.outreach-secondary-stat-row > div:nth-child(3) strong {
+  color: #ff9ba6;
+}
+
+.outreach-job-meta-grid-smart {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.outreach-job-meta-grid-smart > div {
+  padding: 10px 11px;
+  border-radius: 10px;
+}
+
+.outreach-job-message-row {
+  min-height: 0;
+  margin-top: 10px;
+}
+
+.outreach-job-message-row:empty {
+  display: none;
+}
+
+.outreach-result-panel-smart .outreach-targets-section {
+  margin-top: 10px;
+}
+
+@media (max-width: 1100px) {
+  .outreach-connect-grid-smart {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .outreach-primary-stat-grid {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .outreach-secondary-stat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-input-footer-smart {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  #outreachStartButton {
+    width: 100%;
+  }
+
+  .outreach-current-job-header-meta {
+    align-items: flex-end;
+    flex-direction: column;
+  }
+}
