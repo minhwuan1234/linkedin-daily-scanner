@@ -476,6 +476,9 @@ const state = {
   outreachScheduler: null,
   outreachAccounts: [],
   outreachRecentJobs: [],
+  acceptanceInsights: null,
+  acceptanceInsightsLoading: false,
+  acceptanceInsightsError: null,
   outreachProcessTab: "connect",
   outreachHistoryPage: 1,
   outreachHistoryPageSize: 5,
@@ -1771,6 +1774,8 @@ function openRateLimitDrawer() {
 
   closeAcceptanceInsightsDrawer();
 
+  closeAcceptanceInsightsDrawer();
+
   els.rateLimitDrawer.classList.add(
     "is-open"
   );
@@ -1816,6 +1821,23 @@ function closeRateLimitDrawer() {
 }
 
 
+function formatAcceptancePercent(
+  value
+) {
+  const number = Number(
+    value || 0
+  );
+
+  if (!Number.isFinite(number)) {
+    return "0.0%";
+  }
+
+  return `${(
+    number * 100
+  ).toFixed(1)}%`;
+}
+
+
 function populateAcceptanceInsightsJobFilter() {
   if (!els.acceptanceInsightsJobFilter) {
     return;
@@ -1835,15 +1857,30 @@ function populateAcceptanceInsightsJobFilter() {
   allOption.textContent =
     "All Connect Jobs";
 
-  fragment.append(allOption);
+  fragment.append(
+    allOption
+  );
 
-  const rows = Array.isArray(
-    state.outreachRecentJobs
-  )
-    ? state.outreachRecentJobs
-    : [];
+  const apiJobs =
+    Array.isArray(
+      state.acceptanceInsights?.jobs
+    )
+      ? state.acceptanceInsights.jobs
+      : [];
 
-  rows.forEach((job) => {
+  const fallbackJobs =
+    Array.isArray(
+      state.outreachRecentJobs
+    )
+      ? state.outreachRecentJobs
+      : [];
+
+  const sourceJobs =
+    apiJobs.length
+      ? apiJobs
+      : fallbackJobs;
+
+  sourceJobs.forEach((job) => {
     const jobId = String(
       job.job_id ||
       job.id ||
@@ -1855,7 +1892,9 @@ function populateAcceptanceInsightsJobFilter() {
     }
 
     const option =
-      document.createElement("option");
+      document.createElement(
+        "option"
+      );
 
     option.value = jobId;
     option.textContent =
@@ -1864,11 +1903,15 @@ function populateAcceptanceInsightsJobFilter() {
         jobId
       );
 
-    fragment.append(option);
+    fragment.append(
+      option
+    );
   });
 
   els.acceptanceInsightsJobFilter
-    .replaceChildren(fragment);
+    .replaceChildren(
+      fragment
+    );
 
   const stillExists = Array.from(
     els.acceptanceInsightsJobFilter.options
@@ -1901,52 +1944,280 @@ function syncAcceptanceInsightsFilters() {
 }
 
 
-function renderAcceptanceInsightsEmptyState() {
+function renderAcceptanceInsights() {
   populateAcceptanceInsightsJobFilter();
   syncAcceptanceInsightsFilters();
 
+  const insights =
+    state.acceptanceInsights;
+
+  const loading =
+    state.acceptanceInsightsLoading;
+
+  const error =
+    state.acceptanceInsightsError;
+
+  const accounts =
+    Array.isArray(
+      insights?.accounts
+    )
+      ? insights.accounts
+      : [];
+
+  const summary =
+    insights?.summary ||
+    {};
+
+  const best =
+    summary.best_performer ||
+    null;
+
   if (els.acceptanceInsightsBestAccount) {
     els.acceptanceInsightsBestAccount.textContent =
-      "—";
+      best
+        ? getOutreachAccountDisplayName(
+            best.account_id
+          )
+        : "—";
   }
 
   if (els.acceptanceInsightsBestMeta) {
     els.acceptanceInsightsBestMeta.textContent =
-      "Waiting for performance data";
+      best
+        ? `${Number(
+            best.accepted || 0
+          )} accepted · ${formatAcceptancePercent(
+            best.acceptance_rate
+          )}`
+        : (
+            loading
+              ? "Loading performance data..."
+              : "No accepted connections yet"
+          );
   }
 
   if (els.acceptanceInsightsTotalConnected) {
     els.acceptanceInsightsTotalConnected.textContent =
-      "—";
+      loading
+        ? "…"
+        : Number(
+            summary.total_connected ||
+            0
+          ).toLocaleString(
+            "vi-VN"
+          );
   }
 
   if (els.acceptanceInsightsTotalAccepted) {
     els.acceptanceInsightsTotalAccepted.textContent =
-      "—";
+      loading
+        ? "…"
+        : Number(
+            summary.total_accepted ||
+            0
+          ).toLocaleString(
+            "vi-VN"
+          );
   }
 
   if (els.acceptanceInsightsOverallRate) {
     els.acceptanceInsightsOverallRate.textContent =
-      "—";
+      loading
+        ? "…"
+        : formatAcceptancePercent(
+            summary.overall_rate
+          );
   }
 
   if (els.acceptanceInsightsUpdatedAt) {
     els.acceptanceInsightsUpdatedAt.textContent =
-      "—";
+      insights?.generated_at
+        ? `Updated ${formatDate(
+            insights.generated_at
+          )}`
+        : "—";
   }
+
+  const hasRows =
+    accounts.length > 0;
 
   if (els.acceptanceInsightsEmpty) {
     els.acceptanceInsightsEmpty.hidden =
-      false;
+      hasRows;
+
+    if (!hasRows) {
+      els.acceptanceInsightsEmpty.textContent =
+        loading
+          ? "Loading Acceptance Insights..."
+          : error
+            ? error
+            : "Chưa có Connect data trong scope này.";
+    }
   }
 
   if (els.acceptanceInsightsTableWrap) {
     els.acceptanceInsightsTableWrap.hidden =
-      true;
+      !hasRows;
+  }
+
+  if (
+    !els.acceptanceInsightsTableBody ||
+    !els.acceptanceInsightsRowTemplate
+  ) {
+    return;
   }
 
   els.acceptanceInsightsTableBody
-    ?.replaceChildren();
+    .replaceChildren();
+
+  accounts.forEach((row) => {
+    const fragment =
+      els.acceptanceInsightsRowTemplate
+        .content
+        .cloneNode(
+          true
+        );
+
+    const setText = (
+      selector,
+      value
+    ) => {
+      const element =
+        fragment.querySelector(
+          selector
+        );
+
+      if (element) {
+        element.textContent =
+          String(value);
+      }
+    };
+
+    setText(
+      "[data-insights-account]",
+      getOutreachAccountDisplayName(
+        row.account_id
+      )
+    );
+
+    setText(
+      "[data-insights-connected]",
+      Number(
+        row.connected ||
+        0
+      ).toLocaleString(
+        "vi-VN"
+      )
+    );
+
+    setText(
+      "[data-insights-accepted]",
+      Number(
+        row.accepted ||
+        0
+      ).toLocaleString(
+        "vi-VN"
+      )
+    );
+
+    setText(
+      "[data-insights-rate]",
+      formatAcceptancePercent(
+        row.acceptance_rate
+      )
+    );
+
+    setText(
+      "[data-insights-share]",
+      formatAcceptancePercent(
+        row.share_of_total_accepted
+      )
+    );
+
+    els.acceptanceInsightsTableBody
+      .append(
+        fragment
+      );
+  });
+}
+
+
+async function loadAcceptanceInsights() {
+  if (
+    state.acceptanceInsightsLoading
+  ) {
+    return;
+  }
+
+  state.acceptanceInsightsLoading =
+    true;
+
+  state.acceptanceInsightsError =
+    null;
+
+  renderAcceptanceInsights();
+
+  const scope =
+    els.acceptanceInsightsScopeFilter?.value ||
+    "all";
+
+  const selectedJobId =
+    scope === "job"
+      ? String(
+          els.acceptanceInsightsJobFilter?.value ||
+          ""
+        ).trim()
+      : "";
+
+  const query =
+    selectedJobId &&
+    selectedJobId !== "all"
+      ? `?job_id=${encodeURIComponent(
+          selectedJobId
+        )}`
+      : "";
+
+  try {
+    const response = await fetch(
+      `/api/outreach/acceptance-insights${query}`,
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Acceptance Insights."
+      );
+    }
+
+    state.acceptanceInsights =
+      result.insights ||
+      null;
+
+  } catch (error) {
+    state.acceptanceInsightsError =
+      error.message ||
+      String(error);
+
+  } finally {
+    state.acceptanceInsightsLoading =
+      false;
+
+    renderAcceptanceInsights();
+  }
 }
 
 
@@ -1956,7 +2227,6 @@ function openAcceptanceInsightsDrawer() {
   }
 
   closeRateLimitDrawer();
-  renderAcceptanceInsightsEmptyState();
 
   els.acceptanceInsightsDrawer.classList.add(
     "is-open"
@@ -1976,6 +2246,8 @@ function openAcceptanceInsightsDrawer() {
   document.body.classList.add(
     "has-acceptance-insights-drawer-open"
   );
+
+  loadAcceptanceInsights();
 }
 
 
@@ -2003,7 +2275,6 @@ function closeAcceptanceInsightsDrawer() {
     "has-acceptance-insights-drawer-open"
   );
 }
-
 
 function renderRateLimitSidebarSummary(
   accounts
@@ -4181,7 +4452,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-      "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something you are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
+      "Hi {first_name},\n\n";
   }
 
   if (els.messageSendError) {
@@ -6330,12 +6601,15 @@ els.acceptanceInsightsDrawerBackdrop?.addEventListener(
 
 els.acceptanceInsightsScopeFilter?.addEventListener(
   "change",
-  syncAcceptanceInsightsFilters
+  () => {
+    syncAcceptanceInsightsFilters();
+    loadAcceptanceInsights();
+  }
 );
 
 els.acceptanceInsightsJobFilter?.addEventListener(
   "change",
-  renderAcceptanceInsightsEmptyState
+  loadAcceptanceInsights
 );
 
 els.rateLimitDrawerButton?.addEventListener(
