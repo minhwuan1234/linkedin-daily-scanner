@@ -985,16 +985,22 @@
         </p>
       </div>
 
-      <div id="outreachAcceptedPoolFilters" class="segmented-filter">
-        <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">
-          All 0
-        </button>
-        <button type="button" data-accepted-filter="not_sent" class="outreach-accepted-filter">
-          Not sent 0
-        </button>
-        <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">
-          Sent 0
-        </button>
+      <div class="outreach-pool-controls">
+        <span id="outreachAcceptedSelectedCount" class="pill pill-neutral">
+          0 selected
+        </span>
+
+        <div id="outreachAcceptedPoolFilters" class="segmented-filter">
+          <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">
+            All 0
+          </button>
+          <button type="button" data-accepted-filter="not_sent" class="outreach-accepted-filter">
+            Not sent 0
+          </button>
+          <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">
+            Sent 0
+          </button>
+        </div>
       </div>
     </div>
 
@@ -1006,14 +1012,57 @@
       <table class="outreach-accepted-pool-table">
         <thead>
           <tr>
+            <th class="accepted-select-column">
+              <label class="accepted-select-control">
+                <input
+                  id="outreachAcceptedSelectPage"
+                  type="checkbox"
+                  aria-label="Select eligible profiles on this page"
+                >
+              </label>
+            </th>
             <th>LinkedIn</th>
             <th>Account</th>
             <th>Accepted</th>
             <th>Message</th>
           </tr>
         </thead>
+
         <tbody id="outreachAcceptedPoolBody"></tbody>
       </table>
+
+      <template id="outreachAcceptedPoolRowTemplate">
+        <tr>
+          <td class="accepted-select-column">
+            <label class="accepted-select-control">
+              <input
+                type="checkbox"
+                data-accepted-select
+                aria-label="Select profile for message batch"
+              >
+            </label>
+          </td>
+          <td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td>
+          <td data-accepted-account>—</td>
+          <td data-accepted-at>—</td>
+          <td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td>
+        </tr>
+      </template>
+    </div>
+
+    <div id="outreachAcceptedPagination" class="accepted-pagination" hidden>
+      <span id="outreachAcceptedPageMeta" class="panel-meta">
+        Page 1 / 1
+      </span>
+
+      <div class="accepted-pagination-actions">
+        <button id="outreachAcceptedPrevPage" type="button" class="secondary-button accepted-page-button">
+          Previous
+        </button>
+        <button id="outreachAcceptedNextPage" type="button" class="secondary-button accepted-page-button">
+          Next
+        </button>
+      </div>
     </div>
   </article>
 
@@ -1043,14 +1092,25 @@
           </span>
         </div>
 
-        <button
-          id="messagePrepareAllButton"
-          class="primary-button"
-          type="button"
-          disabled
-        >
-          Prepare all
-        </button>
+        <div class="message-preparation-actions">
+          <button
+            id="messagePrepareSelectedButton"
+            class="secondary-button"
+            type="button"
+            disabled
+          >
+            Prepare selected
+          </button>
+
+          <button
+            id="messagePrepareAllButton"
+            class="primary-button"
+            type="button"
+            disabled
+          >
+            Prepare all
+          </button>
+        </div>
       </div>
 
       <p id="messagePreparationError" class="outreach-error" hidden></p>
@@ -1375,6 +1435,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-message-send-ui-1"></script>
+  <script src="./app.js?v=20260820-accepted-select-pagination-1"></script>
 </body>
 </html>
