@@ -585,6 +585,118 @@ def verify_message_sent(
     return False
 
 
+def find_message_dialog(
+    textbox: Locator,
+) -> Locator:
+    """
+    Resolve the exact messaging dialog that owns the textbox.
+
+    We intentionally scope all close-button discovery to this dialog.
+    This prevents another global button[aria-label="Dismiss"] on the
+    LinkedIn page from being clicked by mistake.
+    """
+
+    dialog = textbox.locator(
+        'xpath=ancestor::*[@role="dialog"][1]'
+    )
+
+    if dialog.count() <= 0:
+        raise RuntimeError(
+            "Messaging dialog containing the textbox was not found."
+        )
+
+    return dialog
+
+
+def close_message_composer(
+    page: Page,
+    textbox: Locator,
+    *,
+    timeout_ms: int = 5_000,
+) -> bool:
+    """
+    Close the SAME messaging dialog after a send was strictly verified.
+
+    Confirmed LinkedIn DOM from the live page:
+
+        button[aria-label="Dismiss"]
+            svg[data-test-icon="close-small"]
+
+    Important:
+    - never uses LinkedIn random CSS classes;
+    - never uses x/y coordinates;
+    - never clicks a global Dismiss button;
+    - only clicks Dismiss inside the dialog that owns this textbox;
+    - verifies that the dialog disappears before returning True.
+    """
+
+    dialog = find_message_dialog(
+        textbox
+    )
+
+    close_buttons = dialog.locator(
+        'button[aria-label="Dismiss"]'
+        ':has(svg[data-test-icon="close-small"])'
+    )
+
+    close_button: Locator | None = None
+
+    for index in range(
+        close_buttons.count()
+    ):
+        candidate = close_buttons.nth(
+            index
+        )
+
+        try:
+            if candidate.is_visible():
+                close_button = candidate
+                break
+
+        except Exception:
+            continue
+
+    if close_button is None:
+        raise RuntimeError(
+            "Message was sent, but the messaging dialog close "
+            'button [aria-label="Dismiss"] with '
+            'svg[data-test-icon="close-small"] was not found.'
+        )
+
+    close_button.click()
+
+    deadline = (
+        page.evaluate("Date.now()")
+        + timeout_ms
+    )
+
+    while (
+        page.evaluate("Date.now()")
+        < deadline
+    ):
+        try:
+            dialog_visible = (
+                dialog.count() > 0
+                and dialog.is_visible()
+            )
+
+        except Exception:
+            # Detached from DOM is also a successful close.
+            dialog_visible = False
+
+        if not dialog_visible:
+            return True
+
+        page.wait_for_timeout(
+            200
+        )
+
+    raise RuntimeError(
+        "Message was sent and Dismiss was clicked, "
+        "but the messaging dialog remained visible."
+    )
+
+
 def send_message_once(
     page: Page,
     message: str,
@@ -637,6 +749,15 @@ def send_message_once(
             "could not be verified."
         )
 
+    # IMPORTANT:
+    # Close the exact conversation only AFTER strict send verification.
+    # This ensures the next profile cannot accidentally reuse the
+    # previous messaging overlay.
+    composer_closed = close_message_composer(
+        page,
+        textbox,
+    )
+
     return {
         "composer_opened": True,
         "textbox_found": True,
@@ -644,4 +765,5 @@ def send_message_once(
         "send_button_found": True,
         "send_clicked": True,
         "sent_verified": True,
+        "composer_closed": composer_closed,
     }
