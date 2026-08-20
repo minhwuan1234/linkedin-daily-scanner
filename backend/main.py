@@ -48,6 +48,12 @@ from app.outreach_message_preparation_store import (
     prepare_all_unsent_accepted,
 )
 
+from app.outreach_message_queue_store import (
+    OutreachMessageQueueStoreError,
+    queue_message_batch,
+)
+
+
 
 # =========================================================
 # LOGGING
@@ -1021,6 +1027,131 @@ async def get_outreach_message_batch_api(
         content={
             "ok": True,
             "batch": batch,
+        },
+    )
+
+
+
+@app.post(
+    "/api/outreach/messages/batches/{batch_id}/queue"
+)
+async def queue_outreach_message_batch_api(
+    batch_id: str,
+    request: Request,
+) -> JSONResponse:
+    """
+    Queue one prepared message batch for the Mac Message Worker.
+
+    Railway only writes:
+        prepared -> queued
+
+    Railway NEVER opens LinkedIn and NEVER sends the message itself.
+    """
+
+    cleaned_batch_id = str(
+        batch_id
+        or ""
+    ).strip()
+
+    if not cleaned_batch_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "batch_id is required",
+            },
+        )
+
+    try:
+        payload = await request.json()
+
+    except Exception:
+        payload = {}
+
+    message_template = str(
+        (
+            payload
+            if isinstance(
+                payload,
+                dict,
+            )
+            else {}
+        ).get(
+            "message_template",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not message_template:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "message_template is required",
+            },
+        )
+
+    try:
+        queued_batch = queue_message_batch(
+            batch_id=cleaned_batch_id,
+            message_template=message_template,
+        )
+
+    except OutreachMessageQueueStoreError as exc:
+        logger.exception(
+            "Could not queue Outreach message batch"
+        )
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not queue Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message queue error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while queueing "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "OUTREACH MESSAGE BATCH QUEUED | "
+            "batch_id=%s | "
+            "batch_code=%s | "
+            "targets=%s"
+        ),
+        cleaned_batch_id,
+        queued_batch.get(
+            "batch_code"
+        ),
+        queued_batch.get(
+            "prepared_target_count"
+        ),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "batch": queued_batch,
         },
     )
 
