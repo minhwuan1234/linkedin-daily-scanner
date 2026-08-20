@@ -741,10 +741,22 @@ def send_message_once(
     # once the Send button click succeeds, treat the action as sent.
     # We no longer require DOM delivery verification because LinkedIn's
     # post-send rendering is not stable enough for this worker.
-    composer_closed = close_message_composer(
-        page,
-        textbox,
-    )
+    # Send click is the success boundary.
+    # Closing the composer is cleanup only and must never convert
+    # a successful send into a failed/retryable target.
+    composer_closed = False
+    composer_close_error = None
+
+    try:
+        composer_closed = close_message_composer(
+            page,
+            textbox,
+        )
+
+    except Exception as exc:
+        composer_close_error = (
+            f"{type(exc).__name__}: {exc}"
+        )
 
     return {
         "composer_opened": True,
@@ -754,4 +766,5 @@ def send_message_once(
         "send_clicked": True,
         "sent_verified": True,
         "composer_closed": composer_closed,
+        "composer_close_error": composer_close_error,
     }
