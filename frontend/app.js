@@ -2550,44 +2550,127 @@ function ensureOutreachAcceptedPoolPanel() {
 }
 
 
-function getAcceptedPoolFilteredItems() {
-  const items =
-    Array.isArray(state.outreachAcceptedPool?.items)
-      ? state.outreachAcceptedPool.items
-      : [];
-
-  const filter =
-    state.outreachAcceptedPoolFilter || "all";
-
-  if (filter === "not_sent") {
-    return items.filter(
-      (item) =>
-        String(item.message_bucket || "").toLowerCase() === "not_sent"
-    );
-  }
-
-  if (filter === "sent") {
-    return items.filter(
-      (item) =>
-        String(item.message_bucket || "").toLowerCase() === "sent"
-    );
-  }
-
-  return items;
-}
-
-
 function getEligibleMessageProspectIds() {
   const items =
-    Array.isArray(state.messagePreparation?.items)
+    Array.isArray(
+      state.messagePreparation?.items
+    )
       ? state.messagePreparation.items
       : [];
 
   return new Set(
     items
-      .map((item) => String(item.prospect_id || "").trim())
+      .map(
+        (item) =>
+          String(
+            item.prospect_id || ""
+          ).trim()
+      )
       .filter(Boolean)
   );
+}
+
+
+function getAcceptedPoolUiBucket(
+  item,
+  eligibleIds = null
+) {
+  const messageBucket =
+    String(
+      item?.message_bucket ||
+      "not_sent"
+    ).toLowerCase();
+
+  if (messageBucket === "sent") {
+    return "sent";
+  }
+
+  const prospectId =
+    String(
+      item?.prospect_id ||
+      ""
+    ).trim();
+
+  const readyIds =
+    eligibleIds ||
+    getEligibleMessageProspectIds();
+
+  if (
+    prospectId &&
+    readyIds.has(prospectId)
+  ) {
+    return "ready";
+  }
+
+  return "prepared";
+}
+
+
+function getAcceptedPoolFilteredItems() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const filter =
+    state.outreachAcceptedPoolFilter ||
+    "all";
+
+  if (filter === "all") {
+    return items;
+  }
+
+  const eligibleIds =
+    getEligibleMessageProspectIds();
+
+  return items.filter(
+    (item) =>
+      getAcceptedPoolUiBucket(
+        item,
+        eligibleIds
+      ) === filter
+  );
+}
+
+
+function getAcceptedPoolUiSummary() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const eligibleIds =
+    getEligibleMessageProspectIds();
+
+  const summary = {
+    all: items.length,
+    ready: 0,
+    prepared: 0,
+    sent: 0
+  };
+
+  items.forEach((item) => {
+    const bucket =
+      getAcceptedPoolUiBucket(
+        item,
+        eligibleIds
+      );
+
+    if (
+      Object.prototype.hasOwnProperty.call(
+        summary,
+        bucket
+      )
+    ) {
+      summary[bucket] += 1;
+    }
+  });
+
+  return summary;
 }
 
 
@@ -2601,7 +2684,9 @@ function reconcileAcceptedPoolSelection() {
     )
   ) {
     if (!eligibleIds.has(prospectId)) {
-      state.outreachAcceptedSelectedProspectIds.delete(prospectId);
+      state
+        .outreachAcceptedSelectedProspectIds
+        .delete(prospectId);
     }
   }
 }
@@ -2615,14 +2700,20 @@ function getAcceptedPoolPageData() {
 
   const totalPages = Math.max(
     1,
-    Math.ceil(filteredItems.length / pageSize)
+    Math.ceil(
+      filteredItems.length /
+      pageSize
+    )
   );
 
   const currentPage = Math.min(
     totalPages,
     Math.max(
       1,
-      Number(state.outreachAcceptedPoolPage || 1)
+      Number(
+        state.outreachAcceptedPoolPage ||
+        1
+      )
     )
   );
 
@@ -2630,14 +2721,19 @@ function getAcceptedPoolPageData() {
     currentPage;
 
   const startIndex =
-    (currentPage - 1) * pageSize;
+    (
+      currentPage -
+      1
+    ) *
+    pageSize;
 
   return {
     filteredItems,
-    pageItems: filteredItems.slice(
-      startIndex,
-      startIndex + pageSize
-    ),
+    pageItems:
+      filteredItems.slice(
+        startIndex,
+        startIndex + pageSize
+      ),
     currentPage,
     totalPages,
     startIndex
@@ -2645,7 +2741,9 @@ function getAcceptedPoolPageData() {
 }
 
 
-function renderAcceptedPoolPagination(pageData) {
+function renderAcceptedPoolPagination(
+  pageData
+) {
   if (!els.outreachAcceptedPagination) {
     return;
   }
@@ -2682,7 +2780,9 @@ function renderAcceptedPoolPagination(pageData) {
 }
 
 
-function updateAcceptedPoolPageSelectControl(pageItems) {
+function updateAcceptedPoolPageSelectControl(
+  pageItems
+) {
   const control =
     els.outreachAcceptedSelectPage;
 
@@ -2695,13 +2795,24 @@ function updateAcceptedPoolPageSelectControl(pageItems) {
 
   const selectableIds =
     pageItems
-      .map((item) => String(item.prospect_id || "").trim())
-      .filter((id) => Boolean(id) && eligibleIds.has(id));
+      .map(
+        (item) =>
+          String(
+            item.prospect_id || ""
+          ).trim()
+      )
+      .filter(
+        (id) =>
+          Boolean(id) &&
+          eligibleIds.has(id)
+      );
 
   const selectedCount =
     selectableIds.filter(
       (id) =>
-        state.outreachAcceptedSelectedProspectIds.has(id)
+        state
+          .outreachAcceptedSelectedProspectIds
+          .has(id)
     ).length;
 
   control.disabled =
@@ -2709,11 +2820,13 @@ function updateAcceptedPoolPageSelectControl(pageItems) {
 
   control.checked =
     selectableIds.length > 0 &&
-    selectedCount === selectableIds.length;
+    selectedCount ===
+      selectableIds.length;
 
   control.indeterminate =
     selectedCount > 0 &&
-    selectedCount < selectableIds.length;
+    selectedCount <
+      selectableIds.length;
 }
 
 
@@ -2727,12 +2840,8 @@ function renderOutreachAcceptedPool() {
 
   reconcileAcceptedPoolSelection();
 
-  const summary =
-    state.outreachAcceptedPool?.summary || {};
-
-  const total = Number(summary.total || 0);
-  const notSent = Number(summary.not_sent || 0);
-  const sent = Number(summary.sent || 0);
+  const uiSummary =
+    getAcceptedPoolUiSummary();
 
   const pageData =
     getAcceptedPoolPageData();
@@ -2745,82 +2854,106 @@ function renderOutreachAcceptedPool() {
 
   if (els.outreachAcceptedPoolSummary) {
     els.outreachAcceptedPoolSummary.textContent =
-      `${total} accepted profiles · ${notSent} not sent · ${sent} sent`;
+      `${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
   }
 
   if (els.outreachAcceptedSelectedCount) {
     const selectedCount =
-      state.outreachAcceptedSelectedProspectIds.size;
+      state
+        .outreachAcceptedSelectedProspectIds
+        .size;
 
     els.outreachAcceptedSelectedCount.textContent =
       `${selectedCount} selected`;
 
     els.outreachAcceptedSelectedCount.className =
-      `pill ${selectedCount > 0 ? "pill-purple" : "pill-neutral"}`;
+      `pill ${
+        selectedCount > 0
+          ? "pill-purple"
+          : "pill-neutral"
+      }`;
   }
 
   panel
-    .querySelectorAll("[data-accepted-filter]")
+    .querySelectorAll(
+      "[data-accepted-filter]"
+    )
     .forEach((button) => {
       const filter =
-        button.dataset.acceptedFilter;
+        button.dataset.acceptedFilter ||
+        "all";
 
       const count =
-        filter === "not_sent"
-          ? notSent
-          : filter === "sent"
-            ? sent
-            : total;
+        Number(
+          uiSummary[filter] ||
+          0
+        );
 
       const label =
-        filter === "not_sent"
-          ? "Not sent"
-          : filter === "sent"
-            ? "Sent"
-            : "All";
+        filter === "ready"
+          ? "Ready"
+          : filter === "prepared"
+            ? "Prepared"
+            : filter === "sent"
+              ? "Sent"
+              : "All";
 
       button.textContent =
         `${label} ${count}`;
 
       button.classList.toggle(
         "is-active",
-        filter === state.outreachAcceptedPoolFilter
+        filter ===
+          state.outreachAcceptedPoolFilter
       );
     });
 
   if (!filteredItems.length) {
     if (els.outreachAcceptedPoolEmpty) {
-      els.outreachAcceptedPoolEmpty.hidden = false;
+      els.outreachAcceptedPoolEmpty.hidden =
+        false;
+
       els.outreachAcceptedPoolEmpty.textContent =
-        total > 0
-          ? "Không có user trong filter này."
+        uiSummary.all > 0
+          ? "Không có recipient trong filter này."
           : "Chưa có user accepted.";
     }
 
     if (els.outreachAcceptedPoolTableWrap) {
-      els.outreachAcceptedPoolTableWrap.hidden = true;
+      els.outreachAcceptedPoolTableWrap.hidden =
+        true;
     }
 
-    els.outreachAcceptedPoolBody?.replaceChildren();
+    els.outreachAcceptedPoolBody
+      ?.replaceChildren();
 
     if (els.outreachAcceptedPagination) {
-      els.outreachAcceptedPagination.hidden = true;
+      els.outreachAcceptedPagination.hidden =
+        true;
     }
 
-    updateAcceptedPoolPageSelectControl([]);
+    updateAcceptedPoolPageSelectControl(
+      []
+    );
+
     renderMessagePreparation();
+
     return;
   }
 
   if (els.outreachAcceptedPoolEmpty) {
-    els.outreachAcceptedPoolEmpty.hidden = true;
+    els.outreachAcceptedPoolEmpty.hidden =
+      true;
   }
 
   if (els.outreachAcceptedPoolTableWrap) {
-    els.outreachAcceptedPoolTableWrap.hidden = false;
+    els.outreachAcceptedPoolTableWrap.hidden =
+      false;
   }
 
-  renderAcceptedPoolPagination(pageData);
+  renderAcceptedPoolPagination(
+    pageData
+  );
 
   if (
     !els.outreachAcceptedPoolBody ||
@@ -2832,25 +2965,37 @@ function renderOutreachAcceptedPool() {
   const eligibleIds =
     getEligibleMessageProspectIds();
 
-  els.outreachAcceptedPoolBody.replaceChildren();
+  els.outreachAcceptedPoolBody
+    .replaceChildren();
 
   pageItems.forEach((item) => {
     const prospectId =
-      String(item.prospect_id || "").trim();
+      String(
+        item.prospect_id ||
+        ""
+      ).trim();
 
     const linkedinUrl =
-      String(item.linkedin_url || "").trim();
+      String(
+        item.linkedin_url ||
+        ""
+      ).trim();
 
-    const messageBucket =
-      String(item.message_bucket || "not_sent").toLowerCase();
+    const uiBucket =
+      getAcceptedPoolUiBucket(
+        item,
+        eligibleIds
+      );
 
     const canSelect =
-      Boolean(prospectId) &&
-      eligibleIds.has(prospectId);
+      uiBucket === "ready" &&
+      Boolean(prospectId);
 
     const isSelected =
       canSelect &&
-      state.outreachAcceptedSelectedProspectIds.has(prospectId);
+      state
+        .outreachAcceptedSelectedProspectIds
+        .has(prospectId);
 
     const fragment =
       els.outreachAcceptedPoolRowTemplate
@@ -2861,19 +3006,29 @@ function renderOutreachAcceptedPool() {
       fragment.querySelector("tr");
 
     const checkbox =
-      fragment.querySelector("[data-accepted-select]");
+      fragment.querySelector(
+        "[data-accepted-select]"
+      );
 
     const link =
-      fragment.querySelector("[data-accepted-link]");
+      fragment.querySelector(
+        "[data-accepted-link]"
+      );
 
     const account =
-      fragment.querySelector("[data-accepted-account]");
+      fragment.querySelector(
+        "[data-accepted-account]"
+      );
 
     const acceptedAt =
-      fragment.querySelector("[data-accepted-at]");
+      fragment.querySelector(
+        "[data-accepted-at]"
+      );
 
     const message =
-      fragment.querySelector("[data-accepted-message]");
+      fragment.querySelector(
+        "[data-accepted-message]"
+      );
 
     row?.classList.toggle(
       "is-selected",
@@ -2881,16 +3036,34 @@ function renderOutreachAcceptedPool() {
     );
 
     if (checkbox) {
-      checkbox.disabled = !canSelect;
-      checkbox.checked = isSelected;
+      checkbox.disabled =
+        !canSelect;
+
+      checkbox.checked =
+        isSelected;
+
+      checkbox.title =
+        uiBucket === "prepared"
+          ? "Recipient is already in a prepared message batch."
+          : uiBucket === "sent"
+            ? "Message already sent."
+            : "Select recipient for a new message batch.";
 
       checkbox.addEventListener(
         "change",
         () => {
+          if (!canSelect) {
+            return;
+          }
+
           if (checkbox.checked) {
-            state.outreachAcceptedSelectedProspectIds.add(prospectId);
+            state
+              .outreachAcceptedSelectedProspectIds
+              .add(prospectId);
           } else {
-            state.outreachAcceptedSelectedProspectIds.delete(prospectId);
+            state
+              .outreachAcceptedSelectedProspectIds
+              .delete(prospectId);
           }
 
           renderOutreachAcceptedPool();
@@ -2899,8 +3072,13 @@ function renderOutreachAcceptedPool() {
     }
 
     if (link) {
-      link.href = linkedinUrl || "#";
-      link.textContent = linkedinUrl || "—";
+      link.href =
+        linkedinUrl ||
+        "#";
+
+      link.textContent =
+        linkedinUrl ||
+        "—";
     }
 
     if (account) {
@@ -2919,23 +3097,35 @@ function renderOutreachAcceptedPool() {
     }
 
     if (message) {
-      message.textContent =
-        messageBucket === "sent"
+      const messageLabel =
+        uiBucket === "sent"
           ? "Sent"
-          : "Not sent";
+          : uiBucket === "prepared"
+            ? "Prepared"
+            : "Ready";
+
+      message.textContent =
+        messageLabel;
 
       message.className =
         `pill ${
-          messageBucket === "sent"
+          uiBucket === "sent"
             ? "pill-green"
-            : "pill-neutral"
+            : uiBucket === "ready"
+              ? "pill-purple"
+              : "pill-neutral"
         }`;
     }
 
-    els.outreachAcceptedPoolBody.append(fragment);
+    els.outreachAcceptedPoolBody.append(
+      fragment
+    );
   });
 
-  updateAcceptedPoolPageSelectControl(pageItems);
+  updateAcceptedPoolPageSelectControl(
+    pageItems
+  );
+
   renderMessagePreparation();
 }
 
@@ -5603,21 +5793,28 @@ els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcce
 els.messageBatchPrevPage?.addEventListener("click",()=>{state.messageBatchPage=Math.max(1,state.messageBatchPage-1);renderMessagePreparation()});
 els.messageBatchNextPage?.addEventListener("click",()=>{state.messageBatchPage+=1;renderMessagePreparation()});
 
-document
-  .querySelectorAll("[data-accepted-filter]")
-  .forEach((button) => {
-    button.addEventListener(
-      "click",
-      () => {
-        state.outreachAcceptedPoolFilter =
-          button.dataset.acceptedFilter || "all";
+document.addEventListener(
+  "click",
+  (event) => {
+    const button =
+      event.target.closest(
+        "[data-accepted-filter]"
+      );
 
-        state.outreachAcceptedPoolPage = 1;
+    if (!button) {
+      return;
+    }
 
-        renderOutreachAcceptedPool();
-      }
-    );
-  });
+    state.outreachAcceptedPoolFilter =
+      button.dataset.acceptedFilter ||
+      "all";
+
+    state.outreachAcceptedPoolPage =
+      1;
+
+    renderOutreachAcceptedPool();
+  }
+);
 
 els.outreachAcceptedPrevPage?.addEventListener(
   "click",
