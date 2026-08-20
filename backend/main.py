@@ -35,6 +35,11 @@ from app.outreach_acceptance_store import (
     queue_acceptance_check_run,
 )
 
+from app.outreach_acceptance_insights_store import (
+    OutreachAcceptanceInsightsStoreError,
+    get_acceptance_insights,
+)
+
 from app.outreach_accepted_pool_store import (
     OutreachAcceptedPoolStoreError,
     get_accepted_pool,
@@ -1356,6 +1361,87 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
                     0,
                 )
             ),
+        },
+    )
+
+
+
+# =========================================================
+# OUTREACH ACCEPTANCE INSIGHTS API
+# =========================================================
+
+
+@app.get("/api/outreach/acceptance-insights")
+async def get_outreach_acceptance_insights_api(
+    job_id: str | None = None,
+) -> JSONResponse:
+    """
+    Read-only aggregate of Connect -> Acceptance performance.
+
+    Query:
+        no job_id
+            -> All-time
+
+        ?job_id=<outreach_jobs.id>
+            -> one Connect Job
+
+    Railway only reads Outreach Supabase.
+    It never opens LinkedIn or runs a worker here.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    try:
+        insights = (
+            get_acceptance_insights(
+                job_id=(
+                    cleaned_job_id
+                    or None
+                )
+            )
+        )
+
+    except OutreachAcceptanceInsightsStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Acceptance Insights"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "Acceptance Insights"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Acceptance Insights error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach Acceptance Insights"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "insights": insights,
         },
     )
 
