@@ -1341,75 +1341,7 @@ function renderOutreachJob(job) {
     Number(job.progress_percent || 0);
 
   if (
-    !Number.isF
-if (els.messageSendCloseButton) {
-  els.messageSendCloseButton.addEventListener(
-    "click",
-    closeMessageSendModal
-  );
-}
-
-if (els.messageSendCancelButton) {
-  els.messageSendCancelButton.addEventListener(
-    "click",
-    closeMessageSendModal
-  );
-}
-
-if (els.messageSendModal) {
-  els.messageSendModal
-    .querySelectorAll(
-      "[data-message-send-close]"
-    )
-    .forEach((element) => {
-      element.addEventListener(
-        "click",
-        closeMessageSendModal
-      );
-    });
-}
-
-if (els.messageSendConfirmButton) {
-  els.messageSendConfirmButton.addEventListener(
-    "click",
-    async () => {
-      const batchId =
-        state.messageSendSelectedBatchId;
-
-      const template =
-        els.messageTemplateInput?.value ||
-        "";
-
-      try {
-        if (els.messageSendError) {
-          els.messageSendError.hidden = true;
-          els.messageSendError.textContent = "";
-        }
-
-        await queueMessageBatchForSending(
-          batchId,
-          template
-        );
-
-      } catch (error) {
-        console.error(
-          "Queue message batch error:",
-          error
-        );
-
-        if (els.messageSendError) {
-          els.messageSendError.textContent =
-            error.message ||
-            String(error);
-
-          els.messageSendError.hidden = false;
-        }
-      }
-    }
-  );
-}
-
-inite(progressPercent) ||
+    !Number.isFinite(progressPercent) ||
     progressPercent < 0
   ) {
     progressPercent = 0;
@@ -5272,6 +5204,74 @@ els.closeDrawerButton?.addEventListener(
   "click",
   closeDrawer
 );
+
+
+if (els.messageSendCloseButton) {
+  els.messageSendCloseButton.addEventListener(
+    "click",
+    closeMessageSendModal
+  );
+}
+
+if (els.messageSendCancelButton) {
+  els.messageSendCancelButton.addEventListener(
+    "click",
+    closeMessageSendModal
+  );
+}
+
+if (els.messageSendModal) {
+  els.messageSendModal
+    .querySelectorAll(
+      "[data-message-send-close]"
+    )
+    .forEach((element) => {
+      element.addEventListener(
+        "click",
+        closeMessageSendModal
+      );
+    });
+}
+
+if (els.messageSendConfirmButton) {
+  els.messageSendConfirmButton.addEventListener(
+    "click",
+    async () => {
+      const batchId =
+        state.messageSendSelectedBatchId;
+
+      const template =
+        els.messageTemplateInput?.value ||
+        "";
+
+      try {
+        if (els.messageSendError) {
+          els.messageSendError.hidden = true;
+          els.messageSendError.textContent = "";
+        }
+
+        await queueMessageBatchForSending(
+          batchId,
+          template
+        );
+
+      } catch (error) {
+        console.error(
+          "Queue message batch error:",
+          error
+        );
+
+        if (els.messageSendError) {
+          els.messageSendError.textContent =
+            error.message ||
+            String(error);
+
+          els.messageSendError.hidden = false;
+        }
+      }
+    }
+  );
+}
 
 els.drawerBackdrop?.addEventListener(
   "click",
