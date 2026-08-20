@@ -201,6 +201,54 @@ const els = {
   rateLimitDrawerClose:
     document.querySelector("#rateLimitDrawerClose"),
 
+  acceptanceInsightsDrawerButton:
+    document.querySelector("#acceptanceInsightsDrawerButton"),
+
+  acceptanceInsightsDrawer:
+    document.querySelector("#acceptanceInsightsDrawer"),
+
+  acceptanceInsightsDrawerBackdrop:
+    document.querySelector("#acceptanceInsightsDrawerBackdrop"),
+
+  acceptanceInsightsDrawerClose:
+    document.querySelector("#acceptanceInsightsDrawerClose"),
+
+  acceptanceInsightsScopeFilter:
+    document.querySelector("#acceptanceInsightsScopeFilter"),
+
+  acceptanceInsightsJobFilter:
+    document.querySelector("#acceptanceInsightsJobFilter"),
+
+  acceptanceInsightsBestAccount:
+    document.querySelector("#acceptanceInsightsBestAccount"),
+
+  acceptanceInsightsBestMeta:
+    document.querySelector("#acceptanceInsightsBestMeta"),
+
+  acceptanceInsightsTotalConnected:
+    document.querySelector("#acceptanceInsightsTotalConnected"),
+
+  acceptanceInsightsTotalAccepted:
+    document.querySelector("#acceptanceInsightsTotalAccepted"),
+
+  acceptanceInsightsOverallRate:
+    document.querySelector("#acceptanceInsightsOverallRate"),
+
+  acceptanceInsightsUpdatedAt:
+    document.querySelector("#acceptanceInsightsUpdatedAt"),
+
+  acceptanceInsightsEmpty:
+    document.querySelector("#acceptanceInsightsEmpty"),
+
+  acceptanceInsightsTableWrap:
+    document.querySelector("#acceptanceInsightsTableWrap"),
+
+  acceptanceInsightsTableBody:
+    document.querySelector("#acceptanceInsightsTableBody"),
+
+  acceptanceInsightsRowTemplate:
+    document.querySelector("#acceptanceInsightsRowTemplate"),
+
   outreachDashboardUpdatedAt:
     document.querySelector("#outreachDashboardUpdatedAt"),
 
@@ -1721,6 +1769,8 @@ function openRateLimitDrawer() {
     return;
   }
 
+  closeAcceptanceInsightsDrawer();
+
   els.rateLimitDrawer.classList.add(
     "is-open"
   );
@@ -1762,6 +1812,195 @@ function closeRateLimitDrawer() {
 
   document.body.classList.remove(
     "has-rate-limit-drawer-open"
+  );
+}
+
+
+function populateAcceptanceInsightsJobFilter() {
+  if (!els.acceptanceInsightsJobFilter) {
+    return;
+  }
+
+  const currentValue =
+    els.acceptanceInsightsJobFilter.value ||
+    "all";
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const allOption =
+    document.createElement("option");
+
+  allOption.value = "all";
+  allOption.textContent =
+    "All Connect Jobs";
+
+  fragment.append(allOption);
+
+  const rows = Array.isArray(
+    state.outreachRecentJobs
+  )
+    ? state.outreachRecentJobs
+    : [];
+
+  rows.forEach((job) => {
+    const jobId = String(
+      job.job_id ||
+      job.id ||
+      ""
+    ).trim();
+
+    if (!jobId) {
+      return;
+    }
+
+    const option =
+      document.createElement("option");
+
+    option.value = jobId;
+    option.textContent =
+      String(
+        job.job_code ||
+        jobId
+      );
+
+    fragment.append(option);
+  });
+
+  els.acceptanceInsightsJobFilter
+    .replaceChildren(fragment);
+
+  const stillExists = Array.from(
+    els.acceptanceInsightsJobFilter.options
+  ).some(
+    (option) =>
+      option.value === currentValue
+  );
+
+  els.acceptanceInsightsJobFilter.value =
+    stillExists
+      ? currentValue
+      : "all";
+}
+
+
+function syncAcceptanceInsightsFilters() {
+  const scope =
+    els.acceptanceInsightsScopeFilter?.value ||
+    "all";
+
+  if (els.acceptanceInsightsJobFilter) {
+    els.acceptanceInsightsJobFilter.disabled =
+      scope !== "job";
+
+    if (scope !== "job") {
+      els.acceptanceInsightsJobFilter.value =
+        "all";
+    }
+  }
+}
+
+
+function renderAcceptanceInsightsEmptyState() {
+  populateAcceptanceInsightsJobFilter();
+  syncAcceptanceInsightsFilters();
+
+  if (els.acceptanceInsightsBestAccount) {
+    els.acceptanceInsightsBestAccount.textContent =
+      "—";
+  }
+
+  if (els.acceptanceInsightsBestMeta) {
+    els.acceptanceInsightsBestMeta.textContent =
+      "Waiting for performance data";
+  }
+
+  if (els.acceptanceInsightsTotalConnected) {
+    els.acceptanceInsightsTotalConnected.textContent =
+      "—";
+  }
+
+  if (els.acceptanceInsightsTotalAccepted) {
+    els.acceptanceInsightsTotalAccepted.textContent =
+      "—";
+  }
+
+  if (els.acceptanceInsightsOverallRate) {
+    els.acceptanceInsightsOverallRate.textContent =
+      "—";
+  }
+
+  if (els.acceptanceInsightsUpdatedAt) {
+    els.acceptanceInsightsUpdatedAt.textContent =
+      "—";
+  }
+
+  if (els.acceptanceInsightsEmpty) {
+    els.acceptanceInsightsEmpty.hidden =
+      false;
+  }
+
+  if (els.acceptanceInsightsTableWrap) {
+    els.acceptanceInsightsTableWrap.hidden =
+      true;
+  }
+
+  els.acceptanceInsightsTableBody
+    ?.replaceChildren();
+}
+
+
+function openAcceptanceInsightsDrawer() {
+  if (!els.acceptanceInsightsDrawer) {
+    return;
+  }
+
+  closeRateLimitDrawer();
+  renderAcceptanceInsightsEmptyState();
+
+  els.acceptanceInsightsDrawer.classList.add(
+    "is-open"
+  );
+
+  els.acceptanceInsightsDrawer.setAttribute(
+    "aria-hidden",
+    "false"
+  );
+
+  els.acceptanceInsightsDrawerButton
+    ?.setAttribute(
+      "aria-expanded",
+      "true"
+    );
+
+  document.body.classList.add(
+    "has-acceptance-insights-drawer-open"
+  );
+}
+
+
+function closeAcceptanceInsightsDrawer() {
+  if (!els.acceptanceInsightsDrawer) {
+    return;
+  }
+
+  els.acceptanceInsightsDrawer.classList.remove(
+    "is-open"
+  );
+
+  els.acceptanceInsightsDrawer.setAttribute(
+    "aria-hidden",
+    "true"
+  );
+
+  els.acceptanceInsightsDrawerButton
+    ?.setAttribute(
+      "aria-expanded",
+      "false"
+    );
+
+  document.body.classList.remove(
+    "has-acceptance-insights-drawer-open"
   );
 }
 
@@ -3942,7 +4181,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-      "Hi {first_name},\n\n I’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something you are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
+      "Hi {first_name},\n\n";
   }
 
   if (els.messageSendError) {
@@ -4496,6 +4735,8 @@ async function prepareAllMessageRecipients(
 
 
 function renderOutreachDashboard() {
+  populateAcceptanceInsightsJobFilter();
+
   renderOutreachJob(
     state.outreachCurrentJob
   );
@@ -6072,6 +6313,31 @@ function setOutreachProcessTab(
     });
 }
 
+els.acceptanceInsightsDrawerButton?.addEventListener(
+  "click",
+  openAcceptanceInsightsDrawer
+);
+
+els.acceptanceInsightsDrawerClose?.addEventListener(
+  "click",
+  closeAcceptanceInsightsDrawer
+);
+
+els.acceptanceInsightsDrawerBackdrop?.addEventListener(
+  "click",
+  closeAcceptanceInsightsDrawer
+);
+
+els.acceptanceInsightsScopeFilter?.addEventListener(
+  "change",
+  syncAcceptanceInsightsFilters
+);
+
+els.acceptanceInsightsJobFilter?.addEventListener(
+  "change",
+  renderAcceptanceInsightsEmptyState
+);
+
 els.rateLimitDrawerButton?.addEventListener(
   "click",
   openRateLimitDrawer
@@ -6090,8 +6356,20 @@ els.rateLimitDrawerBackdrop?.addEventListener(
 document.addEventListener(
   "keydown",
   (event) => {
+    if (event.key !== "Escape") {
+      return;
+    }
+
     if (
-      event.key === "Escape" &&
+      els.acceptanceInsightsDrawer?.classList.contains(
+        "is-open"
+      )
+    ) {
+      closeAcceptanceInsightsDrawer();
+      return;
+    }
+
+    if (
       els.rateLimitDrawer?.classList.contains(
         "is-open"
       )
