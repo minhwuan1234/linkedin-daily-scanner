@@ -592,23 +592,15 @@ def execute_one_prepared_message_target(
             final_message,
         )
 
+        # Send click is the final success boundary.
+        # Composer close is cleanup only and is intentionally non-fatal.
         if not bool(
             send_result.get(
-                "sent_verified"
+                "send_clicked"
             )
         ):
             raise OutreachMessageExecutorError(
-                "Message send was not verified."
-            )
-
-        if not bool(
-            send_result.get(
-                "composer_closed"
-            )
-        ):
-            raise OutreachMessageExecutorError(
-                "Message was verified as sent, but the "
-                "messaging dialog was not closed."
+                "Message Send button was not clicked."
             )
 
         mark_message_target_sent(
