@@ -1,30 +1,34 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
 from supabase import Client, create_client
 
-from app.outreach_accepted_pool_store import (
-    get_accepted_pool,
+from app.linkedin_message_sender import (
+    send_message_once,
+)
+from app.linkedin_message_template import (
+    build_message,
+)
+from app.linkedin_profile_message import (
+    get_profile_name,
+)
+from app.outreach_account_pool import (
+    OutreachAccountPool,
 )
 from app.settings import load_settings
 
-
-MESSAGE_BATCH_TABLE = (
-    "outreach_message_batches"
-)
 
 MESSAGE_TARGET_TABLE = (
     "outreach_message_targets"
 )
 
-LOCAL_TIMEZONE = ZoneInfo(
-    "Asia/Ho_Chi_Minh"
+PROSPECT_TABLE = (
+    "outreach_prospects"
 )
 
 
-class OutreachMessagePreparationStoreError(
+class OutreachMessageExecutorError(
     RuntimeError
 ):
     pass
@@ -45,26 +49,20 @@ def _safe_text(
     ).strip()
 
 
-# =========================================================
-# SUPABASE
-# =========================================================
-
 def get_outreach_supabase_client() -> Client:
     """
-    Backend-safe client.
-
-    This preparation layer only reads/writes Supabase.
-    It does NOT import or run LinkedIn browser code.
+    Supabase client for the Mac-side message executor.
     """
+
     settings = load_settings()
 
     if not settings.outreach_supabase_url:
-        raise OutreachMessagePreparationStoreError(
+        raise OutreachMessageExecutorError(
             "Missing OUTREACH_SUPABASE_URL."
         )
 
     if not settings.outreach_supabase_secret_key:
-        raise OutreachMessagePreparationStoreError(
+        raise OutreachMessageExecutorError(
             "Missing OUTREACH_SUPABASE_SECRET_KEY."
         )
 
@@ -75,41 +73,61 @@ def get_outreach_supabase_client() -> Client:
 
 
 # =========================================================
-# BATCH CODE
+# LOAD + CLAIM ONE TARGET
 # =========================================================
 
-def _build_batch_code(
+def load_message_target(
+    target_id: str,
     *,
-    client: Client,
-) -> str:
+    client: Client | None = None,
+) -> dict:
     """
-    Format:
-        MSG-YYYYMMDD-01
-        MSG-YYYYMMDD-02
-        ...
+    Read exactly one prepared message target.
     """
-    now = datetime.now(
-        LOCAL_TIMEZONE
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
     )
 
-    date_code = now.strftime(
-        "%Y%m%d"
+    cleaned_target_id = _safe_text(
+        target_id
     )
 
-    prefix = (
-        f"MSG-{date_code}"
-    )
+    if not cleaned_target_id:
+        raise ValueError(
+            "target_id is required."
+        )
 
     response = (
-        client.table(
-            MESSAGE_BATCH_TABLE
+        active_client
+        .table(
+            MESSAGE_TARGET_TABLE
         )
         .select(
-            "batch_code"
+            (
+                "id,"
+                "batch_id,"
+                "prospect_id,"
+                "source_target_id,"
+                "assigned_account_id,"
+                "linkedin_url,"
+                "normalized_url,"
+                "status,"
+                "message_text,"
+                "send_attempt_count,"
+                "started_at,"
+                "completed_at,"
+                "last_error"
+            )
         )
-        .like(
-            "batch_code",
-            f"{prefix}-%",
+        .eq(
+            "id",
+            cleaned_target_id,
+        )
+        .limit(
+            1
         )
         .execute()
     )
@@ -119,67 +137,93 @@ def _build_batch_code(
         or []
     )
 
-    highest_sequence = 0
-
-    for row in rows:
-        batch_code = _safe_text(
-            row.get(
-                "batch_code"
-            )
+    if not rows:
+        raise OutreachMessageExecutorError(
+            "Message target not found: "
+            f"{cleaned_target_id}"
         )
 
-        if not batch_code:
-            continue
-
-        try:
-            sequence = int(
-                batch_code.rsplit(
-                    "-",
-                    1,
-                )[1]
-            )
-
-        except (
-            IndexError,
-            ValueError,
-        ):
-            continue
-
-        highest_sequence = max(
-            highest_sequence,
-            sequence,
-        )
-
-    return (
-        f"{prefix}-"
-        f"{highest_sequence + 1:02d}"
+    return dict(
+        rows[0]
     )
 
 
-# =========================================================
-# ALREADY PREPARED PROSPECTS
-# =========================================================
-
-def _load_prepared_prospect_ids(
+def claim_prepared_message_target(
+    target_id: str,
     *,
-    client: Client,
-) -> set[str]:
+    client: Client | None = None,
+) -> dict:
     """
-    Profiles already snapshot into a currently prepared message
-    batch are excluded from future Prepare All runs.
+    Atomically-ish claim one target by requiring:
+        id == target_id
+        status == prepared
 
-    This prevents:
-        Batch #1 -> Prospect A
-        Batch #2 -> Prospect A again
+    This prevents accidentally sending the same prepared target
+    twice from two executor calls.
 
-    before the messaging phase has even started.
+    No LinkedIn action happens in this function.
     """
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    target = load_message_target(
+        target_id,
+        client=active_client,
+    )
+
+    if (
+        _safe_text(
+            target.get(
+                "status"
+            )
+        ).lower()
+        != "prepared"
+    ):
+        raise OutreachMessageExecutorError(
+            "Message target is not prepared: "
+            f"{target_id} | "
+            f"status={target.get('status')}"
+        )
+
+    next_attempt_count = (
+        int(
+            target.get(
+                "send_attempt_count",
+                0,
+            )
+            or 0
+        )
+        + 1
+    )
+
+    now = _utc_now()
+
     response = (
-        client.table(
+        active_client
+        .table(
             MESSAGE_TARGET_TABLE
         )
-        .select(
-            "prospect_id,status"
+        .update(
+            {
+                "status": "processing",
+                "started_at": now,
+                "completed_at": None,
+                "last_error": None,
+                "send_attempt_count": (
+                    next_attempt_count
+                ),
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            _safe_text(
+                target_id
+            ),
         )
         .eq(
             "status",
@@ -193,506 +237,75 @@ def _load_prepared_prospect_ids(
         or []
     )
 
-    return {
-        _safe_text(
-            row.get(
-                "prospect_id"
-            )
+    if not rows:
+        raise OutreachMessageExecutorError(
+            "Could not claim prepared message target. "
+            "It may already be processing or processed."
         )
-        for row in rows
-        if _safe_text(
-            row.get(
-                "prospect_id"
-            )
-        )
-    }
+
+    claimed = dict(
+        rows[0]
+    )
+
+    # Some Supabase/PostgREST configurations may return only
+    # updated fields. Merge with the original read for safety.
+    merged = dict(
+        target
+    )
+    merged.update(
+        claimed
+    )
+
+    return merged
 
 
 # =========================================================
-# ELIGIBLE RECIPIENTS
+# RESULT WRITES
 # =========================================================
 
-def get_message_preparation_candidates(
+def mark_message_target_sent(
     *,
-    client: Client | None = None,
-) -> dict:
-    """
-    Build the exact recipient set that would be snapshotted now.
-
-    Eligibility:
-    - Acceptance Pool item exists
-    - message_bucket == not_sent
-    - prospect_id exists
-    - assigned_account_id exists
-    - linkedin_url exists
-    - not already in another prepared message batch
-
-    This function does NOT create a batch.
-    """
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    accepted_pool = (
-        get_accepted_pool(
-            client=active_client
-        )
-    )
-
-    pool_items = (
-        accepted_pool.get(
-            "items"
-        )
-        or []
-    )
-
-    already_prepared = (
-        _load_prepared_prospect_ids(
-            client=active_client
-        )
-    )
-
-    candidates: list[dict] = []
-
-    for item in pool_items:
-        if (
-            _safe_text(
-                item.get(
-                    "message_bucket"
-                )
-            ).lower()
-            != "not_sent"
-        ):
-            continue
-
-        prospect_id = _safe_text(
-            item.get(
-                "prospect_id"
-            )
-        )
-
-        source_target_id = _safe_text(
-            item.get(
-                "target_id"
-            )
-        )
-
-        account_id = _safe_text(
-            item.get(
-                "assigned_account_id"
-            )
-        )
-
-        linkedin_url = _safe_text(
-            item.get(
-                "linkedin_url"
-            )
-        )
-
-        if (
-            not prospect_id
-            or not source_target_id
-            or not account_id
-            or not linkedin_url
-        ):
-            continue
-
-        if prospect_id in already_prepared:
-            continue
-
-        candidates.append(
-            {
-                "prospect_id": (
-                    prospect_id
-                ),
-                "source_target_id": (
-                    source_target_id
-                ),
-                "assigned_account_id": (
-                    account_id
-                ),
-                "linkedin_url": (
-                    linkedin_url
-                ),
-                "normalized_url": _safe_text(
-                    item.get(
-                        "normalized_url"
-                    )
-                ),
-                "accepted_at": (
-                    item.get(
-                        "accepted_at"
-                    )
-                ),
-            }
-        )
-
-    return {
-        "count": len(
-            candidates
-        ),
-        "items": candidates,
-    }
-
-
-# =========================================================
-# PREPARE BATCH
-# =========================================================
-
-def _create_prepared_batch_from_candidates(
-    *,
-    candidates: list[dict],
+    target_id: str,
+    message_text: str,
     client: Client,
-) -> dict:
-    if not candidates:
-        return {
-            "created": False,
-            "reason": "no_eligible_recipients",
-            "batch": None,
-            "target_count": 0,
-        }
-
-    batch_code = _build_batch_code(
-        client=client
-    )
-
-    now = _utc_now()
-
-    batch_response = (
-        client.table(
-            MESSAGE_BATCH_TABLE
-        )
-        .insert(
-            {
-                "batch_code": batch_code,
-                "status": "prepared",
-                "target_count": 0,
-                "created_at": now,
-                "updated_at": now,
-            }
-        )
-        .execute()
-    )
-
-    batch_rows = list(
-        batch_response.data
-        or []
-    )
-
-    if not batch_rows:
-        raise OutreachMessagePreparationStoreError(
-            "Could not create message preparation batch."
-        )
-
-    batch = batch_rows[0]
-    batch_id = _safe_text(
-        batch.get("id")
-    )
-
-    if not batch_id:
-        raise OutreachMessagePreparationStoreError(
-            "Created message batch has no id."
-        )
-
-    target_rows = [
-        {
-            "batch_id": batch_id,
-            "prospect_id": item["prospect_id"],
-            "source_target_id": item["source_target_id"],
-            "assigned_account_id": item["assigned_account_id"],
-            "linkedin_url": item["linkedin_url"],
-            "normalized_url": (
-                item["normalized_url"] or None
-            ),
-            "status": "prepared",
-            "created_at": now,
-            "updated_at": now,
-        }
-        for item in candidates
-    ]
-
-    try:
-        target_response = (
-            client.table(
-                MESSAGE_TARGET_TABLE
-            )
-            .insert(
-                target_rows
-            )
-            .execute()
-        )
-
-        inserted_targets = list(
-            target_response.data
-            or []
-        )
-
-        inserted_count = len(
-            inserted_targets
-        )
-
-        if inserted_count != len(
-            target_rows
-        ):
-            raise OutreachMessagePreparationStoreError(
-                "Prepared target insert count mismatch: "
-                f"expected {len(target_rows)}, "
-                f"got {inserted_count}."
-            )
-
-        (
-            client.table(
-                MESSAGE_BATCH_TABLE
-            )
-            .update(
-                {
-                    "target_count": inserted_count,
-                    "updated_at": _utc_now(),
-                }
-            )
-            .eq(
-                "id",
-                batch_id,
-            )
-            .execute()
-        )
-
-    except Exception:
-        try:
-            (
-                client.table(
-                    MESSAGE_BATCH_TABLE
-                )
-                .delete()
-                .eq(
-                    "id",
-                    batch_id,
-                )
-                .execute()
-            )
-        except Exception:
-            pass
-
-        raise
-
-    batch["target_count"] = inserted_count
-
-    return {
-        "created": True,
-        "reason": None,
-        "batch": batch,
-        "target_count": inserted_count,
-    }
-
-
-# =========================================================
-# PREPARE ALL
-# =========================================================
-
-def prepare_all_unsent_accepted(
-    *,
-    client: Client | None = None,
-) -> dict:
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    candidate_result = (
-        get_message_preparation_candidates(
-            client=active_client
-        )
-    )
-
-    return _create_prepared_batch_from_candidates(
-        candidates=list(
-            candidate_result.get("items")
-            or []
-        ),
-        client=active_client,
-    )
-
-
-# =========================================================
-# PREPARE SELECTED
-# =========================================================
-
-def prepare_selected_unsent_accepted(
-    *,
-    prospect_ids: list[str],
-    client: Client | None = None,
-) -> dict:
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    cleaned_ids: list[str] = []
-    seen: set[str] = set()
-
-    for value in (
-        prospect_ids
-        or []
-    ):
-        prospect_id = _safe_text(value)
-
-        if (
-            not prospect_id
-            or prospect_id in seen
-        ):
-            continue
-
-        seen.add(prospect_id)
-        cleaned_ids.append(prospect_id)
-
-    if not cleaned_ids:
-        raise OutreachMessagePreparationStoreError(
-            "At least one prospect_id is required."
-        )
-
-    candidate_result = (
-        get_message_preparation_candidates(
-            client=active_client
-        )
-    )
-
-    candidates = list(
-        candidate_result.get("items")
-        or []
-    )
-
-    candidate_by_id = {
-        _safe_text(item.get("prospect_id")): item
-        for item in candidates
-        if _safe_text(item.get("prospect_id"))
-    }
-
-    missing_ids = [
-        prospect_id
-        for prospect_id in cleaned_ids
-        if prospect_id not in candidate_by_id
-    ]
-
-    if missing_ids:
-        raise OutreachMessagePreparationStoreError(
-            "Some selected recipients are no longer eligible. "
-            "Refresh Accepted Pool and select again."
-        )
-
-    selected_candidates = [
-        candidate_by_id[prospect_id]
-        for prospect_id in cleaned_ids
-    ]
-
-    return _create_prepared_batch_from_candidates(
-        candidates=selected_candidates,
-        client=active_client,
-    )
-
-
-# =========================================================
-# PREPARED BATCH READ API
-# =========================================================
-
-def list_prepared_message_batches(
-    *,
-    client: Client | None = None,
-    limit: int = 50,
-) -> list[dict]:
+) -> None:
     """
-    List recent message-preparation batches.
+    Persist one strictly verified LinkedIn send.
 
-    Preparation phase only:
-    this does NOT trigger messaging.
+    Both states are required:
+
+    1. outreach_message_targets.status = sent
+       -> execution / batch state.
+
+    2. outreach_prospects.message_status = sent
+       -> Accepted Pool state shown by the dashboard.
+
+    Accepted Pool reads message_status from outreach_prospects,
+    so updating only the message target would leave the UI as
+    "Not sent".
     """
-    active_client = (
+
+    cleaned_target_id = _safe_text(
+        target_id
+    )
+
+    if not cleaned_target_id:
+        raise OutreachMessageExecutorError(
+            "target_id is required."
+        )
+
+    # Resolve the prospect BEFORE the target state write.
+    target_response = (
         client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    safe_limit = max(
-        1,
-        min(
-            int(limit),
-            100,
-        ),
-    )
-
-    response = (
-        active_client.table(
-            MESSAGE_BATCH_TABLE
+        .table(
+            MESSAGE_TARGET_TABLE
         )
         .select(
-            (
-                "id,"
-                "batch_code,"
-                "status,"
-                "target_count,"
-                "created_at,"
-                "updated_at"
-            )
-        )
-        .order(
-            "created_at",
-            desc=True,
-        )
-        .limit(
-            safe_limit
-        )
-        .execute()
-    )
-
-    return list(
-        response.data
-        or []
-    )
-
-
-def get_prepared_message_batch(
-    batch_id: str,
-    *,
-    client: Client | None = None,
-) -> dict | None:
-    """
-    Load one prepared batch plus its frozen recipient snapshot.
-    """
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    cleaned_batch_id = _safe_text(
-        batch_id
-    )
-
-    if not cleaned_batch_id:
-        raise OutreachMessagePreparationStoreError(
-            "Missing message batch id."
-        )
-
-    batch_response = (
-        active_client.table(
-            MESSAGE_BATCH_TABLE
-        )
-        .select(
-            (
-                "id,"
-                "batch_code,"
-                "status,"
-                "target_count,"
-                "created_at,"
-                "updated_at"
-            )
+            "id,prospect_id,status"
         )
         .eq(
             "id",
-            cleaned_batch_id,
+            cleaned_target_id,
         )
         .limit(
             1
@@ -700,52 +313,413 @@ def get_prepared_message_batch(
         .execute()
     )
 
-    batch_rows = list(
-        batch_response.data
-        or []
-    )
-
-    if not batch_rows:
-        return None
-
-    target_response = (
-        active_client.table(
-            MESSAGE_TARGET_TABLE
-        )
-        .select(
-            (
-                "id,"
-                "batch_id,"
-                "prospect_id,"
-                "source_target_id,"
-                "assigned_account_id,"
-                "linkedin_url,"
-                "normalized_url,"
-                "status,"
-                "created_at,"
-                "updated_at"
-            )
-        )
-        .eq(
-            "batch_id",
-            cleaned_batch_id,
-        )
-        .order(
-            "created_at",
-            desc=False,
-        )
-        .execute()
-    )
-
-    batch = dict(
-        batch_rows[0]
-    )
-
-    batch[
-        "targets"
-    ] = list(
+    target_rows = list(
         target_response.data
         or []
     )
 
-    return batch
+    if not target_rows:
+        raise OutreachMessageExecutorError(
+            "Message target not found while marking sent: "
+            f"{cleaned_target_id}"
+        )
+
+    prospect_id = _safe_text(
+        target_rows[0].get(
+            "prospect_id"
+        )
+    )
+
+    if not prospect_id:
+        raise OutreachMessageExecutorError(
+            "Message target has no prospect_id while marking sent: "
+            f"{cleaned_target_id}"
+        )
+
+    now = _utc_now()
+
+    target_update = (
+        client
+        .table(
+            MESSAGE_TARGET_TABLE
+        )
+        .update(
+            {
+                "status": "sent",
+                "message_text": (
+                    message_text
+                ),
+                "completed_at": now,
+                "last_error": None,
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            cleaned_target_id,
+        )
+        .eq(
+            "status",
+            "processing",
+        )
+        .execute()
+    )
+
+    updated_target_rows = list(
+        target_update.data
+        or []
+    )
+
+    if not updated_target_rows:
+        raise OutreachMessageExecutorError(
+            "Could not change message target processing -> sent: "
+            f"{cleaned_target_id}"
+        )
+
+    # Accepted Pool source of truth for message state.
+    prospect_update = (
+        client
+        .table(
+            PROSPECT_TABLE
+        )
+        .update(
+            {
+                "message_status": "sent",
+                "last_messaged_at": now,
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            prospect_id,
+        )
+        .execute()
+    )
+
+    updated_prospect_rows = list(
+        prospect_update.data
+        or []
+    )
+
+    if not updated_prospect_rows:
+        raise OutreachMessageExecutorError(
+            "Message target was marked sent, but prospect message "
+            "state could not be updated: "
+            f"prospect_id={prospect_id}"
+        )
+
+
+def mark_message_target_failed(
+    *,
+    target_id: str,
+    error_message: str,
+    message_text: str | None,
+    client: Client,
+) -> None:
+    now = _utc_now()
+
+    (
+        client
+        .table(
+            MESSAGE_TARGET_TABLE
+        )
+        .update(
+            {
+                "status": "failed",
+                "message_text": (
+                    message_text
+                ),
+                "completed_at": now,
+                "last_error": (
+                    _safe_text(
+                        error_message
+                    )[:4000]
+                ),
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            target_id,
+        )
+        .eq(
+            "status",
+            "processing",
+        )
+        .execute()
+    )
+
+
+# =========================================================
+# REAL SINGLE-TARGET EXECUTOR
+# =========================================================
+
+def execute_one_prepared_message_target(
+    *,
+    target_id: str,
+    template: str,
+    client: Client | None = None,
+) -> dict:
+    """
+    REAL SYSTEM — one target only.
+
+    Flow:
+        Supabase prepared target
+        -> claim as processing
+        -> assigned_account_id
+        -> exact Outreach browser profile
+        -> open target linkedin_url
+        -> read first_name
+        -> build message
+        -> Send
+        -> strict verify
+        -> target status = sent
+
+    On exception:
+        target status = failed
+        last_error = exception
+
+    IMPORTANT:
+    This sends ONE real LinkedIn message.
+    It does NOT loop through a batch yet.
+    """
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    cleaned_template = str(
+        template
+        or ""
+    )
+
+    if not cleaned_template.strip():
+        raise ValueError(
+            "template is required."
+        )
+
+    target = claim_prepared_message_target(
+        target_id,
+        client=active_client,
+    )
+
+    claimed_target_id = _safe_text(
+        target.get(
+            "id"
+        )
+        or target_id
+    )
+
+    account_id = _safe_text(
+        target.get(
+            "assigned_account_id"
+        )
+    )
+
+    linkedin_url = _safe_text(
+        target.get(
+            "linkedin_url"
+        )
+    )
+
+    if not account_id:
+        mark_message_target_failed(
+            target_id=claimed_target_id,
+            error_message=(
+                "Missing assigned_account_id."
+            ),
+            message_text=None,
+            client=active_client,
+        )
+
+        raise OutreachMessageExecutorError(
+            "Message target has no assigned_account_id."
+        )
+
+    if not linkedin_url:
+        mark_message_target_failed(
+            target_id=claimed_target_id,
+            error_message=(
+                "Missing linkedin_url."
+            ),
+            message_text=None,
+            client=active_client,
+        )
+
+        raise OutreachMessageExecutorError(
+            "Message target has no linkedin_url."
+        )
+
+    pool = OutreachAccountPool()
+
+    account = pool.get_account(
+        account_id
+    )
+
+    browser = (
+        account
+        .create_browser_manager()
+    )
+
+    final_message: str | None = None
+
+    try:
+        browser.start()
+
+        page = browser.open_linkedin_url(
+            linkedin_url
+        )
+
+        profile_name = get_profile_name(
+            page
+        )
+
+        final_message = build_message(
+            first_name=(
+                profile_name[
+                    "first_name"
+                ]
+            ),
+            template=(
+                cleaned_template
+            ),
+        )
+
+        send_result = send_message_once(
+            page,
+            final_message,
+        )
+
+        # Send click is the final success boundary.
+        # Composer close is cleanup only and is intentionally non-fatal.
+        if not bool(
+            send_result.get(
+                "send_clicked"
+            )
+        ):
+            raise OutreachMessageExecutorError(
+                "Message Send button was not clicked."
+            )
+
+        mark_message_target_sent(
+            target_id=claimed_target_id,
+            message_text=final_message,
+            client=active_client,
+        )
+
+        return {
+            "ok": True,
+            "target_id": (
+                claimed_target_id
+            ),
+            "batch_id": _safe_text(
+                target.get(
+                    "batch_id"
+                )
+            ),
+            "prospect_id": _safe_text(
+                target.get(
+                    "prospect_id"
+                )
+            ),
+            "account_id": (
+                account_id
+            ),
+            "linkedin_url": (
+                linkedin_url
+            ),
+            "full_name": (
+                profile_name[
+                    "full_name"
+                ]
+            ),
+            "first_name": (
+                profile_name[
+                    "first_name"
+                ]
+            ),
+            "message_text": (
+                final_message
+            ),
+            "status": "sent",
+            "sent_verified": True,
+        }
+
+    except Exception as exc:
+        try:
+            mark_message_target_failed(
+                target_id=claimed_target_id,
+                error_message=(
+                    f"{type(exc).__name__}: {exc}"
+                ),
+                message_text=(
+                    final_message
+                ),
+                client=active_client,
+            )
+        except Exception:
+            pass
+
+        raise
+
+    finally:
+        browser.stop()
+
+
+def print_single_target_execution(
+    *,
+    target_id: str,
+    template: str,
+) -> None:
+    """
+    Manual test helper.
+
+    WARNING:
+    This sends ONE real message from the account stored in
+    outreach_message_targets.assigned_account_id.
+    """
+
+    result = (
+        execute_one_prepared_message_target(
+            target_id=target_id,
+            template=template,
+        )
+    )
+
+    print("")
+    print(
+        "REAL MESSAGE TARGET RESULT"
+    )
+    print(
+        "=========================="
+    )
+
+    for key in (
+        "target_id",
+        "batch_id",
+        "prospect_id",
+        "account_id",
+        "linkedin_url",
+        "full_name",
+        "first_name",
+        "status",
+        "sent_verified",
+    ):
+        print(
+            f"{key}: {result.get(key)}"
+        )
+
+    print("")
+    print(
+        "MESSAGE"
+    )
+    print(
+        "-------"
+    )
+    print(
+        result.get(
+            "message_text"
+        )
+    )
