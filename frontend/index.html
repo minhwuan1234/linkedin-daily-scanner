@@ -506,767 +506,87 @@
     <!-- OUTREACH -->
 <!-- OUTREACH -->
 <section id="tab-outreach" class="tab-panel" hidden>
-
-  <!-- TOP GRID -->
-  <section class="outreach-grid">
-
-    <!-- CONNECT INPUT -->
-    <article class="panel outreach-launch-panel">
-
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">
-            LinkedIn Outreach
-          </p>
-
-          <h2>
-            Connect Profiles
-          </h2>
-
-          <p class="panel-meta">
-            Paste danh sách LinkedIn profile URLs.
-            Mỗi lần submit sẽ tạo một Connect Job riêng.
-          </p>
-        </div>
-
-        <span
-          id="outreachJobBadge"
-          class="pill pill-neutral"
-        >
-          Idle
-        </span>
-      </div>
-
-
-      <form
-        id="outreachConnectForm"
-        class="outreach-connect-form"
-      >
-
-        <label class="outreach-url-field">
-
-          <span>
-            LinkedIn Profile URLs
-          </span>
-
-          <textarea
-            id="outreachUrlInput"
-            rows="12"
-            placeholder="https://www.linkedin.com/in/profile-1/&#10;https://www.linkedin.com/in/profile-2/&#10;https://www.linkedin.com/in/profile-3/"
-            spellcheck="false"
-            required
-          ></textarea>
-
-        </label>
-
-
-        <div class="outreach-input-footer">
-
-          <div>
-            <strong id="outreachDetectedCount">
-              0 URLs detected
-            </strong>
-
-            <p class="panel-meta">
-              Mỗi URL nên nằm trên một dòng.
-            </p>
-          </div>
-
-
-          <button
-            id="outreachStartButton"
-            class="primary-button"
-            type="submit"
-          >
-            <span class="button-icon">
-              ▶
-            </span>
-
-            <span id="outreachStartButtonText">
-              Start Connect
-            </span>
-          </button>
-
-        </div>
-
-      </form>
-
-
-      <p
-        id="outreachError"
-        class="outreach-error"
-        hidden
-      ></p>
-
-    </article>
-
-
-    <!-- CURRENT JOB -->
-    <article class="panel outreach-result-panel">
-
-      <div class="panel-header">
-
-        <div>
-          <p class="panel-kicker">
-            Current job
-          </p>
-
-          <h2>
-            Connect Job
-          </h2>
-        </div>
-
-
-        <span
-          id="outreachJobCode"
-          class="panel-meta"
-        >
-          Chưa có job
-        </span>
-
-      </div>
-
-
-      <div
-        id="outreachJobEmpty"
-        class="outreach-job-empty"
-      >
-        Chưa có Connect Job.
-      </div>
-
-
-      <div
-        id="outreachJobResult"
-        class="outreach-job-result"
-        hidden
-      >
-
-        <!-- PROGRESS -->
-        <div class="outreach-progress-block">
-
-          <div class="outreach-progress-header">
-            <span>
-              Progress
-            </span>
-
-            <strong id="outreachProgressText">
-              0 / 0
-            </strong>
-          </div>
-
-
-          <div class="outreach-progress-track">
-
-            <div
-              id="outreachProgressBar"
-              class="outreach-progress-bar"
-              style="width: 0%"
-            ></div>
-
-          </div>
-
-
-          <span
-            id="outreachProgressPercent"
-            class="panel-meta"
-          >
-            0%
-          </span>
-
-        </div>
-
-
-        <!-- COUNTERS -->
-        <div class="outreach-stat-grid">
-
-          <div class="outreach-stat">
-            <span>
-              Input
-            </span>
-
-            <strong id="outreachInputCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Ready
-            </span>
-
-            <strong id="outreachReadyCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Processed
-            </span>
-
-            <strong id="outreachProcessedCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Success
-            </span>
-
-            <strong id="outreachSuccessCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Failed
-            </span>
-
-            <strong id="outreachFailedCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Duplicate
-            </span>
-
-            <strong id="outreachDuplicateCount">
-              0
-            </strong>
-          </div>
-
-
-          <div class="outreach-stat">
-            <span>
-              Invalid
-            </span>
-
-            <strong id="outreachInvalidCount">
-              0
-            </strong>
-          </div>
-
-        </div>
-
-
-        <!-- STATUS -->
-        <div class="outreach-job-status-row">
-
-          <span>
-            Status
-          </span>
-
-          <strong id="outreachJobStatus">
-            Pending
-          </strong>
-
-        </div>
-
-
-        <!-- TIMES -->
-        <div class="outreach-job-meta-grid">
-
-          <div>
-            <span>
-              Created
-            </span>
-
-            <strong id="outreachCreatedAt">
-              —
-            </strong>
-          </div>
-
-
-          <div>
-            <span>
-              Started
-            </span>
-
-            <strong id="outreachStartedAt">
-              —
-            </strong>
-          </div>
-
-
-          <div>
-            <span>
-              Completed
-            </span>
-
-            <strong id="outreachCompletedAt">
-              —
-            </strong>
-          </div>
-
-        </div>
-
-
-        <p
-          id="outreachJobMessage"
-          class="panel-meta"
-        ></p>
-
-
-        <p
-          id="outreachLastError"
-          class="outreach-error"
-          hidden
-        ></p>
-
-       <div class="outreach-targets-section">
-
-  <button
-    id="outreachCurrentTargetsToggle"
-    class="outreach-current-targets-toggle"
-    type="button"
-  >
-    <span>
-      Profiles
-    </span>
-
-    <strong id="outreachCurrentTargetCount">
-      0 profiles
-    </strong>
-
-    <span id="outreachCurrentTargetsArrow">
-      ▾
-    </span>
-  </button>
-
-  <div
-    id="outreachCurrentTargets"
-    class="outreach-target-list"
-    hidden
-  >
+  <div class="outreach-workspace-header">
+    <div>
+      <p class="panel-kicker">LinkedIn Outreach</p>
+      <h2>Connect & Messaging</h2>
+      <p class="panel-meta">Follow the workflow from connection request to accepted recipient and message delivery.</p>
+    </div>
+    <span id="outreachDashboardUpdatedAt" class="panel-meta">—</span>
   </div>
 
-</div> 
+  <nav class="outreach-process-tabs" aria-label="Outreach workflow">
+    <button type="button" class="outreach-process-tab is-active" data-outreach-process-tab="connect"><span class="outreach-process-step">01</span><span>Connect</span></button>
+    <button type="button" class="outreach-process-tab" data-outreach-process-tab="acceptance"><span class="outreach-process-step">02</span><span>Acceptance</span></button>
+    <button type="button" class="outreach-process-tab" data-outreach-process-tab="recipients"><span class="outreach-process-step">03</span><span>Recipients</span></button>
+    <button type="button" class="outreach-process-tab" data-outreach-process-tab="messages"><span class="outreach-process-step">04</span><span>Messages</span></button>
+  </nav>
 
+  <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
+    <article class="panel outreach-history-panel outreach-primary-panel">
+      <div class="panel-header"><div><p class="panel-kicker">Connect history</p><h2>Recent Connect Jobs</h2><p class="panel-meta">Newest Connect Jobs and their latest execution state.</p></div><span id="outreachHistoryCount" class="pill pill-neutral">0 jobs</span></div>
+      <div id="outreachHistoryEmpty" class="outreach-job-empty">Chưa có Connect Job.</div>
+      <div id="outreachHistoryTableWrap" class="table-wrap" hidden>
+        <table class="outreach-history-table"><thead><tr><th>Job</th><th>Status</th><th>Profiles</th><th>Processed</th><th>Success</th><th>Failed</th><th>Created</th></tr></thead><tbody id="outreachHistoryBody"></tbody></table>
+        <template id="outreachHistoryRowTemplate"><tr class="outreach-history-main-row"><td><strong data-connect-job-code>—</strong></td><td><span class="pill pill-neutral" data-connect-job-status>—</span></td><td data-connect-job-profiles>0</td><td data-connect-job-processed>0</td><td data-connect-job-success>0</td><td data-connect-job-failed>0</td><td data-connect-job-created>—</td></tr></template>
       </div>
-
+      <div id="outreachHistoryPagination" class="outreach-list-pagination" hidden><span id="outreachHistoryPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachHistoryPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachHistoryNextPage" type="button" class="secondary-button">Next</button></div></div>
     </article>
 
+    <section class="outreach-grid outreach-connect-grid">
+      <article class="panel outreach-launch-panel">
+        <div class="panel-header"><div><p class="panel-kicker">New connection run</p><h2>Connect Profiles</h2><p class="panel-meta">Paste LinkedIn profile URLs. One submit creates one independent Connect Job.</p></div><span id="outreachJobBadge" class="pill pill-neutral">Idle</span></div>
+        <form id="outreachConnectForm" class="outreach-connect-form"><label class="outreach-url-field"><span>LinkedIn Profile URLs</span><textarea id="outreachUrlInput" rows="10" placeholder="https://www.linkedin.com/in/profile-1/&#10;https://www.linkedin.com/in/profile-2/" spellcheck="false" required></textarea></label><div class="outreach-input-footer"><div><strong id="outreachDetectedCount">0 URLs detected</strong><p class="panel-meta">One LinkedIn URL per line.</p></div><button id="outreachStartButton" class="primary-button" type="submit"><span class="button-icon">▶</span><span id="outreachStartButtonText">Start Connect</span></button></div></form><p id="outreachError" class="outreach-error" hidden></p>
+      </article>
+
+      <article class="panel outreach-result-panel">
+        <div class="panel-header"><div><p class="panel-kicker">Current execution</p><h2>Current Connect Job</h2></div><span id="outreachJobCode" class="panel-meta">Chưa có job</span></div>
+        <div id="outreachJobEmpty" class="outreach-job-empty">Chưa có Connect Job.</div>
+        <div id="outreachJobResult" class="outreach-job-result" hidden>
+          <div class="outreach-progress-block"><div class="outreach-progress-header"><span>Progress</span><strong id="outreachProgressText">0 / 0</strong></div><div class="outreach-progress-track"><div id="outreachProgressBar" class="outreach-progress-bar"></div></div><span id="outreachProgressPercent" class="panel-meta">0%</span></div>
+          <div class="outreach-stat-grid"><div class="outreach-stat"><span>Input</span><strong id="outreachInputCount">0</strong></div><div class="outreach-stat"><span>Ready</span><strong id="outreachReadyCount">0</strong></div><div class="outreach-stat"><span>Processed</span><strong id="outreachProcessedCount">0</strong></div><div class="outreach-stat"><span>Success</span><strong id="outreachSuccessCount">0</strong></div><div class="outreach-stat"><span>Failed</span><strong id="outreachFailedCount">0</strong></div><div class="outreach-stat"><span>Duplicate</span><strong id="outreachDuplicateCount">0</strong></div><div class="outreach-stat"><span>Invalid</span><strong id="outreachInvalidCount">0</strong></div></div>
+          <div class="outreach-job-status-row"><span>Status</span><strong id="outreachJobStatus">Pending</strong></div>
+          <div class="outreach-job-meta-grid"><div><span>Created</span><strong id="outreachCreatedAt">—</strong></div><div><span>Started</span><strong id="outreachStartedAt">—</strong></div><div><span>Completed</span><strong id="outreachCompletedAt">—</strong></div></div>
+          <p id="outreachJobMessage" class="panel-meta"></p><p id="outreachLastError" class="outreach-error" hidden></p>
+          <div class="outreach-targets-section"><button id="outreachCurrentTargetsToggle" class="outreach-current-targets-toggle" type="button"><span>Profiles</span><strong id="outreachCurrentTargetCount">0 profiles</strong><span id="outreachCurrentTargetsArrow">▾</span></button><div id="outreachCurrentTargets" class="outreach-target-list" hidden></div></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="outreach-secondary-grid outreach-system-grid">
+      <article class="panel"><div class="panel-header"><div><p class="panel-kicker">Scheduler</p><h2>Account Rotation</h2></div><span id="outreachSchedulerBadge" class="pill pill-neutral">—</span></div><div class="outreach-scheduler-grid"><div class="outreach-info-item"><span>Current account</span><strong id="outreachCurrentAccount">—</strong></div><div class="outreach-info-item"><span>Used this turn</span><strong id="outreachUsedTurn">0 / 0</strong></div><div class="outreach-info-item"><span>Remaining</span><strong id="outreachRemainingTurn">0</strong></div><div class="outreach-info-item"><span>Scheduler updated</span><strong id="outreachSchedulerUpdatedAt">—</strong></div></div></article>
+      <article class="panel"><div class="panel-header"><div><p class="panel-kicker">Outreach accounts</p><h2>Account Pool</h2></div><span id="outreachAccountCount" class="panel-meta">0 accounts</span></div><div id="outreachAccountsList" class="outreach-accounts-list"><div class="outreach-job-empty">Chưa có dữ liệu account.</div></div></article>
+    </section>
   </section>
 
-
-  <!-- SCHEDULER -->
-  <section class="outreach-secondary-grid">
-
-    <article class="panel">
-
-      <div class="panel-header">
-
-        <div>
-          <p class="panel-kicker">
-            Scheduler
-          </p>
-
-          <h2>
-            Account Rotation
-          </h2>
-        </div>
-
-        <span
-          id="outreachSchedulerBadge"
-          class="pill pill-neutral"
-        >
-          —
-        </span>
-
+  <section class="outreach-process-panel" data-outreach-process-panel="acceptance" hidden>
+    <article class="panel outreach-primary-panel">
+      <div class="panel-header"><div><p class="panel-kicker">Acceptance checks</p><h2>Invitation Acceptance</h2><p class="panel-meta">Re-check completed Connect Jobs and see the latest acceptance result and last checked time.</p></div><span id="outreachAcceptanceJobCount" class="pill pill-neutral">0 jobs</span></div>
+      <div id="outreachAcceptanceEmpty" class="outreach-job-empty">Chưa có Connect Job để check.</div>
+      <div id="outreachAcceptanceTableWrap" class="table-wrap" hidden>
+        <table class="outreach-acceptance-table"><thead><tr><th>Job</th><th>Check status</th><th>Accepted</th><th>Pending</th><th>Unknown</th><th>Failed</th><th>Last checked at</th><th></th></tr></thead><tbody id="outreachAcceptanceBody"></tbody></table>
+        <template id="outreachAcceptanceRowTemplate"><tr><td><strong data-acceptance-job-code>—</strong><span class="outreach-table-subtext" data-acceptance-profile-count>0 profiles</span></td><td><span class="pill pill-neutral" data-acceptance-status>Not checked</span></td><td data-acceptance-accepted>—</td><td data-acceptance-pending>—</td><td data-acceptance-unknown>—</td><td data-acceptance-failed>—</td><td data-acceptance-last-checked>—</td><td class="outreach-table-action-cell"><button type="button" class="secondary-button outreach-check-acceptance-button" data-acceptance-check-button>Check Acceptance</button></td></tr></template>
       </div>
-
-
-      <div class="outreach-scheduler-grid">
-
-        <div class="outreach-info-item">
-          <span>
-            Current account
-          </span>
-
-          <strong id="outreachCurrentAccount">
-            —
-          </strong>
-        </div>
-
-
-        <div class="outreach-info-item">
-          <span>
-            Used this turn
-          </span>
-
-          <strong id="outreachUsedTurn">
-            0 / 0
-          </strong>
-        </div>
-
-
-        <div class="outreach-info-item">
-          <span>
-            Remaining
-          </span>
-
-          <strong id="outreachRemainingTurn">
-            0
-          </strong>
-        </div>
-
-
-        <div class="outreach-info-item">
-          <span>
-            Scheduler updated
-          </span>
-
-          <strong id="outreachSchedulerUpdatedAt">
-            —
-          </strong>
-        </div>
-
-      </div>
-
-    </article>
-
-
-    <!-- ACCOUNTS -->
-    <article class="panel">
-
-      <div class="panel-header">
-
-        <div>
-          <p class="panel-kicker">
-            Outreach accounts
-          </p>
-
-          <h2>
-            Account Pool
-          </h2>
-        </div>
-
-        <span
-          id="outreachAccountCount"
-          class="panel-meta"
-        >
-          0 accounts
-        </span>
-
-      </div>
-
-
-      <div
-        id="outreachAccountsList"
-        class="outreach-accounts-list"
-      >
-        <div class="outreach-job-empty">
-          Chưa có dữ liệu account.
-        </div>
-      </div>
-
-    </article>
-
-  </section>
-
-
-  <!-- ACCEPTED POOL -->
-  <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel">
-    <div class="panel-toolbar outreach-pool-toolbar">
-      <div>
-        <p class="panel-kicker">Accepted connections</p>
-        <h2>Accepted Pool</h2>
-        <p id="outreachAcceptedPoolSummary" class="panel-meta">
-          0 accepted profiles
-        </p>
-      </div>
-
-      <div class="outreach-pool-controls">
-        <span id="outreachAcceptedSelectedCount" class="pill pill-neutral">
-          0 selected
-        </span>
-
-        <div id="outreachAcceptedPoolFilters" class="segmented-filter">
-          <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">
-            All 0
-          </button>
-          <button type="button" data-accepted-filter="not_sent" class="outreach-accepted-filter">
-            Not sent 0
-          </button>
-          <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">
-            Sent 0
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div id="outreachAcceptedPoolEmpty" class="state">
-      Chưa có user accepted.
-    </div>
-
-    <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden>
-      <table class="outreach-accepted-pool-table">
-        <thead>
-          <tr>
-            <th class="accepted-select-column">
-              <label class="accepted-select-control">
-                <input
-                  id="outreachAcceptedSelectPage"
-                  type="checkbox"
-                  aria-label="Select eligible profiles on this page"
-                >
-              </label>
-            </th>
-            <th>LinkedIn</th>
-            <th>Account</th>
-            <th>Accepted</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-
-        <tbody id="outreachAcceptedPoolBody"></tbody>
-      </table>
-
-      <template id="outreachAcceptedPoolRowTemplate">
-        <tr>
-          <td class="accepted-select-column">
-            <label class="accepted-select-control">
-              <input
-                type="checkbox"
-                data-accepted-select
-                aria-label="Select profile for message batch"
-              >
-            </label>
-          </td>
-          <td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td>
-          <td data-accepted-account>—</td>
-          <td data-accepted-at>—</td>
-          <td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td>
-        </tr>
-      </template>
-    </div>
-
-    <div id="outreachAcceptedPagination" class="accepted-pagination" hidden>
-      <span id="outreachAcceptedPageMeta" class="panel-meta">
-        Page 1 / 1
-      </span>
-
-      <div class="accepted-pagination-actions">
-        <button id="outreachAcceptedPrevPage" type="button" class="secondary-button accepted-page-button">
-          Previous
-        </button>
-        <button id="outreachAcceptedNextPage" type="button" class="secondary-button accepted-page-button">
-          Next
-        </button>
-      </div>
-    </div>
-  </article>
-
-
-  <!-- MESSAGE PREPARATION -->
-  <section class="message-preparation-grid">
-    <article class="panel message-preparation-panel">
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">Recipient preparation</p>
-          <h2>Prepare Message Recipients</h2>
-          <p class="panel-meta">
-            Snapshot toàn bộ accepted users chưa gửi message. Chưa có thao tác gửi tin nhắn ở bước này.
-          </p>
-        </div>
-
-        <span id="messagePreparationCount" class="pill pill-neutral">
-          0 eligible
-        </span>
-      </div>
-
-      <div class="message-preparation-body">
-        <div class="message-preparation-copy">
-          <strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong>
-          <span id="messagePreparationMeta">
-            Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.
-          </span>
-        </div>
-
-        <div class="message-preparation-actions">
-          <button
-            id="messagePrepareSelectedButton"
-            class="secondary-button"
-            type="button"
-            disabled
-          >
-            Prepare selected
-          </button>
-
-          <button
-            id="messagePrepareAllButton"
-            class="primary-button"
-            type="button"
-            disabled
-          >
-            Prepare all
-          </button>
-        </div>
-      </div>
-
-      <p id="messagePreparationError" class="outreach-error" hidden></p>
-    </article>
-
-    <article class="panel message-batches-panel">
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">Prepared snapshots</p>
-          <h2>Message Batches</h2>
-        </div>
-
-        <span id="messageBatchCount" class="panel-meta">0 batches</span>
-      </div>
-
-      <div id="messageBatchEmpty" class="state">
-        Chưa có prepared batch.
-      </div>
-
-      <div id="messageBatchList" class="message-batch-list"></div>
-
-      <template id="messageBatchRowTemplate">
-        <div class="message-batch-row">
-          <div class="message-batch-copy">
-            <strong data-message-batch-code>Prepared batch</strong>
-            <span data-message-batch-meta>0 recipients</span>
-          </div>
-
-          <div class="message-batch-actions">
-            <span
-              class="pill pill-neutral"
-              data-message-batch-status
-            >
-              prepared
-            </span>
-
-            <button
-              type="button"
-              class="message-batch-detail-button"
-              data-message-batch-detail
-            >
-              View snapshot
-            </button>
-
-            <button
-              type="button"
-              class="message-batch-send-button"
-              data-message-batch-send
-            >
-              Send messages
-            </button>
-          </div>
-        </div>
-      </template>
+      <div id="outreachAcceptancePagination" class="outreach-list-pagination" hidden><span id="outreachAcceptancePageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptancePrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptanceNextPage" type="button" class="secondary-button">Next</button></div></div>
     </article>
   </section>
 
+  <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
+    <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
+      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div id="outreachAcceptedPoolFilters" class="segmented-filter"><button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button><button type="button" data-accepted-filter="not_sent" class="outreach-accepted-filter">Not sent 0</button><button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button></div></div></div>
+      <div id="outreachAcceptedPoolEmpty" class="state">Chưa có user accepted.</div>
+      <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template></div>
+      <div id="outreachAcceptedPagination" class="outreach-list-pagination" hidden><span id="outreachAcceptedPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptedPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptedNextPage" type="button" class="secondary-button">Next</button></div></div>
+    </article>
 
-  <!-- RECENT JOBS -->
-  <article class="panel outreach-history-panel">
+    <article class="panel message-preparation-panel outreach-secondary-action-panel"><div class="panel-header"><div><p class="panel-kicker">Recipient preparation</p><h2>Create Message Batch</h2><p class="panel-meta">Prepare selected recipients or keep the original Prepare All behavior for every currently eligible profile.</p></div><span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span></div><div class="message-preparation-body"><div class="message-preparation-copy"><strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong><span id="messagePreparationMeta">Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.</span></div><div class="message-preparation-actions"><button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button><button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button></div></div><p id="messagePreparationError" class="outreach-error" hidden></p></article>
+  </section>
 
-    <div class="panel-header">
-
-      <div>
-        <p class="panel-kicker">
-          History
-        </p>
-
-        <h2>
-          Recent Connect Jobs
-        </h2>
-      </div>
-
-
-      <span
-        id="outreachDashboardUpdatedAt"
-        class="panel-meta"
-      >
-        —
-      </span>
-
-    </div>
-
-
-    <div
-      id="outreachHistoryEmpty"
-      class="outreach-job-empty"
-    >
-      Chưa có Connect Job.
-    </div>
-
-
-    <div
-      id="outreachHistoryTableWrap"
-      class="table-wrap"
-      hidden
-    >
-
-      <table class="outreach-history-table">
-
-        <thead>
-          <tr>
-            <th>
-              Job
-            </th>
-
-            <th>
-              Status
-            </th>
-
-            <th>
-              Input
-            </th>
-
-            <th>
-              Ready
-            </th>
-
-            <th>
-              Processed
-            </th>
-
-            <th>
-              Success
-            </th>
-
-            <th>
-              Failed
-            </th>
-
-            <th>
-              Duplicate
-            </th>
-
-            <th>
-              Invalid
-            </th>
-
-            <th>
-              Created
-            </th>
-          </tr>
-        </thead>
-
-
-        <tbody id="outreachHistoryBody">
-        </tbody>
-
-      </table>
-
-    </div>
-
-  </article>
-
+  <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
+    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Prepared snapshots</p><h2>Message Batches</h2><p class="panel-meta">Review prepared recipients, then queue a batch for the Mac Message Worker.</p></div><span id="messageBatchCount" class="pill pill-neutral">0 batches</span></div><div id="messageBatchEmpty" class="state">Chưa có prepared batch.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><strong data-message-batch-code>Prepared batch</strong><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
+  </section>
 </section>
-    
+
     <!-- HEALTH -->
     <section id="tab-health" class="tab-panel" hidden>
       <section class="health-grid">
@@ -1516,6 +836,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-static-prepare-ui-1"></script>
+  <script src="./app.js?v=20260820-outreach-workflow-tabs-1"></script>
 </body>
 </html>
