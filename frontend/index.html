@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-connect-unified-panel-2" />
+<link rel="stylesheet" href="./styles.css?v=20260820-acceptance-insights-1" />
 </head>
 
 <body>
@@ -90,6 +90,128 @@
         <span>LinkedIn operations</span>
       </div>
     </aside>
+
+    <!-- ACCEPTANCE INSIGHTS DRAWER -->
+    <div
+      id="acceptanceInsightsDrawer"
+      class="acceptance-insights-drawer"
+      aria-hidden="true"
+    >
+      <button
+        id="acceptanceInsightsDrawerBackdrop"
+        class="acceptance-insights-drawer-backdrop"
+        type="button"
+        aria-label="Close Acceptance Insights"
+      ></button>
+
+      <aside
+        class="acceptance-insights-drawer-panel"
+        aria-labelledby="acceptanceInsightsDrawerTitle"
+      >
+        <header class="acceptance-insights-drawer-header">
+          <div>
+            <p class="panel-kicker">Connection performance</p>
+            <h2 id="acceptanceInsightsDrawerTitle">Acceptance Insights</h2>
+            <p class="panel-meta">
+              Compare which Outreach profile brings back the strongest connection acceptance.
+            </p>
+          </div>
+
+          <button
+            id="acceptanceInsightsDrawerClose"
+            class="close-button"
+            type="button"
+            aria-label="Close Acceptance Insights"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="acceptance-insights-drawer-body">
+          <section class="acceptance-insights-filter-row">
+            <label class="acceptance-insights-filter-field">
+              <span>Scope</span>
+              <select id="acceptanceInsightsScopeFilter">
+                <option value="all">All time</option>
+                <option value="job">Connect Job</option>
+              </select>
+            </label>
+
+            <label class="acceptance-insights-filter-field">
+              <span>Connect Job</span>
+              <select id="acceptanceInsightsJobFilter" disabled>
+                <option value="all">All Connect Jobs</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="acceptance-insights-summary-grid">
+            <div class="acceptance-insights-summary-card acceptance-insights-summary-card-best">
+              <span>Best performer</span>
+              <strong id="acceptanceInsightsBestAccount">—</strong>
+              <small id="acceptanceInsightsBestMeta">Waiting for performance data</small>
+            </div>
+
+            <div class="acceptance-insights-summary-card">
+              <span>Total connected</span>
+              <strong id="acceptanceInsightsTotalConnected">—</strong>
+              <small>Selected scope</small>
+            </div>
+
+            <div class="acceptance-insights-summary-card">
+              <span>Total accepted</span>
+              <strong id="acceptanceInsightsTotalAccepted">—</strong>
+              <small>Selected scope</small>
+            </div>
+
+            <div class="acceptance-insights-summary-card">
+              <span>Overall rate</span>
+              <strong id="acceptanceInsightsOverallRate">—</strong>
+              <small>Accepted / Connected</small>
+            </div>
+          </section>
+
+          <section class="acceptance-insights-section">
+            <div class="acceptance-insights-section-heading">
+              <div>
+                <p class="panel-kicker">Account performance</p>
+                <h3>Acceptance by Outreach profile</h3>
+              </div>
+              <span id="acceptanceInsightsUpdatedAt" class="panel-meta">—</span>
+            </div>
+
+            <div id="acceptanceInsightsEmpty" class="outreach-job-empty">
+              Performance data chưa được API trả về.
+            </div>
+
+            <div id="acceptanceInsightsTableWrap" class="table-wrap acceptance-insights-table-wrap" hidden>
+              <table class="acceptance-insights-table">
+                <thead>
+                  <tr>
+                    <th>Account</th>
+                    <th>Connected</th>
+                    <th>Accepted</th>
+                    <th>Rate</th>
+                    <th>Share</th>
+                  </tr>
+                </thead>
+                <tbody id="acceptanceInsightsTableBody"></tbody>
+              </table>
+
+              <template id="acceptanceInsightsRowTemplate">
+                <tr>
+                  <td><strong data-insights-account>—</strong></td>
+                  <td data-insights-connected>0</td>
+                  <td data-insights-accepted>0</td>
+                  <td><strong data-insights-rate>0%</strong></td>
+                  <td data-insights-share>0%</td>
+                </tr>
+              </template>
+            </div>
+          </section>
+        </div>
+      </aside>
+    </div>
 
     <!-- RATE LIMITS DRAWER -->
     <div
@@ -750,27 +872,47 @@
     </button>
   </div>
 
-    <button
-      id="rateLimitDrawerButton"
-      class="outreach-rate-limit-button"
-      type="button"
-      aria-controls="rateLimitDrawer"
-      aria-expanded="false"
-    >
-      <span>Rate Limits</span>
-
-      <span
-        id="rateLimitSidebarBadge"
-        class="tab-count"
+    <div class="outreach-workflow-actions">
+      <button
+        id="acceptanceInsightsDrawerButton"
+        class="outreach-rate-limit-button outreach-insights-button"
+        type="button"
+        aria-controls="acceptanceInsightsDrawer"
+        aria-expanded="false"
       >
-        —
-      </span>
-    </button>
+        <span>Acceptance Insights</span>
+      </button>
+
+      <button
+        id="rateLimitDrawerButton"
+        class="outreach-rate-limit-button"
+        type="button"
+        aria-controls="rateLimitDrawer"
+        aria-expanded="false"
+      >
+        <span>Rate Limits</span>
+
+        <span
+          id="rateLimitSidebarBadge"
+          class="tab-count"
+        >
+          —
+        </span>
+      </button>
+    </div>
   </div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <article class="panel outreach-connect-workspace">
   <div class="outreach-connect-workspace-header">
+    <div>
+      <p class="panel-kicker">Connect workflow</p>
+      <h2>Connect Profiles</h2>
+      <p class="panel-meta">
+        Paste profile URLs, start a Connect Job, and follow the current execution in one place.
+      </p>
+    </div>
+
     <div class="outreach-connect-workspace-header-meta">
       <span id="outreachJobCode" class="panel-meta">
         Chưa có job
@@ -1338,6 +1480,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-rate-limit-nav-row-2"></script>
+  <script src="./app.js?v=20260820-acceptance-insights-1"></script>
 </body>
 </html>
