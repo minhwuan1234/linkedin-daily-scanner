@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260816-sidebar-1" />
+<link rel="stylesheet" href="./styles.css?v=20260820-outreach-fix-4" />
 </head>
 
 <body>
@@ -515,24 +515,29 @@
     <span id="outreachDashboardUpdatedAt" class="panel-meta">—</span>
   </div>
 
-  <nav class="outreach-process-tabs" aria-label="Outreach workflow">
-    <button type="button" class="outreach-process-tab is-active" data-outreach-process-tab="connect"><span class="outreach-process-step">01</span><span>Connect</span></button>
-    <button type="button" class="outreach-process-tab" data-outreach-process-tab="acceptance"><span class="outreach-process-step">02</span><span>Acceptance</span></button>
-    <button type="button" class="outreach-process-tab" data-outreach-process-tab="recipients"><span class="outreach-process-step">03</span><span>Recipients</span></button>
-    <button type="button" class="outreach-process-tab" data-outreach-process-tab="messages"><span class="outreach-process-step">04</span><span>Messages</span></button>
-  </nav>
+  <div
+    class="segmented-filter outreach-workflow-tabs"
+    role="tablist"
+    aria-label="Connect and messaging workflow"
+  >
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
+      Connect
+    </button>
+
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
+      Acceptance
+    </button>
+
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
+      Recipients
+    </button>
+
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
+      Messages
+    </button>
+  </div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
-    <article class="panel outreach-history-panel outreach-primary-panel">
-      <div class="panel-header"><div><p class="panel-kicker">Connect history</p><h2>Recent Connect Jobs</h2><p class="panel-meta">Newest Connect Jobs and their latest execution state.</p></div><span id="outreachHistoryCount" class="pill pill-neutral">0 jobs</span></div>
-      <div id="outreachHistoryEmpty" class="outreach-job-empty">Chưa có Connect Job.</div>
-      <div id="outreachHistoryTableWrap" class="table-wrap" hidden>
-        <table class="outreach-history-table"><thead><tr><th>Job</th><th>Status</th><th>Profiles</th><th>Processed</th><th>Success</th><th>Failed</th><th>Created</th></tr></thead><tbody id="outreachHistoryBody"></tbody></table>
-        <template id="outreachHistoryRowTemplate"><tr class="outreach-history-main-row"><td><strong data-connect-job-code>—</strong></td><td><span class="pill pill-neutral" data-connect-job-status>—</span></td><td data-connect-job-profiles>0</td><td data-connect-job-processed>0</td><td data-connect-job-success>0</td><td data-connect-job-failed>0</td><td data-connect-job-created>—</td></tr></template>
-      </div>
-      <div id="outreachHistoryPagination" class="outreach-list-pagination" hidden><span id="outreachHistoryPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachHistoryPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachHistoryNextPage" type="button" class="secondary-button">Next</button></div></div>
-    </article>
-
     <section class="outreach-grid outreach-connect-grid">
       <article class="panel outreach-launch-panel">
         <div class="panel-header"><div><p class="panel-kicker">New connection run</p><h2>Connect Profiles</h2><p class="panel-meta">Paste LinkedIn profile URLs. One submit creates one independent Connect Job.</p></div><span id="outreachJobBadge" class="pill pill-neutral">Idle</span></div>
@@ -559,15 +564,102 @@
     </section>
   </section>
 
-  <section class="outreach-process-panel" data-outreach-process-panel="acceptance" hidden>
-    <article class="panel outreach-primary-panel">
-      <div class="panel-header"><div><p class="panel-kicker">Acceptance checks</p><h2>Invitation Acceptance</h2><p class="panel-meta">Re-check completed Connect Jobs and see the latest acceptance result and last checked time.</p></div><span id="outreachAcceptanceJobCount" class="pill pill-neutral">0 jobs</span></div>
-      <div id="outreachAcceptanceEmpty" class="outreach-job-empty">Chưa có Connect Job để check.</div>
-      <div id="outreachAcceptanceTableWrap" class="table-wrap" hidden>
-        <table class="outreach-acceptance-table"><thead><tr><th>Job</th><th>Check status</th><th>Accepted</th><th>Pending</th><th>Unknown</th><th>Failed</th><th>Last checked at</th><th></th></tr></thead><tbody id="outreachAcceptanceBody"></tbody></table>
-        <template id="outreachAcceptanceRowTemplate"><tr><td><strong data-acceptance-job-code>—</strong><span class="outreach-table-subtext" data-acceptance-profile-count>0 profiles</span></td><td><span class="pill pill-neutral" data-acceptance-status>Not checked</span></td><td data-acceptance-accepted>—</td><td data-acceptance-pending>—</td><td data-acceptance-unknown>—</td><td data-acceptance-failed>—</td><td data-acceptance-last-checked>—</td><td class="outreach-table-action-cell"><button type="button" class="secondary-button outreach-check-acceptance-button" data-acceptance-check-button>Check Acceptance</button></td></tr></template>
+  <section
+    class="outreach-process-panel"
+    data-outreach-process-panel="acceptance"
+    role="tabpanel"
+    hidden
+  >
+    <article class="panel outreach-history-panel outreach-primary-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Connect jobs</p>
+          <h2>Recent Connect Jobs</h2>
+          <p class="panel-meta">
+            Completed Connect Jobs are checked here for invitation acceptance.
+          </p>
+        </div>
+
+        <span id="outreachAcceptanceJobCount" class="pill pill-neutral">
+          0 jobs
+        </span>
       </div>
-      <div id="outreachAcceptancePagination" class="outreach-list-pagination" hidden><span id="outreachAcceptancePageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptancePrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptanceNextPage" type="button" class="secondary-button">Next</button></div></div>
+
+      <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
+        Chưa có Connect Job để check acceptance.
+      </div>
+
+      <div id="outreachAcceptanceTableWrap" class="table-wrap" hidden>
+        <table class="outreach-acceptance-table">
+          <thead>
+            <tr>
+              <th>Job</th>
+              <th>Connect</th>
+              <th>Profiles</th>
+              <th>Acceptance</th>
+              <th>Accepted</th>
+              <th>Pending</th>
+              <th>Unknown</th>
+              <th>Failed</th>
+              <th>Last checked at</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody id="outreachAcceptanceBody"></tbody>
+        </table>
+
+        <template id="outreachAcceptanceRowTemplate">
+          <tr>
+            <td>
+              <strong data-acceptance-job-code>—</strong>
+              <span class="outreach-table-subtext" data-acceptance-created>—</span>
+            </td>
+
+            <td>
+              <span class="pill pill-neutral" data-acceptance-connect-status>—</span>
+            </td>
+
+            <td data-acceptance-profile-count>0</td>
+
+            <td>
+              <span class="pill pill-neutral" data-acceptance-status>Not checked</span>
+            </td>
+
+            <td data-acceptance-accepted>—</td>
+            <td data-acceptance-pending>—</td>
+            <td data-acceptance-unknown>—</td>
+            <td data-acceptance-failed>—</td>
+            <td data-acceptance-last-checked>Never</td>
+
+            <td class="outreach-table-action-cell">
+              <button
+                type="button"
+                class="secondary-button outreach-check-acceptance-button"
+                data-acceptance-check-button
+              >
+                Check Acceptance
+              </button>
+            </td>
+          </tr>
+        </template>
+      </div>
+
+      <div id="outreachAcceptancePagination" class="outreach-list-pagination" hidden>
+        <span id="outreachAcceptancePageMeta" class="panel-meta">
+          Page 1 / 1
+        </span>
+
+        <div class="outreach-list-pagination-actions">
+          <button id="outreachAcceptancePrevPage" type="button" class="secondary-button">
+            Previous
+          </button>
+
+          <button id="outreachAcceptanceNextPage" type="button" class="secondary-button">
+            Next
+          </button>
+        </div>
+      </div>
     </article>
   </section>
 
@@ -836,6 +928,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-outreach-workflow-tabs-1"></script>
+  <script src="./app.js?v=20260820-outreach-fix-4"></script>
 </body>
 </html>
