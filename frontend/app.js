@@ -267,8 +267,8 @@ const els = {
   messageSendDialogMeta:
     document.querySelector("#messageSendDialogMeta"),
 
-  messageTemplateInput:
-    document.querySelector("#messageTemplateInput"),
+  :
+    document.querySelector("#"),
 
   messageSendError:
     document.querySelector("#messageSendError"),
@@ -3518,7 +3518,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-      "Hi {first_name},\n\n";
+      "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something your agency are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
   }
 
   if (els.messageSendError) {
