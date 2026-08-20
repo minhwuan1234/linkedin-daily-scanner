@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-rate-limit-nav-row-2" />
+<link rel="stylesheet" href="./styles.css?v=20260820-connect-smart-ui-1" />
 </head>
 
 <body>
@@ -776,27 +776,183 @@
   </div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
-    <section class="outreach-grid outreach-connect-grid">
-      <article class="panel outreach-launch-panel">
-        <div class="panel-header"><div><p class="panel-kicker">New connection run</p><h2>Connect Profiles</h2><p class="panel-meta">Paste LinkedIn profile URLs. One submit creates one independent Connect Job.</p></div><span id="outreachJobBadge" class="pill pill-neutral">Idle</span></div>
-        <form id="outreachConnectForm" class="outreach-connect-form"><label class="outreach-url-field"><span>LinkedIn Profile URLs</span><textarea id="outreachUrlInput" rows="10" placeholder="https://www.linkedin.com/in/profile-1/&#10;https://www.linkedin.com/in/profile-2/" spellcheck="false" required></textarea></label><div class="outreach-input-footer"><div><strong id="outreachDetectedCount">0 URLs detected</strong><p class="panel-meta">One LinkedIn URL per line.</p></div><button id="outreachStartButton" class="primary-button" type="submit"><span class="button-icon">▶</span><span id="outreachStartButtonText">Start Connect</span></button></div></form><p id="outreachError" class="outreach-error" hidden></p>
-      </article>
+    <section class="outreach-grid outreach-connect-grid outreach-connect-grid-smart">
+  <article class="panel outreach-launch-panel outreach-launch-panel-smart">
+    <div class="panel-header">
+      <div>
+        <p class="panel-kicker">New connection run</p>
+        <h2>Connect Profiles</h2>
+        <p class="panel-meta">
+          Paste one LinkedIn profile URL per line. The field expands when you focus it.
+        </p>
+      </div>
 
-      <article class="panel outreach-result-panel">
-        <div class="panel-header"><div><p class="panel-kicker">Current execution</p><h2>Current Connect Job</h2></div><span id="outreachJobCode" class="panel-meta">Chưa có job</span></div>
-        <div id="outreachJobEmpty" class="outreach-job-empty">Chưa có Connect Job.</div>
-        <div id="outreachJobResult" class="outreach-job-result" hidden>
-          <div class="outreach-progress-block"><div class="outreach-progress-header"><span>Progress</span><strong id="outreachProgressText">0 / 0</strong></div><div class="outreach-progress-track"><div id="outreachProgressBar" class="outreach-progress-bar"></div></div><span id="outreachProgressPercent" class="panel-meta">0%</span></div>
-          <div class="outreach-stat-grid"><div class="outreach-stat"><span>Input</span><strong id="outreachInputCount">0</strong></div><div class="outreach-stat"><span>Ready</span><strong id="outreachReadyCount">0</strong></div><div class="outreach-stat"><span>Processed</span><strong id="outreachProcessedCount">0</strong></div><div class="outreach-stat"><span>Success</span><strong id="outreachSuccessCount">0</strong></div><div class="outreach-stat"><span>Failed</span><strong id="outreachFailedCount">0</strong></div><div class="outreach-stat"><span>Duplicate</span><strong id="outreachDuplicateCount">0</strong></div><div class="outreach-stat"><span>Invalid</span><strong id="outreachInvalidCount">0</strong></div></div>
-          <div class="outreach-job-status-row"><span>Status</span><strong id="outreachJobStatus">Pending</strong></div>
-          <div class="outreach-job-meta-grid"><div><span>Created</span><strong id="outreachCreatedAt">—</strong></div><div><span>Started</span><strong id="outreachStartedAt">—</strong></div><div><span>Completed</span><strong id="outreachCompletedAt">—</strong></div></div>
-          <p id="outreachJobMessage" class="panel-meta"></p><p id="outreachLastError" class="outreach-error" hidden></p>
-          <div class="outreach-targets-section"><button id="outreachCurrentTargetsToggle" class="outreach-current-targets-toggle" type="button"><span>Profiles</span><strong id="outreachCurrentTargetCount">0 profiles</strong><span id="outreachCurrentTargetsArrow">▾</span></button><div id="outreachCurrentTargets" class="outreach-target-list" hidden></div></div>
+      <span id="outreachJobBadge" class="pill pill-neutral">
+        Idle
+      </span>
+    </div>
+
+    <form id="outreachConnectForm" class="outreach-connect-form outreach-connect-form-smart">
+      <label class="outreach-url-field outreach-url-field-smart">
+        <span>LinkedIn Profile URLs</span>
+
+        <textarea
+          id="outreachUrlInput"
+          rows="3"
+          placeholder="Paste LinkedIn profile URLs here…"
+          spellcheck="false"
+          required
+        ></textarea>
+      </label>
+
+      <div class="outreach-input-footer outreach-input-footer-smart">
+        <div class="outreach-input-summary">
+          <strong id="outreachDetectedCount">
+            0 URLs detected
+          </strong>
+
+          <p class="panel-meta">
+            Duplicates and invalid URLs are filtered before processing.
+          </p>
         </div>
-      </article>
-    </section>
 
-    
+        <button
+          id="outreachStartButton"
+          class="primary-button"
+          type="submit"
+        >
+          <span class="button-icon">▶</span>
+          <span id="outreachStartButtonText">Start Connect</span>
+        </button>
+      </div>
+    </form>
+
+    <p id="outreachError" class="outreach-error" hidden></p>
+  </article>
+
+
+  <article class="panel outreach-result-panel outreach-result-panel-smart">
+    <div class="panel-header">
+      <div>
+        <p class="panel-kicker">Current execution</p>
+        <h2>Current Connect Job</h2>
+      </div>
+
+      <div class="outreach-current-job-header-meta">
+        <span id="outreachJobCode" class="panel-meta">
+          Chưa có job
+        </span>
+
+        <strong id="outreachJobStatus" class="outreach-current-status">
+          Pending
+        </strong>
+      </div>
+    </div>
+
+    <div id="outreachJobEmpty" class="outreach-job-empty outreach-job-empty-smart">
+      Chưa có Connect Job.
+    </div>
+
+    <div id="outreachJobResult" class="outreach-job-result outreach-job-result-smart" hidden>
+      <div class="outreach-progress-block outreach-progress-block-smart">
+        <div class="outreach-progress-header">
+          <div>
+            <span>Progress</span>
+            <strong id="outreachProgressText">0 / 0</strong>
+          </div>
+
+          <strong id="outreachProgressPercent" class="outreach-progress-percent-smart">
+            0%
+          </strong>
+        </div>
+
+        <div class="outreach-progress-track">
+          <div id="outreachProgressBar" class="outreach-progress-bar"></div>
+        </div>
+      </div>
+
+      <div class="outreach-primary-stat-grid">
+        <div class="outreach-stat outreach-stat-primary">
+          <span>Input</span>
+          <strong id="outreachInputCount">0</strong>
+        </div>
+
+        <div class="outreach-stat outreach-stat-primary">
+          <span>Processed</span>
+          <strong id="outreachProcessedCount">0</strong>
+        </div>
+
+        <div class="outreach-stat outreach-stat-primary outreach-stat-success">
+          <span>Success</span>
+          <strong id="outreachSuccessCount">0</strong>
+        </div>
+
+        <div class="outreach-stat outreach-stat-primary outreach-stat-failed">
+          <span>Failed</span>
+          <strong id="outreachFailedCount">0</strong>
+        </div>
+      </div>
+
+      <div class="outreach-secondary-stat-row">
+        <div>
+          <span>Ready</span>
+          <strong id="outreachReadyCount">0</strong>
+        </div>
+
+        <div>
+          <span>Duplicate</span>
+          <strong id="outreachDuplicateCount">0</strong>
+        </div>
+
+        <div>
+          <span>Invalid</span>
+          <strong id="outreachInvalidCount">0</strong>
+        </div>
+      </div>
+
+      <div class="outreach-job-meta-grid outreach-job-meta-grid-smart">
+        <div>
+          <span>Created</span>
+          <strong id="outreachCreatedAt">—</strong>
+        </div>
+
+        <div>
+          <span>Started</span>
+          <strong id="outreachStartedAt">—</strong>
+        </div>
+
+        <div>
+          <span>Completed</span>
+          <strong id="outreachCompletedAt">—</strong>
+        </div>
+      </div>
+
+      <div class="outreach-job-message-row">
+        <p id="outreachJobMessage" class="panel-meta"></p>
+        <p id="outreachLastError" class="outreach-error" hidden></p>
+      </div>
+
+      <div class="outreach-targets-section">
+        <button
+          id="outreachCurrentTargetsToggle"
+          class="outreach-current-targets-toggle"
+          type="button"
+        >
+          <span>Profiles</span>
+          <strong id="outreachCurrentTargetCount">0 profiles</strong>
+          <span id="outreachCurrentTargetsArrow">▾</span>
+        </button>
+
+        <div
+          id="outreachCurrentTargets"
+          class="outreach-target-list"
+          hidden
+        ></div>
+      </div>
+    </div>
+  </article>
+</section>
+
   </section>
 
   <section
