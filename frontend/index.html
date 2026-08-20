@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-recipient-filter-fix-1" />
+<link rel="stylesheet" href="./styles.css?v=20260820-acceptance-account-filter-fix-2" />
 </head>
 
 <body>
@@ -665,11 +665,23 @@
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
-      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div id="outreachAcceptedPoolFilters" class="segmented-filter">
-  <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
-  <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
-  <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
-  <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
+      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
+  <div id="outreachAcceptedPoolFilters" class="segmented-filter">
+    <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
+    <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
+    <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
+    <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
+  </div>
+
+  <label class="outreach-account-filter">
+    <span>Account</span>
+    <select
+      id="outreachAcceptedAccountFilter"
+      aria-label="Filter recipients by Outreach account"
+    >
+      <option value="all">All accounts</option>
+    </select>
+  </label>
 </div></div></div>
       <div id="outreachAcceptedPoolEmpty" class="state">Chưa có user accepted.</div>
       <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template></div>
@@ -933,6 +945,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-recipient-filter-fix-1"></script>
+  <script src="./app.js?v=20260820-acceptance-account-filter-fix-2"></script>
 </body>
 </html>
