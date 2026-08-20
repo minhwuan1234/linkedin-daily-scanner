@@ -4121,3 +4121,180 @@ body.has-rate-limit-drawer-open {
     flex-direction: column;
   }
 }
+
+
+/* =========================================================
+   CONNECT TAB — ONE UNIFIED PANEL
+   ========================================================= */
+
+.outreach-connect-workspace {
+  overflow: hidden;
+}
+
+.outreach-connect-workspace-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.outreach-connect-workspace-header h2 {
+  margin: 2px 0 4px;
+}
+
+.outreach-connect-workspace-header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.outreach-connect-workspace-body {
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 0.72fr)
+    minmax(0, 1.28fr);
+}
+
+.outreach-connect-input-section {
+  min-width: 0;
+  padding: 16px 18px 18px;
+  border-right: 1px solid var(--border);
+}
+
+.outreach-connect-execution-section {
+  min-width: 0;
+  padding: 16px 18px 18px;
+}
+
+.outreach-connect-section-heading {
+  margin-bottom: 12px;
+}
+
+.outreach-connect-section-heading h3 {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.outreach-connect-form-inline {
+  padding: 0;
+}
+
+.outreach-url-field-smart textarea {
+  min-height: 74px;
+  max-height: 220px;
+}
+
+.outreach-url-field-smart textarea:focus {
+  min-height: 180px;
+}
+
+.outreach-input-footer-smart {
+  margin-top: 11px;
+}
+
+/* all counters are intentionally same hierarchy */
+.outreach-stat-grid-equal {
+  display: grid;
+  grid-template-columns:
+    repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.outreach-stat-equal {
+  min-width: 0;
+  padding: 10px 11px;
+  border-radius: 10px;
+}
+
+.outreach-stat-equal span {
+  margin-bottom: 7px;
+  font-size: 9px;
+}
+
+.outreach-stat-equal strong {
+  font-size: 17px;
+  line-height: 1;
+}
+
+/* semantic color only, no size hierarchy */
+.outreach-stat-equal:nth-child(2) strong,
+.outreach-stat-equal:nth-child(4) strong {
+  color: #79e4b7;
+}
+
+.outreach-stat-equal:nth-child(5) strong,
+.outreach-stat-equal:nth-child(7) strong {
+  color: #ff9ba6;
+}
+
+.outreach-stat-equal:nth-child(6) strong {
+  color: #f8ca72;
+}
+
+.outreach-stat-equal:nth-child(1) strong,
+.outreach-stat-equal:nth-child(3) strong {
+  color: var(--text);
+}
+
+.outreach-connect-execution-section .outreach-job-result-smart {
+  padding: 0;
+}
+
+.outreach-connect-execution-section .outreach-job-empty-smart {
+  min-height: 118px;
+  padding: 18px;
+}
+
+.outreach-connect-execution-section .outreach-progress-block-smart {
+  margin-bottom: 8px;
+}
+
+.outreach-connect-execution-section .outreach-job-meta-grid-smart {
+  margin-top: 8px;
+}
+
+.outreach-connect-execution-section .outreach-targets-section {
+  margin-top: 9px;
+}
+
+/* top redundant outreach intro has been removed */
+#tab-outreach {
+  gap: 12px;
+}
+
+@media (max-width: 1180px) {
+  .outreach-stat-grid-equal {
+    grid-template-columns:
+      repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .outreach-connect-workspace-body {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-connect-input-section {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 680px) {
+  .outreach-connect-workspace-header {
+    flex-direction: column;
+  }
+
+  .outreach-connect-workspace-header-meta {
+    justify-content: flex-start;
+  }
+
+  .outreach-stat-grid-equal {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
