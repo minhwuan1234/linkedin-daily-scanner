@@ -1332,6 +1332,87 @@
   </div>
 
 
+  <!-- MESSAGE PREPARATION CONFIRM MODAL -->
+  <div
+    id="messagePrepareConfirmModal"
+    class="message-send-modal"
+    hidden
+  >
+    <div
+      class="message-send-modal-backdrop"
+      data-message-prepare-close
+    ></div>
+
+    <section
+      class="message-send-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="messagePrepareConfirmTitle"
+    >
+      <div class="message-send-dialog-header">
+        <div>
+          <p class="panel-kicker">Recipient preparation</p>
+          <h2 id="messagePrepareConfirmTitle">
+            Prepare recipients
+          </h2>
+          <p
+            id="messagePrepareConfirmMeta"
+            class="panel-meta"
+          >
+            —
+          </p>
+        </div>
+
+        <button
+          id="messagePrepareConfirmCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close prepare dialog"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="message-send-dialog-body">
+        <div class="message-prepare-confirm-copy">
+          <strong>
+            This step only creates a frozen recipient batch.
+          </strong>
+
+          <p>
+            No LinkedIn message will be sent yet. You can review the
+            prepared snapshot before using Send Messages.
+          </p>
+        </div>
+
+        <div
+          id="messagePrepareConfirmError"
+          class="outreach-error"
+          hidden
+        ></div>
+      </div>
+
+      <div class="message-send-dialog-footer">
+        <button
+          id="messagePrepareConfirmCancelButton"
+          class="secondary-button"
+          type="button"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="messagePrepareConfirmButton"
+          class="primary-button"
+          type="button"
+        >
+          Prepare recipients
+        </button>
+      </div>
+    </section>
+  </div>
+
+
   <!-- MESSAGE SEND MODAL -->
   <div
     id="messageSendModal"
@@ -1435,6 +1516,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-accepted-select-pagination-1"></script>
+  <script src="./app.js?v=20260820-static-prepare-ui-1"></script>
 </body>
 </html>
