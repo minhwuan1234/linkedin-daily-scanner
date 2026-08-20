@@ -1511,7 +1511,7 @@ def get_outreach_dashboard(
 
     recent_jobs = get_recent_jobs(
         client=client,
-        limit=10,
+        limit=200,
     )
 
     scheduler = get_scheduler_state(
