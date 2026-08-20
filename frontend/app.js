@@ -3168,7 +3168,7 @@ function renderOutreachAcceptedPool() {
       );
 
     const canSelect =
-      uiBucket === "ready" &&
+      uiBucket === "sent" &&
       Boolean(prospectId);
 
     const isSelected =
