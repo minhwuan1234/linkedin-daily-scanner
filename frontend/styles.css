@@ -2699,7 +2699,7 @@ tbody tr:last-child td {
 
 :root {
   --sidebar-width: 248px;
-  --content-max: 1540px;
+  --content-max: 1840px;
 }
 
 body {
@@ -3159,5 +3159,162 @@ body {
 
   .outreach-accepted-filter {
     flex: 1;
+  }
+}
+
+
+/* =========================================================
+   MESSAGE SEND UI
+   HTML owns structure; JS only binds data + behavior.
+   ========================================================= */
+
+.message-batch-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.message-batch-detail-button,
+.message-batch-send-button {
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.message-batch-send-button {
+  border: 1px solid rgba(124, 109, 242, 0.48);
+  background: var(--accent);
+  color: #fff;
+}
+
+.message-batch-send-button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.message-batch-send-button:disabled {
+  cursor: default;
+  opacity: 0.52;
+}
+
+.message-send-modal[hidden] {
+  display: none !important;
+}
+
+.message-send-modal {
+  position: fixed;
+  z-index: 1200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.message-send-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 15, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.message-send-dialog {
+  position: relative;
+  width: min(680px, 100%);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+}
+
+.message-send-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.message-send-dialog-header h2 {
+  margin: 2px 0 4px;
+}
+
+.message-send-dialog-body {
+  padding: 22px;
+}
+
+.message-template-field {
+  display: grid;
+  gap: 9px;
+}
+
+.message-template-field > span {
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.message-template-field textarea {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  outline: none;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.message-template-field textarea:focus {
+  border-color: var(--accent);
+}
+
+.message-template-field small {
+  color: var(--faint);
+  font-size: 10px;
+}
+
+.message-template-field code {
+  color: var(--muted);
+}
+
+.message-send-dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 16px 22px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.message-send-confirm-button {
+  min-width: 130px;
+}
+
+@media (max-width: 680px) {
+  .message-batch-row {
+    grid-template-columns: 1fr;
+  }
+
+  .message-batch-actions {
+    justify-content: flex-start;
+  }
+
+  .message-send-modal {
+    padding: 12px;
+  }
+
+  .message-send-dialog-footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .message-send-dialog-footer button {
+    width: 100%;
   }
 }
