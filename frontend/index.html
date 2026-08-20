@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-acceptance-account-filter-fix-2" />
+<link rel="stylesheet" href="./styles.css?v=20260820-rate-limit-drawer-2" />
 </head>
 
 <body>
@@ -71,6 +71,18 @@
             <span class="sidebar-nav-icon">O</span>
             <span class="sidebar-nav-text">Connect & Messaging</span>
           </button>
+
+          <button
+            id="rateLimitDrawerButton"
+            class="sidebar-rate-limit-trigger"
+            type="button"
+            aria-controls="rateLimitDrawer"
+            aria-expanded="false"
+          >
+            <span class="sidebar-nav-icon">R</span>
+            <span class="sidebar-nav-text">Rate Limits</span>
+            <span id="rateLimitSidebarBadge" class="tab-count">—</span>
+          </button>
         </div>
 
         <div class="sidebar-nav-group sidebar-nav-group-bottom">
@@ -88,6 +100,223 @@
         <span>LinkedIn operations</span>
       </div>
     </aside>
+
+    <!-- RATE LIMITS DRAWER -->
+    <div
+      id="rateLimitDrawer"
+      class="rate-limit-drawer"
+      aria-hidden="true"
+    >
+      <button
+        id="rateLimitDrawerBackdrop"
+        class="rate-limit-drawer-backdrop"
+        type="button"
+        aria-label="Close Rate Limits"
+      ></button>
+
+      <aside
+        class="rate-limit-drawer-panel"
+        aria-labelledby="rateLimitDrawerTitle"
+      >
+        <header class="rate-limit-drawer-header">
+          <div>
+            <p class="panel-kicker">Outreach capacity</p>
+            <h2 id="rateLimitDrawerTitle">Rate Limits</h2>
+            <p class="panel-meta">
+              Turn usage and weekly Connect capacity for every Outreach account.
+            </p>
+          </div>
+
+          <button
+            id="rateLimitDrawerClose"
+            class="close-button"
+            type="button"
+            aria-label="Close Rate Limits"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="rate-limit-drawer-body">
+          <section class="rate-limit-section">
+            <div class="rate-limit-section-heading">
+              <div>
+                <p class="panel-kicker">Scheduler</p>
+                <h3>Current Rotation</h3>
+              </div>
+
+              <span
+                id="outreachSchedulerBadge"
+                class="pill pill-neutral"
+              >
+                —
+              </span>
+            </div>
+
+            <div class="outreach-scheduler-grid rate-limit-scheduler-grid">
+              <div class="outreach-info-item">
+                <span>Current account</span>
+                <strong id="outreachCurrentAccount">—</strong>
+              </div>
+
+              <div class="outreach-info-item">
+                <span>Used this turn</span>
+                <strong id="outreachUsedTurn">0 / 0</strong>
+              </div>
+
+              <div class="outreach-info-item">
+                <span>Remaining</span>
+                <strong id="outreachRemainingTurn">0</strong>
+              </div>
+
+              <div class="outreach-info-item">
+                <span>Scheduler updated</span>
+                <strong id="outreachSchedulerUpdatedAt">—</strong>
+              </div>
+            </div>
+          </section>
+
+          <section class="rate-limit-section">
+            <div class="rate-limit-section-heading">
+              <div>
+                <p class="panel-kicker">Outreach accounts</p>
+                <h3>Account Pool</h3>
+              </div>
+
+              <span id="outreachAccountCount" class="panel-meta">
+                0 accounts
+              </span>
+            </div>
+
+            <div
+              id="outreachAccountsList"
+              class="rate-limit-accounts-list"
+            >
+              <div class="outreach-job-empty">
+                Chưa có dữ liệu account.
+              </div>
+            </div>
+
+            <template id="rateLimitAccountCardTemplate">
+              <article class="outreach-account-card rate-limit-account-card">
+                <div class="outreach-account-card-header">
+                  <div>
+                    <strong data-rate-account-name>—</strong>
+
+                    <span
+                      class="outreach-current-label"
+                      data-rate-account-current
+                      hidden
+                    >
+                      Current
+                    </span>
+
+                    <span
+                      class="outreach-current-label"
+                      data-rate-account-limited
+                      hidden
+                    >
+                      Limit reached
+                    </span>
+                  </div>
+
+                  <span
+                    class="pill pill-neutral"
+                    data-rate-account-status
+                  >
+                    unknown
+                  </span>
+                </div>
+
+                <div class="rate-limit-progress-block">
+                  <div class="rate-limit-progress-label">
+                    <span>Weekly usage</span>
+                    <strong data-rate-weekly-label>0 / 100</strong>
+                  </div>
+
+                  <div class="rate-limit-progress-track">
+                    <div
+                      class="rate-limit-progress-bar"
+                      data-rate-weekly-progress
+                    ></div>
+                  </div>
+                </div>
+
+                <div class="outreach-account-quota">
+                  <div>
+                    <span>Turn</span>
+                    <strong data-rate-turn>0 / 10</strong>
+                  </div>
+
+                  <div>
+                    <span>Turn remaining</span>
+                    <strong data-rate-turn-remaining>10</strong>
+                  </div>
+                </div>
+
+                <div class="outreach-account-quota">
+                  <div>
+                    <span>Weekly sent</span>
+                    <strong data-rate-weekly-sent>0 / 100</strong>
+                  </div>
+
+                  <div>
+                    <span>Weekly remaining</span>
+                    <strong data-rate-weekly-remaining>100</strong>
+                  </div>
+                </div>
+
+                <div class="outreach-account-stats">
+                  <div>
+                    <span>Assigned</span>
+                    <strong data-rate-assigned>0</strong>
+                  </div>
+
+                  <div>
+                    <span>Success</span>
+                    <strong data-rate-success>0</strong>
+                  </div>
+
+                  <div>
+                    <span>Failed</span>
+                    <strong data-rate-failed>0</strong>
+                  </div>
+                </div>
+
+                <div class="outreach-account-last">
+                  <div>
+                    <span>Last job</span>
+                    <strong data-rate-last-job>—</strong>
+                  </div>
+
+                  <div>
+                    <span>Last used</span>
+                    <strong data-rate-last-used>—</strong>
+                  </div>
+
+                  <div>
+                    <span>Last URL</span>
+                    <a
+                      data-rate-last-url
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      —
+                    </a>
+                  </div>
+
+                  <p
+                    class="outreach-error"
+                    data-rate-last-error
+                    hidden
+                  ></p>
+                </div>
+              </article>
+            </template>
+          </section>
+        </div>
+      </aside>
+    </div>
 
     <main class="app-shell">
       <header class="topbar">
@@ -558,10 +787,7 @@
       </article>
     </section>
 
-    <section class="outreach-secondary-grid outreach-system-grid">
-      <article class="panel"><div class="panel-header"><div><p class="panel-kicker">Scheduler</p><h2>Account Rotation</h2></div><span id="outreachSchedulerBadge" class="pill pill-neutral">—</span></div><div class="outreach-scheduler-grid"><div class="outreach-info-item"><span>Current account</span><strong id="outreachCurrentAccount">—</strong></div><div class="outreach-info-item"><span>Used this turn</span><strong id="outreachUsedTurn">0 / 0</strong></div><div class="outreach-info-item"><span>Remaining</span><strong id="outreachRemainingTurn">0</strong></div><div class="outreach-info-item"><span>Scheduler updated</span><strong id="outreachSchedulerUpdatedAt">—</strong></div></div></article>
-      <article class="panel"><div class="panel-header"><div><p class="panel-kicker">Outreach accounts</p><h2>Account Pool</h2></div><span id="outreachAccountCount" class="panel-meta">0 accounts</span></div><div id="outreachAccountsList" class="outreach-accounts-list"><div class="outreach-job-empty">Chưa có dữ liệu account.</div></div></article>
-    </section>
+    
   </section>
 
   <section
@@ -945,6 +1171,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-acceptance-account-filter-fix-2"></script>
+  <script src="./app.js?v=20260820-rate-limit-drawer-2"></script>
 </body>
 </html>
