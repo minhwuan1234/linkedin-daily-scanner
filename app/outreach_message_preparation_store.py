@@ -338,70 +338,30 @@ def get_message_preparation_candidates(
 
 
 # =========================================================
-# PREPARE ALL
+# PREPARE BATCH
 # =========================================================
 
-def prepare_all_unsent_accepted(
+def _create_prepared_batch_from_candidates(
     *,
-    client: Client | None = None,
+    candidates: list[dict],
+    client: Client,
 ) -> dict:
-    """
-    Snapshot ALL currently eligible accepted + not-sent profiles.
-
-    IMPORTANT:
-    This is preparation only.
-
-    It does NOT:
-    - send a message;
-    - start a browser;
-    - queue a messaging worker;
-    - write message text/template;
-    - change outreach_prospects.message_status.
-
-    Result:
-        one outreach_message_batches row
-        +
-        N outreach_message_targets rows
-        all status='prepared'
-    """
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    candidate_result = (
-        get_message_preparation_candidates(
-            client=active_client
-        )
-    )
-
-    candidates = (
-        candidate_result[
-            "items"
-        ]
-    )
-
     if not candidates:
         return {
             "created": False,
-            "reason": (
-                "no_eligible_recipients"
-            ),
+            "reason": "no_eligible_recipients",
             "batch": None,
             "target_count": 0,
         }
 
-    batch_code = (
-        _build_batch_code(
-            client=active_client
-        )
+    batch_code = _build_batch_code(
+        client=client
     )
 
     now = _utc_now()
 
     batch_response = (
-        active_client.table(
+        client.table(
             MESSAGE_BATCH_TABLE
         )
         .insert(
@@ -427,11 +387,8 @@ def prepare_all_unsent_accepted(
         )
 
     batch = batch_rows[0]
-
     batch_id = _safe_text(
-        batch.get(
-            "id"
-        )
+        batch.get("id")
     )
 
     if not batch_id:
@@ -442,31 +399,12 @@ def prepare_all_unsent_accepted(
     target_rows = [
         {
             "batch_id": batch_id,
-            "prospect_id": (
-                item[
-                    "prospect_id"
-                ]
-            ),
-            "source_target_id": (
-                item[
-                    "source_target_id"
-                ]
-            ),
-            "assigned_account_id": (
-                item[
-                    "assigned_account_id"
-                ]
-            ),
-            "linkedin_url": (
-                item[
-                    "linkedin_url"
-                ]
-            ),
+            "prospect_id": item["prospect_id"],
+            "source_target_id": item["source_target_id"],
+            "assigned_account_id": item["assigned_account_id"],
+            "linkedin_url": item["linkedin_url"],
             "normalized_url": (
-                item[
-                    "normalized_url"
-                ]
-                or None
+                item["normalized_url"] or None
             ),
             "status": "prepared",
             "created_at": now,
@@ -477,7 +415,7 @@ def prepare_all_unsent_accepted(
 
     try:
         target_response = (
-            active_client.table(
+            client.table(
                 MESSAGE_TARGET_TABLE
             )
             .insert(
@@ -505,17 +443,13 @@ def prepare_all_unsent_accepted(
             )
 
         (
-            active_client.table(
+            client.table(
                 MESSAGE_BATCH_TABLE
             )
             .update(
                 {
-                    "target_count": (
-                        inserted_count
-                    ),
-                    "updated_at": (
-                        _utc_now()
-                    ),
+                    "target_count": inserted_count,
+                    "updated_at": _utc_now(),
                 }
             )
             .eq(
@@ -526,11 +460,9 @@ def prepare_all_unsent_accepted(
         )
 
     except Exception:
-        # Keep preparation all-or-nothing from the application's
-        # perspective. Deleting the batch cascades its inserted targets.
         try:
             (
-                active_client.table(
+                client.table(
                     MESSAGE_BATCH_TABLE
                 )
                 .delete()
@@ -545,18 +477,121 @@ def prepare_all_unsent_accepted(
 
         raise
 
-    batch[
-        "target_count"
-    ] = inserted_count
+    batch["target_count"] = inserted_count
 
     return {
         "created": True,
         "reason": None,
         "batch": batch,
-        "target_count": (
-            inserted_count
-        ),
+        "target_count": inserted_count,
     }
+
+
+# =========================================================
+# PREPARE ALL
+# =========================================================
+
+def prepare_all_unsent_accepted(
+    *,
+    client: Client | None = None,
+) -> dict:
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    candidate_result = (
+        get_message_preparation_candidates(
+            client=active_client
+        )
+    )
+
+    return _create_prepared_batch_from_candidates(
+        candidates=list(
+            candidate_result.get("items")
+            or []
+        ),
+        client=active_client,
+    )
+
+
+# =========================================================
+# PREPARE SELECTED
+# =========================================================
+
+def prepare_selected_unsent_accepted(
+    *,
+    prospect_ids: list[str],
+    client: Client | None = None,
+) -> dict:
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    cleaned_ids: list[str] = []
+    seen: set[str] = set()
+
+    for value in (
+        prospect_ids
+        or []
+    ):
+        prospect_id = _safe_text(value)
+
+        if (
+            not prospect_id
+            or prospect_id in seen
+        ):
+            continue
+
+        seen.add(prospect_id)
+        cleaned_ids.append(prospect_id)
+
+    if not cleaned_ids:
+        raise OutreachMessagePreparationStoreError(
+            "At least one prospect_id is required."
+        )
+
+    candidate_result = (
+        get_message_preparation_candidates(
+            client=active_client
+        )
+    )
+
+    candidates = list(
+        candidate_result.get("items")
+        or []
+    )
+
+    candidate_by_id = {
+        _safe_text(item.get("prospect_id")): item
+        for item in candidates
+        if _safe_text(item.get("prospect_id"))
+    }
+
+    missing_ids = [
+        prospect_id
+        for prospect_id in cleaned_ids
+        if prospect_id not in candidate_by_id
+    ]
+
+    if missing_ids:
+        raise OutreachMessagePreparationStoreError(
+            "Some selected recipients are no longer eligible. "
+            "Refresh Accepted Pool and select again."
+        )
+
+    selected_candidates = [
+        candidate_by_id[prospect_id]
+        for prospect_id in cleaned_ids
+    ]
+
+    return _create_prepared_batch_from_candidates(
+        candidates=selected_candidates,
+        client=active_client,
+    )
 
 
 # =========================================================
