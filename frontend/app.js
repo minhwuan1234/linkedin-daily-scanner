@@ -262,6 +262,9 @@ const els = {
   outreachAcceptedSelectedCount:
     document.querySelector("#outreachAcceptedSelectedCount"),
 
+  outreachAcceptedAccountFilter:
+    document.querySelector("#outreachAcceptedAccountFilter"),
+
   outreachAcceptedSelectPage:
     document.querySelector("#outreachAcceptedSelectPage"),
 
@@ -426,6 +429,7 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
+  outreachAcceptedAccountFilter: "all",
   outreachAcceptedPoolPage: 1,
   outreachAcceptedPoolPageSize: 15,
   outreachAcceptedSelectedProspectIds: new Set(),
@@ -2258,6 +2262,82 @@ function getOutreachAcceptanceLabel(
 }
 
 
+async function queueOutreachAcceptanceCheck(
+  jobId
+) {
+  const cleanedJobId = String(
+    jobId || ""
+  ).trim();
+
+  if (!cleanedJobId) {
+    throw new Error(
+      "Không tìm thấy Outreach job_id."
+    );
+  }
+
+  if (
+    state
+      .outreachAcceptanceSubmittingJobIds
+      .has(cleanedJobId)
+  ) {
+    return;
+  }
+
+  state
+    .outreachAcceptanceSubmittingJobIds
+    .add(cleanedJobId);
+
+  renderOutreachAcceptanceJobs(
+    state.outreachRecentJobs
+  );
+
+  try {
+    const response = await fetch(
+      `/api/outreach/connect/jobs/${encodeURIComponent(
+        cleanedJobId
+      )}/check-acceptance`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    let result = {};
+
+    try {
+      result = await response.json();
+    } catch (error) {
+      result = {};
+    }
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể queue Acceptance Check."
+      );
+    }
+
+    await loadOutreachDashboard();
+
+  } finally {
+    state
+      .outreachAcceptanceSubmittingJobIds
+      .delete(cleanedJobId);
+
+    renderOutreachAcceptanceJobs(
+      state.outreachRecentJobs
+    );
+  }
+}
+
+
 function getLatestAcceptanceCheckedAt(acceptance){if(!acceptance)return null;return acceptance.completed_at||acceptance.updated_at||acceptance.started_at||null}
 function getAcceptanceDisplayStatus(acceptance){return acceptance?normaliseStatus(acceptance.status||"not_checked"):"not_checked"}
 function getAcceptanceStatusLabel(acceptance){const s=getAcceptanceDisplayStatus(acceptance),n=Number(acceptance?.run_number||0);if(s==="not_checked")return"Not checked";const l=s==="pending"?"Queued":s==="running"?"Checking":s==="completed"?"Completed":s==="failed"?"Check failed":statusLabel(s);return n>0?`#${n} ${l}`:l}
@@ -2571,6 +2651,88 @@ function getEligibleMessageProspectIds() {
 }
 
 
+function getAcceptedPoolAvailableAccounts() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const accountIds = new Set();
+
+  items.forEach((item) => {
+    const accountId =
+      String(
+        item.assigned_account_id ||
+        ""
+      ).trim();
+
+    if (accountId) {
+      accountIds.add(accountId);
+    }
+  });
+
+  return Array.from(accountIds);
+}
+
+
+function renderAcceptedPoolAccountFilter() {
+  const select =
+    els.outreachAcceptedAccountFilter;
+
+  if (!select) {
+    return;
+  }
+
+  const accountIds =
+    getAcceptedPoolAvailableAccounts();
+
+  const currentValue =
+    state.outreachAcceptedAccountFilter ||
+    "all";
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const allOption =
+    document.createElement("option");
+
+  allOption.value = "all";
+  allOption.textContent = "All accounts";
+
+  fragment.append(allOption);
+
+  accountIds.forEach((accountId) => {
+    const option =
+      document.createElement("option");
+
+    option.value = accountId;
+
+    option.textContent =
+      getOutreachAccountDisplayName(
+        accountId
+      );
+
+    fragment.append(option);
+  });
+
+  select.replaceChildren(fragment);
+
+  const stillExists =
+    currentValue === "all" ||
+    accountIds.includes(currentValue);
+
+  state.outreachAcceptedAccountFilter =
+    stillExists
+      ? currentValue
+      : "all";
+
+  select.value =
+    state.outreachAcceptedAccountFilter;
+}
+
+
 function getAcceptedPoolUiBucket(
   item,
   eligibleIds = null
@@ -2618,22 +2780,38 @@ function getAcceptedPoolFilteredItems() {
     state.outreachAcceptedPoolFilter ||
     "all";
 
-  if (filter === "all") {
-    return items;
-  }
+  const accountFilter =
+    state.outreachAcceptedAccountFilter ||
+    "all";
 
   const eligibleIds =
     getEligibleMessageProspectIds();
 
-  return items.filter(
-    (item) =>
+  return items.filter((item) => {
+    const statusMatches =
+      filter === "all" ||
       getAcceptedPoolUiBucket(
         item,
         eligibleIds
-      ) === filter
-  );
-}
+      ) === filter;
 
+    const itemAccountId =
+      String(
+        item.assigned_account_id ||
+        ""
+      ).trim();
+
+    const accountMatches =
+      accountFilter === "all" ||
+      itemAccountId ===
+        accountFilter;
+
+    return (
+      statusMatches &&
+      accountMatches
+    );
+  });
+}
 
 function getAcceptedPoolUiSummary() {
   const items =
@@ -2839,6 +3017,8 @@ function renderOutreachAcceptedPool() {
   }
 
   reconcileAcceptedPoolSelection();
+
+  renderAcceptedPoolAccountFilter();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -5815,6 +5995,21 @@ document.addEventListener(
     renderOutreachAcceptedPool();
   }
 );
+
+els.outreachAcceptedAccountFilter?.addEventListener(
+  "change",
+  () => {
+    state.outreachAcceptedAccountFilter =
+      els.outreachAcceptedAccountFilter.value ||
+      "all";
+
+    state.outreachAcceptedPoolPage =
+      1;
+
+    renderOutreachAcceptedPool();
+  }
+);
+
 
 els.outreachAcceptedPrevPage?.addEventListener(
   "click",
