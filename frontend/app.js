@@ -2263,7 +2263,279 @@ function getAcceptanceDisplayStatus(acceptance){return acceptance?normaliseStatu
 function getAcceptanceStatusLabel(acceptance){const s=getAcceptanceDisplayStatus(acceptance),n=Number(acceptance?.run_number||0);if(s==="not_checked")return"Not checked";const l=s==="pending"?"Queued":s==="running"?"Checking":s==="completed"?"Completed":s==="failed"?"Check failed":statusLabel(s);return n>0?`#${n} ${l}`:l}
 function updateSimplePagination({container,meta,prev,next,currentPage,totalPages,totalItems,startIndex,pageLength}){if(!container)return;container.hidden=totalItems<=0;if(totalItems<=0)return;if(meta)meta.textContent=`Page ${currentPage} / ${totalPages} · ${startIndex+1}-${startIndex+pageLength} of ${totalItems}`;if(prev)prev.disabled=currentPage<=1;if(next)next.disabled=currentPage>=totalPages}
 function renderOutreachHistory(jobs){const rows=Array.isArray(jobs)?jobs:[];if(els.outreachHistoryCount)els.outreachHistoryCount.textContent=`${rows.length} jobs`;if(!els.outreachHistoryEmpty||!els.outreachHistoryTableWrap||!els.outreachHistoryBody||!els.outreachHistoryRowTemplate)return;if(!rows.length){els.outreachHistoryEmpty.hidden=false;els.outreachHistoryTableWrap.hidden=true;els.outreachHistoryBody.replaceChildren();if(els.outreachHistoryPagination)els.outreachHistoryPagination.hidden=true;return}const ps=Number(state.outreachHistoryPageSize||5),tp=Math.max(1,Math.ceil(rows.length/ps));state.outreachHistoryPage=Math.min(tp,Math.max(1,state.outreachHistoryPage));const si=(state.outreachHistoryPage-1)*ps,pr=rows.slice(si,si+ps);els.outreachHistoryEmpty.hidden=true;els.outreachHistoryTableWrap.hidden=false;els.outreachHistoryBody.replaceChildren();pr.forEach(job=>{const f=els.outreachHistoryRowTemplate.content.cloneNode(true),s=normaliseStatus(job.status),vals={"[data-connect-job-code]":job.job_code||"—","[data-connect-job-profiles]":Number(job.target_count||0),"[data-connect-job-processed]":Number(job.processed_count||0),"[data-connect-job-success]":Number(job.success_count||0),"[data-connect-job-failed]":Number(job.failed_count||0),"[data-connect-job-created]":formatDate(job.created_at)};Object.entries(vals).forEach(([q,v])=>{const e=f.querySelector(q);if(e)e.textContent=String(v)});const se=f.querySelector("[data-connect-job-status]");if(se){se.textContent=statusLabel(s);se.className=`pill ${getOutreachPillClass(s)}`}els.outreachHistoryBody.append(f)});updateSimplePagination({container:els.outreachHistoryPagination,meta:els.outreachHistoryPageMeta,prev:els.outreachHistoryPrevPage,next:els.outreachHistoryNextPage,currentPage:state.outreachHistoryPage,totalPages:tp,totalItems:rows.length,startIndex:si,pageLength:pr.length})}
-function renderOutreachAcceptanceJobs(jobs){const rows=Array.isArray(jobs)?jobs.filter(j=>normaliseStatus(j.status)==="completed"):[];if(els.outreachAcceptanceJobCount)els.outreachAcceptanceJobCount.textContent=`${rows.length} jobs`;if(!els.outreachAcceptanceEmpty||!els.outreachAcceptanceTableWrap||!els.outreachAcceptanceBody||!els.outreachAcceptanceRowTemplate)return;if(!rows.length){els.outreachAcceptanceEmpty.hidden=false;els.outreachAcceptanceTableWrap.hidden=true;els.outreachAcceptanceBody.replaceChildren();if(els.outreachAcceptancePagination)els.outreachAcceptancePagination.hidden=true;return}const ps=Number(state.outreachAcceptancePageSize||10),tp=Math.max(1,Math.ceil(rows.length/ps));state.outreachAcceptancePage=Math.min(tp,Math.max(1,state.outreachAcceptancePage));const si=(state.outreachAcceptancePage-1)*ps,pr=rows.slice(si,si+ps);els.outreachAcceptanceEmpty.hidden=true;els.outreachAcceptanceTableWrap.hidden=false;els.outreachAcceptanceBody.replaceChildren();pr.forEach(job=>{const a=job.acceptance||null,s=getAcceptanceDisplayStatus(a),f=els.outreachAcceptanceRowTemplate.content.cloneNode(true),set=(q,v)=>{const e=f.querySelector(q);if(e)e.textContent=String(v)};set("[data-acceptance-job-code]",job.job_code||"—");set("[data-acceptance-profile-count]",`${Number(job.target_count||0)} profiles`);set("[data-acceptance-accepted]",a?Number(a.new_accepted_count||0):"—");set("[data-acceptance-pending]",a?Number(a.still_pending_count||0):"—");set("[data-acceptance-unknown]",a?Number(a.declined_or_unknown_count||0):"—");set("[data-acceptance-failed]",a?Number(a.failed_count||0):"—");const lc=getLatestAcceptanceCheckedAt(a);set("[data-acceptance-last-checked]",lc?formatDate(lc):"Never");const se=f.querySelector("[data-acceptance-status]");if(se){se.textContent=getAcceptanceStatusLabel(a);se.className=`pill ${getOutreachPillClass(s)}`}const b=f.querySelector("[data-acceptance-check-button]");if(b){const id=String(job.id||"").trim(),sub=state.outreachAcceptanceSubmittingJobIds.has(id),busy=s==="pending"||s==="running";b.dataset.jobId=id;b.disabled=!id||busy||sub;b.textContent=sub?"Queueing...":s==="pending"?"Queued":s==="running"?"Checking...":"Check Acceptance";b.addEventListener("click",async()=>{try{await queueOutreachAcceptanceCheck(id)}catch(e){console.error("Acceptance check error:",e)}})}els.outreachAcceptanceBody.append(f)});updateSimplePagination({container:els.outreachAcceptancePagination,meta:els.outreachAcceptancePageMeta,prev:els.outreachAcceptancePrevPage,next:els.outreachAcceptanceNextPage,currentPage:state.outreachAcceptancePage,totalPages:tp,totalItems:rows.length,startIndex:si,pageLength:pr.length})}
+function renderOutreachAcceptanceJobs(
+  jobs
+) {
+  const rows =
+    Array.isArray(jobs)
+      ? jobs
+      : [];
+
+  if (els.outreachAcceptanceJobCount) {
+    els.outreachAcceptanceJobCount.textContent =
+      `${rows.length} jobs`;
+  }
+
+  if (
+    !els.outreachAcceptanceEmpty ||
+    !els.outreachAcceptanceTableWrap ||
+    !els.outreachAcceptanceBody ||
+    !els.outreachAcceptanceRowTemplate
+  ) {
+    return;
+  }
+
+  if (!rows.length) {
+    els.outreachAcceptanceEmpty.hidden = false;
+    els.outreachAcceptanceTableWrap.hidden = true;
+    els.outreachAcceptanceBody.replaceChildren();
+
+    if (els.outreachAcceptancePagination) {
+      els.outreachAcceptancePagination.hidden = true;
+    }
+
+    return;
+  }
+
+  const pageSize = Number(
+    state.outreachAcceptancePageSize || 10
+  );
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(rows.length / pageSize)
+  );
+
+  state.outreachAcceptancePage =
+    Math.min(
+      totalPages,
+      Math.max(
+        1,
+        state.outreachAcceptancePage
+      )
+    );
+
+  const startIndex =
+    (state.outreachAcceptancePage - 1) *
+    pageSize;
+
+  const pageRows =
+    rows.slice(
+      startIndex,
+      startIndex + pageSize
+    );
+
+  els.outreachAcceptanceEmpty.hidden = true;
+  els.outreachAcceptanceTableWrap.hidden = false;
+  els.outreachAcceptanceBody.replaceChildren();
+
+  pageRows.forEach((job) => {
+    const acceptance =
+      job.acceptance || null;
+
+    const acceptanceStatus =
+      getAcceptanceDisplayStatus(
+        acceptance
+      );
+
+    const connectStatus =
+      normaliseStatus(
+        job.status
+      );
+
+    const fragment =
+      els.outreachAcceptanceRowTemplate
+        .content
+        .cloneNode(true);
+
+    const setText = (
+      selector,
+      value
+    ) => {
+      const element =
+        fragment.querySelector(
+          selector
+        );
+
+      if (element) {
+        element.textContent =
+          String(value);
+      }
+    };
+
+    setText(
+      "[data-acceptance-job-code]",
+      job.job_code || "—"
+    );
+
+    setText(
+      "[data-acceptance-created]",
+      formatDate(job.created_at)
+    );
+
+    setText(
+      "[data-acceptance-profile-count]",
+      Number(job.target_count || 0)
+    );
+
+    setText(
+      "[data-acceptance-accepted]",
+      acceptance
+        ? Number(
+            acceptance.new_accepted_count || 0
+          )
+        : "—"
+    );
+
+    setText(
+      "[data-acceptance-pending]",
+      acceptance
+        ? Number(
+            acceptance.still_pending_count || 0
+          )
+        : "—"
+    );
+
+    setText(
+      "[data-acceptance-unknown]",
+      acceptance
+        ? Number(
+            acceptance.declined_or_unknown_count || 0
+          )
+        : "—"
+    );
+
+    setText(
+      "[data-acceptance-failed]",
+      acceptance
+        ? Number(
+            acceptance.failed_count || 0
+          )
+        : "—"
+    );
+
+    const lastCheckedAt =
+      getLatestAcceptanceCheckedAt(
+        acceptance
+      );
+
+    setText(
+      "[data-acceptance-last-checked]",
+      lastCheckedAt
+        ? formatDate(lastCheckedAt)
+        : "Never"
+    );
+
+    const connectStatusElement =
+      fragment.querySelector(
+        "[data-acceptance-connect-status]"
+      );
+
+    if (connectStatusElement) {
+      connectStatusElement.textContent =
+        statusLabel(connectStatus);
+
+      connectStatusElement.className =
+        `pill ${getOutreachPillClass(
+          connectStatus
+        )}`;
+    }
+
+    const acceptanceStatusElement =
+      fragment.querySelector(
+        "[data-acceptance-status]"
+      );
+
+    if (acceptanceStatusElement) {
+      acceptanceStatusElement.textContent =
+        getAcceptanceStatusLabel(
+          acceptance
+        );
+
+      acceptanceStatusElement.className =
+        `pill ${getOutreachPillClass(
+          acceptanceStatus
+        )}`;
+    }
+
+    const button =
+      fragment.querySelector(
+        "[data-acceptance-check-button]"
+      );
+
+    if (button) {
+      const jobId =
+        String(job.id || "").trim();
+
+      const submitting =
+        state
+          .outreachAcceptanceSubmittingJobIds
+          .has(jobId);
+
+      const busy =
+        acceptanceStatus === "pending" ||
+        acceptanceStatus === "running";
+
+      const canCheck =
+        Boolean(jobId) &&
+        connectStatus === "completed" &&
+        !busy &&
+        !submitting;
+
+      button.dataset.jobId = jobId;
+      button.disabled = !canCheck;
+
+      button.textContent =
+        submitting
+          ? "Queueing..."
+          : acceptanceStatus === "pending"
+            ? "Queued"
+            : acceptanceStatus === "running"
+              ? "Checking..."
+              : "Check Acceptance";
+
+      button.addEventListener(
+        "click",
+        async () => {
+          try {
+            await queueOutreachAcceptanceCheck(
+              jobId
+            );
+          } catch (error) {
+            console.error(
+              "Acceptance check error:",
+              error
+            );
+          }
+        }
+      );
+    }
+
+    els.outreachAcceptanceBody.append(
+      fragment
+    );
+  });
+
+  updateSimplePagination({
+    container:
+      els.outreachAcceptancePagination,
+    meta:
+      els.outreachAcceptancePageMeta,
+    prev:
+      els.outreachAcceptancePrevPage,
+    next:
+      els.outreachAcceptanceNextPage,
+    currentPage:
+      state.outreachAcceptancePage,
+    totalPages,
+    totalItems:
+      rows.length,
+    startIndex,
+    pageLength:
+      pageRows.length
+  });
+}
+
 
 // ---------------------------------------------------------
 // ACCEPTED POOL
@@ -3921,7 +4193,7 @@ async function createOutreachConnectJob(
 
 
     updateOutreachDetectedCount();
-setOutreachProcessTab(state.outreachProcessTab);
+
 
 
     // Load lại ngay từ DB.
@@ -5210,7 +5482,59 @@ els.stopScanButton?.addEventListener(
   }
 );
 
-function setOutreachProcessTab(tabName){const cleaned=String(tabName||"connect").trim();state.outreachProcessTab=cleaned;document.querySelectorAll("[data-outreach-process-tab]").forEach(button=>button.classList.toggle("is-active",button.dataset.outreachProcessTab===cleaned));document.querySelectorAll("[data-outreach-process-panel]").forEach(panel=>{const active=panel.dataset.outreachProcessPanel===cleaned;panel.hidden=!active;panel.classList.toggle("is-active",active)})}
+function setOutreachProcessTab(
+  tabName
+) {
+  const validTabs = new Set([
+    "connect",
+    "acceptance",
+    "recipients",
+    "messages"
+  ]);
+
+  const requested =
+    String(
+      tabName || "connect"
+    ).trim();
+
+  const cleaned =
+    validTabs.has(requested)
+      ? requested
+      : "connect";
+
+  state.outreachProcessTab =
+    cleaned;
+
+  document
+    .querySelectorAll(
+      "[data-outreach-process-tab]"
+    )
+    .forEach((button) => {
+      const active =
+        button.dataset.outreachProcessTab ===
+        cleaned;
+
+      button.classList.toggle(
+        "is-active",
+        active
+      );
+
+      button.setAttribute(
+        "aria-selected",
+        active ? "true" : "false"
+      );
+    });
+
+  document
+    .querySelectorAll(
+      "[data-outreach-process-panel]"
+    )
+    .forEach((panel) => {
+      panel.hidden =
+        panel.dataset.outreachProcessPanel !==
+        cleaned;
+    });
+}
 
 els.refreshButton?.addEventListener(
   "click",
@@ -5253,7 +5577,25 @@ els.outreachUrlInput?.addEventListener(
 );
 
 
-document.querySelectorAll("[data-outreach-process-tab]").forEach(button=>button.addEventListener("click",()=>setOutreachProcessTab(button.dataset.outreachProcessTab)));
+document.addEventListener(
+  "click",
+  (event) => {
+    const button =
+      event.target.closest(
+        "[data-outreach-process-tab]"
+      );
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+
+    setOutreachProcessTab(
+      button.dataset.outreachProcessTab
+    );
+  }
+);
 els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistoryPage=Math.max(1,state.outreachHistoryPage-1);renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
@@ -5509,3 +5851,16 @@ loadOutreachDashboard();
 startOutreachPolling();
 
 loadDashboard();
+
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+    setOutreachProcessTab(
+      state.outreachProcessTab || "connect"
+    );
+  },
+  {
+    once: true
+  }
+);
