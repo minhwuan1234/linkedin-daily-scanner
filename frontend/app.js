@@ -195,6 +195,52 @@ const els = {
   outreachHistoryBody:
     document.querySelector("#outreachHistoryBody"),
 
+  outreachHistoryRowTemplate:
+    document.querySelector("#outreachHistoryRowTemplate"),
+
+  outreachHistoryCount:
+    document.querySelector("#outreachHistoryCount"),
+
+  outreachHistoryPagination:
+    document.querySelector("#outreachHistoryPagination"),
+
+  outreachHistoryPageMeta:
+    document.querySelector("#outreachHistoryPageMeta"),
+
+  outreachHistoryPrevPage:
+    document.querySelector("#outreachHistoryPrevPage"),
+
+  outreachHistoryNextPage:
+    document.querySelector("#outreachHistoryNextPage"),
+
+  outreachAcceptanceJobCount:
+    document.querySelector("#outreachAcceptanceJobCount"),
+
+  outreachAcceptanceEmpty:
+    document.querySelector("#outreachAcceptanceEmpty"),
+
+  outreachAcceptanceTableWrap:
+    document.querySelector("#outreachAcceptanceTableWrap"),
+
+  outreachAcceptanceBody:
+    document.querySelector("#outreachAcceptanceBody"),
+
+  outreachAcceptanceRowTemplate:
+    document.querySelector("#outreachAcceptanceRowTemplate"),
+
+  outreachAcceptancePagination:
+    document.querySelector("#outreachAcceptancePagination"),
+
+  outreachAcceptancePageMeta:
+    document.querySelector("#outreachAcceptancePageMeta"),
+
+  outreachAcceptancePrevPage:
+    document.querySelector("#outreachAcceptancePrevPage"),
+
+  outreachAcceptanceNextPage:
+    document.querySelector("#outreachAcceptanceNextPage"),
+
+
   outreachAcceptedPoolPanel:
     document.querySelector("#outreachAcceptedPoolPanel"),
 
@@ -279,6 +325,19 @@ const els = {
   messageBatchList:
     document.querySelector("#messageBatchList"),
 
+  messageBatchPagination:
+    document.querySelector("#messageBatchPagination"),
+
+  messageBatchPageMeta:
+    document.querySelector("#messageBatchPageMeta"),
+
+  messageBatchPrevPage:
+    document.querySelector("#messageBatchPrevPage"),
+
+  messageBatchNextPage:
+    document.querySelector("#messageBatchNextPage"),
+
+
   messageBatchRowTemplate:
     document.querySelector("#messageBatchRowTemplate"),
 
@@ -348,6 +407,13 @@ const state = {
   outreachScheduler: null,
   outreachAccounts: [],
   outreachRecentJobs: [],
+  outreachProcessTab: "connect",
+  outreachHistoryPage: 1,
+  outreachHistoryPageSize: 5,
+  outreachAcceptancePage: 1,
+  outreachAcceptancePageSize: 10,
+  messageBatchPage: 1,
+  messageBatchPageSize: 8,
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   outreachAcceptanceSubmittingJobIds: new Set(),
@@ -2192,518 +2258,12 @@ function getOutreachAcceptanceLabel(
 }
 
 
-function renderOutreachAcceptanceSummary(
-  job
-) {
-  const acceptance =
-    job?.acceptance || null;
-
-  if (!acceptance) {
-    return `
-      <div
-        class="outreach-acceptance-summary"
-        style="
-          margin-top: 8px;
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px 10px;
-          align-items: center;
-          font-size: 12px;
-        "
-      >
-        <span class="panel-meta">
-          Acceptance: Not checked
-        </span>
-      </div>
-    `;
-  }
-
-  const status = normaliseStatus(
-    acceptance.status
-  );
-
-  const checked = Number(
-    acceptance.checked_count || 0
-  );
-
-  const total = Number(
-    acceptance.total_to_check || 0
-  );
-
-  const accepted = Number(
-    acceptance.new_accepted_count || 0
-  );
-
-  const pending = Number(
-    acceptance.still_pending_count || 0
-  );
-
-  const unknown = Number(
-    acceptance.declined_or_unknown_count || 0
-  );
-
-  const failed = Number(
-    acceptance.failed_count || 0
-  );
-
-  const runNumber = Number(
-    acceptance.run_number || 0
-  );
-
-  return `
-    <div
-      class="outreach-acceptance-summary"
-      style="
-        margin-top: 8px;
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px 10px;
-        align-items: center;
-        font-size: 12px;
-      "
-    >
-      <span class="panel-meta">
-        Acceptance #${runNumber || "—"}:
-        ${escapeHtml(
-          getOutreachAcceptanceLabel(
-            acceptance
-          )
-        )}
-      </span>
-
-      ${
-        status === "pending" ||
-        status === "running"
-          ? `
-            <span class="panel-meta">
-              ${checked} / ${total}
-            </span>
-          `
-          : ""
-      }
-
-      ${
-        status === "completed" ||
-        status === "failed"
-          ? `
-            <span class="panel-meta">
-              Accepted ${accepted}
-            </span>
-
-            <span class="panel-meta">
-              Pending ${pending}
-            </span>
-
-            <span class="panel-meta">
-              Unknown ${unknown}
-            </span>
-
-            <span class="panel-meta">
-              Failed ${failed}
-            </span>
-          `
-          : ""
-      }
-    </div>
-  `;
-}
-
-
-function renderOutreachAcceptanceButton(
-  job
-) {
-  const jobId = String(
-    job?.id || ""
-  ).trim();
-
-  const jobStatus = normaliseStatus(
-    job?.status
-  );
-
-  const acceptanceStatus =
-    normaliseStatus(
-      job?.acceptance?.status
-    );
-
-  const submitting =
-    state
-      .outreachAcceptanceSubmittingJobIds
-      .has(jobId);
-
-  const acceptanceBusy =
-    acceptanceStatus === "pending" ||
-    acceptanceStatus === "running";
-
-  const canCheck =
-    Boolean(jobId) &&
-    jobStatus === "completed" &&
-    !acceptanceBusy &&
-    !submitting;
-
-  let label = "Check Acceptance";
-
-  if (submitting) {
-    label = "Queueing...";
-  } else if (
-    acceptanceStatus === "pending"
-  ) {
-    label = "Acceptance queued";
-  } else if (
-    acceptanceStatus === "running"
-  ) {
-    label = "Checking...";
-  }
-
-  const title =
-    jobStatus !== "completed"
-      ? "Connect Job must be completed first."
-      : acceptanceBusy
-        ? "Acceptance Check is already queued or running."
-        : "Check whether sent invitations have been accepted.";
-
-  return `
-    <button
-      type="button"
-      class="outreach-check-acceptance-button"
-      data-job-id="${escapeHtml(jobId)}"
-      ${canCheck ? "" : "disabled"}
-      title="${escapeHtml(title)}"
-      style="
-        margin-top: 8px;
-        padding: 7px 10px;
-        border-radius: 8px;
-        cursor: ${canCheck ? "pointer" : "default"};
-      "
-    >
-      ${escapeHtml(label)}
-    </button>
-  `;
-}
-
-
-async function queueOutreachAcceptanceCheck(
-  jobId
-) {
-  const cleanedJobId = String(
-    jobId || ""
-  ).trim();
-
-  if (!cleanedJobId) {
-    throw new Error(
-      "Không tìm thấy Outreach job_id."
-    );
-  }
-
-  if (
-    state
-      .outreachAcceptanceSubmittingJobIds
-      .has(cleanedJobId)
-  ) {
-    return;
-  }
-
-  state
-    .outreachAcceptanceSubmittingJobIds
-    .add(cleanedJobId);
-
-  renderOutreachHistory(
-    state.outreachRecentJobs
-  );
-
-  try {
-    const response = await fetch(
-      `/api/outreach/connect/jobs/${encodeURIComponent(
-        cleanedJobId
-      )}/check-acceptance`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "application/json"
-        },
-        cache: "no-store"
-      }
-    );
-
-    const result =
-      await response.json();
-
-    if (
-      !response.ok ||
-      !result.ok
-    ) {
-      throw new Error(
-        result.detail ||
-        result.error ||
-        "Không thể queue Acceptance Check."
-      );
-    }
-
-    await loadOutreachDashboard();
-
-  } finally {
-    state
-      .outreachAcceptanceSubmittingJobIds
-      .delete(cleanedJobId);
-
-    renderOutreachHistory(
-      state.outreachRecentJobs
-    );
-  }
-}
-
-
-// ---------------------------------------------------------
-// HISTORY
-// ---------------------------------------------------------
-
-
-function renderOutreachHistory(
-  jobs
-) {
-  const rows = Array.isArray(jobs)
-    ? jobs
-    : [];
-
-  if (
-    !els.outreachHistoryEmpty ||
-    !els.outreachHistoryTableWrap ||
-    !els.outreachHistoryBody
-  ) {
-    return;
-  }
-
-
-  if (!rows.length) {
-    els.outreachHistoryEmpty.hidden = false;
-    els.outreachHistoryTableWrap.hidden = true;
-    els.outreachHistoryBody.innerHTML = "";
-    return;
-  }
-
-
-  els.outreachHistoryEmpty.hidden = true;
-  els.outreachHistoryTableWrap.hidden = false;
-
-
-  els.outreachHistoryBody.innerHTML =
-    rows
-      .map((job, index) => {
-        const status = String(
-          job.status || ""
-        ).toLowerCase();
-
-        const targets = Array.isArray(
-          job.targets
-        )
-          ? job.targets
-          : [];
-
-        const detailId =
-          `outreach-job-detail-${index}`;
-
-        return `
-          <tr class="outreach-history-main-row">
-
-            <td>
-              <strong>
-                ${escapeHtml(
-                  job.job_code || "—"
-                )}
-              </strong>
-
-              <button
-                type="button"
-                class="outreach-history-expand"
-                data-target="${detailId}"
-              >
-                ${targets.length} profiles
-                <span>
-                  ▾
-                </span>
-              </button>
-
-              ${renderOutreachAcceptanceSummary(
-                job
-              )}
-
-              ${renderOutreachAcceptanceButton(
-                job
-              )}
-            </td>
-
-            <td>
-              <span class="pill ${getOutreachPillClass(status)}">
-                ${escapeHtml(
-                  statusLabel(status)
-                )}
-              </span>
-            </td>
-
-            <td>
-              ${Number(job.input_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.target_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.processed_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.success_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.failed_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.duplicate_count || 0)}
-            </td>
-
-            <td>
-              ${Number(job.invalid_count || 0)}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                formatDate(job.created_at)
-              )}
-            </td>
-
-          </tr>
-
-
-          <tr
-            id="${detailId}"
-            class="outreach-history-detail-row"
-            hidden
-          >
-            <td colspan="10">
-
-              <div class="outreach-history-detail">
-
-                <div class="outreach-history-detail-header">
-
-                  <strong>
-                    ${escapeHtml(
-                      job.job_code || "—"
-                    )}
-                  </strong>
-
-                  <span class="panel-meta">
-                    ${targets.length} profiles
-                  </span>
-
-                </div>
-
-                ${renderOutreachTargetRows(
-                  targets
-                )}
-
-              </div>
-
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
-
-
-  els.outreachHistoryBody
-    .querySelectorAll(
-      ".outreach-history-expand"
-    )
-    .forEach((button) => {
-      button.addEventListener(
-        "click",
-        () => {
-          const targetId =
-            button.dataset.target;
-
-          const detail =
-            document.getElementById(
-              targetId
-            );
-
-          if (!detail) {
-            return;
-          }
-
-          const willOpen =
-            detail.hidden;
-
-          detail.hidden =
-            !willOpen;
-
-          button.classList.toggle(
-            "is-open",
-            willOpen
-          );
-
-          const arrow =
-            button.querySelector(
-              "span"
-            );
-
-          if (arrow) {
-            arrow.textContent =
-              willOpen
-                ? "▴"
-                : "▾";
-          }
-        }
-      );
-    });
-
-
-  els.outreachHistoryBody
-    .querySelectorAll(
-      ".outreach-check-acceptance-button"
-    )
-    .forEach((button) => {
-      button.addEventListener(
-        "click",
-        async () => {
-          const jobId =
-            button.dataset.jobId;
-
-          if (!jobId) {
-            return;
-          }
-
-          const confirmed =
-            window.confirm(
-              "Chạy Acceptance Check cho Connect Job này?"
-            );
-
-          if (!confirmed) {
-            return;
-          }
-
-          try {
-            await queueOutreachAcceptanceCheck(
-              jobId
-            );
-
-          } catch (error) {
-            console.error(
-              "Acceptance Check error:",
-              error
-            );
-
-            window.alert(
-              error.message ||
-              String(error)
-            );
-          }
-        }
-      );
-    });
-}
-
+function getLatestAcceptanceCheckedAt(acceptance){if(!acceptance)return null;return acceptance.completed_at||acceptance.updated_at||acceptance.started_at||null}
+function getAcceptanceDisplayStatus(acceptance){return acceptance?normaliseStatus(acceptance.status||"not_checked"):"not_checked"}
+function getAcceptanceStatusLabel(acceptance){const s=getAcceptanceDisplayStatus(acceptance),n=Number(acceptance?.run_number||0);if(s==="not_checked")return"Not checked";const l=s==="pending"?"Queued":s==="running"?"Checking":s==="completed"?"Completed":s==="failed"?"Check failed":statusLabel(s);return n>0?`#${n} ${l}`:l}
+function updateSimplePagination({container,meta,prev,next,currentPage,totalPages,totalItems,startIndex,pageLength}){if(!container)return;container.hidden=totalItems<=0;if(totalItems<=0)return;if(meta)meta.textContent=`Page ${currentPage} / ${totalPages} · ${startIndex+1}-${startIndex+pageLength} of ${totalItems}`;if(prev)prev.disabled=currentPage<=1;if(next)next.disabled=currentPage>=totalPages}
+function renderOutreachHistory(jobs){const rows=Array.isArray(jobs)?jobs:[];if(els.outreachHistoryCount)els.outreachHistoryCount.textContent=`${rows.length} jobs`;if(!els.outreachHistoryEmpty||!els.outreachHistoryTableWrap||!els.outreachHistoryBody||!els.outreachHistoryRowTemplate)return;if(!rows.length){els.outreachHistoryEmpty.hidden=false;els.outreachHistoryTableWrap.hidden=true;els.outreachHistoryBody.replaceChildren();if(els.outreachHistoryPagination)els.outreachHistoryPagination.hidden=true;return}const ps=Number(state.outreachHistoryPageSize||5),tp=Math.max(1,Math.ceil(rows.length/ps));state.outreachHistoryPage=Math.min(tp,Math.max(1,state.outreachHistoryPage));const si=(state.outreachHistoryPage-1)*ps,pr=rows.slice(si,si+ps);els.outreachHistoryEmpty.hidden=true;els.outreachHistoryTableWrap.hidden=false;els.outreachHistoryBody.replaceChildren();pr.forEach(job=>{const f=els.outreachHistoryRowTemplate.content.cloneNode(true),s=normaliseStatus(job.status),vals={"[data-connect-job-code]":job.job_code||"—","[data-connect-job-profiles]":Number(job.target_count||0),"[data-connect-job-processed]":Number(job.processed_count||0),"[data-connect-job-success]":Number(job.success_count||0),"[data-connect-job-failed]":Number(job.failed_count||0),"[data-connect-job-created]":formatDate(job.created_at)};Object.entries(vals).forEach(([q,v])=>{const e=f.querySelector(q);if(e)e.textContent=String(v)});const se=f.querySelector("[data-connect-job-status]");if(se){se.textContent=statusLabel(s);se.className=`pill ${getOutreachPillClass(s)}`}els.outreachHistoryBody.append(f)});updateSimplePagination({container:els.outreachHistoryPagination,meta:els.outreachHistoryPageMeta,prev:els.outreachHistoryPrevPage,next:els.outreachHistoryNextPage,currentPage:state.outreachHistoryPage,totalPages:tp,totalItems:rows.length,startIndex:si,pageLength:pr.length})}
+function renderOutreachAcceptanceJobs(jobs){const rows=Array.isArray(jobs)?jobs.filter(j=>normaliseStatus(j.status)==="completed"):[];if(els.outreachAcceptanceJobCount)els.outreachAcceptanceJobCount.textContent=`${rows.length} jobs`;if(!els.outreachAcceptanceEmpty||!els.outreachAcceptanceTableWrap||!els.outreachAcceptanceBody||!els.outreachAcceptanceRowTemplate)return;if(!rows.length){els.outreachAcceptanceEmpty.hidden=false;els.outreachAcceptanceTableWrap.hidden=true;els.outreachAcceptanceBody.replaceChildren();if(els.outreachAcceptancePagination)els.outreachAcceptancePagination.hidden=true;return}const ps=Number(state.outreachAcceptancePageSize||10),tp=Math.max(1,Math.ceil(rows.length/ps));state.outreachAcceptancePage=Math.min(tp,Math.max(1,state.outreachAcceptancePage));const si=(state.outreachAcceptancePage-1)*ps,pr=rows.slice(si,si+ps);els.outreachAcceptanceEmpty.hidden=true;els.outreachAcceptanceTableWrap.hidden=false;els.outreachAcceptanceBody.replaceChildren();pr.forEach(job=>{const a=job.acceptance||null,s=getAcceptanceDisplayStatus(a),f=els.outreachAcceptanceRowTemplate.content.cloneNode(true),set=(q,v)=>{const e=f.querySelector(q);if(e)e.textContent=String(v)};set("[data-acceptance-job-code]",job.job_code||"—");set("[data-acceptance-profile-count]",`${Number(job.target_count||0)} profiles`);set("[data-acceptance-accepted]",a?Number(a.new_accepted_count||0):"—");set("[data-acceptance-pending]",a?Number(a.still_pending_count||0):"—");set("[data-acceptance-unknown]",a?Number(a.declined_or_unknown_count||0):"—");set("[data-acceptance-failed]",a?Number(a.failed_count||0):"—");const lc=getLatestAcceptanceCheckedAt(a);set("[data-acceptance-last-checked]",lc?formatDate(lc):"Never");const se=f.querySelector("[data-acceptance-status]");if(se){se.textContent=getAcceptanceStatusLabel(a);se.className=`pill ${getOutreachPillClass(s)}`}const b=f.querySelector("[data-acceptance-check-button]");if(b){const id=String(job.id||"").trim(),sub=state.outreachAcceptanceSubmittingJobIds.has(id),busy=s==="pending"||s==="running";b.dataset.jobId=id;b.disabled=!id||busy||sub;b.textContent=sub?"Queueing...":s==="pending"?"Queued":s==="running"?"Checking...":"Check Acceptance";b.addEventListener("click",async()=>{try{await queueOutreachAcceptanceCheck(id)}catch(e){console.error("Acceptance check error:",e)}})}els.outreachAcceptanceBody.append(f)});updateSimplePagination({container:els.outreachAcceptancePagination,meta:els.outreachAcceptancePageMeta,prev:els.outreachAcceptancePrevPage,next:els.outreachAcceptanceNextPage,currentPage:state.outreachAcceptancePage,totalPages:tp,totalItems:rows.length,startIndex:si,pageLength:pr.length})}
 
 // ---------------------------------------------------------
 // ACCEPTED POOL
@@ -3378,9 +2938,31 @@ function renderMessagePreparation() {
     return;
   }
 
+  const batchPageSize = Number(
+    state.messageBatchPageSize || 8
+  );
+
+  const batchTotalPages = Math.max(
+    1,
+    Math.ceil(batches.length / batchPageSize)
+  );
+
+  state.messageBatchPage = Math.min(
+    batchTotalPages,
+    Math.max(1, state.messageBatchPage)
+  );
+
+  const batchStartIndex =
+    (state.messageBatchPage - 1) * batchPageSize;
+
+  const visibleBatches = batches.slice(
+    batchStartIndex,
+    batchStartIndex + batchPageSize
+  );
+
   els.messageBatchList.replaceChildren();
 
-  batches.forEach((batch) => {
+  visibleBatches.forEach((batch) => {
     const batchId = String(
       batch.id || ""
     ).trim();
@@ -3488,6 +3070,18 @@ function renderMessagePreparation() {
       fragment
     );
   });
+
+  updateSimplePagination({
+    container: els.messageBatchPagination,
+    meta: els.messageBatchPageMeta,
+    prev: els.messageBatchPrevPage,
+    next: els.messageBatchNextPage,
+    currentPage: state.messageBatchPage,
+    totalPages: batchTotalPages,
+    totalItems: batches.length,
+    startIndex: batchStartIndex,
+    pageLength: visibleBatches.length
+  });
 }
 
 
@@ -3540,7 +3134,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-    "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something you guys are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
+      "Hi {first_name},\n\n";
   }
 
   if (els.messageSendError) {
@@ -4110,6 +3704,10 @@ function renderOutreachDashboard() {
     state.outreachRecentJobs
   );
 
+  renderOutreachAcceptanceJobs(
+    state.outreachRecentJobs
+  );
+
   renderOutreachAcceptedPool();
   renderMessagePreparation();
 
@@ -4323,6 +3921,7 @@ async function createOutreachConnectJob(
 
 
     updateOutreachDetectedCount();
+setOutreachProcessTab(state.outreachProcessTab);
 
 
     // Load lại ngay từ DB.
@@ -5611,6 +5210,8 @@ els.stopScanButton?.addEventListener(
   }
 );
 
+function setOutreachProcessTab(tabName){const cleaned=String(tabName||"connect").trim();state.outreachProcessTab=cleaned;document.querySelectorAll("[data-outreach-process-tab]").forEach(button=>button.classList.toggle("is-active",button.dataset.outreachProcessTab===cleaned));document.querySelectorAll("[data-outreach-process-panel]").forEach(panel=>{const active=panel.dataset.outreachProcessPanel===cleaned;panel.hidden=!active;panel.classList.toggle("is-active",active)})}
+
 els.refreshButton?.addEventListener(
   "click",
   loadDashboard
@@ -5651,6 +5252,14 @@ els.outreachUrlInput?.addEventListener(
   updateOutreachDetectedCount
 );
 
+
+document.querySelectorAll("[data-outreach-process-tab]").forEach(button=>button.addEventListener("click",()=>setOutreachProcessTab(button.dataset.outreachProcessTab)));
+els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistoryPage=Math.max(1,state.outreachHistoryPage-1);renderOutreachHistory(state.outreachRecentJobs)});
+els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
+els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
+els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
+els.messageBatchPrevPage?.addEventListener("click",()=>{state.messageBatchPage=Math.max(1,state.messageBatchPage-1);renderMessagePreparation()});
+els.messageBatchNextPage?.addEventListener("click",()=>{state.messageBatchPage+=1;renderMessagePreparation()});
 
 document
   .querySelectorAll("[data-accepted-filter]")
