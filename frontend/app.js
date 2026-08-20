@@ -210,6 +210,27 @@ const els = {
   outreachAcceptedPoolBody:
     document.querySelector("#outreachAcceptedPoolBody"),
 
+  outreachAcceptedPoolRowTemplate:
+    document.querySelector("#outreachAcceptedPoolRowTemplate"),
+
+  outreachAcceptedSelectedCount:
+    document.querySelector("#outreachAcceptedSelectedCount"),
+
+  outreachAcceptedSelectPage:
+    document.querySelector("#outreachAcceptedSelectPage"),
+
+  outreachAcceptedPagination:
+    document.querySelector("#outreachAcceptedPagination"),
+
+  outreachAcceptedPageMeta:
+    document.querySelector("#outreachAcceptedPageMeta"),
+
+  outreachAcceptedPrevPage:
+    document.querySelector("#outreachAcceptedPrevPage"),
+
+  outreachAcceptedNextPage:
+    document.querySelector("#outreachAcceptedNextPage"),
+
   messagePreparationCount:
     document.querySelector("#messagePreparationCount"),
 
@@ -218,6 +239,9 @@ const els = {
 
   messagePreparationMeta:
     document.querySelector("#messagePreparationMeta"),
+
+  messagePrepareSelectedButton:
+    document.querySelector("#messagePrepareSelectedButton"),
 
   messagePrepareAllButton:
     document.querySelector("#messagePrepareAllButton"),
@@ -315,12 +339,16 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
+  outreachAcceptedPoolPage: 1,
+  outreachAcceptedPoolPageSize: 15,
+  outreachAcceptedSelectedProspectIds: new Set(),
   messagePreparation: {
     count: 0,
     items: []
   },
   messageBatches: [],
   messagePreparationSubmitting: false,
+  messagePreparationSelectedSubmitting: false,
   messageBatchQueueSubmittingIds: new Set(),
   messageSendSelectedBatchId: null,
   tableErrors: {},
@@ -2199,12 +2227,7 @@ function renderOutreachAcceptanceSummary(
   const runNumber = Number(
     acceptance.run_number || 0
   );
-  
-  const lastCheckedAt =
-  acceptance?.completed_at ||
-  acceptance?.updated_at ||
-  null;
-  
+
   return `
     <div
       class="outreach-acceptance-summary"
@@ -2256,14 +2279,6 @@ function renderOutreachAcceptanceSummary(
             <span class="panel-meta">
               Failed ${failed}
             </span>
-
-            <span class="panel-meta">
-              Last checked at ${
-     lastCheckedAt
-      ? escapeHtml(formatDate(lastCheckedAt))
-      : "—"
-  }
-</span>
           `
           : ""
       }
@@ -2682,37 +2697,169 @@ function ensureOutreachAcceptedPoolPanel() {
 
 
 function getAcceptedPoolFilteredItems() {
-  const pool =
-    state.outreachAcceptedPool || {};
-
   const items =
-    Array.isArray(pool.items)
-      ? pool.items
+    Array.isArray(state.outreachAcceptedPool?.items)
+      ? state.outreachAcceptedPool.items
       : [];
 
   const filter =
-    state.outreachAcceptedPoolFilter ||
-    "all";
+    state.outreachAcceptedPoolFilter || "all";
 
   if (filter === "not_sent") {
     return items.filter(
       (item) =>
-        String(
-          item.message_bucket || ""
-        ).toLowerCase() === "not_sent"
+        String(item.message_bucket || "").toLowerCase() === "not_sent"
     );
   }
 
   if (filter === "sent") {
     return items.filter(
       (item) =>
-        String(
-          item.message_bucket || ""
-        ).toLowerCase() === "sent"
+        String(item.message_bucket || "").toLowerCase() === "sent"
     );
   }
 
   return items;
+}
+
+
+function getEligibleMessageProspectIds() {
+  const items =
+    Array.isArray(state.messagePreparation?.items)
+      ? state.messagePreparation.items
+      : [];
+
+  return new Set(
+    items
+      .map((item) => String(item.prospect_id || "").trim())
+      .filter(Boolean)
+  );
+}
+
+
+function reconcileAcceptedPoolSelection() {
+  const eligibleIds =
+    getEligibleMessageProspectIds();
+
+  for (
+    const prospectId of Array.from(
+      state.outreachAcceptedSelectedProspectIds
+    )
+  ) {
+    if (!eligibleIds.has(prospectId)) {
+      state.outreachAcceptedSelectedProspectIds.delete(prospectId);
+    }
+  }
+}
+
+
+function getAcceptedPoolPageData() {
+  const filteredItems =
+    getAcceptedPoolFilteredItems();
+
+  const pageSize = 15;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(filteredItems.length / pageSize)
+  );
+
+  const currentPage = Math.min(
+    totalPages,
+    Math.max(
+      1,
+      Number(state.outreachAcceptedPoolPage || 1)
+    )
+  );
+
+  state.outreachAcceptedPoolPage =
+    currentPage;
+
+  const startIndex =
+    (currentPage - 1) * pageSize;
+
+  return {
+    filteredItems,
+    pageItems: filteredItems.slice(
+      startIndex,
+      startIndex + pageSize
+    ),
+    currentPage,
+    totalPages,
+    startIndex
+  };
+}
+
+
+function renderAcceptedPoolPagination(pageData) {
+  if (!els.outreachAcceptedPagination) {
+    return;
+  }
+
+  const {
+    filteredItems,
+    pageItems,
+    currentPage,
+    totalPages,
+    startIndex
+  } = pageData;
+
+  els.outreachAcceptedPagination.hidden =
+    filteredItems.length === 0;
+
+  if (!filteredItems.length) {
+    return;
+  }
+
+  if (els.outreachAcceptedPageMeta) {
+    els.outreachAcceptedPageMeta.textContent =
+      `Page ${currentPage} / ${totalPages} · ${startIndex + 1}-${startIndex + pageItems.length} of ${filteredItems.length}`;
+  }
+
+  if (els.outreachAcceptedPrevPage) {
+    els.outreachAcceptedPrevPage.disabled =
+      currentPage <= 1;
+  }
+
+  if (els.outreachAcceptedNextPage) {
+    els.outreachAcceptedNextPage.disabled =
+      currentPage >= totalPages;
+  }
+}
+
+
+function updateAcceptedPoolPageSelectControl(pageItems) {
+  const control =
+    els.outreachAcceptedSelectPage;
+
+  if (!control) {
+    return;
+  }
+
+  const eligibleIds =
+    getEligibleMessageProspectIds();
+
+  const selectableIds =
+    pageItems
+      .map((item) => String(item.prospect_id || "").trim())
+      .filter((id) => Boolean(id) && eligibleIds.has(id));
+
+  const selectedCount =
+    selectableIds.filter(
+      (id) =>
+        state.outreachAcceptedSelectedProspectIds.has(id)
+    ).length;
+
+  control.disabled =
+    selectableIds.length === 0;
+
+  control.checked =
+    selectableIds.length > 0 &&
+    selectedCount === selectableIds.length;
+
+  control.indeterminate =
+    selectedCount > 0 &&
+    selectedCount < selectableIds.length;
 }
 
 
@@ -2724,30 +2871,38 @@ function renderOutreachAcceptedPool() {
     return;
   }
 
-  const pool =
-    state.outreachAcceptedPool || {};
+  reconcileAcceptedPoolSelection();
 
   const summary =
-    pool.summary || {};
+    state.outreachAcceptedPool?.summary || {};
 
-  const total = Number(
-    summary.total || 0
-  );
+  const total = Number(summary.total || 0);
+  const notSent = Number(summary.not_sent || 0);
+  const sent = Number(summary.sent || 0);
 
-  const notSent = Number(
-    summary.not_sent || 0
-  );
-
-  const sent = Number(
-    summary.sent || 0
-  );
+  const pageData =
+    getAcceptedPoolPageData();
 
   const filteredItems =
-    getAcceptedPoolFilteredItems();
+    pageData.filteredItems;
+
+  const pageItems =
+    pageData.pageItems;
 
   if (els.outreachAcceptedPoolSummary) {
     els.outreachAcceptedPoolSummary.textContent =
       `${total} accepted profiles · ${notSent} not sent · ${sent} sent`;
+  }
+
+  if (els.outreachAcceptedSelectedCount) {
+    const selectedCount =
+      state.outreachAcceptedSelectedProspectIds.size;
+
+    els.outreachAcceptedSelectedCount.textContent =
+      `${selectedCount} selected`;
+
+    els.outreachAcceptedSelectedCount.className =
+      `pill ${selectedCount > 0 ? "pill-purple" : "pill-neutral"}`;
   }
 
   panel
@@ -2792,10 +2947,14 @@ function renderOutreachAcceptedPool() {
       els.outreachAcceptedPoolTableWrap.hidden = true;
     }
 
-    if (els.outreachAcceptedPoolBody) {
-      els.outreachAcceptedPoolBody.innerHTML = "";
+    els.outreachAcceptedPoolBody?.replaceChildren();
+
+    if (els.outreachAcceptedPagination) {
+      els.outreachAcceptedPagination.hidden = true;
     }
 
+    updateAcceptedPoolPageSelectControl([]);
+    renderMessagePreparation();
     return;
   }
 
@@ -2807,71 +2966,123 @@ function renderOutreachAcceptedPool() {
     els.outreachAcceptedPoolTableWrap.hidden = false;
   }
 
-  if (!els.outreachAcceptedPoolBody) {
+  renderAcceptedPoolPagination(pageData);
+
+  if (
+    !els.outreachAcceptedPoolBody ||
+    !els.outreachAcceptedPoolRowTemplate
+  ) {
     return;
   }
 
-  els.outreachAcceptedPoolBody.innerHTML =
-    filteredItems
-      .map((item) => {
-        const linkedinUrl =
-          String(item.linkedin_url || "").trim();
+  const eligibleIds =
+    getEligibleMessageProspectIds();
 
-        const accountName =
-          getOutreachAccountDisplayName(
-            item.assigned_account_id
-          );
+  els.outreachAcceptedPoolBody.replaceChildren();
 
-        const messageBucket =
-          String(
-            item.message_bucket || "not_sent"
-          ).toLowerCase();
+  pageItems.forEach((item) => {
+    const prospectId =
+      String(item.prospect_id || "").trim();
 
-        const messageLabel =
+    const linkedinUrl =
+      String(item.linkedin_url || "").trim();
+
+    const messageBucket =
+      String(item.message_bucket || "not_sent").toLowerCase();
+
+    const canSelect =
+      Boolean(prospectId) &&
+      eligibleIds.has(prospectId);
+
+    const isSelected =
+      canSelect &&
+      state.outreachAcceptedSelectedProspectIds.has(prospectId);
+
+    const fragment =
+      els.outreachAcceptedPoolRowTemplate
+        .content
+        .cloneNode(true);
+
+    const row =
+      fragment.querySelector("tr");
+
+    const checkbox =
+      fragment.querySelector("[data-accepted-select]");
+
+    const link =
+      fragment.querySelector("[data-accepted-link]");
+
+    const account =
+      fragment.querySelector("[data-accepted-account]");
+
+    const acceptedAt =
+      fragment.querySelector("[data-accepted-at]");
+
+    const message =
+      fragment.querySelector("[data-accepted-message]");
+
+    row?.classList.toggle(
+      "is-selected",
+      isSelected
+    );
+
+    if (checkbox) {
+      checkbox.disabled = !canSelect;
+      checkbox.checked = isSelected;
+
+      checkbox.addEventListener(
+        "change",
+        () => {
+          if (checkbox.checked) {
+            state.outreachAcceptedSelectedProspectIds.add(prospectId);
+          } else {
+            state.outreachAcceptedSelectedProspectIds.delete(prospectId);
+          }
+
+          renderOutreachAcceptedPool();
+        }
+      );
+    }
+
+    if (link) {
+      link.href = linkedinUrl || "#";
+      link.textContent = linkedinUrl || "—";
+    }
+
+    if (account) {
+      account.textContent =
+        getOutreachAccountDisplayName(
+          item.assigned_account_id
+        );
+    }
+
+    if (acceptedAt) {
+      acceptedAt.textContent =
+        formatDate(
+          item.accepted_at ||
+          item.acceptance_checked_at
+        );
+    }
+
+    if (message) {
+      message.textContent =
+        messageBucket === "sent"
+          ? "Sent"
+          : "Not sent";
+
+      message.className =
+        `pill ${
           messageBucket === "sent"
-            ? "Sent"
-            : "Not sent";
+            ? "pill-green"
+            : "pill-neutral"
+        }`;
+    }
 
-        return `
-          <tr>
-            <td>
-              <a
-                href="${escapeHtml(linkedinUrl)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                ${escapeHtml(linkedinUrl)}
-              </a>
-            </td>
+    els.outreachAcceptedPoolBody.append(fragment);
+  });
 
-            <td>
-              ${escapeHtml(accountName)}
-            </td>
-
-            <td>
-              ${escapeHtml(
-                formatDate(
-                  item.accepted_at ||
-                  item.acceptance_checked_at
-                )
-              )}
-            </td>
-
-            <td>
-              <span
-                class="pill ${
-                  messageBucket === "sent"
-                    ? "pill-green"
-                    : "pill-neutral"
-                }"
-              >
-                ${escapeHtml(messageLabel)}
-              </span>
-            </td>
-          </tr>
-        `;
-      })
-      .join("");
+  updateAcceptedPoolPageSelectControl(pageItems);
+  renderMessagePreparation();
 }
 
 
@@ -2979,6 +3190,8 @@ async function loadMessagePreparation() {
         ? preparation.items
         : []
     };
+
+    reconcileAcceptedPoolSelection();
 
     if (els.messagePreparationError) {
       els.messagePreparationError.hidden = true;
@@ -3090,9 +3303,27 @@ function renderMessagePreparation() {
         : "Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.";
   }
 
+  const selectedCount =
+    state.outreachAcceptedSelectedProspectIds.size;
+
+  if (els.messagePrepareSelectedButton) {
+    els.messagePrepareSelectedButton.disabled =
+      state.messagePreparationSubmitting ||
+      state.messagePreparationSelectedSubmitting ||
+      selectedCount <= 0;
+
+    els.messagePrepareSelectedButton.textContent =
+      state.messagePreparationSelectedSubmitting
+        ? "Preparing..."
+        : selectedCount > 0
+          ? `Prepare selected ${selectedCount}`
+          : "Prepare selected";
+  }
+
   if (els.messagePrepareAllButton) {
     els.messagePrepareAllButton.disabled =
       state.messagePreparationSubmitting ||
+      state.messagePreparationSelectedSubmitting ||
       count <= 0;
 
     els.messagePrepareAllButton.textContent =
@@ -3287,7 +3518,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-    "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something your agency are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
+      "Hi {first_name},\n\n";
   }
 
   if (els.messageSendError) {
@@ -3524,6 +3755,80 @@ async function openPreparedMessageBatch(batchId) {
     window.alert(
       error.message || String(error)
     );
+  }
+}
+
+
+async function prepareSelectedMessageRecipients() {
+  const prospectIds =
+    Array.from(
+      state.outreachAcceptedSelectedProspectIds
+    );
+
+  if (
+    !prospectIds.length ||
+    state.messagePreparationSubmitting ||
+    state.messagePreparationSelectedSubmitting
+  ) {
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Prepare ${prospectIds.length} selected accepted users thành một message batch? Chưa có message nào được gửi ở bước này.`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  state.messagePreparationSelectedSubmitting = true;
+  renderMessagePreparation();
+
+  try {
+    const response = await fetch(
+      "/api/outreach/messages/prepare-selected",
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prospect_ids: prospectIds
+        })
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể prepare selected recipients."
+      );
+    }
+
+    state.outreachAcceptedSelectedProspectIds.clear();
+
+    await Promise.all([
+      loadOutreachAcceptedPool(),
+      loadMessagePreparation(),
+      loadMessageBatches()
+    ]);
+
+    renderOutreachAcceptedPool();
+
+  } catch (error) {
+    if (els.messagePreparationError) {
+      els.messagePreparationError.hidden = false;
+      els.messagePreparationError.textContent =
+        error.message || String(error);
+    }
+
+  } finally {
+    state.messagePreparationSelectedSubmitting = false;
+    renderMessagePreparation();
   }
 }
 
@@ -5159,10 +5464,69 @@ document
         state.outreachAcceptedPoolFilter =
           button.dataset.acceptedFilter || "all";
 
+        state.outreachAcceptedPoolPage = 1;
+
         renderOutreachAcceptedPool();
       }
     );
   });
+
+els.outreachAcceptedPrevPage?.addEventListener(
+  "click",
+  () => {
+    state.outreachAcceptedPoolPage =
+      Math.max(
+        1,
+        state.outreachAcceptedPoolPage - 1
+      );
+
+    renderOutreachAcceptedPool();
+  }
+);
+
+els.outreachAcceptedNextPage?.addEventListener(
+  "click",
+  () => {
+    state.outreachAcceptedPoolPage += 1;
+    renderOutreachAcceptedPool();
+  }
+);
+
+els.outreachAcceptedSelectPage?.addEventListener(
+  "change",
+  () => {
+    const pageItems =
+      getAcceptedPoolPageData().pageItems;
+
+    const eligibleIds =
+      getEligibleMessageProspectIds();
+
+    pageItems.forEach((item) => {
+      const prospectId =
+        String(item.prospect_id || "").trim();
+
+      if (
+        !prospectId ||
+        !eligibleIds.has(prospectId)
+      ) {
+        return;
+      }
+
+      if (els.outreachAcceptedSelectPage.checked) {
+        state.outreachAcceptedSelectedProspectIds.add(prospectId);
+      } else {
+        state.outreachAcceptedSelectedProspectIds.delete(prospectId);
+      }
+    });
+
+    renderOutreachAcceptedPool();
+  }
+);
+
+els.messagePrepareSelectedButton?.addEventListener(
+  "click",
+  prepareSelectedMessageRecipients
+);
 
 els.messagePrepareAllButton?.addEventListener(
   "click",
