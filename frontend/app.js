@@ -2199,7 +2199,12 @@ function renderOutreachAcceptanceSummary(
   const runNumber = Number(
     acceptance.run_number || 0
   );
-
+  
+  const lastCheckedAt =
+  acceptance?.completed_at ||
+  acceptance?.updated_at ||
+  null;
+  
   return `
     <div
       class="outreach-acceptance-summary"
