@@ -246,6 +246,27 @@ const els = {
   messagePrepareAllButton:
     document.querySelector("#messagePrepareAllButton"),
 
+  messagePrepareConfirmModal:
+    document.querySelector("#messagePrepareConfirmModal"),
+
+  messagePrepareConfirmTitle:
+    document.querySelector("#messagePrepareConfirmTitle"),
+
+  messagePrepareConfirmMeta:
+    document.querySelector("#messagePrepareConfirmMeta"),
+
+  messagePrepareConfirmError:
+    document.querySelector("#messagePrepareConfirmError"),
+
+  messagePrepareConfirmCloseButton:
+    document.querySelector("#messagePrepareConfirmCloseButton"),
+
+  messagePrepareConfirmCancelButton:
+    document.querySelector("#messagePrepareConfirmCancelButton"),
+
+  messagePrepareConfirmButton:
+    document.querySelector("#messagePrepareConfirmButton"),
+
   messagePreparationError:
     document.querySelector("#messagePreparationError"),
 
@@ -267,8 +288,8 @@ const els = {
   messageSendDialogMeta:
     document.querySelector("#messageSendDialogMeta"),
 
-  :
-    document.querySelector("#"),
+  messageTemplateInput:
+    document.querySelector("#messageTemplateInput"),
 
   messageSendError:
     document.querySelector("#messageSendError"),
@@ -349,6 +370,7 @@ const state = {
   messageBatches: [],
   messagePreparationSubmitting: false,
   messagePreparationSelectedSubmitting: false,
+  messagePrepareConfirmMode: null,
   messageBatchQueueSubmittingIds: new Set(),
   messageSendSelectedBatchId: null,
   tableErrors: {},
@@ -3518,7 +3540,7 @@ function openMessageSendModal(
 
   if (els.messageTemplateInput) {
     els.messageTemplateInput.value =
-      "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something your agency are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
+    "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something you guys are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!";
   }
 
   if (els.messageSendError) {
@@ -3759,7 +3781,107 @@ async function openPreparedMessageBatch(batchId) {
 }
 
 
-async function prepareSelectedMessageRecipients() {
+function openMessagePrepareConfirmModal(
+  mode
+) {
+  const selectedCount =
+    state.outreachAcceptedSelectedProspectIds.size;
+
+  const eligibleCount =
+    Number(
+      state.messagePreparation?.count || 0
+    );
+
+  const count =
+    mode === "selected"
+      ? selectedCount
+      : eligibleCount;
+
+  if (count <= 0) {
+    return;
+  }
+
+  state.messagePrepareConfirmMode =
+    mode;
+
+  if (els.messagePrepareConfirmTitle) {
+    els.messagePrepareConfirmTitle.textContent =
+      mode === "selected"
+        ? "Prepare selected recipients"
+        : "Prepare all recipients";
+  }
+
+  if (els.messagePrepareConfirmMeta) {
+    els.messagePrepareConfirmMeta.textContent =
+      mode === "selected"
+        ? `${count} selected accepted profiles`
+        : `${count} currently eligible accepted profiles`;
+  }
+
+  if (els.messagePrepareConfirmButton) {
+    els.messagePrepareConfirmButton.textContent =
+      mode === "selected"
+        ? `Prepare selected ${count}`
+        : `Prepare all ${count}`;
+  }
+
+  if (els.messagePrepareConfirmError) {
+    els.messagePrepareConfirmError.hidden =
+      true;
+
+    els.messagePrepareConfirmError.textContent =
+      "";
+  }
+
+  if (els.messagePrepareConfirmModal) {
+    els.messagePrepareConfirmModal.hidden =
+      false;
+  }
+}
+
+
+function closeMessagePrepareConfirmModal() {
+  state.messagePrepareConfirmMode =
+    null;
+
+  if (els.messagePrepareConfirmError) {
+    els.messagePrepareConfirmError.hidden =
+      true;
+
+    els.messagePrepareConfirmError.textContent =
+      "";
+  }
+
+  if (els.messagePrepareConfirmModal) {
+    els.messagePrepareConfirmModal.hidden =
+      true;
+  }
+}
+
+
+async function confirmMessagePreparation() {
+  const mode =
+    state.messagePrepareConfirmMode;
+
+  if (mode === "selected") {
+    await prepareSelectedMessageRecipients(
+      true
+    );
+
+    return;
+  }
+
+  if (mode === "all") {
+    await prepareAllMessageRecipients(
+      true
+    );
+  }
+}
+
+
+async function prepareSelectedMessageRecipients(
+  confirmed = false
+) {
   const prospectIds =
     Array.from(
       state.outreachAcceptedSelectedProspectIds
@@ -3773,15 +3895,25 @@ async function prepareSelectedMessageRecipients() {
     return;
   }
 
-  const confirmed = window.confirm(
-    `Prepare ${prospectIds.length} selected accepted users thành một message batch? Chưa có message nào được gửi ở bước này.`
-  );
-
   if (!confirmed) {
+    openMessagePrepareConfirmModal(
+      "selected"
+    );
+
     return;
   }
 
-  state.messagePreparationSelectedSubmitting = true;
+  state.messagePreparationSelectedSubmitting =
+    true;
+
+  if (els.messagePrepareConfirmButton) {
+    els.messagePrepareConfirmButton.disabled =
+      true;
+
+    els.messagePrepareConfirmButton.textContent =
+      "Preparing...";
+  }
+
   renderMessagePreparation();
 
   try {
@@ -3809,7 +3941,11 @@ async function prepareSelectedMessageRecipients() {
       );
     }
 
-    state.outreachAcceptedSelectedProspectIds.clear();
+    state
+      .outreachAcceptedSelectedProspectIds
+      .clear();
+
+    closeMessagePrepareConfirmModal();
 
     await Promise.all([
       loadOutreachAcceptedPool(),
@@ -3820,37 +3956,72 @@ async function prepareSelectedMessageRecipients() {
     renderOutreachAcceptedPool();
 
   } catch (error) {
+    if (els.messagePrepareConfirmError) {
+      els.messagePrepareConfirmError.hidden =
+        false;
+
+      els.messagePrepareConfirmError.textContent =
+        error.message ||
+        String(error);
+    }
+
     if (els.messagePreparationError) {
-      els.messagePreparationError.hidden = false;
+      els.messagePreparationError.hidden =
+        false;
+
       els.messagePreparationError.textContent =
-        error.message || String(error);
+        error.message ||
+        String(error);
     }
 
   } finally {
-    state.messagePreparationSelectedSubmitting = false;
+    state.messagePreparationSelectedSubmitting =
+      false;
+
+    if (els.messagePrepareConfirmButton) {
+      els.messagePrepareConfirmButton.disabled =
+        false;
+    }
+
     renderMessagePreparation();
   }
 }
 
 
-async function prepareAllMessageRecipients() {
+async function prepareAllMessageRecipients(
+  confirmed = false
+) {
   const count = Number(
     state.messagePreparation?.count || 0
   );
 
-  if (count <= 0 || state.messagePreparationSubmitting) {
+  if (
+    count <= 0 ||
+    state.messagePreparationSubmitting ||
+    state.messagePreparationSelectedSubmitting
+  ) {
     return;
   }
-
-  const confirmed = window.confirm(
-    `Prepare toàn bộ ${count} accepted users hiện tại thành một message batch? Chưa có message nào được gửi ở bước này.`
-  );
 
   if (!confirmed) {
+    openMessagePrepareConfirmModal(
+      "all"
+    );
+
     return;
   }
 
-  state.messagePreparationSubmitting = true;
+  state.messagePreparationSubmitting =
+    true;
+
+  if (els.messagePrepareConfirmButton) {
+    els.messagePrepareConfirmButton.disabled =
+      true;
+
+    els.messagePrepareConfirmButton.textContent =
+      "Preparing...";
+  }
+
   renderMessagePreparation();
 
   try {
@@ -3874,18 +4045,44 @@ async function prepareAllMessageRecipients() {
       );
     }
 
+    closeMessagePrepareConfirmModal();
+
     await Promise.all([
+      loadOutreachAcceptedPool(),
       loadMessagePreparation(),
       loadMessageBatches()
     ]);
+
+    renderOutreachAcceptedPool();
+
   } catch (error) {
-    if (els.messagePreparationError) {
-      els.messagePreparationError.hidden = false;
-      els.messagePreparationError.textContent =
-        error.message || String(error);
+    if (els.messagePrepareConfirmError) {
+      els.messagePrepareConfirmError.hidden =
+        false;
+
+      els.messagePrepareConfirmError.textContent =
+        error.message ||
+        String(error);
     }
+
+    if (els.messagePreparationError) {
+      els.messagePreparationError.hidden =
+        false;
+
+      els.messagePreparationError.textContent =
+        error.message ||
+        String(error);
+    }
+
   } finally {
-    state.messagePreparationSubmitting = false;
+    state.messagePreparationSubmitting =
+      false;
+
+    if (els.messagePrepareConfirmButton) {
+      els.messagePrepareConfirmButton.disabled =
+        false;
+    }
+
     renderMessagePreparation();
   }
 }
@@ -5531,6 +5728,32 @@ els.messagePrepareSelectedButton?.addEventListener(
 els.messagePrepareAllButton?.addEventListener(
   "click",
   prepareAllMessageRecipients
+);
+
+els.messagePrepareConfirmCloseButton?.addEventListener(
+  "click",
+  closeMessagePrepareConfirmModal
+);
+
+els.messagePrepareConfirmCancelButton?.addEventListener(
+  "click",
+  closeMessagePrepareConfirmModal
+);
+
+els.messagePrepareConfirmModal
+  ?.querySelectorAll(
+    "[data-message-prepare-close]"
+  )
+  .forEach((element) => {
+    element.addEventListener(
+      "click",
+      closeMessagePrepareConfirmModal
+    );
+  });
+
+els.messagePrepareConfirmButton?.addEventListener(
+  "click",
+  confirmMessagePreparation
 );
 
 els.youtubeSearchInput?.addEventListener(
