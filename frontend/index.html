@@ -72,17 +72,6 @@
             <span class="sidebar-nav-text">Connect & Messaging</span>
           </button>
 
-          <button
-            id="rateLimitDrawerButton"
-            class="sidebar-rate-limit-trigger"
-            type="button"
-            aria-controls="rateLimitDrawer"
-            aria-expanded="false"
-          >
-            <span class="sidebar-nav-icon">R</span>
-            <span class="sidebar-nav-text">Rate Limits</span>
-            <span id="rateLimitSidebarBadge" class="tab-count">—</span>
-          </button>
         </div>
 
         <div class="sidebar-nav-group sidebar-nav-group-bottom">
@@ -744,27 +733,65 @@
     <span id="outreachDashboardUpdatedAt" class="panel-meta">—</span>
   </div>
 
+  <div class="outreach-workflow-nav-row">
+
   <div
     class="segmented-filter outreach-workflow-tabs"
     role="tablist"
     aria-label="Connect and messaging workflow"
   >
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
+    <button
+      type="button"
+      class="outreach-accepted-filter outreach-workflow-tab is-active"
+      data-outreach-process-tab="connect"
+    >
       Connect
     </button>
 
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
+    <button
+      type="button"
+      class="outreach-accepted-filter outreach-workflow-tab"
+      data-outreach-process-tab="acceptance"
+    >
       Acceptance
     </button>
 
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
+    <button
+      type="button"
+      class="outreach-accepted-filter outreach-workflow-tab"
+      data-outreach-process-tab="recipients"
+    >
       Recipients
     </button>
 
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
+    <button
+      type="button"
+      class="outreach-accepted-filter outreach-workflow-tab"
+      data-outreach-process-tab="messages"
+    >
       Messages
     </button>
   </div>
+
+
+  <button
+    id="rateLimitDrawerButton"
+    class="outreach-rate-limit-button"
+    type="button"
+    aria-controls="rateLimitDrawer"
+    aria-expanded="false"
+  >
+    <span>Rate Limits</span>
+
+    <span
+      id="rateLimitSidebarBadge"
+      class="tab-count"
+    >
+      —
+    </span>
+  </button>
+
+</div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <section class="outreach-grid outreach-connect-grid">
