@@ -3411,3 +3411,27 @@ body {
     width: 100%;
   }
 }
+
+
+/* =========================================================
+   MESSAGE PREPARE CONFIRMATION
+   Structure lives in index.html.
+   ========================================================= */
+
+.message-prepare-confirm-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.message-prepare-confirm-copy strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.message-prepare-confirm-copy p {
+  max-width: 560px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
