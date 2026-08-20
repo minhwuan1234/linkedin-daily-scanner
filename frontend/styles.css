@@ -4298,3 +4298,251 @@ body.has-rate-limit-drawer-open {
       repeat(2, minmax(0, 1fr));
   }
 }
+
+
+/* =========================================================
+   OUTREACH NAV — SECONDARY DRAWER ACTIONS
+   ========================================================= */
+
+.outreach-workflow-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.outreach-insights-button {
+  min-width: 132px;
+}
+
+/* =========================================================
+   ACCEPTANCE INSIGHTS — SLIDE-IN DRAWER
+   ========================================================= */
+
+.acceptance-insights-drawer {
+  position: fixed;
+  z-index: 1310;
+  inset: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.acceptance-insights-drawer.is-open {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.acceptance-insights-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(4, 7, 13, 0.62);
+  opacity: 0;
+  cursor: default;
+  transition: opacity 180ms ease;
+}
+
+.acceptance-insights-drawer.is-open .acceptance-insights-drawer-backdrop {
+  opacity: 1;
+}
+
+.acceptance-insights-drawer-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(760px, 92vw);
+  height: 100%;
+  overflow: auto;
+  border-left: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.38);
+  transform: translateX(100%);
+  transition: transform 200ms ease;
+}
+
+.acceptance-insights-drawer.is-open .acceptance-insights-drawer-panel {
+  transform: translateX(0);
+}
+
+.acceptance-insights-drawer-header {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.acceptance-insights-drawer-header h2 {
+  margin: 2px 0 4px;
+}
+
+.acceptance-insights-drawer-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px 22px 28px;
+}
+
+.acceptance-insights-filter-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.acceptance-insights-filter-field {
+  display: grid;
+  gap: 6px;
+}
+
+.acceptance-insights-filter-field > span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.acceptance-insights-filter-field select {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 34px 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.acceptance-insights-filter-field select:focus {
+  border-color: var(--accent);
+}
+
+.acceptance-insights-filter-field select:disabled {
+  opacity: 0.5;
+}
+
+.acceptance-insights-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.acceptance-insights-summary-card {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-soft);
+}
+
+.acceptance-insights-summary-card > span,
+.acceptance-insights-summary-card > small {
+  display: block;
+  color: var(--faint);
+  font-size: 9px;
+}
+
+.acceptance-insights-summary-card > strong {
+  display: block;
+  margin: 7px 0 5px;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acceptance-insights-summary-card-best > strong {
+  color: #79e4b7;
+}
+
+.acceptance-insights-section {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+}
+
+.acceptance-insights-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.acceptance-insights-section-heading h3 {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+.acceptance-insights-table-wrap {
+  border: 0;
+  border-radius: 0;
+}
+
+.acceptance-insights-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.acceptance-insights-table th,
+.acceptance-insights-table td {
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.acceptance-insights-table th {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.acceptance-insights-table td {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.acceptance-insights-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.has-acceptance-insights-drawer-open {
+  overflow: hidden;
+}
+
+@media (max-width: 760px) {
+  .outreach-workflow-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .acceptance-insights-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .acceptance-insights-drawer-panel {
+    width: 100%;
+  }
+
+  .acceptance-insights-filter-row,
+  .acceptance-insights-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
