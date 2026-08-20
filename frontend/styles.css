@@ -3596,3 +3596,58 @@ body {
     flex: 1;
   }
 }
+
+
+/* =========================================================
+   RECIPIENT ACCOUNT FILTER
+   ========================================================= */
+
+.outreach-recipient-filter-group {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.outreach-account-filter {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+}
+
+.outreach-account-filter > span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.outreach-account-filter select {
+  min-height: 34px;
+  padding: 0 34px 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.outreach-account-filter select:focus {
+  border-color: var(--accent);
+}
+
+@media (max-width: 680px) {
+  .outreach-recipient-filter-group {
+    width: 100%;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .outreach-account-filter {
+    width: 100%;
+  }
+}
