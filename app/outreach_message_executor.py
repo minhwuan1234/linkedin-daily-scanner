@@ -23,6 +23,10 @@ MESSAGE_TARGET_TABLE = (
     "outreach_message_targets"
 )
 
+PROSPECT_TABLE = (
+    "outreach_prospects"
+)
+
 
 class OutreachMessageExecutorError(
     RuntimeError
@@ -265,9 +269,76 @@ def mark_message_target_sent(
     message_text: str,
     client: Client,
 ) -> None:
+    """
+    Persist one strictly verified LinkedIn send.
+
+    Both states are required:
+
+    1. outreach_message_targets.status = sent
+       -> execution / batch state.
+
+    2. outreach_prospects.message_status = sent
+       -> Accepted Pool state shown by the dashboard.
+
+    Accepted Pool reads message_status from outreach_prospects,
+    so updating only the message target would leave the UI as
+    "Not sent".
+    """
+
+    cleaned_target_id = _safe_text(
+        target_id
+    )
+
+    if not cleaned_target_id:
+        raise OutreachMessageExecutorError(
+            "target_id is required."
+        )
+
+    # Resolve the prospect BEFORE the target state write.
+    target_response = (
+        client
+        .table(
+            MESSAGE_TARGET_TABLE
+        )
+        .select(
+            "id,prospect_id,status"
+        )
+        .eq(
+            "id",
+            cleaned_target_id,
+        )
+        .limit(
+            1
+        )
+        .execute()
+    )
+
+    target_rows = list(
+        target_response.data
+        or []
+    )
+
+    if not target_rows:
+        raise OutreachMessageExecutorError(
+            "Message target not found while marking sent: "
+            f"{cleaned_target_id}"
+        )
+
+    prospect_id = _safe_text(
+        target_rows[0].get(
+            "prospect_id"
+        )
+    )
+
+    if not prospect_id:
+        raise OutreachMessageExecutorError(
+            "Message target has no prospect_id while marking sent: "
+            f"{cleaned_target_id}"
+        )
+
     now = _utc_now()
 
-    (
+    target_update = (
         client
         .table(
             MESSAGE_TARGET_TABLE
@@ -285,7 +356,7 @@ def mark_message_target_sent(
         )
         .eq(
             "id",
-            target_id,
+            cleaned_target_id,
         )
         .eq(
             "status",
@@ -293,6 +364,49 @@ def mark_message_target_sent(
         )
         .execute()
     )
+
+    updated_target_rows = list(
+        target_update.data
+        or []
+    )
+
+    if not updated_target_rows:
+        raise OutreachMessageExecutorError(
+            "Could not change message target processing -> sent: "
+            f"{cleaned_target_id}"
+        )
+
+    # Accepted Pool source of truth for message state.
+    prospect_update = (
+        client
+        .table(
+            PROSPECT_TABLE
+        )
+        .update(
+            {
+                "message_status": "sent",
+                "last_messaged_at": now,
+                "updated_at": now,
+            }
+        )
+        .eq(
+            "id",
+            prospect_id,
+        )
+        .execute()
+    )
+
+    updated_prospect_rows = list(
+        prospect_update.data
+        or []
+    )
+
+    if not updated_prospect_rows:
+        raise OutreachMessageExecutorError(
+            "Message target was marked sent, but prospect message "
+            "state could not be updated: "
+            f"prospect_id={prospect_id}"
+        )
 
 
 def mark_message_target_failed(
@@ -485,6 +599,16 @@ def execute_one_prepared_message_target(
         ):
             raise OutreachMessageExecutorError(
                 "Message send was not verified."
+            )
+
+        if not bool(
+            send_result.get(
+                "composer_closed"
+            )
+        ):
+            raise OutreachMessageExecutorError(
+                "Message was verified as sent, but the "
+                "messaging dialog was not closed."
             )
 
         mark_message_target_sent(
