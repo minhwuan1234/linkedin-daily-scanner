@@ -294,6 +294,12 @@ const els = {
   outreachAcceptanceRowTemplate:
     document.querySelector("#outreachAcceptanceRowTemplate"),
 
+  outreachAcceptanceHistoryRowTemplate:
+    document.querySelector("#outreachAcceptanceHistoryRowTemplate"),
+
+  outreachAcceptanceHistoryItemTemplate:
+    document.querySelector("#outreachAcceptanceHistoryItemTemplate"),
+
   outreachAcceptancePagination:
     document.querySelector("#outreachAcceptancePagination"),
 
@@ -489,6 +495,9 @@ const state = {
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   outreachAcceptanceSubmittingJobIds: new Set(),
+  outreachAcceptanceHistoryByJobId: new Map(),
+  outreachAcceptanceHistoryLoadingJobIds: new Set(),
+  outreachAcceptanceExpandedJobId: null,
   outreachAcceptedPool: {
     summary: {
       total: 0,
@@ -3019,6 +3028,362 @@ function getAcceptanceDisplayStatus(acceptance){return acceptance?normaliseStatu
 function getAcceptanceStatusLabel(acceptance){const s=getAcceptanceDisplayStatus(acceptance),n=Number(acceptance?.run_number||0);if(s==="not_checked")return"Not checked";const l=s==="pending"?"Queued":s==="running"?"Checking":s==="completed"?"Completed":s==="failed"?"Check failed":statusLabel(s);return n>0?`#${n} ${l}`:l}
 function updateSimplePagination({container,meta,prev,next,currentPage,totalPages,totalItems,startIndex,pageLength}){if(!container)return;container.hidden=totalItems<=0;if(totalItems<=0)return;if(meta)meta.textContent=`Page ${currentPage} / ${totalPages} · ${startIndex+1}-${startIndex+pageLength} of ${totalItems}`;if(prev)prev.disabled=currentPage<=1;if(next)next.disabled=currentPage>=totalPages}
 function renderOutreachHistory(jobs){const rows=Array.isArray(jobs)?jobs:[];if(els.outreachHistoryCount)els.outreachHistoryCount.textContent=`${rows.length} jobs`;if(!els.outreachHistoryEmpty||!els.outreachHistoryTableWrap||!els.outreachHistoryBody||!els.outreachHistoryRowTemplate)return;if(!rows.length){els.outreachHistoryEmpty.hidden=false;els.outreachHistoryTableWrap.hidden=true;els.outreachHistoryBody.replaceChildren();if(els.outreachHistoryPagination)els.outreachHistoryPagination.hidden=true;return}const ps=Number(state.outreachHistoryPageSize||5),tp=Math.max(1,Math.ceil(rows.length/ps));state.outreachHistoryPage=Math.min(tp,Math.max(1,state.outreachHistoryPage));const si=(state.outreachHistoryPage-1)*ps,pr=rows.slice(si,si+ps);els.outreachHistoryEmpty.hidden=true;els.outreachHistoryTableWrap.hidden=false;els.outreachHistoryBody.replaceChildren();pr.forEach(job=>{const f=els.outreachHistoryRowTemplate.content.cloneNode(true),s=normaliseStatus(job.status),vals={"[data-connect-job-code]":job.job_code||"—","[data-connect-job-profiles]":Number(job.target_count||0),"[data-connect-job-processed]":Number(job.processed_count||0),"[data-connect-job-success]":Number(job.success_count||0),"[data-connect-job-failed]":Number(job.failed_count||0),"[data-connect-job-created]":formatDate(job.created_at)};Object.entries(vals).forEach(([q,v])=>{const e=f.querySelector(q);if(e)e.textContent=String(v)});const se=f.querySelector("[data-connect-job-status]");if(se){se.textContent=statusLabel(s);se.className=`pill ${getOutreachPillClass(s)}`}els.outreachHistoryBody.append(f)});updateSimplePagination({container:els.outreachHistoryPagination,meta:els.outreachHistoryPageMeta,prev:els.outreachHistoryPrevPage,next:els.outreachHistoryNextPage,currentPage:state.outreachHistoryPage,totalPages:tp,totalItems:rows.length,startIndex:si,pageLength:pr.length})}
+
+function getAcceptanceRunStatusLabel(
+  run
+) {
+  const status = normaliseStatus(
+    run?.status ||
+    "unknown"
+  );
+
+  const number = Number(
+    run?.run_number ||
+    0
+  );
+
+  const label =
+    status === "pending"
+      ? "Queued"
+      : status === "running"
+        ? "Checking"
+        : status === "completed"
+          ? "Completed"
+          : status === "failed"
+            ? "Failed"
+            : statusLabel(status);
+
+  return number > 0
+    ? `#${number} ${label}`
+    : label;
+}
+
+
+async function loadAcceptanceCheckHistory(
+  jobId
+) {
+  const cleanedJobId =
+    String(
+      jobId ||
+      ""
+    ).trim();
+
+  if (
+    !cleanedJobId ||
+    state.outreachAcceptanceHistoryLoadingJobIds.has(
+      cleanedJobId
+    )
+  ) {
+    return;
+  }
+
+  state.outreachAcceptanceHistoryLoadingJobIds.add(
+    cleanedJobId
+  );
+
+  try {
+    const response = await fetch(
+      `/api/outreach/connect/jobs/${encodeURIComponent(
+        cleanedJobId
+      )}/acceptance-checks`,
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Acceptance Check history."
+      );
+    }
+
+    state.outreachAcceptanceHistoryByJobId.set(
+      cleanedJobId,
+      Array.isArray(
+        result.runs
+      )
+        ? result.runs
+        : []
+    );
+
+  } catch (error) {
+    state.outreachAcceptanceHistoryByJobId.set(
+      cleanedJobId,
+      {
+        error:
+          error.message ||
+          String(error)
+      }
+    );
+
+  } finally {
+    state.outreachAcceptanceHistoryLoadingJobIds.delete(
+      cleanedJobId
+    );
+
+    renderOutreachAcceptanceJobs(
+      state.outreachRecentJobs
+    );
+  }
+}
+
+
+function appendAcceptanceHistoryRow({
+  job,
+  afterRow
+}) {
+  if (
+    !afterRow ||
+    !els.outreachAcceptanceHistoryRowTemplate ||
+    !els.outreachAcceptanceHistoryItemTemplate
+  ) {
+    return;
+  }
+
+  const jobId =
+    String(
+      job?.id ||
+      ""
+    ).trim();
+
+  if (!jobId) {
+    return;
+  }
+
+  const fragment =
+    els.outreachAcceptanceHistoryRowTemplate
+      .content
+      .cloneNode(
+        true
+      );
+
+  const row =
+    fragment.querySelector(
+      ".outreach-acceptance-history-row"
+    );
+
+  const title =
+    fragment.querySelector(
+      "[data-acceptance-history-title]"
+    );
+
+  const count =
+    fragment.querySelector(
+      "[data-acceptance-history-count]"
+    );
+
+  const empty =
+    fragment.querySelector(
+      "[data-acceptance-history-empty]"
+    );
+
+  const list =
+    fragment.querySelector(
+      "[data-acceptance-history-list]"
+    );
+
+  if (title) {
+    title.textContent =
+      `${job.job_code || "Connect Job"} · Check runs`;
+  }
+
+  const loading =
+    state.outreachAcceptanceHistoryLoadingJobIds.has(
+      jobId
+    );
+
+  const cached =
+    state.outreachAcceptanceHistoryByJobId.get(
+      jobId
+    );
+
+  const error =
+    cached &&
+    !Array.isArray(cached)
+      ? cached.error
+      : null;
+
+  const runs =
+    Array.isArray(cached)
+      ? cached
+      : [];
+
+  if (count) {
+    count.textContent =
+      loading
+        ? "Loading"
+        : `${runs.length} ${
+            runs.length === 1
+              ? "run"
+              : "runs"
+          }`;
+  }
+
+  if (loading) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        "Loading Acceptance Check history...";
+    }
+
+    if (list) {
+      list.hidden = true;
+    }
+
+  } else if (error) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        error;
+    }
+
+    if (list) {
+      list.hidden = true;
+    }
+
+  } else if (!runs.length) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        "Chưa có lần Check Acceptance nào.";
+    }
+
+    if (list) {
+      list.hidden = true;
+    }
+
+  } else {
+    if (empty) {
+      empty.hidden = true;
+    }
+
+    if (list) {
+      list.hidden = false;
+      list.replaceChildren();
+
+      runs.forEach((run) => {
+        const item =
+          els.outreachAcceptanceHistoryItemTemplate
+            .content
+            .cloneNode(
+              true
+            );
+
+        const setText = (
+          selector,
+          value
+        ) => {
+          const element =
+            item.querySelector(
+              selector
+            );
+
+          if (element) {
+            element.textContent =
+              String(value);
+          }
+        };
+
+        const status =
+          normaliseStatus(
+            run.status
+          );
+
+        const badge =
+          item.querySelector(
+            "[data-history-run-status]"
+          );
+
+        if (badge) {
+          badge.textContent =
+            getAcceptanceRunStatusLabel(
+              run
+            );
+
+          badge.className =
+            `pill ${getOutreachPillClass(
+              status
+            )}`;
+        }
+
+        setText(
+          "[data-history-run-time]",
+          formatDate(
+            run.completed_at ||
+            run.updated_at ||
+            run.started_at ||
+            run.created_at
+          )
+        );
+
+        setText(
+          "[data-history-checked]",
+          `${Number(
+            run.checked_count ||
+            0
+          )} / ${Number(
+            run.total_to_check ||
+            0
+          )}`
+        );
+
+        setText(
+          "[data-history-accepted]",
+          Number(
+            run.new_accepted_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-pending]",
+          Number(
+            run.still_pending_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-unknown]",
+          Number(
+            run.declined_or_unknown_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-failed]",
+          Number(
+            run.failed_count ||
+            0
+          )
+        );
+
+        list.append(
+          item
+        );
+      });
+    }
+  }
+
+  afterRow.after(
+    row
+  );
+}
+
+
 function renderOutreachAcceptanceJobs(
   jobs
 ) {
@@ -3103,6 +3468,11 @@ function renderOutreachAcceptanceJobs(
       els.outreachAcceptanceRowTemplate
         .content
         .cloneNode(true);
+
+    const mainRow =
+      fragment.querySelector(
+        "tr"
+      );
 
     const setText = (
       selector,
@@ -3214,6 +3584,67 @@ function renderOutreachAcceptanceJobs(
         )}`;
     }
 
+    const historyButton =
+      fragment.querySelector(
+        "[data-acceptance-history-button]"
+      );
+
+    if (historyButton) {
+      const historyJobId =
+        String(
+          job.id ||
+          ""
+        ).trim();
+
+      const expanded =
+        state.outreachAcceptanceExpandedJobId ===
+        historyJobId;
+
+      historyButton.dataset.jobId =
+        historyJobId;
+
+      historyButton.setAttribute(
+        "aria-expanded",
+        expanded
+          ? "true"
+          : "false"
+      );
+
+      historyButton.textContent =
+        expanded
+          ? "Hide history"
+          : "History";
+
+      historyButton.addEventListener(
+        "click",
+        async () => {
+          const nextExpanded =
+            state.outreachAcceptanceExpandedJobId ===
+            historyJobId
+              ? null
+              : historyJobId;
+
+          state.outreachAcceptanceExpandedJobId =
+            nextExpanded;
+
+          renderOutreachAcceptanceJobs(
+            state.outreachRecentJobs
+          );
+
+          if (
+            nextExpanded &&
+            !state.outreachAcceptanceHistoryByJobId.has(
+              historyJobId
+            )
+          ) {
+            await loadAcceptanceCheckHistory(
+              historyJobId
+            );
+          }
+        }
+      );
+    }
+
     const button =
       fragment.querySelector(
         "[data-acceptance-check-button]"
@@ -3270,6 +3701,36 @@ function renderOutreachAcceptanceJobs(
     els.outreachAcceptanceBody.append(
       fragment
     );
+
+    const expandedJobId =
+      String(
+        job.id ||
+        ""
+      ).trim();
+
+    if (
+      mainRow &&
+      state.outreachAcceptanceExpandedJobId ===
+      expandedJobId
+    ) {
+      appendAcceptanceHistoryRow({
+        job,
+        afterRow: mainRow
+      });
+
+      if (
+        !state.outreachAcceptanceHistoryByJobId.has(
+          expandedJobId
+        ) &&
+        !state.outreachAcceptanceHistoryLoadingJobIds.has(
+          expandedJobId
+        )
+      ) {
+        loadAcceptanceCheckHistory(
+          expandedJobId
+        );
+      }
+    }
   });
 
   updateSimplePagination({
