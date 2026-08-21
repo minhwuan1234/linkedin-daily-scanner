@@ -42,6 +42,11 @@ from app.outreach_acceptance_insights_store import (
     get_acceptance_insights,
 )
 
+from app.outreach_profile_store import (
+    OutreachProfileStoreError,
+    list_sent_outreach_profiles,
+)
+
 from app.outreach_accepted_pool_store import (
     OutreachAcceptedPoolStoreError,
     get_accepted_pool,
@@ -1511,6 +1516,55 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
         },
     )
 
+
+
+
+# =========================================================
+# OUTREACH PROFILES API
+# =========================================================
+
+
+@app.get("/api/outreach/profiles")
+async def get_outreach_profiles_api() -> JSONResponse:
+    try:
+        profiles = list_sent_outreach_profiles()
+
+    except OutreachProfileStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Profiles"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach Profiles",
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Profiles error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected Outreach Profiles error",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "count": len(profiles),
+            "profiles": profiles,
+        },
+    )
 
 
 # =========================================================
