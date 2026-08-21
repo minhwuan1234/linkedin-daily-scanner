@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260821-acceptance-history-1" />
+<link rel="stylesheet" href="./styles.css?v=20260821-connect-job-delete-1" />
 </head>
 
 <body>
@@ -1115,9 +1115,20 @@
           </p>
         </div>
 
-        <span id="outreachAcceptanceJobCount" class="pill pill-neutral">
-          0 jobs
-        </span>
+        <div class="outreach-acceptance-header-actions">
+          <button
+            id="outreachAcceptanceDeleteSelectedButton"
+            class="secondary-button outreach-delete-selected-button"
+            type="button"
+            disabled
+          >
+            Delete selected
+          </button>
+
+          <span id="outreachAcceptanceJobCount" class="pill pill-neutral">
+            0 jobs
+          </span>
+        </div>
       </div>
 
       <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
@@ -1169,6 +1180,18 @@
 
             <td class="outreach-table-action-cell">
               <div class="outreach-acceptance-row-actions">
+                <label
+                  class="outreach-delete-job-checkbox"
+                  title="Select this Connect Job for permanent deletion"
+                >
+                  <input
+                    type="checkbox"
+                    data-acceptance-delete-select
+                    aria-label="Select Connect Job for deletion"
+                  />
+                  <span aria-hidden="true"></span>
+                </label>
+
                 <button
                   type="button"
                   class="secondary-button outreach-acceptance-history-button"
@@ -1554,6 +1577,74 @@
     </section>
   </div>
 
+  <div
+    id="outreachDeleteJobsModal"
+    class="message-prepare-confirm-modal"
+    hidden
+  >
+    <button
+      class="message-prepare-confirm-backdrop"
+      type="button"
+      data-outreach-delete-jobs-close
+      aria-label="Close delete confirmation"
+    ></button>
+
+    <section
+      class="message-prepare-confirm-dialog outreach-delete-jobs-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="outreachDeleteJobsTitle"
+    >
+      <div class="message-prepare-confirm-header">
+        <div>
+          <p class="panel-kicker">Permanent delete</p>
+          <h2 id="outreachDeleteJobsTitle">Delete selected Connect Jobs?</h2>
+        </div>
+
+        <button
+          id="outreachDeleteJobsCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close delete confirmation"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="message-prepare-confirm-body">
+        <p id="outreachDeleteJobsSummary">
+          Selected Connect Job data will be permanently deleted.
+        </p>
+
+        <div class="outreach-delete-warning">
+          This deletes the Connect Job, targets, Acceptance Check history
+          and dependent message snapshots from the database. Shared profiles
+          still used by another job are kept.
+        </div>
+
+        <div id="outreachDeleteJobsError" class="outreach-error" hidden></div>
+      </div>
+
+      <div class="message-prepare-confirm-footer">
+        <button
+          id="outreachDeleteJobsCancelButton"
+          class="secondary-button"
+          type="button"
+        >
+          Cancel
+        </button>
+
+        <button
+          id="outreachDeleteJobsConfirmButton"
+          class="primary-button outreach-danger-button"
+          type="button"
+        >
+          Delete permanently
+        </button>
+      </div>
+    </section>
+  </div>
+
   <div id="drawerBackdrop" class="drawer-backdrop" hidden></div>
 
   <aside id="detailDrawer" class="detail-drawer" aria-hidden="true">
@@ -1573,6 +1664,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260821-acceptance-history-1"></script>
+  <script src="./app.js?v=20260821-connect-job-delete-1"></script>
 </body>
 </html>
