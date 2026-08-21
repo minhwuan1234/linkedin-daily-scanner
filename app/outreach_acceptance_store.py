@@ -25,10 +25,6 @@ PROSPECT_TABLE = (
     "outreach_prospects"
 )
 
-JOB_TABLE = (
-    "outreach_jobs"
-)
-
 
 class OutreachAcceptanceStoreError(
     RuntimeError
@@ -69,116 +65,6 @@ def get_outreach_supabase_client() -> Client:
     return create_client(
         settings.outreach_supabase_url,
         settings.outreach_supabase_secret_key,
-    )
-
-
-# =========================================================
-# RESOLVE CONNECT JOB
-# =========================================================
-
-def resolve_source_job_id(
-    source_job_id_or_code: str,
-    *,
-    client: Client | None = None,
-) -> str:
-    """
-    Accept either:
-    - outreach_jobs.id UUID
-    - outreach_jobs.job_code, e.g. 1-20260816-01
-
-    Always return the canonical outreach_jobs.id UUID.
-    """
-
-    cleaned = str(
-        source_job_id_or_code
-        or ""
-    ).strip()
-
-    if not cleaned:
-        raise OutreachAcceptanceStoreError(
-            "source_job_id is required."
-        )
-
-    active_client = (
-        client
-        if client is not None
-        else get_outreach_supabase_client()
-    )
-
-    # First try UUID/id only when it looks like a UUID.
-    # This avoids Postgres uuid parse errors for job_code values.
-    looks_like_uuid = (
-        len(cleaned) == 36
-        and cleaned.count("-") == 4
-    )
-
-    if looks_like_uuid:
-        response = (
-            active_client.table(
-                JOB_TABLE
-            )
-            .select(
-                "id,job_code"
-            )
-            .eq(
-                "id",
-                cleaned,
-            )
-            .limit(
-                1
-            )
-            .execute()
-        )
-
-        rows = (
-            response.data
-            if isinstance(
-                response.data,
-                list,
-            )
-            else []
-        )
-
-        if rows:
-            return str(
-                rows[0]["id"]
-            )
-
-    # Fallback / explicit job_code lookup.
-    response = (
-        active_client.table(
-            JOB_TABLE
-        )
-        .select(
-            "id,job_code"
-        )
-        .eq(
-            "job_code",
-            cleaned,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    if not rows:
-        raise OutreachAcceptanceStoreError(
-            "Connect Job not found by id or job_code: "
-            f"{cleaned}"
-        )
-
-    return str(
-        rows[0]["id"]
     )
 
 
@@ -356,18 +242,13 @@ def queue_acceptance_check_run(
         else get_outreach_supabase_client()
     )
 
-    resolved_job_id = resolve_source_job_id(
-        source_job_id,
-        client=active_client,
-    )
-
     targets = load_acceptance_targets(
-        source_job_id=resolved_job_id,
+        source_job_id=source_job_id,
         client=active_client,
     )
 
     return create_acceptance_check_run(
-        source_job_id=resolved_job_id,
+        source_job_id=source_job_id,
         total_to_check=len(targets),
         status="pending",
         client=active_client,
@@ -502,30 +383,22 @@ def load_acceptance_targets(
     client: Client | None = None,
 ) -> list[dict]:
     """
-    Load finished targets from the selected Connect Job that
-    still need Acceptance Check.
+    Load only targets that belong to the selected Connect Job
+    and still need acceptance checking.
 
-    FIX:
-    The previous implementation filtered too aggressively:
-    - target.status had to be exactly "completed";
-    - outreach_prospects.connect_status had to be exactly
-      "invitation_sent".
+    We require:
+    - target.status == completed
+    - assigned_account_id is present
+    - acceptance_status != accepted
 
-    That can hide real profiles from Acceptance Check, including
-    profiles that the Connect flow misclassified as unavailable even
-    though LinkedIn already shows "Remove connection".
+    This includes:
+    - not_checked
+    - pending
+    - declined_or_unknown
+    - check_failed
 
-    New rule:
-    - same source job;
-    - acceptance_status != accepted;
-    - assigned_account_id exists;
-    - LinkedIn URL exists;
-    - target is finished: completed OR failed.
-
-    Acceptance Checker itself is read-only and is the authority for
-    the current LinkedIn relationship state.
+    Accepted targets are never reopened.
     """
-
     cleaned_job_id = str(
         source_job_id
         or ""
@@ -540,11 +413,6 @@ def load_acceptance_targets(
         client
         if client is not None
         else get_outreach_supabase_client()
-    )
-
-    cleaned_job_id = resolve_source_job_id(
-        cleaned_job_id,
-        client=active_client,
     )
 
     response = (
@@ -570,6 +438,10 @@ def load_acceptance_targets(
             "job_id",
             cleaned_job_id,
         )
+        .eq(
+            "status",
+            "completed",
+        )
         .neq(
             "acceptance_status",
             "accepted",
@@ -589,22 +461,6 @@ def load_acceptance_targets(
     targets: list[dict] = []
 
     for row in rows:
-        target_status = str(
-            row.get(
-                "status",
-                "",
-            )
-            or ""
-        ).strip()
-
-        # Only inspect finished Connect targets.
-        # Do not touch pending/running work.
-        if target_status not in {
-            "completed",
-            "failed",
-        }:
-            continue
-
         account_id = str(
             row.get(
                 "assigned_account_id",
@@ -634,6 +490,19 @@ def load_acceptance_targets(
         if not linkedin_url:
             continue
 
+        # Production safety:
+        # only follow profiles the tool believes were sent/pending.
+        connect_status = str(
+            prospect.get(
+                "connect_status",
+                "",
+            )
+            or ""
+        ).strip()
+
+        if connect_status != "invitation_sent":
+            continue
+
         targets.append(
             {
                 "target_id": str(
@@ -647,14 +516,6 @@ def load_acceptance_targets(
                 ),
                 "account_id": account_id,
                 "linkedin_url": linkedin_url,
-                "connect_status": str(
-                    prospect.get(
-                        "connect_status",
-                        "",
-                    )
-                    or ""
-                ).strip(),
-                "target_status": target_status,
                 "acceptance_status": str(
                     row.get(
                         "acceptance_status",
@@ -909,3 +770,166 @@ def group_targets_by_account(
         )
 
     return grouped
+
+# =========================================================
+# ACCEPTANCE CHECK HISTORY
+# =========================================================
+
+def list_acceptance_check_history(
+    *,
+    source_job_id: str,
+    client: Client | None = None,
+) -> list[dict]:
+    """
+    Read every Acceptance Check run for one Connect Job.
+
+    Read-only.
+    Newest run is returned first.
+    """
+    cleaned_job_id = str(
+        source_job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        raise OutreachAcceptanceStoreError(
+            "source_job_id is required."
+        )
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    response = (
+        active_client
+        .table(
+            ACCEPTANCE_CHECK_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "source_job_id,"
+                "run_number,"
+                "status,"
+                "total_to_check,"
+                "checked_count,"
+                "new_accepted_count,"
+                "still_pending_count,"
+                "declined_or_unknown_count,"
+                "failed_count,"
+                "created_at,"
+                "started_at,"
+                "completed_at,"
+                "updated_at"
+            )
+        )
+        .eq(
+            "source_job_id",
+            cleaned_job_id,
+        )
+        .order(
+            "run_number",
+            desc=True,
+        )
+        .execute()
+    )
+
+    rows = (
+        response.data
+        if isinstance(
+            response.data,
+            list,
+        )
+        else []
+    )
+
+    return [
+        {
+            "id": str(
+                row.get(
+                    "id",
+                    "",
+                )
+                or ""
+            ).strip(),
+            "source_job_id": str(
+                row.get(
+                    "source_job_id",
+                    "",
+                )
+                or ""
+            ).strip(),
+            "run_number": int(
+                row.get(
+                    "run_number",
+                    0,
+                )
+                or 0
+            ),
+            "status": str(
+                row.get(
+                    "status",
+                    "",
+                )
+                or ""
+            ).strip(),
+            "total_to_check": int(
+                row.get(
+                    "total_to_check",
+                    0,
+                )
+                or 0
+            ),
+            "checked_count": int(
+                row.get(
+                    "checked_count",
+                    0,
+                )
+                or 0
+            ),
+            "new_accepted_count": int(
+                row.get(
+                    "new_accepted_count",
+                    0,
+                )
+                or 0
+            ),
+            "still_pending_count": int(
+                row.get(
+                    "still_pending_count",
+                    0,
+                )
+                or 0
+            ),
+            "declined_or_unknown_count": int(
+                row.get(
+                    "declined_or_unknown_count",
+                    0,
+                )
+                or 0
+            ),
+            "failed_count": int(
+                row.get(
+                    "failed_count",
+                    0,
+                )
+                or 0
+            ),
+            "created_at": row.get(
+                "created_at"
+            ),
+            "started_at": row.get(
+                "started_at"
+            ),
+            "completed_at": row.get(
+                "completed_at"
+            ),
+            "updated_at": row.get(
+                "updated_at"
+            ),
+        }
+        for row in rows
+    ]
+
