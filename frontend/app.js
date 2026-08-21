@@ -3868,18 +3868,131 @@ function renderOutreachAcceptanceJobs(
 
       deleteCheckbox.addEventListener(
         "change",
-        () => {
-          if (deleteCheckbox.checked) {
-            state.outreachAcceptanceSelectedDeleteJobIds.add(
-              deleteJobId
-            );
-          } else {
+        async () => {
+          if (!deleteCheckbox.checked) {
             state.outreachAcceptanceSelectedDeleteJobIds.delete(
               deleteJobId
             );
+
+            updateAcceptanceDeleteSelectionUi();
+            return;
           }
 
-          updateAcceptanceDeleteSelectionUi();
+          const jobCode =
+            String(
+              job.job_code ||
+              deleteJobId
+            ).trim();
+
+          const confirmed = window.confirm(
+            `Delete Connect Job ${jobCode} permanently?\n\n` +
+            "This will delete the job and its related database data."
+          );
+
+          if (!confirmed) {
+            deleteCheckbox.checked = false;
+
+            state.outreachAcceptanceSelectedDeleteJobIds.delete(
+              deleteJobId
+            );
+
+            updateAcceptanceDeleteSelectionUi();
+            return;
+          }
+
+          deleteCheckbox.disabled = true;
+
+          try {
+            const response = await fetch(
+              `/api/outreach/connect/jobs/${encodeURIComponent(
+                deleteJobId
+              )}`,
+              {
+                method: "DELETE",
+                headers: {
+                  "Accept": "application/json"
+                },
+                cache: "no-store"
+              }
+            );
+
+            const result = await response.json();
+
+            if (
+              !response.ok ||
+              !result.ok
+            ) {
+              throw new Error(
+                result.detail ||
+                result.error ||
+                "Delete failed."
+              );
+            }
+
+            // Remove immediately from local UI.
+            state.outreachRecentJobs =
+              state.outreachRecentJobs.filter(
+                (item) =>
+                  String(
+                    item.id ||
+                    ""
+                  ).trim() !== deleteJobId
+              );
+
+            state.outreachAcceptanceHistoryByJobId.delete(
+              deleteJobId
+            );
+
+            state.outreachAcceptanceSelectedDeleteJobIds.delete(
+              deleteJobId
+            );
+
+            if (
+              state.outreachAcceptanceExpandedJobId ===
+              deleteJobId
+            ) {
+              state.outreachAcceptanceExpandedJobId = null;
+            }
+
+            if (
+              state.outreachAcceptancePage > 1 &&
+              (
+                (
+                  state.outreachAcceptancePage - 1
+                ) * OUTREACH_ACCEPTANCE_PAGE_SIZE
+              ) >= state.outreachRecentJobs.length
+            ) {
+              state.outreachAcceptancePage -= 1;
+            }
+
+            renderOutreachAcceptanceJobs(
+              state.outreachRecentJobs
+            );
+
+            // Refresh source-of-truth after immediate UI removal.
+            await Promise.all([
+              loadOutreachDashboard(),
+              loadOutreachAcceptedPool(),
+              loadMessagePreparation(),
+              loadMessageBatches()
+            ]);
+
+          } catch (error) {
+            deleteCheckbox.checked = false;
+            deleteCheckbox.disabled = false;
+
+            console.error(
+              "Delete Connect Job failed:",
+              error
+            );
+
+            window.alert(
+              `Delete failed: ${
+                error.message ||
+                String(error)
+              }`
+            );
+          }
         }
       );
     }
