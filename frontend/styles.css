@@ -4546,3 +4546,126 @@ body.has-rate-limit-drawer-open {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* =========================================================
+   ACCEPTANCE CHECK HISTORY
+   ========================================================= */
+
+.outreach-acceptance-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.outreach-acceptance-history-button[aria-expanded="true"] {
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.outreach-acceptance-history-row:hover {
+  background: transparent !important;
+}
+
+.outreach-acceptance-history-row > td {
+  padding: 0 !important;
+  border-top: 0 !important;
+}
+
+.outreach-acceptance-history-panel {
+  margin: 0 10px 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.outreach-acceptance-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.outreach-acceptance-history-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.outreach-acceptance-history-heading strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.outreach-acceptance-history-empty {
+  padding: 12px;
+  border: 1px dashed var(--border);
+  border-radius: 9px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.outreach-acceptance-history-list {
+  display: grid;
+  gap: 7px;
+}
+
+.outreach-acceptance-history-item {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.72fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--panel);
+}
+
+.outreach-acceptance-history-run {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+  min-width: 0;
+}
+
+.outreach-acceptance-history-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(70px, 1fr));
+  gap: 6px;
+}
+
+.outreach-acceptance-history-metrics > div {
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.outreach-acceptance-history-metrics span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.outreach-acceptance-history-metrics strong {
+  color: var(--text);
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .outreach-acceptance-history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-acceptance-history-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
