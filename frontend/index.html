@@ -588,8 +588,8 @@
       <article class="panel data-panel">
         <div class="panel-toolbar">
           <div>
-            <p class="panel-kicker">Snapshot database</p>
-            <h2>Profiles đã scan</h2>
+            <p class="panel-kicker">Outreach database</p>
+            <h2>Profiles đã gửi Connect</h2>
             <p id="resultSummary" class="panel-meta">—</p>
           </div>
 
@@ -599,7 +599,7 @@
               <input
                 id="searchInput"
                 type="search"
-                placeholder="Tìm tên, headline, location"
+                placeholder="Tìm URL, account, job hoặc status"
                 autocomplete="off"
               />
             </label>
@@ -607,7 +607,7 @@
             <select id="sortSelect" aria-label="Sắp xếp">
               <option value="newest">Mới nhất</option>
               <option value="oldest">Cũ nhất</option>
-              <option value="name">Tên A–Z</option>
+              <option value="name">URL A–Z</option>
             </select>
           </div>
         </div>
@@ -615,20 +615,20 @@
         <div id="errorState" class="state state-error" hidden></div>
 
         <div id="emptyState" class="state" hidden>
-          Không có profile đã scan.
+          Không có profile Connect đã gửi.
         </div>
 
         <div id="tableWrap" class="table-wrap" hidden>
           <table>
             <thead>
               <tr>
-                <th>Profile</th>
-                <th>Location</th>
-                <th>Followers</th>
-                <th>Connections</th>
-                <th>Posts</th>
-                <th>Last scan</th>
-                <th></th>
+                <th>LinkedIn</th>
+                <th>Account</th>
+                <th>Connect</th>
+                <th>Acceptance</th>
+                <th>Message</th>
+                <th>Connect Job</th>
+                <th>Sent at</th>
               </tr>
             </thead>
 
@@ -1664,6 +1664,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260821-connect-job-delete-multiselect-2"></script>
+  <script src="./app.js?v=20260821-synced-outreach-profiles-1"></script>
 </body>
 </html>
