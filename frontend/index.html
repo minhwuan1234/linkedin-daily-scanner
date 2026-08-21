@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260820-acceptance-insights-1" />
+<link rel="stylesheet" href="./styles.css?v=20260821-acceptance-history-1" />
 </head>
 
 <body>
@@ -1168,15 +1168,108 @@
             <td data-acceptance-last-checked>Never</td>
 
             <td class="outreach-table-action-cell">
-              <button
-                type="button"
-                class="secondary-button outreach-check-acceptance-button"
-                data-acceptance-check-button
-              >
-                Check Acceptance
-              </button>
+              <div class="outreach-acceptance-row-actions">
+                <button
+                  type="button"
+                  class="secondary-button outreach-acceptance-history-button"
+                  data-acceptance-history-button
+                  aria-expanded="false"
+                >
+                  History
+                </button>
+
+                <button
+                  type="button"
+                  class="secondary-button outreach-check-acceptance-button"
+                  data-acceptance-check-button
+                >
+                  Check Acceptance
+                </button>
+              </div>
             </td>
           </tr>
+        </template>
+
+        <template id="outreachAcceptanceHistoryRowTemplate">
+          <tr class="outreach-acceptance-history-row">
+            <td colspan="10">
+              <div class="outreach-acceptance-history-panel">
+                <div class="outreach-acceptance-history-heading">
+                  <div>
+                    <span class="outreach-table-subtext">Acceptance history</span>
+                    <strong data-acceptance-history-title>Check runs</strong>
+                  </div>
+
+                  <span
+                    class="pill pill-neutral"
+                    data-acceptance-history-count
+                  >
+                    0 runs
+                  </span>
+                </div>
+
+                <div
+                  class="outreach-acceptance-history-empty"
+                  data-acceptance-history-empty
+                >
+                  Loading check history...
+                </div>
+
+                <div
+                  class="outreach-acceptance-history-list"
+                  data-acceptance-history-list
+                  hidden
+                ></div>
+              </div>
+            </td>
+          </tr>
+        </template>
+
+        <template id="outreachAcceptanceHistoryItemTemplate">
+          <article class="outreach-acceptance-history-item">
+            <div class="outreach-acceptance-history-run">
+              <span
+                class="pill pill-neutral"
+                data-history-run-status
+              >
+                #1 Completed
+              </span>
+
+              <span
+                class="outreach-table-subtext"
+                data-history-run-time
+              >
+                —
+              </span>
+            </div>
+
+            <div class="outreach-acceptance-history-metrics">
+              <div>
+                <span>Checked</span>
+                <strong data-history-checked>0 / 0</strong>
+              </div>
+
+              <div>
+                <span>New accepted</span>
+                <strong data-history-accepted>0</strong>
+              </div>
+
+              <div>
+                <span>Pending</span>
+                <strong data-history-pending>0</strong>
+              </div>
+
+              <div>
+                <span>Unknown</span>
+                <strong data-history-unknown>0</strong>
+              </div>
+
+              <div>
+                <span>Failed</span>
+                <strong data-history-failed>0</strong>
+              </div>
+            </div>
+          </article>
         </template>
       </div>
 
@@ -1480,6 +1573,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260820-acceptance-insights-1"></script>
+  <script src="./app.js?v=20260821-acceptance-history-1"></script>
 </body>
 </html>
