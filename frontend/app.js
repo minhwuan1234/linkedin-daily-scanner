@@ -1,4 +1,4 @@
-console.info("[Outreach UI] synced-outreach-profiles-1 loaded");
+console.info("[Outreach UI] profiles-from-recent-jobs-1 loaded");
 
 console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
 
@@ -3599,14 +3599,10 @@ async function deleteSelectedAcceptanceJobs() {
     // Then refresh related data from the backend in the background.
     await Promise.all([
       loadOutreachDashboard(),
-      loadOutreachProfiles(),
       loadOutreachAcceptedPool(),
       loadMessagePreparation(),
       loadMessageBatches()
     ]);
-
-    applyProfileFilters();
-    updateStats();
 
     // Acceptance Insights is derived from Connect Job / target data.
     // Invalidate it after every successful delete.
@@ -5825,6 +5821,116 @@ function renderOutreachDashboard() {
 // ---------------------------------------------------------
 
 
+
+function syncProfilesFromOutreachJobs() {
+  const jobs =
+    Array.isArray(
+      state.outreachRecentJobs
+    )
+      ? state.outreachRecentJobs
+      : [];
+
+  const seenProspectIds =
+    new Set();
+
+  const profiles = [];
+
+  jobs.forEach((job) => {
+    const targets =
+      Array.isArray(job.targets)
+        ? job.targets
+        : [];
+
+    targets.forEach((target) => {
+      const connectStatus =
+        String(
+          target.connect_status ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      // Profiles means: connection invitations that were actually sent
+      // and whose target still exists in Recent Connect Jobs.
+      if (
+        connectStatus !==
+        "invitation_sent"
+      ) {
+        return;
+      }
+
+      const prospectId =
+        String(
+          target.prospect_id ||
+          ""
+        ).trim();
+
+      if (
+        !prospectId ||
+        seenProspectIds.has(
+          prospectId
+        )
+      ) {
+        return;
+      }
+
+      seenProspectIds.add(
+        prospectId
+      );
+
+      profiles.push({
+        id: prospectId,
+        prospect_id: prospectId,
+        target_id:
+          target.target_id || "",
+        job_id:
+          target.job_id ||
+          job.id ||
+          "",
+        job_code:
+          job.job_code || "",
+        linkedin_url:
+          target.linkedin_url || "",
+        normalized_url:
+          target.normalized_url || "",
+        assigned_account_id:
+          target.assigned_account_id ||
+          "",
+        target_status:
+          target.target_status || "",
+        connect_status:
+          target.connect_status || "",
+        acceptance_status:
+          target.acceptance_status ||
+          "not_checked",
+        message_status:
+          target.message_status ||
+          "not_started",
+        sent_at:
+          target.last_connect_attempt_at ||
+          target.completed_at ||
+          target.target_updated_at ||
+          target.target_created_at ||
+          job.completed_at ||
+          job.created_at ||
+          null,
+        accepted_at:
+          target.acceptance_accepted_at ||
+          target.accepted_at ||
+          null,
+        last_messaged_at:
+          target.last_messaged_at ||
+          null
+      });
+    });
+  });
+
+  state.profiles = profiles;
+  applyProfileFilters();
+  updateStats();
+}
+
+
 async function loadOutreachDashboard() {
   if (state.outreachDashboardLoading) {
     return;
@@ -5883,6 +5989,10 @@ async function loadOutreachDashboard() {
         ? dashboard.recent_jobs
         : [];
 
+    // Profiles uses exactly the targets that still exist
+    // inside Recent Connect Jobs.
+    syncProfilesFromOutreachJobs();
+
 
     // Keep Accepted Pool and recipient preparation synchronized
     // with the existing Outreach polling loop.
@@ -5900,10 +6010,6 @@ async function loadOutreachDashboard() {
 
 
     renderOutreachDashboard();
-
-    await loadOutreachProfiles();
-    applyProfileFilters();
-    updateStats();
 
     // Keep Acceptance Insights live while its drawer is open.
     // Reuse the existing Outreach dashboard polling cadence.
@@ -6135,45 +6241,6 @@ function setupYoutubeRealtime() {
 }
 
 
-
-async function loadOutreachProfiles() {
-  try {
-    const response = await fetch(
-      "/api/outreach/profiles",
-      {
-        method: "GET",
-        headers: {
-          "Accept": "application/json"
-        },
-        cache: "no-store"
-      }
-    );
-
-    const result = await response.json();
-
-    if (!response.ok || !result.ok) {
-      throw new Error(
-        result.detail ||
-        result.error ||
-        "Không thể load Outreach Profiles."
-      );
-    }
-
-    state.profiles =
-      Array.isArray(result.profiles)
-        ? result.profiles
-        : [];
-
-    delete state.tableErrors.profiles;
-
-  } catch (error) {
-    state.profiles = [];
-    state.tableErrors.profiles =
-      error.message || String(error);
-  }
-}
-
-
 async function loadDashboard() {
   els.refreshButton.disabled = true;
   els.refreshButton.querySelector(".button-icon").textContent = "…";
@@ -6259,8 +6326,7 @@ async function loadDashboard() {
   ] = await Promise.all([
     safeQuery("sources", sourceQuery, []),
     safeQuery("accounts", accountQuery, []),
-    safeQuery("worker", workerQuery, []),
-    loadOutreachProfiles()
+    safeQuery("worker", workerQuery, [])
   ]);
 
   state.sources = sources || [];
@@ -6347,64 +6413,78 @@ function applyProfileFilters() {
 
   const sort = els.sortSelect.value;
 
-  const filtered = state.profiles.filter(
-    (profile) => {
-      const searchable = [
-        profile.linkedin_url,
-        profile.normalized_url,
-        profile.job_code,
-        getOutreachAccountDisplayName(
-          profile.assigned_account_id
-        ),
-        profile.connect_status,
-        profile.acceptance_status,
-        profile.message_status
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+  const filtered =
+    state.profiles.filter(
+      (profile) => {
+        const searchable = [
+          profile.linkedin_url,
+          profile.normalized_url,
+          profile.job_code,
+          getOutreachAccountDisplayName(
+            profile.assigned_account_id
+          ),
+          profile.connect_status,
+          profile.acceptance_status,
+          profile.message_status
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-      return !query || searchable.includes(query);
-    }
-  );
+        return (
+          !query ||
+          searchable.includes(query)
+        );
+      }
+    );
 
   filtered.sort((a, b) => {
     if (sort === "name") {
       return String(
         a.linkedin_url || ""
       ).localeCompare(
-        String(b.linkedin_url || "")
+        String(
+          b.linkedin_url || ""
+        )
       );
     }
 
-    const first = new Date(
-      a.sent_at || 0
-    ).getTime();
+    const first =
+      new Date(
+        a.sent_at || 0
+      ).getTime();
 
-    const second = new Date(
-      b.sent_at || 0
-    ).getTime();
+    const second =
+      new Date(
+        b.sent_at || 0
+      ).getTime();
 
     return sort === "oldest"
       ? first - second
       : second - first;
   });
 
-  state.filteredProfiles = filtered;
+  state.filteredProfiles =
+    filtered;
+
   renderProfileTable();
 }
 
 
 function renderProfileTable() {
-  const profiles = state.filteredProfiles;
+  const profiles =
+    state.filteredProfiles;
 
   els.resultSummary.textContent =
     `${profiles.length.toLocaleString(
       "vi-VN"
     )} sent profiles`;
 
-  els.emptyState.hidden = profiles.length > 0;
-  els.tableWrap.hidden = profiles.length === 0;
+  els.emptyState.hidden =
+    profiles.length > 0;
+
+  els.tableWrap.hidden =
+    profiles.length === 0;
 
   els.profileTableBody.innerHTML =
     profiles
@@ -6430,12 +6510,15 @@ function renderProfileTable() {
           <tr>
             <td>
               <div class="profile-cell">
-                <div class="avatar">in</div>
+                <div class="avatar">
+                  in
+                </div>
 
                 <div class="profile-copy">
                   <p class="profile-name">
                     ${escapeHtml(
-                      profile.linkedin_url || "—"
+                      profile.linkedin_url ||
+                      "—"
                     )}
                   </p>
 
@@ -6451,7 +6534,9 @@ function renderProfileTable() {
             </td>
 
             <td>
-              ${escapeHtml(accountName || "—")}
+              ${escapeHtml(
+                accountName || "—"
+              )}
             </td>
 
             <td>
@@ -6472,7 +6557,9 @@ function renderProfileTable() {
                 acceptanceStatus
               )}">
                 ${escapeHtml(
-                  statusLabel(acceptanceStatus)
+                  statusLabel(
+                    acceptanceStatus
+                  )
                 )}
               </span>
             </td>
@@ -6482,7 +6569,9 @@ function renderProfileTable() {
                 messageStatus
               )}">
                 ${escapeHtml(
-                  statusLabel(messageStatus)
+                  statusLabel(
+                    messageStatus
+                  )
                 )}
               </span>
             </td>
@@ -6495,7 +6584,9 @@ function renderProfileTable() {
 
             <td class="muted-cell">
               ${escapeHtml(
-                formatDate(profile.sent_at)
+                formatDate(
+                  profile.sent_at
+                )
               )}
             </td>
           </tr>
