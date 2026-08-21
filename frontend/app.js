@@ -1,3 +1,5 @@
+console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
+
 console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
 
 const config = window.APP_CONFIG || {};
@@ -2262,6 +2264,10 @@ function openAcceptanceInsightsDrawer() {
 
   closeRateLimitDrawer();
 
+  // Never reopen with stale aggregate data.
+  state.acceptanceInsights = null;
+  state.acceptanceInsightsError = null;
+
   els.acceptanceInsightsDrawer.classList.add(
     "is-open"
   );
@@ -3596,14 +3602,19 @@ async function deleteSelectedAcceptanceJobs() {
       loadMessageBatches()
     ]);
 
+    // Acceptance Insights is derived from Connect Job / target data.
+    // Invalidate it after every successful delete.
+    state.acceptanceInsights = null;
+    state.acceptanceInsightsError = null;
+
+    // If the drawer is open, refresh immediately so the table changes
+    // without closing/reopening the drawer.
     if (
       els.acceptanceInsightsDrawer?.classList.contains(
         "is-open"
       )
     ) {
       await loadAcceptanceInsights();
-    } else {
-      state.acceptanceInsights = null;
     }
 
   } catch (error) {
@@ -5883,6 +5894,17 @@ async function loadOutreachDashboard() {
 
 
     renderOutreachDashboard();
+
+    // Keep Acceptance Insights live while its drawer is open.
+    // Reuse the existing Outreach dashboard polling cadence.
+    if (
+      els.acceptanceInsightsDrawer?.classList.contains(
+        "is-open"
+      ) &&
+      !state.acceptanceInsightsLoading
+    ) {
+      await loadAcceptanceInsights();
+    }
 
   } catch (error) {
     console.error(
