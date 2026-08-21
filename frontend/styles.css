@@ -4769,3 +4769,108 @@ body.has-rate-limit-drawer-open {
 .outreach-delete-jobs-dialog {
   max-width: 520px;
 }
+
+/* =========================================================
+   DELETE CONNECT JOB — CENTERED POPUP
+   ========================================================= */
+
+#outreachDeleteJobsModal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+#outreachDeleteJobsModal[hidden] {
+  display: none !important;
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(5px);
+  cursor: default;
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(520px, calc(100vw - 40px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  background: var(--panel);
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.48),
+    0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-header h2 {
+  margin: 3px 0 0;
+  font-size: 16px;
+  line-height: 1.25;
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-body {
+  padding: 18px 20px;
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-body > p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#outreachDeleteJobsModal .message-prepare-confirm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+}
+
+#outreachDeleteJobsModal .close-button {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 640px) {
+  #outreachDeleteJobsModal {
+    padding: 14px;
+  }
+
+  #outreachDeleteJobsModal .message-prepare-confirm-dialog {
+    width: 100%;
+    max-height: calc(100vh - 28px);
+  }
+
+  #outreachDeleteJobsModal .message-prepare-confirm-footer {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  #outreachDeleteJobsModal .message-prepare-confirm-footer button {
+    width: 100%;
+  }
+}
+
