@@ -32,6 +32,7 @@ from app.outreach_dashboard_store import (
 
 from app.outreach_acceptance_store import (
     OutreachAcceptanceStoreError,
+    list_acceptance_check_history,
     queue_acceptance_check_run,
 )
 
@@ -677,6 +678,80 @@ async def create_outreach_connect_job(
 # =========================================================
 # OUTREACH ACCEPTANCE CHECK API
 # =========================================================
+
+
+@app.get(
+    "/api/outreach/connect/jobs/{job_id}/acceptance-checks"
+)
+async def get_outreach_acceptance_check_history_api(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Return every Acceptance Check run for one Connect Job.
+
+    Read-only endpoint used by the Acceptance tab history expander.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        runs = list_acceptance_check_history(
+            source_job_id=cleaned_job_id,
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        logger.exception(
+            "Could not load Acceptance Check history"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Acceptance Check history"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Acceptance Check history error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Acceptance Check history"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "job_id": cleaned_job_id,
+            "count": len(runs),
+            "runs": runs,
+        },
+    )
 
 
 @app.post(
