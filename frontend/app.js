@@ -3542,6 +3542,19 @@ async function deleteSelectedAcceptanceJobs() {
       state.outreachAcceptanceHistoryByJobId.delete(jobId);
     }
 
+    // Remove deleted jobs from the local UI immediately.
+    // Do not wait for the next dashboard poll.
+    state.outreachRecentJobs =
+      state.outreachRecentJobs.filter(
+        (job) =>
+          !jobIds.includes(
+            String(
+              job.id ||
+              ""
+            ).trim()
+          )
+      );
+
     state.outreachAcceptanceSelectedDeleteJobIds.clear();
 
     if (
@@ -3557,6 +3570,23 @@ async function deleteSelectedAcceptanceJobs() {
       els.outreachDeleteJobsModal.hidden = true;
     }
 
+    // Re-render immediately so the deleted rows disappear at once.
+    if (
+      state.outreachAcceptancePage > 1
+      && (
+        (
+          state.outreachAcceptancePage - 1
+        ) * OUTREACH_ACCEPTANCE_PAGE_SIZE
+      ) >= state.outreachRecentJobs.length
+    ) {
+      state.outreachAcceptancePage -= 1;
+    }
+
+    renderOutreachAcceptanceJobs(
+      state.outreachRecentJobs
+    );
+
+    // Then refresh related data from the backend in the background.
     await Promise.all([
       loadOutreachDashboard(),
       loadOutreachAcceptedPool(),
