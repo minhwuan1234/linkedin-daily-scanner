@@ -32,6 +32,7 @@ from app.outreach_dashboard_store import (
 
 from app.outreach_acceptance_store import (
     OutreachAcceptanceStoreError,
+    delete_connect_job_data,
     list_acceptance_check_history,
     queue_acceptance_check_run,
 )
@@ -678,6 +679,77 @@ async def create_outreach_connect_job(
 # =========================================================
 # OUTREACH ACCEPTANCE CHECK API
 # =========================================================
+
+
+@app.delete(
+    "/api/outreach/connect/jobs/{job_id}"
+)
+async def delete_outreach_connect_job_api(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Permanently delete one completed Connect Job and its dependent data.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        deleted = delete_connect_job_data(
+            source_job_id=cleaned_job_id,
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        detail = str(exc)
+
+        conflict = (
+            "cannot be deleted" in detail
+            or "active Acceptance Check" in detail
+        )
+
+        return JSONResponse(
+            status_code=409 if conflict else 500,
+            content={
+                "ok": False,
+                "error": "Could not delete Outreach Connect Job",
+                "detail": detail,
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Connect Job delete error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while deleting "
+                    "Outreach Connect Job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "deleted": deleted,
+        },
+    )
 
 
 @app.get(
