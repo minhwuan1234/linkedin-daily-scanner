@@ -1,3 +1,5 @@
+console.info("[Outreach UI] synced-outreach-profiles-1 loaded");
+
 console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
 
 console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
@@ -3597,10 +3599,14 @@ async function deleteSelectedAcceptanceJobs() {
     // Then refresh related data from the backend in the background.
     await Promise.all([
       loadOutreachDashboard(),
+      loadOutreachProfiles(),
       loadOutreachAcceptedPool(),
       loadMessagePreparation(),
       loadMessageBatches()
     ]);
+
+    applyProfileFilters();
+    updateStats();
 
     // Acceptance Insights is derived from Connect Job / target data.
     // Invalidate it after every successful delete.
@@ -5895,6 +5901,10 @@ async function loadOutreachDashboard() {
 
     renderOutreachDashboard();
 
+    await loadOutreachProfiles();
+    applyProfileFilters();
+    updateStats();
+
     // Keep Acceptance Insights live while its drawer is open.
     // Reuse the existing Outreach dashboard polling cadence.
     if (
@@ -6125,37 +6135,50 @@ function setupYoutubeRealtime() {
 }
 
 
+
+async function loadOutreachProfiles() {
+  try {
+    const response = await fetch(
+      "/api/outreach/profiles",
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Outreach Profiles."
+      );
+    }
+
+    state.profiles =
+      Array.isArray(result.profiles)
+        ? result.profiles
+        : [];
+
+    delete state.tableErrors.profiles;
+
+  } catch (error) {
+    state.profiles = [];
+    state.tableErrors.profiles =
+      error.message || String(error);
+  }
+}
+
+
 async function loadDashboard() {
   els.refreshButton.disabled = true;
   els.refreshButton.querySelector(".button-icon").textContent = "…";
   els.globalError.hidden = true;
   state.tableErrors = {};
-
-  const profileQuery = client
-    .from("linkedin_profile_snapshots")
-    .select(
-      [
-        "id",
-        "source_id",
-        "scraped_at",
-        "name",
-        "linkedin_url",
-        "headline",
-        "location",
-        "followers_count_text",
-        "connections_count_text",
-        "about_text",
-        "experience_raw_text",
-        "post_1_caption",
-        "post_2_caption",
-        "post_3_caption",
-        "post_4_caption",
-        "post_5_caption"
-      ].join(",")
-    )
-    .not("name", "is", null)
-    .order("scraped_at", { ascending: false })
-    .limit(1000);
 
   const sourceQuery = client
     .from("linkedin_sources")
@@ -6230,18 +6253,16 @@ async function loadDashboard() {
     .limit(1);
 
   const [
-    profiles,
     sources,
     accounts,
     workers
   ] = await Promise.all([
-    safeQuery("profiles", profileQuery, []),
     safeQuery("sources", sourceQuery, []),
     safeQuery("accounts", accountQuery, []),
-    safeQuery("worker", workerQuery, [])
+    safeQuery("worker", workerQuery, []),
+    loadOutreachProfiles()
   ]);
 
-  state.profiles = getLatestSnapshots(profiles || []);
   state.sources = sources || [];
   state.accounts = accounts || [];
   state.worker = workers?.[0] || null;
@@ -6266,7 +6287,7 @@ function renderAll() {
 
 function updateStats() {
   const latestDate = state.profiles
-    .map((profile) => profile.scraped_at)
+    .map((profile) => profile.sent_at)
     .filter(Boolean)
     .sort()
     .at(-1);
@@ -6294,8 +6315,8 @@ function updateStats() {
 
   els.lastUpdated.textContent =
     latestDate
-      ? `Snapshot gần nhất: ${formatAge(latestDate)}`
-      : "Chưa có snapshot";
+      ? `Connect gần nhất: ${formatAge(latestDate)}`
+      : "Chưa có profile đã gửi";
 }
 
 function renderGlobalError() {
@@ -6326,31 +6347,43 @@ function applyProfileFilters() {
 
   const sort = els.sortSelect.value;
 
-  const filtered = state.profiles.filter((profile) => {
-    const searchable = [
-      profile.name,
-      profile.headline,
-      profile.location,
-      profile.linkedin_url,
-      ...getPostCaptions(profile)
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
+  const filtered = state.profiles.filter(
+    (profile) => {
+      const searchable = [
+        profile.linkedin_url,
+        profile.normalized_url,
+        profile.job_code,
+        getOutreachAccountDisplayName(
+          profile.assigned_account_id
+        ),
+        profile.connect_status,
+        profile.acceptance_status,
+        profile.message_status
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
-    return !query || searchable.includes(query);
-  });
+      return !query || searchable.includes(query);
+    }
+  );
 
   filtered.sort((a, b) => {
     if (sort === "name") {
-      return (a.name || "").localeCompare(
-        b.name || "",
-        "vi"
+      return String(
+        a.linkedin_url || ""
+      ).localeCompare(
+        String(b.linkedin_url || "")
       );
     }
 
-    const first = new Date(a.scraped_at || 0).getTime();
-    const second = new Date(b.scraped_at || 0).getTime();
+    const first = new Date(
+      a.sent_at || 0
+    ).getTime();
+
+    const second = new Date(
+      b.sent_at || 0
+    ).getTime();
 
     return sort === "oldest"
       ? first - second
@@ -6358,101 +6391,117 @@ function applyProfileFilters() {
   });
 
   state.filteredProfiles = filtered;
-
   renderProfileTable();
 }
+
 
 function renderProfileTable() {
   const profiles = state.filteredProfiles;
 
   els.resultSummary.textContent =
-    `${profiles.length.toLocaleString("vi-VN")} profiles`;
+    `${profiles.length.toLocaleString(
+      "vi-VN"
+    )} sent profiles`;
 
   els.emptyState.hidden = profiles.length > 0;
   els.tableWrap.hidden = profiles.length === 0;
 
-  els.profileTableBody.innerHTML = profiles
-    .map((profile) => {
-      const postCount = getPostCaptions(profile).length;
+  els.profileTableBody.innerHTML =
+    profiles
+      .map((profile) => {
+        const accountName =
+          getOutreachAccountDisplayName(
+            profile.assigned_account_id
+          );
 
-      return `
-        <tr>
-          <td>
-            <div class="profile-cell">
-              <div class="avatar">
-                ${escapeHtml(getInitials(profile.name))}
+        const acceptanceStatus =
+          String(
+            profile.acceptance_status ||
+            "not_checked"
+          );
+
+        const messageStatus =
+          String(
+            profile.message_status ||
+            "not_started"
+          );
+
+        return `
+          <tr>
+            <td>
+              <div class="profile-cell">
+                <div class="avatar">in</div>
+
+                <div class="profile-copy">
+                  <p class="profile-name">
+                    ${escapeHtml(
+                      profile.linkedin_url || "—"
+                    )}
+                  </p>
+
+                  <p class="profile-headline">
+                    ${escapeHtml(
+                      profile.normalized_url ||
+                      profile.linkedin_url ||
+                      "—"
+                    )}
+                  </p>
+                </div>
               </div>
+            </td>
 
-              <div class="profile-copy">
-                <p class="profile-name">
-                  ${escapeHtml(profile.name)}
-                </p>
+            <td>
+              ${escapeHtml(accountName || "—")}
+            </td>
 
-                <p class="profile-headline">
-                  ${escapeHtml(
-                    profile.headline || "Không có headline"
-                  )}
-                </p>
-              </div>
-            </div>
-          </td>
+            <td>
+              <span class="pill ${getOutreachPillClass(
+                profile.connect_status
+              )}">
+                ${escapeHtml(
+                  statusLabel(
+                    profile.connect_status ||
+                    "invitation_sent"
+                  )
+                )}
+              </span>
+            </td>
 
-          <td>
-            ${escapeHtml(profile.location || "—")}
-          </td>
+            <td>
+              <span class="pill ${getOutreachPillClass(
+                acceptanceStatus
+              )}">
+                ${escapeHtml(
+                  statusLabel(acceptanceStatus)
+                )}
+              </span>
+            </td>
 
-          <td>
-            ${escapeHtml(
-              profile.followers_count_text || "—"
-            )}
-          </td>
+            <td>
+              <span class="pill ${getOutreachPillClass(
+                messageStatus
+              )}">
+                ${escapeHtml(
+                  statusLabel(messageStatus)
+                )}
+              </span>
+            </td>
 
-          <td>
-            ${escapeHtml(
-              profile.connections_count_text || "—"
-            )}
-          </td>
+            <td>
+              ${escapeHtml(
+                profile.job_code || "—"
+              )}
+            </td>
 
-          <td>
-            <span class="post-count-badge">
-              ${postCount}
-            </span>
-          </td>
-
-          <td class="muted-cell">
-            ${escapeHtml(formatDate(profile.scraped_at))}
-          </td>
-
-          <td class="action-cell">
-            <button
-              class="row-button"
-              type="button"
-              data-profile-id="${escapeHtml(profile.id)}"
-              aria-label="Xem ${escapeHtml(profile.name)}"
-            >
-              ⋯
-            </button>
-          </td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  els.profileTableBody
-    .querySelectorAll("[data-profile-id]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const profile = state.profiles.find(
-          (item) =>
-            String(item.id) ===
-            String(button.dataset.profileId)
-        );
-
-        if (profile) {
-          openDrawer(profile);
-        }
-      });
-    });
+            <td class="muted-cell">
+              ${escapeHtml(
+                formatDate(profile.sent_at)
+              )}
+            </td>
+          </tr>
+        `;
+      })
+      .join("");
 }
 
 function applyQueueFilters() {
