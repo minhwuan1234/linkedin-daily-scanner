@@ -294,6 +294,27 @@ const els = {
   outreachAcceptanceRowTemplate:
     document.querySelector("#outreachAcceptanceRowTemplate"),
 
+  outreachAcceptanceDeleteSelectedButton:
+    document.querySelector("#outreachAcceptanceDeleteSelectedButton"),
+
+  outreachDeleteJobsModal:
+    document.querySelector("#outreachDeleteJobsModal"),
+
+  outreachDeleteJobsCloseButton:
+    document.querySelector("#outreachDeleteJobsCloseButton"),
+
+  outreachDeleteJobsCancelButton:
+    document.querySelector("#outreachDeleteJobsCancelButton"),
+
+  outreachDeleteJobsConfirmButton:
+    document.querySelector("#outreachDeleteJobsConfirmButton"),
+
+  outreachDeleteJobsSummary:
+    document.querySelector("#outreachDeleteJobsSummary"),
+
+  outreachDeleteJobsError:
+    document.querySelector("#outreachDeleteJobsError"),
+
   outreachAcceptanceHistoryRowTemplate:
     document.querySelector("#outreachAcceptanceHistoryRowTemplate"),
 
@@ -498,6 +519,8 @@ const state = {
   outreachAcceptanceHistoryByJobId: new Map(),
   outreachAcceptanceHistoryLoadingJobIds: new Set(),
   outreachAcceptanceExpandedJobId: null,
+  outreachAcceptanceSelectedDeleteJobIds: new Set(),
+  outreachAcceptanceDeleteSubmitting: false,
   outreachAcceptedPool: {
     summary: {
       total: 0,
@@ -3384,6 +3407,194 @@ function appendAcceptanceHistoryRow({
 }
 
 
+
+function updateAcceptanceDeleteSelectionUi() {
+  const count =
+    state.outreachAcceptanceSelectedDeleteJobIds.size;
+
+  if (els.outreachAcceptanceDeleteSelectedButton) {
+    els.outreachAcceptanceDeleteSelectedButton.disabled =
+      count <= 0 ||
+      state.outreachAcceptanceDeleteSubmitting;
+
+    els.outreachAcceptanceDeleteSelectedButton.textContent =
+      count > 0
+        ? `Delete selected (${count})`
+        : "Delete selected";
+  }
+}
+
+
+function openAcceptanceDeleteJobsModal() {
+  const selectedIds = Array.from(
+    state.outreachAcceptanceSelectedDeleteJobIds
+  );
+
+  if (
+    !selectedIds.length ||
+    !els.outreachDeleteJobsModal
+  ) {
+    return;
+  }
+
+  const selectedJobs =
+    state.outreachRecentJobs.filter(
+      (job) =>
+        selectedIds.includes(
+          String(job.id || "").trim()
+        )
+    );
+
+  const labels =
+    selectedJobs
+      .map(
+        (job) =>
+          String(
+            job.job_code ||
+            job.id ||
+            ""
+          ).trim()
+      )
+      .filter(Boolean);
+
+  if (els.outreachDeleteJobsSummary) {
+    els.outreachDeleteJobsSummary.textContent =
+      labels.length === 1
+        ? `Delete Connect Job ${labels[0]} permanently?`
+        : `Delete ${labels.length} selected Connect Jobs permanently?`;
+  }
+
+  if (els.outreachDeleteJobsError) {
+    els.outreachDeleteJobsError.hidden = true;
+    els.outreachDeleteJobsError.textContent = "";
+  }
+
+  els.outreachDeleteJobsModal.hidden = false;
+}
+
+
+function closeAcceptanceDeleteJobsModal() {
+  if (state.outreachAcceptanceDeleteSubmitting) {
+    return;
+  }
+
+  if (els.outreachDeleteJobsModal) {
+    els.outreachDeleteJobsModal.hidden = true;
+  }
+}
+
+
+async function deleteSelectedAcceptanceJobs() {
+  const jobIds = Array.from(
+    state.outreachAcceptanceSelectedDeleteJobIds
+  );
+
+  if (
+    !jobIds.length ||
+    state.outreachAcceptanceDeleteSubmitting
+  ) {
+    return;
+  }
+
+  state.outreachAcceptanceDeleteSubmitting = true;
+  updateAcceptanceDeleteSelectionUi();
+
+  if (els.outreachDeleteJobsConfirmButton) {
+    els.outreachDeleteJobsConfirmButton.disabled = true;
+    els.outreachDeleteJobsConfirmButton.textContent = "Deleting...";
+  }
+
+  if (els.outreachDeleteJobsError) {
+    els.outreachDeleteJobsError.hidden = true;
+    els.outreachDeleteJobsError.textContent = "";
+  }
+
+  try {
+    for (const jobId of jobIds) {
+      const response = await fetch(
+        `/api/outreach/connect/jobs/${encodeURIComponent(jobId)}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Accept": "application/json"
+          }
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || !result.ok) {
+        const job =
+          state.outreachRecentJobs.find(
+            (item) =>
+              String(item.id || "").trim() === jobId
+          );
+
+        throw new Error(
+          `${job?.job_code || jobId}: ${
+            result.detail ||
+            result.error ||
+            "Delete failed."
+          }`
+        );
+      }
+
+      state.outreachAcceptanceHistoryByJobId.delete(jobId);
+    }
+
+    state.outreachAcceptanceSelectedDeleteJobIds.clear();
+
+    if (
+      state.outreachAcceptanceExpandedJobId &&
+      jobIds.includes(
+        state.outreachAcceptanceExpandedJobId
+      )
+    ) {
+      state.outreachAcceptanceExpandedJobId = null;
+    }
+
+    if (els.outreachDeleteJobsModal) {
+      els.outreachDeleteJobsModal.hidden = true;
+    }
+
+    await Promise.all([
+      loadOutreachDashboard(),
+      loadOutreachAcceptedPool(),
+      loadMessagePreparation(),
+      loadMessageBatches()
+    ]);
+
+    if (
+      els.acceptanceInsightsDrawer?.classList.contains(
+        "is-open"
+      )
+    ) {
+      await loadAcceptanceInsights();
+    } else {
+      state.acceptanceInsights = null;
+    }
+
+  } catch (error) {
+    if (els.outreachDeleteJobsError) {
+      els.outreachDeleteJobsError.hidden = false;
+      els.outreachDeleteJobsError.textContent =
+        error.message || String(error);
+    }
+
+  } finally {
+    state.outreachAcceptanceDeleteSubmitting = false;
+
+    if (els.outreachDeleteJobsConfirmButton) {
+      els.outreachDeleteJobsConfirmButton.disabled = false;
+      els.outreachDeleteJobsConfirmButton.textContent =
+        "Delete permanently";
+    }
+
+    updateAcceptanceDeleteSelectionUi();
+  }
+}
+
+
 function renderOutreachAcceptanceJobs(
   jobs
 ) {
@@ -3396,6 +3607,8 @@ function renderOutreachAcceptanceJobs(
     els.outreachAcceptanceJobCount.textContent =
       `${rows.length} jobs`;
   }
+
+  updateAcceptanceDeleteSelectionUi();
 
   if (
     !els.outreachAcceptanceEmpty ||
@@ -3582,6 +3795,63 @@ function renderOutreachAcceptanceJobs(
         `pill ${getOutreachPillClass(
           acceptanceStatus
         )}`;
+    }
+
+    const deleteCheckbox =
+      fragment.querySelector(
+        "[data-acceptance-delete-select]"
+      );
+
+    if (deleteCheckbox) {
+      const deleteJobId =
+        String(job.id || "").trim();
+
+      deleteCheckbox.checked =
+        state.outreachAcceptanceSelectedDeleteJobIds.has(
+          deleteJobId
+        );
+
+      const acceptanceStatus =
+        normaliseStatus(
+          job.acceptance?.status ||
+          ""
+        );
+
+      const jobStatus =
+        normaliseStatus(
+          job.status ||
+          ""
+        );
+
+      deleteCheckbox.disabled =
+        state.outreachAcceptanceDeleteSubmitting ||
+        [
+          "pending",
+          "running",
+          "processing",
+          "starting"
+        ].includes(jobStatus) ||
+        [
+          "pending",
+          "running"
+        ].includes(acceptanceStatus);
+
+      deleteCheckbox.addEventListener(
+        "change",
+        () => {
+          if (deleteCheckbox.checked) {
+            state.outreachAcceptanceSelectedDeleteJobIds.add(
+              deleteJobId
+            );
+          } else {
+            state.outreachAcceptanceSelectedDeleteJobIds.delete(
+              deleteJobId
+            );
+          }
+
+          updateAcceptanceDeleteSelectionUi();
+        }
+      );
     }
 
     const historyButton =
@@ -7179,6 +7449,36 @@ els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistory
 els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
+
+els.outreachAcceptanceDeleteSelectedButton?.addEventListener(
+  "click",
+  openAcceptanceDeleteJobsModal
+);
+
+els.outreachDeleteJobsCloseButton?.addEventListener(
+  "click",
+  closeAcceptanceDeleteJobsModal
+);
+
+els.outreachDeleteJobsCancelButton?.addEventListener(
+  "click",
+  closeAcceptanceDeleteJobsModal
+);
+
+els.outreachDeleteJobsModal
+  ?.querySelectorAll("[data-outreach-delete-jobs-close]")
+  .forEach((element) => {
+    element.addEventListener(
+      "click",
+      closeAcceptanceDeleteJobsModal
+    );
+  });
+
+els.outreachDeleteJobsConfirmButton?.addEventListener(
+  "click",
+  deleteSelectedAcceptanceJobs
+);
+
 els.messageBatchPrevPage?.addEventListener("click",()=>{state.messageBatchPage=Math.max(1,state.messageBatchPage-1);renderMessagePreparation()});
 els.messageBatchNextPage?.addEventListener("click",()=>{state.messageBatchPage+=1;renderMessagePreparation()});
 
@@ -7463,5 +7763,19 @@ document.addEventListener(
   },
   {
     once: true
+  }
+);
+
+
+document.addEventListener(
+  "keydown",
+  (event) => {
+    if (
+      event.key === "Escape" &&
+      els.outreachDeleteJobsModal &&
+      !els.outreachDeleteJobsModal.hidden
+    ) {
+      closeAcceptanceDeleteJobsModal();
+    }
   }
 );
