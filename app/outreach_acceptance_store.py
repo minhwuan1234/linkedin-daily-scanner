@@ -25,6 +25,18 @@ PROSPECT_TABLE = (
     "outreach_prospects"
 )
 
+JOB_TABLE = (
+    "outreach_jobs"
+)
+
+MESSAGE_TARGET_TABLE = (
+    "outreach_message_targets"
+)
+
+MESSAGE_BATCH_TABLE = (
+    "outreach_message_batches"
+)
+
 
 class OutreachAcceptanceStoreError(
     RuntimeError
@@ -932,4 +944,308 @@ def list_acceptance_check_history(
         }
         for row in rows
     ]
+
+# =========================================================
+# DELETE CONNECT JOB
+# =========================================================
+
+def delete_connect_job_data(
+    *,
+    source_job_id: str,
+    client: Client | None = None,
+) -> dict:
+    """
+    Permanently delete one completed Connect Job and its dependent data.
+
+    Deletes:
+    - Acceptance Check history
+    - message target snapshots sourced from this Connect Job
+    - Connect Job targets
+    - Connect Job row
+    - empty message batches left after snapshot deletion
+    - orphan prospects no longer referenced anywhere
+
+    Shared prospects referenced by other jobs are preserved.
+
+    Safety:
+    - active Connect Jobs cannot be deleted
+    - jobs with an active Acceptance Check cannot be deleted
+    """
+    cleaned_job_id = str(
+        source_job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        raise OutreachAcceptanceStoreError(
+            "source_job_id is required."
+        )
+
+    active_client = (
+        client
+        if client is not None
+        else get_outreach_supabase_client()
+    )
+
+    # 1) Read job + protect active work.
+    job_response = (
+        active_client
+        .table(JOB_TABLE)
+        .select("id,job_code,status")
+        .eq("id", cleaned_job_id)
+        .limit(1)
+        .execute()
+    )
+
+    job_rows = (
+        job_response.data
+        if isinstance(job_response.data, list)
+        else []
+    )
+
+    if not job_rows:
+        raise OutreachAcceptanceStoreError(
+            f"Connect Job not found: {cleaned_job_id}"
+        )
+
+    job = job_rows[0]
+    job_status = str(
+        job.get("status", "")
+        or ""
+    ).strip().lower()
+
+    if job_status in {
+        "pending",
+        "running",
+        "processing",
+        "starting",
+    }:
+        raise OutreachAcceptanceStoreError(
+            "Active Connect Job cannot be deleted."
+        )
+
+    active_check_response = (
+        active_client
+        .table(ACCEPTANCE_CHECK_TABLE)
+        .select("id,status")
+        .eq("source_job_id", cleaned_job_id)
+        .in_("status", ["pending", "running"])
+        .limit(1)
+        .execute()
+    )
+
+    active_checks = (
+        active_check_response.data
+        if isinstance(active_check_response.data, list)
+        else []
+    )
+
+    if active_checks:
+        raise OutreachAcceptanceStoreError(
+            "Connect Job has an active Acceptance Check."
+        )
+
+    # 2) Collect source target IDs + prospects.
+    target_response = (
+        active_client
+        .table(TARGET_TABLE)
+        .select("id,prospect_id")
+        .eq("job_id", cleaned_job_id)
+        .execute()
+    )
+
+    target_rows = (
+        target_response.data
+        if isinstance(target_response.data, list)
+        else []
+    )
+
+    target_ids = [
+        str(row.get("id", "") or "").strip()
+        for row in target_rows
+        if str(row.get("id", "") or "").strip()
+    ]
+
+    prospect_ids = {
+        str(row.get("prospect_id", "") or "").strip()
+        for row in target_rows
+        if str(row.get("prospect_id", "") or "").strip()
+    }
+
+    # 3) Delete downstream message snapshots first because
+    # source_target_id uses ON DELETE RESTRICT.
+    affected_batch_ids: set[str] = set()
+    deleted_message_targets = 0
+
+    if target_ids:
+        message_response = (
+            active_client
+            .table(MESSAGE_TARGET_TABLE)
+            .select("id,batch_id")
+            .in_("source_target_id", target_ids)
+            .execute()
+        )
+
+        message_rows = (
+            message_response.data
+            if isinstance(message_response.data, list)
+            else []
+        )
+
+        deleted_message_targets = len(message_rows)
+
+        affected_batch_ids = {
+            str(row.get("batch_id", "") or "").strip()
+            for row in message_rows
+            if str(row.get("batch_id", "") or "").strip()
+        }
+
+        (
+            active_client
+            .table(MESSAGE_TARGET_TABLE)
+            .delete()
+            .in_("source_target_id", target_ids)
+            .execute()
+        )
+
+    # 4) Keep affected message batches internally consistent.
+    deleted_message_batches = 0
+
+    for batch_id in affected_batch_ids:
+        remaining_response = (
+            active_client
+            .table(MESSAGE_TARGET_TABLE)
+            .select("status")
+            .eq("batch_id", batch_id)
+            .execute()
+        )
+
+        remaining = (
+            remaining_response.data
+            if isinstance(remaining_response.data, list)
+            else []
+        )
+
+        if not remaining:
+            (
+                active_client
+                .table(MESSAGE_BATCH_TABLE)
+                .delete()
+                .eq("id", batch_id)
+                .execute()
+            )
+            deleted_message_batches += 1
+            continue
+
+        target_count = len(remaining)
+        sent_count = sum(
+            1
+            for row in remaining
+            if str(row.get("status", "") or "").strip().lower()
+            == "sent"
+        )
+        failed_count = sum(
+            1
+            for row in remaining
+            if str(row.get("status", "") or "").strip().lower()
+            == "failed"
+        )
+        processed_count = sent_count + failed_count
+
+        (
+            active_client
+            .table(MESSAGE_BATCH_TABLE)
+            .update(
+                {
+                    "target_count": target_count,
+                    "processed_count": processed_count,
+                    "sent_count": sent_count,
+                    "failed_count": failed_count,
+                    "updated_at": _utc_now(),
+                }
+            )
+            .eq("id", batch_id)
+            .execute()
+        )
+
+    # 5) Delete acceptance history + job targets + job.
+    (
+        active_client
+        .table(ACCEPTANCE_CHECK_TABLE)
+        .delete()
+        .eq("source_job_id", cleaned_job_id)
+        .execute()
+    )
+
+    (
+        active_client
+        .table(TARGET_TABLE)
+        .delete()
+        .eq("job_id", cleaned_job_id)
+        .execute()
+    )
+
+    (
+        active_client
+        .table(JOB_TABLE)
+        .delete()
+        .eq("id", cleaned_job_id)
+        .execute()
+    )
+
+    # 6) Remove only prospects that became true orphans.
+    deleted_orphan_prospects = 0
+
+    for prospect_id in prospect_ids:
+        other_target_response = (
+            active_client
+            .table(TARGET_TABLE)
+            .select("id")
+            .eq("prospect_id", prospect_id)
+            .limit(1)
+            .execute()
+        )
+
+        if (
+            isinstance(other_target_response.data, list)
+            and other_target_response.data
+        ):
+            continue
+
+        other_message_response = (
+            active_client
+            .table(MESSAGE_TARGET_TABLE)
+            .select("id")
+            .eq("prospect_id", prospect_id)
+            .limit(1)
+            .execute()
+        )
+
+        if (
+            isinstance(other_message_response.data, list)
+            and other_message_response.data
+        ):
+            continue
+
+        (
+            active_client
+            .table(PROSPECT_TABLE)
+            .delete()
+            .eq("id", prospect_id)
+            .execute()
+        )
+
+        deleted_orphan_prospects += 1
+
+    return {
+        "job_id": cleaned_job_id,
+        "job_code": str(
+            job.get("job_code", "")
+            or ""
+        ).strip(),
+        "deleted_targets": len(target_ids),
+        "deleted_message_targets": deleted_message_targets,
+        "deleted_message_batches": deleted_message_batches,
+        "deleted_orphan_prospects": deleted_orphan_prospects,
+    }
 
