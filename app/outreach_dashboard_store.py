@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from supabase import Client, create_client
 
@@ -20,6 +21,10 @@ ACCOUNT_USAGE_TABLE = "outreach_account_usage"
 ACCEPTANCE_CHECK_TABLE = "outreach_acceptance_checks"
 
 WEEKLY_SUCCESS_LIMIT = 100
+
+LOCAL_TIMEZONE = ZoneInfo(
+    "Asia/Ho_Chi_Minh"
+)
 
 SCHEDULER_NAME = "linkedin_outreach"
 
@@ -92,6 +97,29 @@ def _safe_text(
     return str(
         value or ""
     ).strip()
+
+
+def _current_usage_dates() -> tuple[str, str]:
+    """
+    Return the current local calendar date and Monday week start.
+
+    Weekly Connect quota is Monday -> Sunday in Asia/Ho_Chi_Minh.
+    """
+    today = datetime.now(
+        LOCAL_TIMEZONE
+    ).date()
+
+    week_start = (
+        today
+        - timedelta(
+            days=today.weekday()
+        )
+    )
+
+    return (
+        today.isoformat(),
+        week_start.isoformat(),
+    )
 
 
 def _timestamp_value(
@@ -1083,11 +1111,26 @@ def get_account_usage(
     client: Client,
 ) -> dict[str, dict]:
     """
-    Load persistent daily/weekly Connect usage.
+    Load persistent Connect usage and normalize stale periods.
 
-    Counts are written by outreach_connect_worker and only
-    increment when result.status == "invitation_sent".
+    The Mac worker already resets usage when it asks for quota.
+    The dashboard previously read outreach_account_usage directly,
+    so a new week could still display the previous week's 100/100
+    until that account happened to run again.
+
+    This read path now uses the same calendar rule:
+    - local timezone: Asia/Ho_Chi_Minh
+    - week: Monday -> Sunday
+    - new week: weekly_success_count -> 0
+    - new local day: daily_success_count -> 0
+
+    Reset writes are conditional on the stored period value. This
+    prevents the dashboard from overwriting a newer worker update if
+    both processes cross the week/day boundary at the same time.
     """
+    today, current_week_start = (
+        _current_usage_dates()
+    )
 
     response = (
         client
@@ -1111,6 +1154,129 @@ def get_account_usage(
         response.data
         or []
     )
+
+    needs_reload = False
+
+    for row in rows:
+        account_id = _safe_text(
+            row.get(
+                "account_id"
+            )
+        )
+
+        if not account_id:
+            continue
+
+        stored_daily_date = _safe_text(
+            row.get(
+                "daily_date"
+            )
+        )
+
+        stored_week_start = _safe_text(
+            row.get(
+                "week_start"
+            )
+        )
+
+        # Weekly quota reset.
+        if (
+            stored_week_start
+            != current_week_start
+        ):
+            reset_query = (
+                client
+                .table(
+                    ACCOUNT_USAGE_TABLE
+                )
+                .update(
+                    {
+                        "weekly_success_count": 0,
+                        "week_start": (
+                            current_week_start
+                        ),
+                    }
+                )
+                .eq(
+                    "account_id",
+                    account_id,
+                )
+            )
+
+            # Optimistic concurrency guard:
+            # only reset if the DB row still belongs to the old week.
+            if stored_week_start:
+                reset_query = (
+                    reset_query
+                    .eq(
+                        "week_start",
+                        stored_week_start,
+                    )
+                )
+
+            reset_query.execute()
+            needs_reload = True
+
+        # Daily count is legacy UI-compatible data, but keep it
+        # normalized as well so the database does not carry stale dates.
+        if (
+            stored_daily_date
+            != today
+        ):
+            reset_query = (
+                client
+                .table(
+                    ACCOUNT_USAGE_TABLE
+                )
+                .update(
+                    {
+                        "daily_success_count": 0,
+                        "daily_date": today,
+                    }
+                )
+                .eq(
+                    "account_id",
+                    account_id,
+                )
+            )
+
+            if stored_daily_date:
+                reset_query = (
+                    reset_query
+                    .eq(
+                        "daily_date",
+                        stored_daily_date,
+                    )
+                )
+
+            reset_query.execute()
+            needs_reload = True
+
+    # Reload once after boundary resets so the Rate Limits drawer
+    # receives the actual persisted values from Supabase.
+    if needs_reload:
+        response = (
+            client
+            .table(
+                ACCOUNT_USAGE_TABLE
+            )
+            .select(
+                (
+                    "account_id,"
+                    "daily_success_count,"
+                    "daily_date,"
+                    "weekly_success_count,"
+                    "week_start,"
+                    "updated_at"
+                )
+            )
+            .execute()
+        )
+
+        rows = list(
+            response.data
+            or []
+        )
 
     return {
         _safe_text(
