@@ -133,11 +133,27 @@
               <span>Scope</span>
               <select id="acceptanceInsightsScopeFilter">
                 <option value="all">All time</option>
+                <option value="week">Week</option>
                 <option value="job">Connect Job</option>
               </select>
             </label>
 
-            <label class="acceptance-insights-filter-field">
+            <label
+              id="acceptanceInsightsWeekField"
+              class="acceptance-insights-filter-field"
+              hidden
+            >
+              <span>Week</span>
+              <select id="acceptanceInsightsWeekFilter">
+                <option value="">Current week</option>
+              </select>
+            </label>
+
+            <label
+              id="acceptanceInsightsJobField"
+              class="acceptance-insights-filter-field"
+              hidden
+            >
               <span>Connect Job</span>
               <select id="acceptanceInsightsJobFilter" disabled>
                 <option value="all">All Connect Jobs</option>
@@ -1653,6 +1669,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260824-egress-optimized-1"></script>
+  <script src="./app.js?v=20260824-acceptance-weekly-1"></script>
 </body>
 </html>
