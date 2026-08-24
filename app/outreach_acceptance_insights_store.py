@@ -206,11 +206,12 @@ def _load_all_target_rows(
     """
     Load Outreach Connect targets in pages.
 
-    Weekly scope is based on outreach_prospects.last_connect_attempt_at,
-    which represents when the Connect attempt/invitation was sent.
+    Weekly scope is based on outreach_job_targets.completed_at.
 
-    Old-row fallback:
-        target.completed_at -> target.created_at
+    That timestamp belongs to the specific Connect Job target and is set
+    when that target finishes its Connect execution. Acceptance scans run
+    later and do not modify this timestamp, so an acceptance discovered
+    this week remains attributed to the week its invitation was sent.
     """
     rows: list[dict] = []
     offset = 0
@@ -249,8 +250,7 @@ def _load_all_target_rows(
                     "created_at,"
                     "completed_at,"
                     "outreach_prospects("
-                    "connect_status,"
-                    "last_connect_attempt_at"
+                    "connect_status"
                     ")"
                 )
             )
@@ -262,11 +262,23 @@ def _load_all_target_rows(
                 job_id,
             )
 
-        # Do NOT filter weekly scope by target.completed_at here.
-        # The week must be attributed to when the Connect invitation
-        # was actually sent, stored on outreach_prospects as
-        # last_connect_attempt_at. Filtering by completed_at would move
-        # profiles into the week when later processing/acceptance happened.
+        # Weekly attribution is based on THIS job target's own
+        # Connect execution time. target.completed_at is written when the
+        # Connect target finishes processing, so later Acceptance scans
+        # cannot move it into a newer week.
+        if week_bounds:
+            query = (
+                query
+                .gte(
+                    "completed_at",
+                    week_bounds[0],
+                )
+                .lt(
+                    "completed_at",
+                    week_bounds[1],
+                )
+            )
+
         response = (
             query
             .range(
@@ -290,42 +302,7 @@ def _load_all_target_rows(
 
         offset += PAGE_SIZE
 
-    if not cleaned_week_start:
-        return rows
-
-    filtered_rows: list[dict] = []
-
-    for row in rows:
-        prospect = (
-            row.get(
-                "outreach_prospects"
-            )
-            or {}
-        )
-
-        sent_at = (
-            prospect.get(
-                "last_connect_attempt_at"
-            )
-            or row.get(
-                "completed_at"
-            )
-            or row.get(
-                "created_at"
-            )
-        )
-
-        if (
-            _week_start_for_datetime(
-                sent_at
-            )
-            == cleaned_week_start
-        ):
-            filtered_rows.append(
-                row
-            )
-
-    return filtered_rows
+    return rows
 
 
 def _load_connect_jobs(
@@ -531,9 +508,10 @@ def get_acceptance_insights(
         job_id                    -> one Connect Job
         week_start=YYYY-MM-DD     -> Monday-Sunday week
 
-    Weekly grouping is based on when the Connect invitation/attempt
-    was sent (outreach_prospects.last_connect_attempt_at), never on the
-    later Acceptance Check timestamp.
+    Weekly grouping is based on outreach_job_targets.completed_at,
+    i.e. when the specific Connect target was processed/sent. It never
+    uses the later Acceptance Check timestamp and never uses the prospect's
+    mutable latest-connect timestamp.
     """
     active_client = (
         client
