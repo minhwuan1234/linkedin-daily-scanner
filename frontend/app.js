@@ -1,4 +1,4 @@
-console.info("[Outreach UI] profiles-from-recent-jobs-1 loaded");
+console.info("[Outreach UI] current-job-summary-v2 loaded");
 
 console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
 
@@ -2399,6 +2399,318 @@ function getOutreachTargetPillClass(
   }
 
   return "pill-neutral";
+}
+
+
+function renderOutreachAccounts(
+  accounts
+) {
+  const rows =
+    Array.isArray(accounts)
+      ? accounts
+      : [];
+
+  if (els.outreachAccountCount) {
+    els.outreachAccountCount.textContent =
+      `${rows.length} accounts`;
+  }
+
+  renderRateLimitSidebarSummary(
+    rows
+  );
+
+  if (
+    !els.outreachAccountsList ||
+    !els.rateLimitAccountCardTemplate
+  ) {
+    return;
+  }
+
+  els.outreachAccountsList.replaceChildren();
+
+  if (!rows.length) {
+    const empty =
+      document.createElement("div");
+
+    empty.className =
+      "outreach-job-empty";
+
+    empty.textContent =
+      "Chưa có dữ liệu account.";
+
+    els.outreachAccountsList.append(
+      empty
+    );
+
+    return;
+  }
+
+  rows.forEach((account) => {
+    const fragment =
+      els.rateLimitAccountCardTemplate
+        .content
+        .cloneNode(true);
+
+    const card =
+      fragment.querySelector(
+        ".rate-limit-account-card"
+      );
+
+    const current =
+      Boolean(
+        account.is_current_account
+      );
+
+    const status =
+      String(
+        account.status ||
+        "unknown"
+      );
+
+    const used =
+      Number(
+        account.used_in_current_turn || 0
+      );
+
+    const limit =
+      Number(
+        account.turn_limit || 0
+      );
+
+    const remaining =
+      Number(
+        account.remaining_in_current_turn || 0
+      );
+
+    const assigned =
+      Number(
+        account.total_assigned || 0
+      );
+
+    const completed =
+      Number(
+        account.completed_count || 0
+      );
+
+    const failed =
+      Number(
+        account.failed_count || 0
+      );
+
+    const weeklySent =
+      Number(
+        account.weekly_success_count || 0
+      );
+
+    const weeklyLimit =
+      Math.max(
+        1,
+        Number(
+          account.weekly_limit || 100
+        )
+      );
+
+    const weeklyRemaining =
+      Math.max(
+        0,
+        Number(
+          account.weekly_remaining ?? (
+            weeklyLimit - weeklySent
+          )
+        )
+      );
+
+    const quotaAvailable =
+      account.quota_available !== false &&
+      weeklyRemaining > 0;
+
+    const weeklyPercent =
+      Math.max(
+        0,
+        Math.min(
+          100,
+          weeklySent /
+          weeklyLimit *
+          100
+        )
+      );
+
+    const setText = (
+      selector,
+      value
+    ) => {
+      const element =
+        fragment.querySelector(
+          selector
+        );
+
+      if (element) {
+        element.textContent =
+          String(value);
+      }
+    };
+
+    setText(
+      "[data-rate-account-name]",
+      getOutreachAccountDisplayName(
+        account.account_id
+      )
+    );
+
+    setText(
+      "[data-rate-account-status]",
+      status
+    );
+
+    setText(
+      "[data-rate-turn]",
+      `${used} / ${limit}`
+    );
+
+    setText(
+      "[data-rate-turn-remaining]",
+      remaining
+    );
+
+    setText(
+      "[data-rate-weekly-label]",
+      `${weeklySent} / ${weeklyLimit}`
+    );
+
+    setText(
+      "[data-rate-weekly-sent]",
+      `${weeklySent} / ${weeklyLimit}`
+    );
+
+    setText(
+      "[data-rate-weekly-remaining]",
+      weeklyRemaining
+    );
+
+    setText(
+      "[data-rate-assigned]",
+      assigned
+    );
+
+    setText(
+      "[data-rate-success]",
+      completed
+    );
+
+    setText(
+      "[data-rate-failed]",
+      failed
+    );
+
+    setText(
+      "[data-rate-last-job]",
+      account.last_job_code || "—"
+    );
+
+    setText(
+      "[data-rate-last-used]",
+      formatDate(
+        account.last_used_at
+      )
+    );
+
+    const statusPill =
+      fragment.querySelector(
+        "[data-rate-account-status]"
+      );
+
+    if (statusPill) {
+      statusPill.className =
+        `pill ${
+          quotaAvailable
+            ? "pill-neutral"
+            : "pill-red"
+        }`;
+    }
+
+    const currentLabel =
+      fragment.querySelector(
+        "[data-rate-account-current]"
+      );
+
+    if (currentLabel) {
+      currentLabel.hidden =
+        !current;
+    }
+
+    const limitedLabel =
+      fragment.querySelector(
+        "[data-rate-account-limited]"
+      );
+
+    if (limitedLabel) {
+      limitedLabel.hidden =
+        quotaAvailable;
+    }
+
+    const progressBar =
+      fragment.querySelector(
+        "[data-rate-weekly-progress]"
+      );
+
+    if (progressBar) {
+      progressBar.style.width =
+        `${weeklyPercent}%`;
+    }
+
+    const lastUrl =
+      fragment.querySelector(
+        "[data-rate-last-url]"
+      );
+
+    if (lastUrl) {
+      const url =
+        String(
+          account.last_linkedin_url ||
+          ""
+        ).trim();
+
+      lastUrl.textContent =
+        url || "—";
+
+      if (url) {
+        lastUrl.href =
+          url;
+      } else {
+        lastUrl.removeAttribute(
+          "href"
+        );
+      }
+    }
+
+    const lastError =
+      fragment.querySelector(
+        "[data-rate-last-error]"
+      );
+
+    if (lastError) {
+      const errorText =
+        String(
+          account.last_error ||
+          ""
+        ).trim();
+
+      lastError.hidden =
+        !errorText;
+
+      lastError.textContent =
+        errorText;
+    }
+
+    card?.classList.toggle(
+      "is-current",
+      current
+    );
+
+    els.outreachAccountsList.append(
+      fragment
+    );
+  });
 }
 
 
