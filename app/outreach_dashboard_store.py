@@ -1647,26 +1647,264 @@ def build_account_stats(
     return result
 
 
+
 # =========================================================
-# DASHBOARD
+# ON-DEMAND OUTREACH PROFILES
 # =========================================================
 
 
-def get_outreach_dashboard(
+def get_outreach_profiles(
     *,
     settings: Settings | None = None,
-) -> dict:
+) -> list[dict]:
+    """
+    Load sent Outreach profiles only when the Profiles UI asks for them.
+
+    This deliberately stays OUT of /api/outreach/dashboard so the normal
+    dashboard poll does not repeatedly transfer all target/prospect rows.
+    """
     client = get_outreach_client(
         settings
     )
 
-    current_job = get_current_job(
-        client=client
+    response = (
+        client
+        .table(
+            TARGET_TABLE
+        )
+        .select(
+            (
+                "id,"
+                "job_id,"
+                "prospect_id,"
+                "status,"
+                "assigned_account_id,"
+                "created_at,"
+                "updated_at,"
+                "completed_at,"
+                "acceptance_status,"
+                "accepted_at,"
+                "outreach_prospects("
+                "id,"
+                "linkedin_url,"
+                "normalized_url,"
+                "connect_status,"
+                "message_status,"
+                "last_connect_attempt_at,"
+                "accepted_at,"
+                "last_messaged_at"
+                ")"
+            )
+        )
+        .order(
+            "created_at",
+            desc=True,
+        )
+        .limit(
+            1000
+        )
+        .execute()
     )
 
-    recent_jobs = get_recent_jobs(
-        client=client,
-        limit=200,
+    rows = list(
+        response.data
+        or []
+    )
+
+    job_ids = list({
+        _safe_text(
+            row.get(
+                "job_id"
+            )
+        )
+        for row in rows
+        if _safe_text(
+            row.get(
+                "job_id"
+            )
+        )
+    })
+
+    job_code_by_id: dict[str, str] = {}
+
+    if job_ids:
+        job_response = (
+            client
+            .table(
+                JOB_TABLE
+            )
+            .select(
+                "id,job_code"
+            )
+            .in_(
+                "id",
+                job_ids,
+            )
+            .execute()
+        )
+
+        job_code_by_id = {
+            _safe_text(
+                row.get(
+                    "id"
+                )
+            ): _safe_text(
+                row.get(
+                    "job_code"
+                )
+            )
+            for row in (
+                job_response.data
+                or []
+            )
+        }
+
+    seen_prospect_ids: set[str] = set()
+    profiles: list[dict] = []
+
+    for row in rows:
+        prospect = (
+            row.get(
+                "outreach_prospects"
+            )
+            or {}
+        )
+
+        connect_status = _safe_text(
+            prospect.get(
+                "connect_status"
+            )
+        ).lower()
+
+        if connect_status != "invitation_sent":
+            continue
+
+        prospect_id = _safe_text(
+            row.get(
+                "prospect_id"
+            )
+        )
+
+        if (
+            not prospect_id
+            or prospect_id
+            in seen_prospect_ids
+        ):
+            continue
+
+        seen_prospect_ids.add(
+            prospect_id
+        )
+
+        job_id = _safe_text(
+            row.get(
+                "job_id"
+            )
+        )
+
+        profiles.append(
+            {
+                "id": prospect_id,
+                "prospect_id": prospect_id,
+                "target_id": _safe_text(
+                    row.get(
+                        "id"
+                    )
+                ),
+                "job_id": job_id,
+                "job_code": (
+                    job_code_by_id.get(
+                        job_id,
+                        "",
+                    )
+                ),
+                "linkedin_url": _safe_text(
+                    prospect.get(
+                        "linkedin_url"
+                    )
+                ),
+                "normalized_url": _safe_text(
+                    prospect.get(
+                        "normalized_url"
+                    )
+                ),
+                "assigned_account_id": _safe_text(
+                    row.get(
+                        "assigned_account_id"
+                    )
+                ),
+                "target_status": _safe_text(
+                    row.get(
+                        "status"
+                    )
+                ),
+                "connect_status": connect_status,
+                "acceptance_status": (
+                    _safe_text(
+                        row.get(
+                            "acceptance_status"
+                        )
+                    )
+                    or "not_checked"
+                ),
+                "message_status": (
+                    _safe_text(
+                        prospect.get(
+                            "message_status"
+                        )
+                    )
+                    or "not_started"
+                ),
+                "sent_at": (
+                    prospect.get(
+                        "last_connect_attempt_at"
+                    )
+                    or row.get(
+                        "completed_at"
+                    )
+                    or row.get(
+                        "updated_at"
+                    )
+                    or row.get(
+                        "created_at"
+                    )
+                ),
+                "accepted_at": (
+                    row.get(
+                        "accepted_at"
+                    )
+                    or prospect.get(
+                        "accepted_at"
+                    )
+                ),
+                "last_messaged_at": (
+                    prospect.get(
+                        "last_messaged_at"
+                    )
+                ),
+            }
+        )
+
+    return profiles
+
+
+# =========================================================
+# ON-DEMAND RATE LIMIT DETAILS
+# =========================================================
+
+
+def get_outreach_rate_limits(
+    *,
+    settings: Settings | None = None,
+) -> dict:
+    """
+    Load detailed Rate Limits only when its drawer is opened.
+
+    The normal dashboard poll only needs quota + scheduler summary.
+    Historical target detail is intentionally isolated here.
+    """
+    client = get_outreach_client(
+        settings
     )
 
     scheduler = get_scheduler_state(
@@ -1681,67 +1919,33 @@ def get_outreach_dashboard(
         client=client
     )
 
-    # -----------------------------------------------------
-    # COLLECT JOB IDS
-    # -----------------------------------------------------
+    recent_jobs = get_recent_jobs(
+        client=client,
+        limit=25,
+    )
 
-    job_ids: list[str] = []
-
-    if current_job:
-        job_ids.append(
-            current_job["id"]
+    job_ids = [
+        job["id"]
+        for job in recent_jobs
+        if job.get(
+            "id"
         )
-
-    for job in recent_jobs:
-        if (
-            job["id"]
-            not in job_ids
-        ):
-            job_ids.append(
-                job["id"]
-            )
-
-    # -----------------------------------------------------
-    # LOAD TARGET DETAIL ONCE
-    # -----------------------------------------------------
+    ]
 
     targets_by_job = (
         load_targets_for_jobs(
             client=client,
             job_ids=job_ids,
         )
+        if job_ids
+        else {}
     )
 
-    # -----------------------------------------------------
-    # ATTACH TARGETS
-    # -----------------------------------------------------
-
     attach_targets_to_jobs(
-        current_job=current_job,
+        current_job=None,
         recent_jobs=recent_jobs,
         targets_by_job=targets_by_job,
     )
-
-    # -----------------------------------------------------
-    # LOAD + ATTACH LATEST ACCEPTANCE CHECKS
-    # -----------------------------------------------------
-
-    acceptance_by_job = (
-        load_latest_acceptance_checks(
-            client=client,
-            job_ids=job_ids,
-        )
-    )
-
-    attach_acceptance_to_jobs(
-        current_job=current_job,
-        recent_jobs=recent_jobs,
-        acceptance_by_job=acceptance_by_job,
-    )
-
-    # -----------------------------------------------------
-    # BUILD ACCOUNT STATS
-    # -----------------------------------------------------
 
     accounts = build_account_stats(
         accounts=raw_accounts,
@@ -1751,19 +1955,102 @@ def get_outreach_dashboard(
     )
 
     return {
-        "current_job": (
-            current_job
-        ),
-
-        "scheduler": (
-            scheduler
-        ),
-
-        "accounts": (
-            accounts
-        ),
-
-        "recent_jobs": (
-            recent_jobs
-        ),
+        "scheduler": scheduler,
+        "accounts": accounts,
     }
+
+
+# =========================================================
+# DASHBOARD
+# =========================================================
+
+
+def get_outreach_dashboard(
+    *,
+    settings: Settings | None = None,
+) -> dict:
+    """
+    Lightweight polling payload.
+
+    Important:
+    - no target/prospect detail on the normal polling path;
+    - recent jobs remain available for Connect / Acceptance UI;
+    - Rate Limit detail and Outreach Profiles are loaded on demand.
+    """
+    client = get_outreach_client(
+        settings
+    )
+
+    current_job = get_current_job(
+        client=client
+    )
+
+    recent_jobs = get_recent_jobs(
+        client=client,
+        limit=100,
+    )
+
+    scheduler = get_scheduler_state(
+        client=client
+    )
+
+    raw_accounts = get_raw_accounts(
+        client=client
+    )
+
+    usage_by_account = get_account_usage(
+        client=client
+    )
+
+    job_ids = [
+        job["id"]
+        for job in recent_jobs
+        if job.get(
+            "id"
+        )
+    ]
+
+    if (
+        current_job
+        and current_job.get(
+            "id"
+        )
+        and current_job["id"]
+        not in job_ids
+    ):
+        job_ids.append(
+            current_job["id"]
+        )
+
+    acceptance_by_job = (
+        load_latest_acceptance_checks(
+            client=client,
+            job_ids=job_ids,
+        )
+        if job_ids
+        else {}
+    )
+
+    attach_acceptance_to_jobs(
+        current_job=current_job,
+        recent_jobs=recent_jobs,
+        acceptance_by_job=acceptance_by_job,
+    )
+
+    # Normal dashboard polling only needs quota/scheduler account values.
+    # Detailed assigned/success/failed/last-target fields are loaded from
+    # get_outreach_rate_limits() when the Rate Limits drawer is opened.
+    accounts = build_account_stats(
+        accounts=raw_accounts,
+        recent_jobs=[],
+        scheduler=scheduler,
+        usage_by_account=usage_by_account,
+    )
+
+    return {
+        "current_job": current_job,
+        "scheduler": scheduler,
+        "accounts": accounts,
+        "recent_jobs": recent_jobs,
+    }
+
