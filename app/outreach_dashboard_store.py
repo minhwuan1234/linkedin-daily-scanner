@@ -1,1769 +1,2132 @@
-from __future__ import annotations
+import json
+import logging
+import os
+from pathlib import Path
+from datetime import datetime, timezone
+from typing import Any
 
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from fastapi import FastAPI, Request
+from supabase import create_client
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
-from supabase import Client, create_client
+from backend.lark_command_router import (
+    handle_lark_command,
+)
+from backend.linkedin_url_parser import (
+    LinkedInUrlLimitError,
+    extract_linkedin_urls_with_limit,
+    get_max_urls_per_request,
+)
+from backend.supabase_sources import (
+    insert_new_linkedin_urls,
+)
+from app.outreach_job_store import (
+    OutreachJobStoreError,
+    create_connect_job,
+)
+from app.outreach_dashboard_store import (
+    OutreachDashboardStoreError,
+    get_outreach_dashboard,
+)
 
-from app.settings import (
-    Settings,
-    load_settings,
+from app.outreach_acceptance_store import (
+    OutreachAcceptanceStoreError,
+    delete_connect_job_data,
+    list_acceptance_check_history,
+    queue_acceptance_check_run,
+)
+
+from app.outreach_acceptance_insights_store import (
+    OutreachAcceptanceInsightsStoreError,
+    get_acceptance_insights,
+)
+
+from app.outreach_accepted_pool_store import (
+    OutreachAcceptedPoolStoreError,
+    get_accepted_pool,
+)
+
+from app.outreach_message_preparation_store import (
+    OutreachMessagePreparationStoreError,
+    get_message_preparation_candidates,
+    get_prepared_message_batch,
+    list_prepared_message_batches,
+    prepare_all_unsent_accepted,
+    prepare_selected_unsent_accepted,
+)
+
+from app.outreach_message_queue_store import (
+    OutreachMessageQueueStoreError,
+    queue_message_batch,
 )
 
 
-JOB_TABLE = "outreach_jobs"
-TARGET_TABLE = "outreach_job_targets"
-PROSPECT_TABLE = "outreach_prospects"
-SCHEDULER_TABLE = "outreach_scheduler_state"
-ACCOUNT_TABLE = "outreach_accounts"
-ACCOUNT_USAGE_TABLE = "outreach_account_usage"
-ACCEPTANCE_CHECK_TABLE = "outreach_acceptance_checks"
 
-WEEKLY_SUCCESS_LIMIT = 100
+# =========================================================
+# LOGGING
+# =========================================================
 
-LOCAL_TIMEZONE = timezone(
-    timedelta(hours=7)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)s | %(message)s",
 )
 
-SCHEDULER_NAME = "linkedin_outreach"
-
-
-class OutreachDashboardStoreError(
-    RuntimeError
-):
-    pass
+logger = logging.getLogger(
+    "linkedin-daily-scanner-api"
+)
 
 
 # =========================================================
-# CLIENT
+# ENVIRONMENT VARIABLES
 # =========================================================
 
+LARK_APP_ID = os.getenv(
+    "LARK_APP_ID",
+    "",
+).strip()
 
-def get_outreach_client(
-    settings: Settings | None = None,
-) -> Client:
-    active_settings = (
-        settings
-        if settings is not None
-        else load_settings()
+LARK_APP_SECRET = os.getenv(
+    "LARK_APP_SECRET",
+    "",
+).strip()
+
+LARK_VERIFICATION_TOKEN = os.getenv(
+    "LARK_VERIFICATION_TOKEN",
+    "",
+).strip()
+
+LARK_ENCRYPT_KEY = os.getenv(
+    "LARK_ENCRYPT_KEY",
+    "",
+).strip()
+
+SUPABASE_URL = os.getenv(
+    "SUPABASE_URL",
+    "",
+).strip()
+
+SUPABASE_SECRET_KEY = os.getenv(
+    "SUPABASE_SECRET_KEY",
+    "",
+).strip()
+
+
+WORKER_COMMAND_TABLE = "linkedin_worker_commands"
+ALLOWED_WORKER_COMMANDS = {
+    "kill_current",
+    "stop_scan",
+    "resume_scan",
+}
+
+
+# =========================================================
+# FASTAPI APP
+# =========================================================
+
+app = FastAPI(
+    title="LinkedIn and YouTube Scanner API",
+    description=(
+        "Railway backend for LinkedIn scanning, "
+        "YouTube research jobs, dashboard controls, "
+        "and Lark commands."
+    ),
+    version="0.7.0",
+)
+
+
+
+# =========================================================
+# FRONTEND DASHBOARD
+# =========================================================
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = PROJECT_ROOT / "frontend"
+
+if FRONTEND_DIR.exists():
+    app.mount(
+        "/dashboard",
+        StaticFiles(
+            directory=str(FRONTEND_DIR),
+            html=True,
+        ),
+        name="dashboard",
+    )
+else:
+    logger.warning(
+        "Frontend directory not found: %s",
+        FRONTEND_DIR,
     )
 
-    if not (
-        active_settings
-        .outreach_supabase_url
-    ):
-        raise OutreachDashboardStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
 
-    if not (
-        active_settings
-        .outreach_supabase_secret_key
-    ):
-        raise OutreachDashboardStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
+# =========================================================
+# BASIC ROUTES
+# =========================================================
 
-    return create_client(
-        active_settings.outreach_supabase_url,
-        active_settings.outreach_supabase_secret_key,
+@app.get("/")
+def root() -> RedirectResponse:
+    """
+    Open the dashboard from the Railway root domain.
+    """
+    return RedirectResponse(
+        url="/dashboard/",
+        status_code=307,
     )
 
 
-# =========================================================
-# BASIC HELPERS
-# =========================================================
+@app.get("/health")
+def health_check() -> dict[str, Any]:
+    """
+    Basic Railway API health endpoint.
+
+    This route only checks whether the API is running and
+    whether the required environment variables are present.
+
+    The full LinkedIn scanner health check is triggered from
+    Lark with the command: health check
+    """
+    return {
+        "status": "ok",
+        "timestamp": (
+            datetime
+            .now(timezone.utc)
+            .isoformat()
+        ),
+        "config": {
+            "lark_app_id": bool(LARK_APP_ID),
+            "lark_app_secret": bool(
+                LARK_APP_SECRET
+            ),
+            "lark_verification_token": bool(
+                LARK_VERIFICATION_TOKEN
+            ),
+            "lark_encrypt_key": bool(
+                LARK_ENCRYPT_KEY
+            ),
+            "supabase_url": bool(
+                SUPABASE_URL
+            ),
+            "supabase_secret_key": bool(
+                SUPABASE_SECRET_KEY
+            ),
+        },
+    }
 
 
-def _to_int(
-    value,
-) -> int:
+
+# =========================================================
+# WORKER CONTROL API
+# =========================================================
+
+@app.post("/api/worker/commands")
+async def create_worker_command(
+    request: Request,
+) -> JSONResponse:
+    """
+    Queue a control command for the Mac worker.
+
+    The browser cannot be controlled directly from Railway.
+    Railway writes a command to Supabase; the local worker
+    reads and acknowledges it.
+    """
     try:
-        return int(
-            value or 0
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Request body must be valid JSON",
+            },
         )
 
+    command = str(
+        body.get("command") or ""
+    ).strip()
+
+    worker_id = str(
+        body.get("worker_id") or ""
+    ).strip()
+
+    if command not in ALLOWED_WORKER_COMMANDS:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Unsupported worker command",
+                "allowed_commands": sorted(
+                    ALLOWED_WORKER_COMMANDS
+                ),
+            },
+        )
+
+    if not worker_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "worker_id is required",
+            },
+        )
+
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": "Supabase backend is not configured",
+            },
+        )
+
+    try:
+        client = create_client(
+            SUPABASE_URL,
+            SUPABASE_SECRET_KEY,
+        )
+
+        response = (
+            client
+            .table(WORKER_COMMAND_TABLE)
+            .insert(
+                {
+                    "worker_id": worker_id,
+                    "command": command,
+                    "status": "pending",
+                    "requested_at": (
+                        datetime
+                        .now(timezone.utc)
+                        .isoformat()
+                    ),
+                }
+            )
+            .execute()
+        )
+
+        rows = list(response.data or [])
+
+        if not rows:
+            raise RuntimeError(
+                "Supabase returned no command row"
+            )
+
+        command_row = rows[0]
+
+    except Exception as exc:
+        logger.exception(
+            "Could not queue worker command"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not queue worker command",
+                "detail": str(exc),
+            },
+        )
+
+    logger.warning(
+        "WORKER COMMAND QUEUED | worker_id=%s | command=%s | command_id=%s",
+        worker_id,
+        command,
+        command_row.get("id"),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "command": command_row,
+        },
+    )
+
+
+# =========================================================
+# YOUTUBE RESEARCH JOB API
+# =========================================================
+
+YOUTUBE_JOB_TABLE = "youtube_scan_jobs"
+
+
+@app.post("/api/youtube/jobs")
+async def create_youtube_job(
+    request: Request,
+) -> JSONResponse:
+    """
+    Create one pending YouTube research job.
+
+    The Railway backend only creates the queue row.
+    The Mac YouTube worker claims and processes the job.
+    """
+
+    if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "ok": False,
+                "error": "Supabase backend is not configured",
+            },
+        )
+
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Request body must be valid JSON",
+            },
+        )
+
+    keyword = str(
+        body.get("keyword") or ""
+    ).strip()
+
+    try:
+        max_results = int(
+            body.get("max_results") or 40
+        )
     except (
         TypeError,
         ValueError,
     ):
-        return 0
-
-
-def _safe_text(
-    value,
-) -> str:
-    return str(
-        value or ""
-    ).strip()
-
-
-def _current_usage_period() -> tuple[str, str]:
-    """
-    Current local calendar day and Monday week start.
-
-    This helper is read-only and safe during Railway startup.
-    """
-    today = datetime.now(
-        LOCAL_TIMEZONE
-    ).date()
-
-    monday = (
-        today
-        - timedelta(
-            days=today.weekday()
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "max_results must be an integer",
+            },
         )
+
+    filters = body.get("filters")
+
+    if not isinstance(
+        filters,
+        dict,
+    ):
+        filters = {}
+
+    if not keyword:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "keyword is required",
+            },
+        )
+
+    max_results = max(
+        1,
+        min(
+            max_results,
+            40,
+        ),
     )
 
-    return (
-        today.isoformat(),
-        monday.isoformat(),
+    now = (
+        datetime
+        .now(timezone.utc)
+        .isoformat()
     )
-
-
-def _timestamp_value(
-    value,
-) -> float:
-    if not value:
-        return 0.0
 
     try:
-        return (
-            datetime
-            .fromisoformat(
-                str(value)
-                .replace(
-                    "Z",
-                    "+00:00",
-                )
-            )
-            .timestamp()
+        client = create_client(
+            SUPABASE_URL,
+            SUPABASE_SECRET_KEY,
         )
+
+        response = (
+            client
+            .table(YOUTUBE_JOB_TABLE)
+            .insert(
+                {
+                    "keyword": keyword,
+                    "status": "pending",
+                    "current_stage": "queued",
+                    "progress_percent": 0,
+                    "max_results": max_results,
+                    "filters": filters,
+                    "retry_count": 0,
+                    "result_count": 0,
+                    "last_error": None,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+            )
+            .execute()
+        )
+
+        rows = list(
+            response.data or []
+        )
+
+        if not rows:
+            raise RuntimeError(
+                "Supabase returned no YouTube job row"
+            )
+
+        job = rows[0]
+
+    except Exception as exc:
+        logger.exception(
+            "Could not create YouTube research job"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not create YouTube job",
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "YOUTUBE JOB CREATED | "
+            "job_id=%s | keyword=%s | max_results=%s"
+        ),
+        job.get("id"),
+        keyword,
+        max_results,
+    )
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "job": job,
+        },
+    )
+
+# =========================================================
+# OUTREACH CONNECT JOB API
+# =========================================================
+
+
+@app.post("/api/outreach/connect/jobs")
+async def create_outreach_connect_job(
+    request: Request,
+) -> JSONResponse:
+    """
+    Create one LinkedIn Outreach Connect job.
+
+    Flow:
+
+    Website
+    -> Railway API
+    -> Outreach Supabase
+    -> Mac Outreach worker
+
+    Railway chỉ tạo job.
+    Railway không chạy LinkedIn browser.
+    """
+
+    # -----------------------------------------------------
+    # 1. READ JSON
+    # -----------------------------------------------------
+
+    try:
+        body = await request.json()
 
     except Exception:
-        return 0.0
-
-
-# =========================================================
-# JOB NORMALIZATION
-# =========================================================
-
-
-def _normalize_job(
-    row: dict,
-) -> dict:
-    target_count = _to_int(
-        row.get(
-            "target_count"
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "Request body must be valid JSON"
+                ),
+            },
         )
+
+    # -----------------------------------------------------
+    # 2. READ URL LIST
+    # -----------------------------------------------------
+
+    urls = body.get(
+        "urls"
     )
 
-    processed_count = _to_int(
-        row.get(
-            "processed_count"
-        )
-    )
-
-    progress_percent = 0
-
-    if target_count > 0:
-        progress_percent = min(
-            100,
-            round(
-                processed_count
-                / target_count
-                * 100
-            ),
-        )
-
-    elif (
-        _safe_text(
-            row.get(
-                "status"
-            )
-        ).lower()
-        == "completed"
+    if not isinstance(
+        urls,
+        list,
     ):
-        progress_percent = 100
-
-    return {
-        "id": _safe_text(
-            row.get(
-                "id"
-            )
-        ),
-
-        "job_code": _safe_text(
-            row.get(
-                "job_code"
-            )
-        ),
-
-        "job_type": _safe_text(
-            row.get(
-                "job_type"
-            )
-        ),
-
-        "status": _safe_text(
-            row.get(
-                "status"
-            )
-        ),
-
-        "input_count": _to_int(
-            row.get(
-                "input_count"
-            )
-        ),
-
-        "target_count": (
-            target_count
-        ),
-
-        "duplicate_count": _to_int(
-            row.get(
-                "duplicate_count"
-            )
-        ),
-
-        "invalid_count": _to_int(
-            row.get(
-                "invalid_count"
-            )
-        ),
-
-        "processed_count": (
-            processed_count
-        ),
-
-        "success_count": _to_int(
-            row.get(
-                "success_count"
-            )
-        ),
-
-        "failed_count": _to_int(
-            row.get(
-                "failed_count"
-            )
-        ),
-
-        "progress_percent": (
-            progress_percent
-        ),
-
-        "last_error": (
-            row.get(
-                "last_error"
-            )
-        ),
-
-        "created_at": (
-            row.get(
-                "created_at"
-            )
-        ),
-
-        "started_at": (
-            row.get(
-                "started_at"
-            )
-        ),
-
-        "completed_at": (
-            row.get(
-                "completed_at"
-            )
-        ),
-
-        "updated_at": (
-            row.get(
-                "updated_at"
-            )
-        ),
-
-        "targets": [],
-        "acceptance": None,
-    }
-
-
-# =========================================================
-# JOB QUERY FIELDS
-# =========================================================
-
-
-JOB_SELECT_FIELDS = (
-    "id,"
-    "job_code,"
-    "job_type,"
-    "status,"
-    "input_count,"
-    "target_count,"
-    "duplicate_count,"
-    "invalid_count,"
-    "processed_count,"
-    "success_count,"
-    "failed_count,"
-    "last_error,"
-    "created_at,"
-    "started_at,"
-    "completed_at,"
-    "updated_at"
-)
-
-
-# =========================================================
-# CURRENT JOB
-# =========================================================
-
-
-def get_current_job(
-    *,
-    client: Client,
-) -> dict | None:
-    """
-    Ưu tiên:
-
-    running
-    -> pending
-    -> latest
-    """
-
-    # RUNNING
-    response = (
-        client
-        .table(
-            JOB_TABLE
-        )
-        .select(
-            JOB_SELECT_FIELDS
-        )
-        .eq(
-            "job_type",
-            "connect",
-        )
-        .eq(
-            "status",
-            "running",
-        )
-        .order(
-            "created_at",
-            desc=False,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    if rows:
-        return _normalize_job(
-            rows[0]
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "urls must be a JSON array"
+                ),
+            },
         )
 
-    # PENDING
-    response = (
-        client
-        .table(
-            JOB_TABLE
-        )
-        .select(
-            JOB_SELECT_FIELDS
-        )
-        .eq(
-            "job_type",
-            "connect",
-        )
-        .eq(
-            "status",
-            "pending",
-        )
-        .order(
-            "created_at",
-            desc=False,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    if rows:
-        return _normalize_job(
-            rows[0]
-        )
-
-    # LATEST
-    response = (
-        client
-        .table(
-            JOB_TABLE
-        )
-        .select(
-            JOB_SELECT_FIELDS
-        )
-        .eq(
-            "job_type",
-            "connect",
-        )
-        .order(
-            "created_at",
-            desc=True,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    if not rows:
-        return None
-
-    return _normalize_job(
-        rows[0]
-    )
-
-
-# =========================================================
-# RECENT JOBS
-# =========================================================
-
-
-def get_recent_jobs(
-    *,
-    client: Client,
-    limit: int = 10,
-) -> list[dict]:
-    response = (
-        client
-        .table(
-            JOB_TABLE
-        )
-        .select(
-            JOB_SELECT_FIELDS
-        )
-        .eq(
-            "job_type",
-            "connect",
-        )
-        .order(
-            "created_at",
-            desc=True,
-        )
-        .limit(
-            limit
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    return [
-        _normalize_job(
-            row
-        )
-        for row in rows
+    cleaned_urls = [
+        str(url or "").strip()
+        for url in urls
+        if str(url or "").strip()
     ]
 
+    if not cleaned_urls:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "At least one LinkedIn URL "
+                    "is required"
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 3. CREATE CONNECT JOB
+    # -----------------------------------------------------
+
+    try:
+        result = create_connect_job(
+            cleaned_urls
+        )
+
+    except OutreachJobStoreError as exc:
+        logger.exception(
+            "Could not create Outreach Connect job"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not create "
+                    "Outreach Connect job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Connect "
+            "job error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while "
+                    "creating Outreach Connect job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 4. LOG
+    # -----------------------------------------------------
+
+    logger.info(
+    (
+        "OUTREACH CONNECT JOB CREATED | "
+        "job_id=%s | "
+        "job_code=%s | "
+        "input=%s | "
+        "targets=%s | "
+        "duplicates=%s | "
+        "invalid=%s"
+    ),
+    result.job_id,
+    result.job_code,
+    result.input_count,
+    result.target_count,
+    result.duplicate_count,
+    result.invalid_count,
+    )
+
+    # -----------------------------------------------------
+    # 5. RESPONSE
+    # -----------------------------------------------------
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "job": {
+                "job_id": result.job_id,
+                "job_code": result.job_code,
+                "input_count": (
+                    result.input_count
+                ),
+                "target_count": (
+                    result.target_count
+                ),
+                "duplicate_count": (
+                    result.duplicate_count
+                ),
+                "invalid_count": (
+                    result.invalid_count
+                ),
+                "status": "pending",
+            },
+        },
+    )
+
 
 # =========================================================
-# TARGET NORMALIZATION
+# OUTREACH ACCEPTANCE CHECK API
 # =========================================================
 
 
-def _normalize_target(
-    row: dict,
-) -> dict:
-    prospect = (
-        row.get(
-            "outreach_prospects"
+@app.delete(
+    "/api/outreach/connect/jobs/{job_id}"
+)
+async def delete_outreach_connect_job_api(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Permanently delete one completed Connect Job and its dependent data.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        deleted = delete_connect_job_data(
+            source_job_id=cleaned_job_id,
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        detail = str(exc)
+
+        conflict = (
+            "cannot be deleted" in detail
+            or "active Acceptance Check" in detail
+        )
+
+        return JSONResponse(
+            status_code=409 if conflict else 500,
+            content={
+                "ok": False,
+                "error": "Could not delete Outreach Connect Job",
+                "detail": detail,
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Connect Job delete error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while deleting "
+                    "Outreach Connect Job"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "deleted": deleted,
+        },
+    )
+
+
+@app.get(
+    "/api/outreach/connect/jobs/{job_id}/acceptance-checks"
+)
+async def get_outreach_acceptance_check_history_api(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Return every Acceptance Check run for one Connect Job.
+
+    Read-only endpoint used by the Acceptance tab history expander.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        runs = list_acceptance_check_history(
+            source_job_id=cleaned_job_id,
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        logger.exception(
+            "Could not load Acceptance Check history"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Acceptance Check history"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Acceptance Check history error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Acceptance Check history"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "job_id": cleaned_job_id,
+            "count": len(runs),
+            "runs": runs,
+        },
+    )
+
+
+@app.post(
+    "/api/outreach/connect/jobs/{job_id}/check-acceptance"
+)
+async def create_outreach_acceptance_check(
+    job_id: str,
+) -> JSONResponse:
+    """
+    Queue one manual Acceptance Check for one Connect Job.
+
+    Flow:
+
+    Dashboard button
+    -> Railway API
+    -> outreach_acceptance_checks(status='pending')
+    -> Mac Acceptance Worker claims the run
+    -> LinkedIn browser checks the profiles
+
+    Railway NEVER opens LinkedIn.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
+
+    if not cleaned_job_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "job_id is required",
+            },
+        )
+
+    try:
+        check_run = (
+            queue_acceptance_check_run(
+                source_job_id=cleaned_job_id
+            )
+        )
+
+    except OutreachAcceptanceStoreError as exc:
+        logger.exception(
+            "Could not queue Outreach Acceptance Check"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not queue "
+                    "Outreach Acceptance Check"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Acceptance Check error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while queueing "
+                    "Outreach Acceptance Check"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "OUTREACH ACCEPTANCE CHECK QUEUED | "
+            "source_job_id=%s | "
+            "check_id=%s | "
+            "run_number=%s | "
+            "total_to_check=%s"
+        ),
+        cleaned_job_id,
+        check_run.get("id"),
+        check_run.get("run_number"),
+        check_run.get("total_to_check"),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "acceptance_check": check_run,
+        },
+    )
+
+
+
+# =========================================================
+# OUTREACH ACCEPTED POOL API
+# =========================================================
+
+
+@app.get("/api/outreach/accepted-pool")
+async def get_outreach_accepted_pool_api() -> JSONResponse:
+    """
+    Return the live Accepted Pool.
+
+    The pool is derived directly from current Outreach data:
+    - only acceptance_status == accepted;
+    - deduplicated by prospect_id;
+    - normalized_url is the fallback identity;
+    - includes message status so frontend can separate:
+        not sent / sent.
+
+    No Accepted Pool rows are copied into a second table.
+    Therefore every Acceptance Check becomes visible here on
+    the next API read.
+    """
+    try:
+        pool = (
+            get_accepted_pool()
+        )
+
+    except OutreachAcceptedPoolStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Accepted Pool"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load "
+                    "Outreach Accepted Pool"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Accepted Pool error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach Accepted Pool"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "accepted_pool": pool,
+        },
+    )
+
+
+
+# =========================================================
+# OUTREACH MESSAGE PREPARATION API
+# =========================================================
+
+
+@app.get("/api/outreach/messages/preparation")
+async def get_outreach_message_preparation_api() -> JSONResponse:
+    """
+    Preview the exact recipients that are currently eligible
+    for a future message batch.
+
+    IMPORTANT:
+    This endpoint is READ-ONLY.
+
+    It does not:
+    - create a batch;
+    - send a message;
+    - start a worker;
+    - change message_status.
+    """
+    try:
+        result = (
+            get_message_preparation_candidates()
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not load Outreach message preparation candidates"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "message preparation candidates"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message preparation preview error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "message preparation candidates"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "preparation": result,
+        },
+    )
+
+
+
+@app.get("/api/outreach/messages/batches")
+async def list_outreach_message_batches_api() -> JSONResponse:
+    """
+    Read-only list of prepared message batches.
+    """
+    try:
+        batches = (
+            list_prepared_message_batches()
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not load Outreach message batches"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "message batches"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message batch list error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach message batches"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "batches": batches,
+        },
+    )
+
+
+@app.get("/api/outreach/messages/batches/{batch_id}")
+async def get_outreach_message_batch_api(
+    batch_id: str,
+) -> JSONResponse:
+    """
+    Read-only detail view for one frozen recipient snapshot.
+    """
+    try:
+        batch = (
+            get_prepared_message_batch(
+                batch_id
+            )
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not load Outreach message batch"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message batch detail error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    if batch is None:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "ok": False,
+                "error": (
+                    "Message batch not found"
+                ),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "batch": batch,
+        },
+    )
+
+
+
+@app.post(
+    "/api/outreach/messages/batches/{batch_id}/queue"
+)
+async def queue_outreach_message_batch_api(
+    batch_id: str,
+    request: Request,
+) -> JSONResponse:
+    """
+    Queue one prepared message batch for the Mac Message Worker.
+
+    Railway only writes:
+        prepared -> queued
+
+    Railway NEVER opens LinkedIn and NEVER sends the message itself.
+    """
+
+    cleaned_batch_id = str(
+        batch_id
+        or ""
+    ).strip()
+
+    if not cleaned_batch_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "batch_id is required",
+            },
+        )
+
+    try:
+        payload = await request.json()
+
+    except Exception:
+        payload = {}
+
+    message_template = str(
+        (
+            payload
+            if isinstance(
+                payload,
+                dict,
+            )
+            else {}
+        ).get(
+            "message_template",
+            "",
+        )
+        or ""
+    ).strip()
+
+    if not message_template:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "message_template is required",
+            },
+        )
+
+    try:
+        queued_batch = queue_message_batch(
+            batch_id=cleaned_batch_id,
+            message_template=message_template,
+        )
+
+    except OutreachMessageQueueStoreError as exc:
+        logger.exception(
+            "Could not queue Outreach message batch"
+        )
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not queue Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message queue error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while queueing "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "OUTREACH MESSAGE BATCH QUEUED | "
+            "batch_id=%s | "
+            "batch_code=%s | "
+            "targets=%s"
+        ),
+        cleaned_batch_id,
+        queued_batch.get(
+            "batch_code"
+        ),
+        queued_batch.get(
+            "prepared_target_count"
+        ),
+    )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "batch": queued_batch,
+        },
+    )
+
+
+@app.post("/api/outreach/messages/prepare-selected")
+async def prepare_selected_outreach_messages_api(
+    request: Request,
+) -> JSONResponse:
+    """
+    Snapshot only selected currently eligible accepted users
+    into one prepared message batch.
+
+    This endpoint does NOT send LinkedIn messages.
+    """
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    prospect_ids = (
+        payload.get("prospect_ids", [])
+        if isinstance(payload, dict)
+        else []
+    )
+
+    if not isinstance(prospect_ids, list):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "prospect_ids must be a list",
+            },
+        )
+
+    try:
+        result = prepare_selected_unsent_accepted(
+            prospect_ids=prospect_ids
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not prepare selected Outreach message recipients"
+        )
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "ok": False,
+                "error": "Could not prepare selected recipients",
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected selected message preparation error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while preparing "
+                    "selected recipients"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    batch = result.get("batch") or {}
+
+    logger.info(
+        (
+            "OUTREACH SELECTED MESSAGE BATCH PREPARED | "
+            "batch_id=%s | "
+            "batch_code=%s | "
+            "target_count=%s"
+        ),
+        batch.get("id"),
+        batch.get("batch_code"),
+        result.get("target_count", 0),
+    )
+
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "created": bool(result.get("created")),
+            "batch": batch,
+            "target_count": result.get("target_count", 0),
+        },
+    )
+
+
+@app.post("/api/outreach/messages/prepare-all")
+async def prepare_all_outreach_messages_api() -> JSONResponse:
+    """
+    Snapshot ALL currently eligible accepted + not-sent users
+    into one prepared message batch.
+
+    IMPORTANT:
+    This endpoint still does NOT send any LinkedIn message.
+
+    It only creates:
+    - outreach_message_batches
+    - outreach_message_targets
+    """
+    try:
+        result = (
+            prepare_all_unsent_accepted()
+        )
+
+    except OutreachMessagePreparationStoreError as exc:
+        logger.exception(
+            "Could not prepare Outreach message batch"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not prepare "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach message preparation error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while preparing "
+                    "Outreach message batch"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    if not result.get(
+        "created"
+    ):
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "created": False,
+                "reason": (
+                    result.get(
+                        "reason"
+                    )
+                ),
+                "batch": None,
+                "target_count": 0,
+            },
+        )
+
+    batch = (
+        result.get(
+            "batch"
         )
         or {}
     )
 
-    return {
-        "target_id": _safe_text(
-            row.get(
-                "id"
-            )
+    logger.info(
+        (
+            "OUTREACH MESSAGE BATCH PREPARED | "
+            "batch_id=%s | "
+            "batch_code=%s | "
+            "target_count=%s"
         ),
-
-        "job_id": _safe_text(
-            row.get(
-                "job_id"
-            )
+        batch.get(
+            "id"
         ),
-
-        "prospect_id": _safe_text(
-            row.get(
-                "prospect_id"
-            )
+        batch.get(
+            "batch_code"
         ),
-
-        "target_status": _safe_text(
-            row.get(
-                "status"
-            )
+        result.get(
+            "target_count"
         ),
-
-        "assigned_account_id": _safe_text(
-            row.get(
-                "assigned_account_id"
-            )
-        ),
-
-        "retry_count": _to_int(
-            row.get(
-                "retry_count"
-            )
-        ),
-
-        "last_error": (
-            row.get(
-                "last_error"
-            )
-        ),
-
-        "target_created_at": (
-            row.get(
-                "created_at"
-            )
-        ),
-
-        "target_updated_at": (
-            row.get(
-                "updated_at"
-            )
-        ),
-
-        "completed_at": (
-            row.get(
-                "completed_at"
-            )
-        ),
-
-        "acceptance_status": _safe_text(
-            row.get(
-                "acceptance_status"
-            )
-        ),
-
-        "acceptance_checked_at": (
-            row.get(
-                "acceptance_checked_at"
-            )
-        ),
-
-        "acceptance_check_count": _to_int(
-            row.get(
-                "acceptance_check_count"
-            )
-        ),
-
-        "acceptance_accepted_at": (
-            row.get(
-                "accepted_at"
-            )
-        ),
-
-        # -----------------------------
-        # PROSPECT
-        # -----------------------------
-
-        "linkedin_url": _safe_text(
-            prospect.get(
-                "linkedin_url"
-            )
-        ),
-
-        "normalized_url": _safe_text(
-            prospect.get(
-                "normalized_url"
-            )
-        ),
-
-        "connect_status": _safe_text(
-            prospect.get(
-                "connect_status"
-            )
-        ),
-
-        "message_status": _safe_text(
-            prospect.get(
-                "message_status"
-            )
-        ),
-
-        "last_connect_attempt_at": (
-            prospect.get(
-                "last_connect_attempt_at"
-            )
-        ),
-
-        "accepted_at": (
-            prospect.get(
-                "accepted_at"
-            )
-        ),
-
-        "last_messaged_at": (
-            prospect.get(
-                "last_messaged_at"
-            )
-        ),
-
-        "prospect_created_at": (
-            prospect.get(
-                "created_at"
-            )
-        ),
-
-        "prospect_updated_at": (
-            prospect.get(
-                "updated_at"
-            )
-        ),
-    }
-
-
-# =========================================================
-# LOAD TARGETS FOR JOBS
-# =========================================================
-
-
-def load_targets_for_jobs(
-    *,
-    client: Client,
-    job_ids: list[str],
-) -> dict[str, list[dict]]:
-    cleaned_job_ids = [
-        str(job_id).strip()
-        for job_id in job_ids
-        if str(job_id).strip()
-    ]
-
-    if not cleaned_job_ids:
-        return {}
-
-    response = (
-        client
-        .table(
-            TARGET_TABLE
-        )
-        .select(
-            (
-                "id,"
-                "job_id,"
-                "prospect_id,"
-                "status,"
-                "assigned_account_id,"
-                "retry_count,"
-                "last_error,"
-                "created_at,"
-                "updated_at,"
-                "completed_at,"
-                "acceptance_status,"
-                "acceptance_checked_at,"
-                "acceptance_check_count,"
-                "accepted_at,"
-                "outreach_prospects("
-                "id,"
-                "linkedin_url,"
-                "normalized_url,"
-                "connect_status,"
-                "message_status,"
-                "last_connect_attempt_at,"
-                "accepted_at,"
-                "last_messaged_at,"
-                "created_at,"
-                "updated_at"
-                ")"
-            )
-        )
-        .in_(
-            "job_id",
-            cleaned_job_ids,
-        )
-        .order(
-            "created_at",
-            desc=False,
-        )
-        .execute()
     )
 
-    rows = list(
-        response.data
-        or []
-    )
-
-    grouped: dict[
-        str,
-        list[dict],
-    ] = defaultdict(
-        list
-    )
-
-    for row in rows:
-        target = (
-            _normalize_target(
-                row
-            )
-        )
-
-        grouped[
-            target["job_id"]
-        ].append(
-            target
-        )
-
-    return dict(
-        grouped
-    )
-
-
-# =========================================================
-# ATTACH TARGETS
-# =========================================================
-
-
-def attach_targets_to_jobs(
-    *,
-    current_job: dict | None,
-    recent_jobs: list[dict],
-    targets_by_job: dict[
-        str,
-        list[dict],
-    ],
-) -> None:
-    if current_job:
-        current_job["targets"] = (
-            targets_by_job.get(
-                current_job["id"],
-                [],
-            )
-        )
-
-    for job in recent_jobs:
-        job["targets"] = (
-            targets_by_job.get(
-                job["id"],
-                [],
-            )
-        )
-
-
-
-# =========================================================
-# ACCEPTANCE CHECKS
-# =========================================================
-
-
-def _normalize_acceptance_check(
-    row: dict,
-) -> dict:
-    return {
-        "id": _safe_text(
-            row.get(
-                "id"
-            )
-        ),
-
-        "source_job_id": _safe_text(
-            row.get(
-                "source_job_id"
-            )
-        ),
-
-        "run_number": _to_int(
-            row.get(
-                "run_number"
-            )
-        ),
-
-        "status": _safe_text(
-            row.get(
-                "status"
-            )
-        ),
-
-        "total_to_check": _to_int(
-            row.get(
-                "total_to_check"
-            )
-        ),
-
-        "checked_count": _to_int(
-            row.get(
-                "checked_count"
-            )
-        ),
-
-        "new_accepted_count": _to_int(
-            row.get(
-                "new_accepted_count"
-            )
-        ),
-
-        "still_pending_count": _to_int(
-            row.get(
-                "still_pending_count"
-            )
-        ),
-
-        "declined_or_unknown_count": _to_int(
-            row.get(
-                "declined_or_unknown_count"
-            )
-        ),
-
-        "failed_count": _to_int(
-            row.get(
-                "failed_count"
-            )
-        ),
-
-        "created_at": (
-            row.get(
-                "created_at"
-            )
-        ),
-
-        "started_at": (
-            row.get(
-                "started_at"
-            )
-        ),
-
-        "completed_at": (
-            row.get(
-                "completed_at"
-            )
-        ),
-
-        "updated_at": (
-            row.get(
-                "updated_at"
-            )
-        ),
-    }
-
-
-def load_latest_acceptance_checks(
-    *,
-    client: Client,
-    job_ids: list[str],
-) -> dict[str, dict]:
-    """
-    Load all Acceptance Check rows for the visible Connect Jobs,
-    then keep only the latest run_number for each source_job_id.
-    """
-    cleaned_job_ids = [
-        str(job_id).strip()
-        for job_id in job_ids
-        if str(job_id).strip()
-    ]
-
-    if not cleaned_job_ids:
-        return {}
-
-    response = (
-        client
-        .table(
-            ACCEPTANCE_CHECK_TABLE
-        )
-        .select(
-            (
-                "id,"
-                "source_job_id,"
-                "run_number,"
-                "status,"
-                "total_to_check,"
-                "checked_count,"
-                "new_accepted_count,"
-                "still_pending_count,"
-                "declined_or_unknown_count,"
-                "failed_count,"
-                "created_at,"
-                "started_at,"
-                "completed_at,"
-                "updated_at"
-            )
-        )
-        .in_(
-            "source_job_id",
-            cleaned_job_ids,
-        )
-        .order(
-            "run_number",
-            desc=True,
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    latest_by_job: dict[
-        str,
-        dict,
-    ] = {}
-
-    for row in rows:
-        source_job_id = _safe_text(
-            row.get(
-                "source_job_id"
-            )
-        )
-
-        if not source_job_id:
-            continue
-
-        if source_job_id in latest_by_job:
-            continue
-
-        latest_by_job[
-            source_job_id
-        ] = _normalize_acceptance_check(
-            row
-        )
-
-    return latest_by_job
-
-
-def attach_acceptance_to_jobs(
-    *,
-    current_job: dict | None,
-    recent_jobs: list[dict],
-    acceptance_by_job: dict[
-        str,
-        dict,
-    ],
-) -> None:
-    if current_job:
-        current_job["acceptance"] = (
-            acceptance_by_job.get(
-                current_job["id"]
-            )
-        )
-
-    for job in recent_jobs:
-        job["acceptance"] = (
-            acceptance_by_job.get(
-                job["id"]
-            )
-        )
-
-
-# =========================================================
-# SCHEDULER
-# =========================================================
-
-
-def get_scheduler_state(
-    *,
-    client: Client,
-) -> dict | None:
-    response = (
-        client
-        .table(
-            SCHEDULER_TABLE
-        )
-        .select(
-            (
-                "scheduler_name,"
-                "current_account_id,"
-                "used_in_current_turn,"
-                "turn_limit,"
-                "updated_at"
-            )
-        )
-        .eq(
-            "scheduler_name",
-            SCHEDULER_NAME,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    if not rows:
-        return None
-
-    row = rows[0]
-
-    used = _to_int(
-        row.get(
-            "used_in_current_turn"
-        )
-    )
-
-    turn_limit = _to_int(
-        row.get(
-            "turn_limit"
-        )
-    )
-
-    return {
-        "scheduler_name": _safe_text(
-            row.get(
-                "scheduler_name"
-            )
-        ),
-
-        "current_account_id": _safe_text(
-            row.get(
-                "current_account_id"
-            )
-        ),
-
-        "used_in_current_turn": (
-            used
-        ),
-
-        "turn_limit": (
-            turn_limit
-        ),
-
-        "remaining_in_current_turn": max(
-            turn_limit - used,
-            0,
-        ),
-
-        "updated_at": (
-            row.get(
-                "updated_at"
-            )
-        ),
-    }
-
-
-# =========================================================
-# RAW ACCOUNTS
-# =========================================================
-
-
-def get_raw_accounts(
-    *,
-    client: Client,
-) -> list[dict]:
-    response = (
-        client
-        .table(
-            ACCOUNT_TABLE
-        )
-        .select(
-            (
-                "account_id,"
-                "status,"
-                "profile_directory,"
-                "created_at,"
-                "updated_at"
-            )
-        )
-        .order(
-            "account_id",
-            desc=False,
-        )
-        .execute()
-    )
-
-    return list(
-        response.data
-        or []
-    )
-
-
-# =========================================================
-# ACCOUNT USAGE
-# =========================================================
-
-
-def get_account_usage(
-    *,
-    client: Client,
-) -> dict[str, dict]:
-    """
-    Read quota usage with safe weekly reset.
-
-    Important:
-    - The dashboard must never fail just because a reset write fails.
-    - Stale weekly data is normalized in memory immediately.
-    - Supabase reset is best-effort only.
-    - Week boundary is Monday -> Sunday, Asia/Ho_Chi_Minh.
-    """
-    today, current_week_start = (
-        _current_usage_period()
-    )
-
-    response = (
-        client
-        .table(
-            ACCOUNT_USAGE_TABLE
-        )
-        .select(
-            (
-                "account_id,"
-                "daily_success_count,"
-                "daily_date,"
-                "weekly_success_count,"
-                "week_start,"
-                "updated_at"
-            )
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
-
-    normalized_rows: list[dict] = []
-
-    for original_row in rows:
-        row = dict(
-            original_row
-            or {}
-        )
-
-        account_id = _safe_text(
-            row.get(
-                "account_id"
-            )
-        )
-
-        if not account_id:
-            continue
-
-        stored_daily_date = _safe_text(
-            row.get(
-                "daily_date"
-            )
-        )
-
-        stored_week_start = _safe_text(
-            row.get(
-                "week_start"
-            )
-        )
-
-        weekly_is_stale = (
-            stored_week_start
-            != current_week_start
-        )
-
-        daily_is_stale = (
-            stored_daily_date
-            != today
-        )
-
-        # -------------------------------------------------
-        # Normalize the values returned to the UI FIRST.
-        # Even if the database write fails, Rate Limits
-        # immediately shows the correct new-period values.
-        # -------------------------------------------------
-        if weekly_is_stale:
-            row[
-                "weekly_success_count"
-            ] = 0
-
-            row[
-                "week_start"
-            ] = current_week_start
-
-        if daily_is_stale:
-            row[
-                "daily_success_count"
-            ] = 0
-
-            row[
-                "daily_date"
-            ] = today
-
-        normalized_rows.append(
-            row
-        )
-
-        # -------------------------------------------------
-        # Persist the reset as best-effort only.
-        #
-        # A Supabase/network error here must NEVER break
-        # /api/outreach/dashboard or Railway health.
-        # -------------------------------------------------
-        if (
-            weekly_is_stale
-            or daily_is_stale
-        ):
-            update_data: dict = {}
-
-            if weekly_is_stale:
-                update_data[
-                    "weekly_success_count"
-                ] = 0
-
-                update_data[
-                    "week_start"
-                ] = current_week_start
-
-            if daily_is_stale:
-                update_data[
-                    "daily_success_count"
-                ] = 0
-
-                update_data[
-                    "daily_date"
-                ] = today
-
-            try:
-                (
-                    client
-                    .table(
-                        ACCOUNT_USAGE_TABLE
-                    )
-                    .update(
-                        update_data
-                    )
-                    .eq(
-                        "account_id",
-                        account_id,
-                    )
-                    .execute()
-                )
-
-            except Exception as exc:
-                # Dashboard read must remain healthy.
-                # The next dashboard poll / worker usage read
-                # will retry the normalization.
-                print(
-                    "[outreach_account_usage] "
-                    f"best-effort reset failed for "
-                    f"{account_id}: {exc}"
-                )
-
-    return {
-        _safe_text(
-            row.get(
-                "account_id"
-            )
-        ): row
-        for row in normalized_rows
-        if _safe_text(
-            row.get(
-                "account_id"
-            )
-        )
-    }
-
-
-# =========================================================
-# ACCOUNT STATS
-# =========================================================
-
-
-def build_account_stats(
-    *,
-    accounts: list[dict],
-    recent_jobs: list[dict],
-    scheduler: dict | None,
-    usage_by_account: dict[str, dict],
-) -> list[dict]:
-    job_code_by_id = {
-        job["id"]: (
-            job.get(
-                "job_code"
-            )
-            or ""
-        )
-        for job in recent_jobs
-    }
-
-    targets: list[dict] = []
-
-    for job in recent_jobs:
-        targets.extend(
-            job.get(
-                "targets",
-                []
-            )
-            or []
-        )
-
-    targets_by_account: dict[
-        str,
-        list[dict],
-    ] = defaultdict(
-        list
-    )
-
-    for target in targets:
-        account_id = _safe_text(
-            target.get(
-                "assigned_account_id"
-            )
-        )
-
-        if not account_id:
-            continue
-
-        targets_by_account[
-            account_id
-        ].append(
-            target
-        )
-
-    current_account_id = ""
-
-    used_in_current_turn = 0
-    turn_limit = 0
-
-    if scheduler:
-        current_account_id = (
-            _safe_text(
-                scheduler.get(
-                    "current_account_id"
-                )
-            )
-        )
-
-        used_in_current_turn = (
-            _to_int(
-                scheduler.get(
-                    "used_in_current_turn"
-                )
-            )
-        )
-
-        turn_limit = (
-            _to_int(
-                scheduler.get(
-                    "turn_limit"
-                )
-            )
-        )
-
-    result: list[dict] = []
-
-    for account in accounts:
-        account_id = _safe_text(
-            account.get(
-                "account_id"
-            )
-        )
-
-        usage_row = (
-            usage_by_account.get(
-                account_id,
-                {},
-            )
-            or {}
-        )
-
-        daily_success_count = _to_int(
-            usage_row.get(
-                "daily_success_count"
-            )
-        )
-
-        weekly_success_count = _to_int(
-            usage_row.get(
-                "weekly_success_count"
-            )
-        )
-
-        weekly_remaining = max(
-            WEEKLY_SUCCESS_LIMIT
-            - weekly_success_count,
-            0,
-        )
-
-        quota_available = (
-            weekly_remaining > 0
-        )
-
-        account_targets = (
-            targets_by_account.get(
-                account_id,
-                [],
-            )
-        )
-
-        completed_count = sum(
-            1
-            for target in account_targets
-            if (
-                _safe_text(
-                    target.get(
-                        "target_status"
-                    )
-                ).lower()
-                == "completed"
-            )
-        )
-
-        failed_count = sum(
-            1
-            for target in account_targets
-            if (
-                _safe_text(
-                    target.get(
-                        "target_status"
-                    )
-                ).lower()
-                == "failed"
-            )
-        )
-
-        pending_count = sum(
-            1
-            for target in account_targets
-            if (
-                _safe_text(
-                    target.get(
-                        "target_status"
-                    )
-                ).lower()
-                == "pending"
-            )
-        )
-
-        sorted_targets = sorted(
-            account_targets,
-            key=lambda target: (
-                _timestamp_value(
-                    target.get(
-                        "completed_at"
-                    )
-                    or target.get(
-                        "target_updated_at"
-                    )
+    return JSONResponse(
+        status_code=201,
+        content={
+            "ok": True,
+            "created": True,
+            "batch": batch,
+            "target_count": (
+                result.get(
+                    "target_count",
+                    0,
                 )
             ),
-            reverse=True,
-        )
+        },
+    )
 
-        latest_target = (
-            sorted_targets[0]
-            if sorted_targets
-            else None
-        )
 
-        last_used_at = None
-        last_job_id = ""
-        last_job_code = ""
-        last_error = None
-        last_linkedin_url = ""
-
-        if latest_target:
-            last_used_at = (
-                latest_target.get(
-                    "completed_at"
-                )
-                or latest_target.get(
-                    "target_updated_at"
-                )
-            )
-
-            last_job_id = (
-                latest_target.get(
-                    "job_id"
-                )
-                or ""
-            )
-
-            last_job_code = (
-                job_code_by_id.get(
-                    last_job_id,
-                    "",
-                )
-            )
-
-            last_error = (
-                latest_target.get(
-                    "last_error"
-                )
-            )
-
-            last_linkedin_url = (
-                latest_target.get(
-                    "linkedin_url"
-                )
-                or ""
-            )
-
-        is_current = (
-            account_id
-            == current_account_id
-        )
-
-        if is_current:
-            account_used = (
-                used_in_current_turn
-            )
-
-            account_remaining = max(
-                turn_limit
-                - used_in_current_turn,
-                0,
-            )
-        else:
-            account_used = 0
-            account_remaining = (
-                turn_limit
-            )
-
-        result.append(
-            {
-                "account_id": (
-                    account_id
-                ),
-
-                "status": _safe_text(
-                    account.get(
-                        "status"
-                    )
-                ),
-
-                "profile_directory": _safe_text(
-                    account.get(
-                        "profile_directory"
-                    )
-                ),
-
-                "created_at": (
-                    account.get(
-                        "created_at"
-                    )
-                ),
-
-                "updated_at": (
-                    account.get(
-                        "updated_at"
-                    )
-                ),
-
-                "is_current_account": (
-                    is_current
-                ),
-
-                "used_in_current_turn": (
-                    account_used
-                ),
-
-                "turn_limit": (
-                    turn_limit
-                ),
-
-                "remaining_in_current_turn": (
-                    account_remaining
-                ),
-
-                "weekly_success_count": (
-                    weekly_success_count
-                ),
-
-                "weekly_limit": (
-                    WEEKLY_SUCCESS_LIMIT
-                ),
-
-                "weekly_remaining": (
-                    weekly_remaining
-                ),
-
-                "quota_available": (
-                    quota_available
-                ),
-
-                "usage_updated_at": (
-                    usage_row.get(
-                        "updated_at"
-                    )
-                ),
-
-                "total_assigned": len(
-                    account_targets
-                ),
-
-                "completed_count": (
-                    completed_count
-                ),
-
-                "failed_count": (
-                    failed_count
-                ),
-
-                "pending_count": (
-                    pending_count
-                ),
-
-                "last_used_at": (
-                    last_used_at
-                ),
-
-                "last_job_id": (
-                    last_job_id
-                ),
-
-                "last_job_code": (
-                    last_job_code
-                ),
-
-                "last_linkedin_url": (
-                    last_linkedin_url
-                ),
-
-                "last_error": (
-                    last_error
-                ),
-            }
-        )
-
-    return result
 
 
 # =========================================================
-# DASHBOARD
+# OUTREACH ACCEPTANCE INSIGHTS API
 # =========================================================
 
 
-def get_outreach_dashboard(
-    *,
-    settings: Settings | None = None,
-) -> dict:
-    client = get_outreach_client(
-        settings
-    )
+@app.get("/api/outreach/acceptance-insights")
+async def get_outreach_acceptance_insights_api(
+    job_id: str | None = None,
+) -> JSONResponse:
+    """
+    Read-only aggregate of Connect -> Acceptance performance.
 
-    current_job = get_current_job(
-        client=client
-    )
+    Query:
+        no job_id
+            -> All-time
 
-    recent_jobs = get_recent_jobs(
-        client=client,
-        limit=200,
-    )
+        ?job_id=<outreach_jobs.id>
+            -> one Connect Job
 
-    scheduler = get_scheduler_state(
-        client=client
-    )
+    Railway only reads Outreach Supabase.
+    It never opens LinkedIn or runs a worker here.
+    """
+    cleaned_job_id = str(
+        job_id
+        or ""
+    ).strip()
 
-    raw_accounts = get_raw_accounts(
-        client=client
-    )
-
-    usage_by_account = get_account_usage(
-        client=client
-    )
-
-    # -----------------------------------------------------
-    # COLLECT JOB IDS
-    # -----------------------------------------------------
-
-    job_ids: list[str] = []
-
-    if current_job:
-        job_ids.append(
-            current_job["id"]
+    try:
+        insights = (
+            get_acceptance_insights(
+                job_id=(
+                    cleaned_job_id
+                    or None
+                )
+            )
         )
 
-    for job in recent_jobs:
+    except OutreachAcceptanceInsightsStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Acceptance Insights"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load Outreach "
+                    "Acceptance Insights"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Acceptance Insights error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while loading "
+                    "Outreach Acceptance Insights"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "insights": insights,
+        },
+    )
+
+
+# =========================================================
+# OUTREACH DASHBOARD API
+# =========================================================
+
+
+@app.get("/api/outreach/dashboard")
+async def get_outreach_dashboard_api() -> JSONResponse:
+    """
+    Dashboard data cho LinkedIn Outreach.
+
+    Frontend dùng endpoint này để đọc:
+
+    - current Connect job
+    - progress
+    - counters
+    - scheduler/account quota
+    - Outreach accounts
+    - recent jobs
+    """
+
+    try:
+        dashboard = (
+            get_outreach_dashboard()
+        )
+
+    except OutreachDashboardStoreError as exc:
+        logger.exception(
+            "Could not load Outreach dashboard"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not load "
+                    "Outreach dashboard"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach dashboard error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Unexpected error while "
+                    "loading Outreach dashboard"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "dashboard": dashboard,
+        },
+    )
+# =========================================================
+# LARK WEBHOOK
+# =========================================================
+
+@app.post("/webhooks/lark/events")
+async def receive_lark_event(
+    request: Request,
+) -> JSONResponse:
+    """
+    Nhận text message từ Lark.
+
+    Flow:
+    1. Nhận và validate webhook.
+    2. Lấy text, chat ID và sender ID.
+    3. Kiểm tra command health check.
+    4. Nếu là command:
+       - đọc trạng thái toàn hệ thống;
+       - gửi báo cáo về đúng chat Lark;
+       - dừng flow URL.
+    5. Nếu không phải command:
+       - tách LinkedIn URL;
+       - áp dụng gateway tối đa 10 URL;
+       - lưu URL vào Supabase;
+       - Mac worker xử lý queue sau đó.
+
+    Railway không trực tiếp chạy LinkedIn browser.
+    """
+
+    # -----------------------------------------------------
+    # 1. READ JSON PAYLOAD
+    # -----------------------------------------------------
+
+    try:
+        payload: dict[str, Any] = (
+            await request.json()
+        )
+    except Exception:
+        logger.exception(
+            "Cannot parse request body as JSON"
+        )
+
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "Request body must be valid JSON"
+                ),
+            },
+        )
+
+    logger.info(
+        "LARK EVENT RECEIVED:\n%s",
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
+
+    # -----------------------------------------------------
+    # 2. LARK URL VERIFICATION
+    # -----------------------------------------------------
+
+    if payload.get("type") == "url_verification":
+        challenge = payload.get("challenge")
+
+        if not challenge:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "ok": False,
+                    "error": "Missing challenge",
+                },
+            )
+
+        incoming_token = payload.get("token")
+
         if (
-            job["id"]
-            not in job_ids
+            LARK_VERIFICATION_TOKEN
+            and incoming_token
+            and incoming_token
+            != LARK_VERIFICATION_TOKEN
         ):
-            job_ids.append(
-                job["id"]
+            logger.warning(
+                "Invalid Lark verification token"
             )
 
-    # -----------------------------------------------------
-    # LOAD TARGET DETAIL ONCE
-    # -----------------------------------------------------
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "ok": False,
+                    "error": (
+                        "Invalid verification token"
+                    ),
+                },
+            )
 
-    targets_by_job = (
-        load_targets_for_jobs(
-            client=client,
-            job_ids=job_ids,
+        logger.info(
+            "Lark URL verification successful"
         )
-    )
 
-    # -----------------------------------------------------
-    # ATTACH TARGETS
-    # -----------------------------------------------------
-
-    attach_targets_to_jobs(
-        current_job=current_job,
-        recent_jobs=recent_jobs,
-        targets_by_job=targets_by_job,
-    )
-
-    # -----------------------------------------------------
-    # LOAD + ATTACH LATEST ACCEPTANCE CHECKS
-    # -----------------------------------------------------
-
-    acceptance_by_job = (
-        load_latest_acceptance_checks(
-            client=client,
-            job_ids=job_ids,
+        return JSONResponse(
+            status_code=200,
+            content={
+                "challenge": challenge,
+            },
         )
-    )
 
-    attach_acceptance_to_jobs(
-        current_job=current_job,
-        recent_jobs=recent_jobs,
-        acceptance_by_job=acceptance_by_job,
+    # -----------------------------------------------------
+    # 3. CHECK EVENT TYPE
+    # -----------------------------------------------------
+
+    header = payload.get("header") or {}
+    event_type = header.get("event_type")
+
+    if event_type != "im.message.receive_v1":
+        logger.info(
+            "Ignored event type: %s",
+            event_type,
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "ignored": True,
+                "event_type": event_type,
+            },
+        )
+
+    # -----------------------------------------------------
+    # 4. EXTRACT MESSAGE DATA
+    # -----------------------------------------------------
+
+    event = payload.get("event") or {}
+    sender = event.get("sender") or {}
+    sender_id = sender.get("sender_id") or {}
+    message = event.get("message") or {}
+
+    sender_type = sender.get("sender_type")
+    open_id = sender_id.get("open_id")
+
+    message_id = message.get("message_id")
+    chat_id = message.get("chat_id")
+    chat_type = message.get("chat_type")
+    message_type = message.get("message_type")
+
+    # -----------------------------------------------------
+    # 5. ONLY ACCEPT USER TEXT MESSAGES
+    # -----------------------------------------------------
+
+    if sender_type and sender_type != "user":
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "ignored": True,
+                "reason": "sender_is_not_user",
+            },
+        )
+
+    if message_type != "text":
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "ignored": True,
+                "reason": (
+                    "unsupported_message_type"
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 6. PARSE MESSAGE TEXT
+    # -----------------------------------------------------
+
+    raw_content = message.get("content") or "{}"
+    text = ""
+
+    try:
+        parsed_content = json.loads(raw_content)
+        text = str(
+            parsed_content.get("text", "")
+        ).strip()
+    except json.JSONDecodeError:
+        logger.warning(
+            "Cannot parse Lark content: %s",
+            raw_content,
+        )
+
+    logger.info(
+        (
+            "LARK TEXT MESSAGE | "
+            "open_id=%s | "
+            "message_id=%s | "
+            "chat_id=%s | "
+            "chat_type=%s | "
+            "text=%s"
+        ),
+        open_id,
+        message_id,
+        chat_id,
+        chat_type,
+        text,
     )
 
     # -----------------------------------------------------
-    # BUILD ACCOUNT STATS
+    # 7. CHECK LARK COMMANDS BEFORE URL PARSING
     # -----------------------------------------------------
 
-    accounts = build_account_stats(
-        accounts=raw_accounts,
-        recent_jobs=recent_jobs,
-        scheduler=scheduler,
-        usage_by_account=usage_by_account,
+    try:
+        command_result = handle_lark_command(
+            text=text,
+            chat_id=chat_id,
+        )
+
+    except Exception as exc:
+        logger.exception(
+            (
+                "Could not process Lark command | "
+                "message_id=%s | "
+                "chat_id=%s"
+            ),
+            message_id,
+            chat_id,
+        )
+
+        # Return 200 so Lark does not repeatedly resend
+        # the same event and create duplicate bot messages.
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": False,
+                "message_received": True,
+                "command_handled": False,
+                "reason": (
+                    "lark_command_processing_failed"
+                ),
+                "message_id": message_id,
+                "open_id": open_id,
+                "error": str(exc),
+            },
+        )
+
+    if command_result.handled:
+        logger.info(
+            (
+                "LARK COMMAND COMPLETED | "
+                "command=%s | "
+                "message_id=%s | "
+                "chat_id=%s | "
+                "response_message_id=%s"
+            ),
+            command_result.command,
+            message_id,
+            chat_id,
+            command_result.message_id,
+        )
+
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "message_received": True,
+                "command_handled": True,
+                "command": command_result.command,
+                "message_id": message_id,
+                "response_message_id": (
+                    command_result.message_id
+                ),
+            },
+        )
+
+    # -----------------------------------------------------
+    # 8. EXTRACT LINKEDIN URLS + APPLY GATEWAY
+    # -----------------------------------------------------
+
+    try:
+        max_urls_per_request = (
+            get_max_urls_per_request()
+        )
+
+        linkedin_urls = (
+            extract_linkedin_urls_with_limit(
+                text
+            )
+        )
+
+    except LinkedInUrlLimitError as exc:
+        logger.warning(
+            (
+                "LINKEDIN URL REQUEST REJECTED | "
+                "open_id=%s | "
+                "message_id=%s | "
+                "found_count=%s | "
+                "max_count=%s"
+            ),
+            open_id,
+            message_id,
+            exc.found_count,
+            exc.max_count,
+        )
+
+        # HTTP 200 prevents Lark from retrying the event.
+        # No URL is inserted before this gateway passes.
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": False,
+                "message_received": True,
+                "urls_inserted": False,
+                "reason": (
+                    "linkedin_url_limit_exceeded"
+                ),
+                "message_id": message_id,
+                "open_id": open_id,
+                "found_count": exc.found_count,
+                "max_count": exc.max_count,
+                "error": (
+                    "Too many LinkedIn URLs in "
+                    "one message."
+                ),
+            },
+        )
+
+    except ValueError as exc:
+        logger.exception(
+            "Invalid LinkedIn URL gateway configuration"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "message_received": True,
+                "urls_inserted": False,
+                "reason": (
+                    "invalid_url_gateway_configuration"
+                ),
+                "error": str(exc),
+            },
+        )
+
+    logger.info(
+        (
+            "LARK MESSAGE PARSED | "
+            "open_id=%s | "
+            "message_id=%s | "
+            "chat_id=%s | "
+            "chat_type=%s | "
+            "url_count=%s | "
+            "max_urls_per_request=%s | "
+            "urls=%s"
+        ),
+        open_id,
+        message_id,
+        chat_id,
+        chat_type,
+        len(linkedin_urls),
+        max_urls_per_request,
+        json.dumps(
+            linkedin_urls,
+            ensure_ascii=False,
+        ),
     )
 
-    return {
-        "current_job": (
-            current_job
-        ),
+    if not linkedin_urls:
+        return JSONResponse(
+            status_code=200,
+            content={
+                "ok": True,
+                "message_received": True,
+                "urls_inserted": False,
+                "reason": (
+                    "no_linkedin_urls_found"
+                ),
+                "message_id": message_id,
+                "open_id": open_id,
+                "url_count": 0,
+                "max_urls_per_request": (
+                    max_urls_per_request
+                ),
+            },
+        )
 
-        "scheduler": (
-            scheduler
-        ),
+    # -----------------------------------------------------
+    # 9. INSERT URLS INTO THE SHARED SUPABASE DATABASE
+    # -----------------------------------------------------
 
-        "accounts": (
-            accounts
-        ),
+    try:
+        result = insert_new_linkedin_urls(
+            linkedin_urls,
+            chat_id=chat_id,
+            message_id=message_id,
+            sender_open_id=open_id,
+        )
 
-        "recent_jobs": (
-            recent_jobs
+    except Exception as exc:
+        logger.exception(
+            (
+                "Could not insert LinkedIn URLs "
+                "into Supabase"
+            )
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": (
+                    "Could not insert LinkedIn URLs"
+                ),
+                "detail": str(exc),
+            },
+        )
+
+    inserted_urls = [
+        row.get("linkedin_url")
+        for row in result.inserted
+        if row.get("linkedin_url")
+    ]
+
+    logger.info(
+        (
+            "LINKEDIN SOURCES UPDATED | "
+            "message_id=%s | "
+            "inserted_count=%s | "
+            "existing_count=%s | "
+            "inserted_urls=%s"
         ),
-    }
+        message_id,
+        result.inserted_count,
+        result.existing_count,
+        json.dumps(
+            inserted_urls,
+            ensure_ascii=False,
+        ),
+    )
+
+    # -----------------------------------------------------
+    # 10. RESPONSE TO LARK WEBHOOK
+    # -----------------------------------------------------
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "message_received": True,
+            "message_id": message_id,
+            "open_id": open_id,
+            "received_url_count": len(
+                linkedin_urls
+            ),
+            "max_urls_per_request": (
+                max_urls_per_request
+            ),
+            "inserted_count": (
+                result.inserted_count
+            ),
+            "existing_count": (
+                result.existing_count
+            ),
+            "inserted_urls": inserted_urls,
+            "existing_urls": (
+                result.existing_urls
+            ),
+        },
+    )
