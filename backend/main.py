@@ -28,6 +28,8 @@ from app.outreach_job_store import (
 from app.outreach_dashboard_store import (
     OutreachDashboardStoreError,
     get_outreach_dashboard,
+    get_outreach_profiles,
+    get_outreach_rate_limits,
 )
 
 from app.outreach_acceptance_store import (
@@ -1512,6 +1514,110 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
     )
 
 
+
+
+# =========================================================
+# OUTREACH PROFILES API
+# =========================================================
+
+
+@app.get("/api/outreach/profiles")
+async def get_outreach_profiles_api() -> JSONResponse:
+    """
+    Load sent Outreach profiles on demand.
+
+    This endpoint is intentionally separate from /api/outreach/dashboard
+    to avoid transferring profile rows on every dashboard polling cycle.
+    """
+    try:
+        profiles = get_outreach_profiles()
+
+    except OutreachDashboardStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Profiles"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach Profiles",
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Profiles error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected Outreach Profiles error",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "count": len(profiles),
+            "profiles": profiles,
+        },
+    )
+
+
+# =========================================================
+# OUTREACH RATE LIMITS API
+# =========================================================
+
+
+@app.get("/api/outreach/rate-limits")
+async def get_outreach_rate_limits_api() -> JSONResponse:
+    """
+    Load detailed Rate Limits only when the drawer is opened.
+    """
+    try:
+        rate_limits = get_outreach_rate_limits()
+
+    except OutreachDashboardStoreError as exc:
+        logger.exception(
+            "Could not load Outreach Rate Limits"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach Rate Limits",
+                "detail": str(exc),
+            },
+        )
+
+    except Exception as exc:
+        logger.exception(
+            "Unexpected Outreach Rate Limits error"
+        )
+
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected Outreach Rate Limits error",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "rate_limits": rate_limits,
+        },
+    )
 
 
 # =========================================================
