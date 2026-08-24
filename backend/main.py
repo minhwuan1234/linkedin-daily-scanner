@@ -1628,6 +1628,7 @@ async def get_outreach_rate_limits_api() -> JSONResponse:
 @app.get("/api/outreach/acceptance-insights")
 async def get_outreach_acceptance_insights_api(
     job_id: str | None = None,
+    week_start: str | None = None,
 ) -> JSONResponse:
     """
     Read-only aggregate of Connect -> Acceptance performance.
@@ -1639,6 +1640,9 @@ async def get_outreach_acceptance_insights_api(
         ?job_id=<outreach_jobs.id>
             -> one Connect Job
 
+        ?week_start=YYYY-MM-DD
+            -> one Monday-Sunday week
+
     Railway only reads Outreach Supabase.
     It never opens LinkedIn or runs a worker here.
     """
@@ -1647,13 +1651,37 @@ async def get_outreach_acceptance_insights_api(
         or ""
     ).strip()
 
+    cleaned_week_start = str(
+        week_start
+        or ""
+    ).strip()
+
+    if (
+        cleaned_job_id
+        and cleaned_week_start
+    ):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    "Use either job_id or week_start, "
+                    "not both."
+                ),
+            },
+        )
+
     try:
         insights = (
             get_acceptance_insights(
                 job_id=(
                     cleaned_job_id
                     or None
-                )
+                ),
+                week_start=(
+                    cleaned_week_start
+                    or None
+                ),
             )
         )
 
