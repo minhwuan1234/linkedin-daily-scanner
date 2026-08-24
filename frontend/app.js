@@ -1,4 +1,4 @@
-console.info("[Outreach UI] current-job-summary-v2 loaded");
+console.info("[Outreach UI] egress-optimized-v1 loaded");
 
 console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
 
@@ -512,6 +512,8 @@ const state = {
   messageBatchPageSize: 8,
   outreachPollTimer: null,
   outreachDashboardLoading: false,
+  outreachProfilesLoading: false,
+  outreachRateLimitsLoading: false,
   outreachAcceptanceSubmittingJobIds: new Set(),
   outreachAcceptanceHistoryByJobId: new Map(),
   outreachAcceptanceHistoryLoadingJobIds: new Set(),
@@ -1383,7 +1385,8 @@ async function createYoutubeResearchJob(event) {
 // =========================================================
 
 
-const OUTREACH_POLL_INTERVAL_MS = 3000;
+const OUTREACH_ACTIVE_POLL_INTERVAL_MS = 5000;
+const OUTREACH_IDLE_POLL_INTERVAL_MS = 45000;
 const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
   outreach_account_01: "Minh Anh",
   outreach_account_02: "Hân",
@@ -1772,7 +1775,7 @@ function openRateLimitDrawer() {
 
   closeAcceptanceInsightsDrawer();
 
-  closeAcceptanceInsightsDrawer();
+  void loadOutreachRateLimits();
 
   els.rateLimitDrawer.classList.add(
     "is-open"
@@ -5592,115 +5595,6 @@ function renderOutreachDashboard() {
 
 
 
-function syncProfilesFromOutreachJobs() {
-  const jobs =
-    Array.isArray(
-      state.outreachRecentJobs
-    )
-      ? state.outreachRecentJobs
-      : [];
-
-  const seenProspectIds =
-    new Set();
-
-  const profiles = [];
-
-  jobs.forEach((job) => {
-    const targets =
-      Array.isArray(job.targets)
-        ? job.targets
-        : [];
-
-    targets.forEach((target) => {
-      const connectStatus =
-        String(
-          target.connect_status ||
-          ""
-        )
-          .trim()
-          .toLowerCase();
-
-      // Profiles means: connection invitations that were actually sent
-      // and whose target still exists in Recent Connect Jobs.
-      if (
-        connectStatus !==
-        "invitation_sent"
-      ) {
-        return;
-      }
-
-      const prospectId =
-        String(
-          target.prospect_id ||
-          ""
-        ).trim();
-
-      if (
-        !prospectId ||
-        seenProspectIds.has(
-          prospectId
-        )
-      ) {
-        return;
-      }
-
-      seenProspectIds.add(
-        prospectId
-      );
-
-      profiles.push({
-        id: prospectId,
-        prospect_id: prospectId,
-        target_id:
-          target.target_id || "",
-        job_id:
-          target.job_id ||
-          job.id ||
-          "",
-        job_code:
-          job.job_code || "",
-        linkedin_url:
-          target.linkedin_url || "",
-        normalized_url:
-          target.normalized_url || "",
-        assigned_account_id:
-          target.assigned_account_id ||
-          "",
-        target_status:
-          target.target_status || "",
-        connect_status:
-          target.connect_status || "",
-        acceptance_status:
-          target.acceptance_status ||
-          "not_checked",
-        message_status:
-          target.message_status ||
-          "not_started",
-        sent_at:
-          target.last_connect_attempt_at ||
-          target.completed_at ||
-          target.target_updated_at ||
-          target.target_created_at ||
-          job.completed_at ||
-          job.created_at ||
-          null,
-        accepted_at:
-          target.acceptance_accepted_at ||
-          target.accepted_at ||
-          null,
-        last_messaged_at:
-          target.last_messaged_at ||
-          null
-      });
-    });
-  });
-
-  state.profiles = profiles;
-  applyProfileFilters();
-  updateStats();
-}
-
-
 async function loadOutreachDashboard() {
   if (state.outreachDashboardLoading) {
     return;
@@ -5734,10 +5628,8 @@ async function loadOutreachDashboard() {
       );
     }
 
-
     const dashboard =
       result.dashboard || {};
-
 
     state.outreachCurrentJob =
       dashboard.current_job || null;
@@ -5759,30 +5651,14 @@ async function loadOutreachDashboard() {
         ? dashboard.recent_jobs
         : [];
 
-    // Profiles uses exactly the targets that still exist
-    // inside Recent Connect Jobs.
-    syncProfilesFromOutreachJobs();
-
-
-    // Keep Accepted Pool and recipient preparation synchronized
-    // with the existing Outreach polling loop.
-    await Promise.all([
-      loadOutreachAcceptedPool(),
-      loadMessagePreparation(),
-      loadMessageBatches()
-    ]);
-
-
     if (els.outreachError) {
       els.outreachError.hidden = true;
       els.outreachError.textContent = "";
     }
 
-
     renderOutreachDashboard();
 
-    // Keep Acceptance Insights live while its drawer is open.
-    // Reuse the existing Outreach dashboard polling cadence.
+    // Only refresh Acceptance Insights while its drawer is actually open.
     if (
       els.acceptanceInsightsDrawer?.classList.contains(
         "is-open"
@@ -5800,7 +5676,6 @@ async function loadOutreachDashboard() {
 
     if (els.outreachError) {
       els.outreachError.hidden = false;
-
       els.outreachError.textContent =
         error.message || String(error);
     }
@@ -5811,9 +5686,146 @@ async function loadOutreachDashboard() {
 }
 
 
+async function loadOutreachProfiles() {
+  if (state.outreachProfilesLoading) {
+    return;
+  }
+
+  state.outreachProfilesLoading = true;
+
+  try {
+    const response = await fetch(
+      "/api/outreach/profiles",
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Outreach Profiles."
+      );
+    }
+
+    state.profiles =
+      Array.isArray(
+        result.profiles
+      )
+        ? result.profiles
+        : [];
+
+    applyProfileFilters();
+    updateStats();
+
+  } catch (error) {
+    console.error(
+      "Outreach Profiles error:",
+      error
+    );
+
+  } finally {
+    state.outreachProfilesLoading = false;
+  }
+}
+
+
+async function loadOutreachRateLimits() {
+  if (state.outreachRateLimitsLoading) {
+    return;
+  }
+
+  state.outreachRateLimitsLoading = true;
+
+  try {
+    const response = await fetch(
+      "/api/outreach/rate-limits",
+      {
+        method: "GET",
+        headers: {
+          "Accept": "application/json"
+        },
+        cache: "no-store"
+      }
+    );
+
+    const result =
+      await response.json();
+
+    if (
+      !response.ok ||
+      !result.ok
+    ) {
+      throw new Error(
+        result.detail ||
+        result.error ||
+        "Không thể load Rate Limits."
+      );
+    }
+
+    const rateLimits =
+      result.rate_limits || {};
+
+    state.outreachScheduler =
+      rateLimits.scheduler ||
+      state.outreachScheduler;
+
+    state.outreachAccounts =
+      Array.isArray(
+        rateLimits.accounts
+      )
+        ? rateLimits.accounts
+        : state.outreachAccounts;
+
+    renderOutreachScheduler(
+      state.outreachScheduler
+    );
+
+    renderOutreachAccounts(
+      state.outreachAccounts
+    );
+
+  } catch (error) {
+    console.error(
+      "Outreach Rate Limits error:",
+      error
+    );
+
+  } finally {
+    state.outreachRateLimitsLoading = false;
+  }
+}
+
+
 // ---------------------------------------------------------
 // POLLING
 // ---------------------------------------------------------
+
+
+function getOutreachPollInterval() {
+  const status =
+    normaliseStatus(
+      state.outreachCurrentJob?.status
+    );
+
+  return (
+    status === "running" ||
+    status === "pending"
+  )
+    ? OUTREACH_ACTIVE_POLL_INTERVAL_MS
+    : OUTREACH_IDLE_POLL_INTERVAL_MS;
+}
 
 
 function startOutreachPolling() {
@@ -5821,11 +5833,21 @@ function startOutreachPolling() {
     return;
   }
 
-  state.outreachPollTimer =
-    window.setInterval(
-      loadOutreachDashboard,
-      OUTREACH_POLL_INTERVAL_MS
-    );
+  const scheduleNext = () => {
+    state.outreachPollTimer =
+      window.setTimeout(
+        async () => {
+          state.outreachPollTimer = null;
+
+          await loadOutreachDashboard();
+
+          scheduleNext();
+        },
+        getOutreachPollInterval()
+      );
+  };
+
+  scheduleNext();
 }
 
 
@@ -7195,6 +7217,10 @@ document
       if (button.dataset.tab === "youtube") {
         loadYoutubeResearch();
       }
+
+      if (button.dataset.tab === "profiles") {
+        void loadOutreachProfiles();
+      }
     });
   });
 
@@ -7277,6 +7303,20 @@ function setOutreachProcessTab(
         panel.dataset.outreachProcessPanel !==
         cleaned;
     });
+
+  if (cleaned === "recipients") {
+    void Promise.all([
+      loadOutreachAcceptedPool(),
+      loadMessagePreparation()
+    ]);
+  }
+
+  if (cleaned === "messages") {
+    void Promise.all([
+      loadMessagePreparation(),
+      loadMessageBatches()
+    ]);
+  }
 }
 
 els.acceptanceInsightsDrawerButton?.addEventListener(
