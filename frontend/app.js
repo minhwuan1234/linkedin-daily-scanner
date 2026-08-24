@@ -1,6 +1,6 @@
 console.info("[Outreach UI] egress-optimized-v1 loaded");
 
-console.info("[Outreach UI] acceptance-insights-realtime-1 loaded");
+console.info("[Outreach UI] acceptance-insights-weekly-1 loaded");
 
 console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
 
@@ -212,6 +212,15 @@ const els = {
 
   acceptanceInsightsScopeFilter:
     document.querySelector("#acceptanceInsightsScopeFilter"),
+
+  acceptanceInsightsWeekField:
+    document.querySelector("#acceptanceInsightsWeekField"),
+
+  acceptanceInsightsWeekFilter:
+    document.querySelector("#acceptanceInsightsWeekFilter"),
+
+  acceptanceInsightsJobField:
+    document.querySelector("#acceptanceInsightsJobField"),
 
   acceptanceInsightsJobFilter:
     document.querySelector("#acceptanceInsightsJobFilter"),
@@ -1928,16 +1937,174 @@ function populateAcceptanceInsightsJobFilter() {
 }
 
 
+function getCurrentMondayIso() {
+  const now = new Date();
+
+  const local = new Date(
+    now.toLocaleString(
+      "en-US",
+      {
+        timeZone: "Asia/Ho_Chi_Minh"
+      }
+    )
+  );
+
+  const day =
+    local.getDay();
+
+  const distance =
+    day === 0
+      ? 6
+      : day - 1;
+
+  local.setDate(
+    local.getDate() - distance
+  );
+
+  const year =
+    local.getFullYear();
+
+  const month =
+    String(
+      local.getMonth() + 1
+    ).padStart(
+      2,
+      "0"
+    );
+
+  const date =
+    String(
+      local.getDate()
+    ).padStart(
+      2,
+      "0"
+    );
+
+  return `${year}-${month}-${date}`;
+}
+
+
+function populateAcceptanceInsightsWeekFilter() {
+  if (!els.acceptanceInsightsWeekFilter) {
+    return;
+  }
+
+  const currentValue =
+    els.acceptanceInsightsWeekFilter.value ||
+    "";
+
+  const weeks =
+    Array.isArray(
+      state.acceptanceInsights?.weeks
+    )
+      ? state.acceptanceInsights.weeks
+      : [];
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const fallbackMonday =
+    getCurrentMondayIso();
+
+  if (!weeks.length) {
+    const option =
+      document.createElement("option");
+
+    option.value =
+      fallbackMonday;
+
+    option.textContent =
+      "Current week";
+
+    fragment.append(
+      option
+    );
+  } else {
+    weeks.forEach((week) => {
+      const value =
+        String(
+          week.week_start ||
+          ""
+        ).trim();
+
+      if (!value) {
+        return;
+      }
+
+      const option =
+        document.createElement("option");
+
+      option.value =
+        value;
+
+      option.textContent =
+        String(
+          week.label ||
+          value
+        );
+
+      fragment.append(
+        option
+      );
+    });
+  }
+
+  els.acceptanceInsightsWeekFilter
+    .replaceChildren(
+      fragment
+    );
+
+  const options = Array.from(
+    els.acceptanceInsightsWeekFilter.options
+  );
+
+  const stillExists =
+    options.some(
+      (option) =>
+        option.value === currentValue
+    );
+
+  els.acceptanceInsightsWeekFilter.value =
+    stillExists
+      ? currentValue
+      : (
+          options[0]?.value ||
+          fallbackMonday
+        );
+}
+
+
 function syncAcceptanceInsightsFilters() {
   const scope =
     els.acceptanceInsightsScopeFilter?.value ||
     "all";
 
+  const weekActive =
+    scope === "week";
+
+  const jobActive =
+    scope === "job";
+
+  if (els.acceptanceInsightsWeekField) {
+    els.acceptanceInsightsWeekField.hidden =
+      !weekActive;
+  }
+
+  if (els.acceptanceInsightsWeekFilter) {
+    els.acceptanceInsightsWeekFilter.disabled =
+      !weekActive;
+  }
+
+  if (els.acceptanceInsightsJobField) {
+    els.acceptanceInsightsJobField.hidden =
+      !jobActive;
+  }
+
   if (els.acceptanceInsightsJobFilter) {
     els.acceptanceInsightsJobFilter.disabled =
-      scope !== "job";
+      !jobActive;
 
-    if (scope !== "job") {
+    if (!jobActive) {
       els.acceptanceInsightsJobFilter.value =
         "all";
     }
@@ -1947,6 +2114,7 @@ function syncAcceptanceInsightsFilters() {
 
 function renderAcceptanceInsights() {
   populateAcceptanceInsightsJobFilter();
+  populateAcceptanceInsightsWeekFilter();
   syncAcceptanceInsightsFilters();
 
   const insights =
@@ -2170,12 +2338,37 @@ async function loadAcceptanceInsights() {
         ).trim()
       : "";
 
-  const query =
+  const selectedWeekStart =
+    scope === "week"
+      ? String(
+          els.acceptanceInsightsWeekFilter?.value ||
+          getCurrentMondayIso()
+        ).trim()
+      : "";
+
+  const params =
+    new URLSearchParams();
+
+  if (
     selectedJobId &&
     selectedJobId !== "all"
-      ? `?job_id=${encodeURIComponent(
-          selectedJobId
-        )}`
+  ) {
+    params.set(
+      "job_id",
+      selectedJobId
+    );
+  }
+
+  if (selectedWeekStart) {
+    params.set(
+      "week_start",
+      selectedWeekStart
+    );
+  }
+
+  const query =
+    params.toString()
+      ? `?${params.toString()}`
       : "";
 
   try {
@@ -7343,6 +7536,11 @@ els.acceptanceInsightsScopeFilter?.addEventListener(
 );
 
 els.acceptanceInsightsJobFilter?.addEventListener(
+  "change",
+  loadAcceptanceInsights
+);
+
+els.acceptanceInsightsWeekFilter?.addEventListener(
   "change",
   loadAcceptanceInsights
 );
