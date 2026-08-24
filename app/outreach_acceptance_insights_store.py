@@ -206,9 +206,11 @@ def _load_all_target_rows(
     """
     Load Outreach Connect targets in pages.
 
-    Weekly scope is based on target.completed_at, which represents
-    when that Connect target finished processing. If completed_at is
-    unavailable on an old row, created_at is used as a Python fallback.
+    Weekly scope is based on outreach_prospects.last_connect_attempt_at,
+    which represents when the Connect attempt/invitation was sent.
+
+    Old-row fallback:
+        target.completed_at -> target.created_at
     """
     rows: list[dict] = []
     offset = 0
@@ -247,7 +249,8 @@ def _load_all_target_rows(
                     "created_at,"
                     "completed_at,"
                     "outreach_prospects("
-                    "connect_status"
+                    "connect_status,"
+                    "last_connect_attempt_at"
                     ")"
                 )
             )
@@ -259,21 +262,11 @@ def _load_all_target_rows(
                 job_id,
             )
 
-        # Most production targets have completed_at.
-        # Filter server-side to reduce weekly egress.
-        if week_bounds:
-            query = (
-                query
-                .gte(
-                    "completed_at",
-                    week_bounds[0],
-                )
-                .lt(
-                    "completed_at",
-                    week_bounds[1],
-                )
-            )
-
+        # Do NOT filter weekly scope by target.completed_at here.
+        # The week must be attributed to when the Connect invitation
+        # was actually sent, stored on outreach_prospects as
+        # last_connect_attempt_at. Filtering by completed_at would move
+        # profiles into the week when later processing/acceptance happened.
         response = (
             query
             .range(
@@ -297,10 +290,42 @@ def _load_all_target_rows(
 
         offset += PAGE_SIZE
 
-    # Old rows with completed_at NULL cannot be captured by the
-    # server-side week filter. For All time / Job scope no fallback
-    # is needed. We intentionally avoid a second large query here.
-    return rows
+    if not cleaned_week_start:
+        return rows
+
+    filtered_rows: list[dict] = []
+
+    for row in rows:
+        prospect = (
+            row.get(
+                "outreach_prospects"
+            )
+            or {}
+        )
+
+        sent_at = (
+            prospect.get(
+                "last_connect_attempt_at"
+            )
+            or row.get(
+                "completed_at"
+            )
+            or row.get(
+                "created_at"
+            )
+        )
+
+        if (
+            _week_start_for_datetime(
+                sent_at
+            )
+            == cleaned_week_start
+        ):
+            filtered_rows.append(
+                row
+            )
+
+    return filtered_rows
 
 
 def _load_connect_jobs(
@@ -506,9 +531,9 @@ def get_acceptance_insights(
         job_id                    -> one Connect Job
         week_start=YYYY-MM-DD     -> Monday-Sunday week
 
-    Weekly grouping is based on when each Connect target completed,
-    not when the later Acceptance Check happened. This keeps the
-    metric attributable to the week the invitation was sent.
+    Weekly grouping is based on when the Connect invitation/attempt
+    was sent (outreach_prospects.last_connect_attempt_at), never on the
+    later Acceptance Check timestamp.
     """
     active_client = (
         client
