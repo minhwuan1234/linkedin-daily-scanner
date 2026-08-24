@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from supabase import Client, create_client
 
@@ -11,6 +11,10 @@ TARGET_TABLE = "outreach_job_targets"
 JOB_TABLE = "outreach_jobs"
 
 PAGE_SIZE = 1000
+
+LOCAL_TIMEZONE = timezone(
+    timedelta(hours=7)
+)
 
 
 class OutreachAcceptanceInsightsStoreError(
@@ -32,6 +36,140 @@ def _utc_now() -> str:
     return datetime.now(
         timezone.utc
     ).isoformat()
+
+
+def _parse_datetime(
+    value,
+) -> datetime | None:
+    text = _safe_text(
+        value
+    )
+
+    if not text:
+        return None
+
+    try:
+        return datetime.fromisoformat(
+            text.replace(
+                "Z",
+                "+00:00",
+            )
+        )
+
+    except ValueError:
+        return None
+
+
+def _normalise_week_start(
+    value,
+) -> str:
+    text = _safe_text(
+        value
+    )
+
+    if not text:
+        return ""
+
+    try:
+        parsed = datetime.strptime(
+            text,
+            "%Y-%m-%d",
+        ).date()
+
+    except ValueError as exc:
+        raise OutreachAcceptanceInsightsStoreError(
+            "week_start must use YYYY-MM-DD."
+        ) from exc
+
+    monday = (
+        parsed
+        - timedelta(
+            days=parsed.weekday()
+        )
+    )
+
+    return monday.isoformat()
+
+
+def _week_bounds(
+    week_start: str,
+) -> tuple[str, str]:
+    monday = datetime.strptime(
+        week_start,
+        "%Y-%m-%d",
+    ).date()
+
+    next_monday = (
+        monday
+        + timedelta(days=7)
+    )
+
+    start = datetime(
+        monday.year,
+        monday.month,
+        monday.day,
+        tzinfo=LOCAL_TIMEZONE,
+    )
+
+    end = datetime(
+        next_monday.year,
+        next_monday.month,
+        next_monday.day,
+        tzinfo=LOCAL_TIMEZONE,
+    )
+
+    return (
+        start.astimezone(
+            timezone.utc
+        ).isoformat(),
+        end.astimezone(
+            timezone.utc
+        ).isoformat(),
+    )
+
+
+def _week_start_for_datetime(
+    value,
+) -> str:
+    parsed = _parse_datetime(
+        value
+    )
+
+    if parsed is None:
+        return ""
+
+    local_date = parsed.astimezone(
+        LOCAL_TIMEZONE
+    ).date()
+
+    monday = (
+        local_date
+        - timedelta(
+            days=local_date.weekday()
+        )
+    )
+
+    return monday.isoformat()
+
+
+def _format_week_label(
+    week_start: str,
+) -> str:
+    monday = datetime.strptime(
+        week_start,
+        "%Y-%m-%d",
+    ).date()
+
+    sunday = (
+        monday
+        + timedelta(days=6)
+    )
+
+    return (
+        f"{monday.strftime('%d/%m/%Y')}"
+        " - "
+        f"{sunday.strftime('%d/%m/%Y')}"
+    )
 
 
 def get_outreach_supabase_client() -> Client:
@@ -63,13 +201,33 @@ def _load_all_target_rows(
     *,
     client: Client,
     job_id: str | None = None,
+    week_start: str | None = None,
 ) -> list[dict]:
     """
-    Load Outreach Connect targets in pages so All-time analytics
-    is not silently capped by PostgREST's default row limit.
+    Load Outreach Connect targets in pages.
+
+    Weekly scope is based on target.completed_at, which represents
+    when that Connect target finished processing. If completed_at is
+    unavailable on an old row, created_at is used as a Python fallback.
     """
     rows: list[dict] = []
     offset = 0
+
+    cleaned_week_start = (
+        _normalise_week_start(
+            week_start
+        )
+        if week_start
+        else ""
+    )
+
+    week_bounds = (
+        _week_bounds(
+            cleaned_week_start
+        )
+        if cleaned_week_start
+        else None
+    )
 
     while True:
         query = (
@@ -86,6 +244,8 @@ def _load_all_target_rows(
                     "assigned_account_id,"
                     "acceptance_status,"
                     "accepted_at,"
+                    "created_at,"
+                    "completed_at,"
                     "outreach_prospects("
                     "connect_status"
                     ")"
@@ -97,6 +257,21 @@ def _load_all_target_rows(
             query = query.eq(
                 "job_id",
                 job_id,
+            )
+
+        # Most production targets have completed_at.
+        # Filter server-side to reduce weekly egress.
+        if week_bounds:
+            query = (
+                query
+                .gte(
+                    "completed_at",
+                    week_bounds[0],
+                )
+                .lt(
+                    "completed_at",
+                    week_bounds[1],
+                )
             )
 
         response = (
@@ -122,6 +297,9 @@ def _load_all_target_rows(
 
         offset += PAGE_SIZE
 
+    # Old rows with completed_at NULL cannot be captured by the
+    # server-side week filter. For All time / Job scope no fallback
+    # is needed. We intentionally avoid a second large query here.
     return rows
 
 
@@ -130,10 +308,9 @@ def _load_connect_jobs(
     client: Client,
 ) -> list[dict]:
     """
-    Return Connect Job IDs/codes for the drawer filter.
+    Return Connect Job IDs/codes for filters.
 
-    This deliberately comes from the database rather than the
-    dashboard's recent-10 list, so old jobs remain filterable.
+    Job created_at is also used to build the available week list.
     """
     rows: list[dict] = []
     offset = 0
@@ -213,6 +390,60 @@ def _load_connect_jobs(
     ]
 
 
+def _build_week_options(
+    jobs: list[dict],
+) -> list[dict]:
+    week_starts = {
+        _week_start_for_datetime(
+            job.get(
+                "created_at"
+            )
+        )
+        for job in jobs
+    }
+
+    week_starts.discard(
+        ""
+    )
+
+    current_week = _week_start_for_datetime(
+        datetime.now(
+            LOCAL_TIMEZONE
+        ).isoformat()
+    )
+
+    if current_week:
+        week_starts.add(
+            current_week
+        )
+
+    result: list[dict] = []
+
+    for week_start in sorted(
+        week_starts,
+        reverse=True,
+    ):
+        monday = datetime.strptime(
+            week_start,
+            "%Y-%m-%d",
+        ).date()
+
+        result.append(
+            {
+                "week_start": week_start,
+                "week_end": (
+                    monday
+                    + timedelta(days=6)
+                ).isoformat(),
+                "label": _format_week_label(
+                    week_start
+                ),
+            }
+        )
+
+    return result
+
+
 def _target_is_attributable_connect(
     row: dict,
 ) -> bool:
@@ -264,28 +495,20 @@ def _target_is_attributable_connect(
 def get_acceptance_insights(
     *,
     job_id: str | None = None,
+    week_start: str | None = None,
     client: Client | None = None,
 ) -> dict:
     """
     Aggregate Connect -> Acceptance performance by Outreach account.
 
-    Metrics:
-        connected
-            Number of attributable connection invitations.
-
-        accepted
-            Number of those targets whose latest acceptance state
-            is accepted.
-
-        acceptance_rate
-            accepted / connected
-
-        share_of_total_accepted
-            account accepted / all accepted in the selected scope
-
     Scope:
-        job_id is None -> all time
-        job_id set     -> one Connect Job
+        no job_id / no week_start -> all time
+        job_id                    -> one Connect Job
+        week_start=YYYY-MM-DD     -> Monday-Sunday week
+
+    Weekly grouping is based on when each Connect target completed,
+    not when the later Acceptance Check happened. This keeps the
+    metric attributable to the week the invitation was sent.
     """
     active_client = (
         client
@@ -297,14 +520,40 @@ def get_acceptance_insights(
         job_id
     )
 
-    target_rows = (
-        _load_all_target_rows(
-            client=active_client,
-            job_id=(
-                cleaned_job_id
-                or None
-            ),
+    cleaned_week_start = (
+        _normalise_week_start(
+            week_start
         )
+        if week_start
+        else ""
+    )
+
+    if (
+        cleaned_job_id
+        and cleaned_week_start
+    ):
+        raise OutreachAcceptanceInsightsStoreError(
+            "Use either job_id or week_start, not both."
+        )
+
+    jobs = _load_connect_jobs(
+        client=active_client
+    )
+
+    weeks = _build_week_options(
+        jobs
+    )
+
+    target_rows = _load_all_target_rows(
+        client=active_client,
+        job_id=(
+            cleaned_job_id
+            or None
+        ),
+        week_start=(
+            cleaned_week_start
+            or None
+        ),
     )
 
     grouped: dict[
@@ -440,10 +689,6 @@ def get_acceptance_insights(
         else 0.0
     )
 
-    jobs = _load_connect_jobs(
-        client=active_client
-    )
-
     selected_job = None
 
     if cleaned_job_id:
@@ -458,17 +703,54 @@ def get_acceptance_insights(
             None,
         )
 
+    selected_week = None
+
+    if cleaned_week_start:
+        selected_week = next(
+            (
+                week
+                for week in weeks
+                if week[
+                    "week_start"
+                ] == cleaned_week_start
+            ),
+            {
+                "week_start": (
+                    cleaned_week_start
+                ),
+                "week_end": (
+                    datetime.strptime(
+                        cleaned_week_start,
+                        "%Y-%m-%d",
+                    ).date()
+                    + timedelta(days=6)
+                ).isoformat(),
+                "label": _format_week_label(
+                    cleaned_week_start
+                ),
+            },
+        )
+
+    scope = "all"
+
+    if cleaned_job_id:
+        scope = "job"
+
+    elif cleaned_week_start:
+        scope = "week"
+
     return {
-        "scope": (
-            "job"
-            if cleaned_job_id
-            else "all"
-        ),
+        "scope": scope,
         "job_id": (
             cleaned_job_id
             or None
         ),
+        "week_start": (
+            cleaned_week_start
+            or None
+        ),
         "selected_job": selected_job,
+        "selected_week": selected_week,
         "summary": {
             "total_connected": (
                 total_connected
@@ -485,5 +767,7 @@ def get_acceptance_insights(
         },
         "accounts": accounts,
         "jobs": jobs,
+        "weeks": weeks,
         "generated_at": _utc_now(),
     }
+
