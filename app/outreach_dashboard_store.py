@@ -99,17 +99,17 @@ def _safe_text(
     ).strip()
 
 
-def _current_usage_dates() -> tuple[str, str]:
+def _current_usage_period() -> tuple[str, str]:
     """
-    Return the current local calendar date and Monday week start.
+    Current local calendar day and Monday week start.
 
-    Weekly Connect quota is Monday -> Sunday in Asia/Ho_Chi_Minh.
+    This helper is read-only and safe during Railway startup.
     """
     today = datetime.now(
         LOCAL_TIMEZONE
     ).date()
 
-    week_start = (
+    monday = (
         today
         - timedelta(
             days=today.weekday()
@@ -118,7 +118,7 @@ def _current_usage_dates() -> tuple[str, str]:
 
     return (
         today.isoformat(),
-        week_start.isoformat(),
+        monday.isoformat(),
     )
 
 
@@ -1111,25 +1111,16 @@ def get_account_usage(
     client: Client,
 ) -> dict[str, dict]:
     """
-    Load persistent Connect usage and normalize stale periods.
+    Read quota usage with safe weekly reset.
 
-    The Mac worker already resets usage when it asks for quota.
-    The dashboard previously read outreach_account_usage directly,
-    so a new week could still display the previous week's 100/100
-    until that account happened to run again.
-
-    This read path now uses the same calendar rule:
-    - local timezone: Asia/Ho_Chi_Minh
-    - week: Monday -> Sunday
-    - new week: weekly_success_count -> 0
-    - new local day: daily_success_count -> 0
-
-    Reset writes are conditional on the stored period value. This
-    prevents the dashboard from overwriting a newer worker update if
-    both processes cross the week/day boundary at the same time.
+    Important:
+    - The dashboard must never fail just because a reset write fails.
+    - Stale weekly data is normalized in memory immediately.
+    - Supabase reset is best-effort only.
+    - Week boundary is Monday -> Sunday, Asia/Ho_Chi_Minh.
     """
     today, current_week_start = (
-        _current_usage_dates()
+        _current_usage_period()
     )
 
     response = (
@@ -1155,9 +1146,14 @@ def get_account_usage(
         or []
     )
 
-    needs_reload = False
+    normalized_rows: list[dict] = []
 
-    for row in rows:
+    for original_row in rows:
+        row = dict(
+            original_row
+            or {}
+        )
+
         account_id = _safe_text(
             row.get(
                 "account_id"
@@ -1179,104 +1175,98 @@ def get_account_usage(
             )
         )
 
-        # Weekly quota reset.
-        if (
+        weekly_is_stale = (
             stored_week_start
             != current_week_start
-        ):
-            reset_query = (
-                client
-                .table(
-                    ACCOUNT_USAGE_TABLE
-                )
-                .update(
-                    {
-                        "weekly_success_count": 0,
-                        "week_start": (
-                            current_week_start
-                        ),
-                    }
-                )
-                .eq(
-                    "account_id",
-                    account_id,
-                )
-            )
+        )
 
-            # Optimistic concurrency guard:
-            # only reset if the DB row still belongs to the old week.
-            if stored_week_start:
-                reset_query = (
-                    reset_query
-                    .eq(
-                        "week_start",
-                        stored_week_start,
-                    )
-                )
-
-            reset_query.execute()
-            needs_reload = True
-
-        # Daily count is legacy UI-compatible data, but keep it
-        # normalized as well so the database does not carry stale dates.
-        if (
+        daily_is_stale = (
             stored_daily_date
             != today
+        )
+
+        # -------------------------------------------------
+        # Normalize the values returned to the UI FIRST.
+        # Even if the database write fails, Rate Limits
+        # immediately shows the correct new-period values.
+        # -------------------------------------------------
+        if weekly_is_stale:
+            row[
+                "weekly_success_count"
+            ] = 0
+
+            row[
+                "week_start"
+            ] = current_week_start
+
+        if daily_is_stale:
+            row[
+                "daily_success_count"
+            ] = 0
+
+            row[
+                "daily_date"
+            ] = today
+
+        normalized_rows.append(
+            row
+        )
+
+        # -------------------------------------------------
+        # Persist the reset as best-effort only.
+        #
+        # A Supabase/network error here must NEVER break
+        # /api/outreach/dashboard or Railway health.
+        # -------------------------------------------------
+        if (
+            weekly_is_stale
+            or daily_is_stale
         ):
-            reset_query = (
-                client
-                .table(
-                    ACCOUNT_USAGE_TABLE
-                )
-                .update(
-                    {
-                        "daily_success_count": 0,
-                        "daily_date": today,
-                    }
-                )
-                .eq(
-                    "account_id",
-                    account_id,
-                )
-            )
+            update_data: dict = {}
 
-            if stored_daily_date:
-                reset_query = (
-                    reset_query
-                    .eq(
-                        "daily_date",
-                        stored_daily_date,
-                    )
-                )
+            if weekly_is_stale:
+                update_data[
+                    "weekly_success_count"
+                ] = 0
 
-            reset_query.execute()
-            needs_reload = True
+                update_data[
+                    "week_start"
+                ] = current_week_start
 
-    # Reload once after boundary resets so the Rate Limits drawer
-    # receives the actual persisted values from Supabase.
-    if needs_reload:
-        response = (
-            client
-            .table(
-                ACCOUNT_USAGE_TABLE
-            )
-            .select(
+            if daily_is_stale:
+                update_data[
+                    "daily_success_count"
+                ] = 0
+
+                update_data[
+                    "daily_date"
+                ] = today
+
+            try:
                 (
-                    "account_id,"
-                    "daily_success_count,"
-                    "daily_date,"
-                    "weekly_success_count,"
-                    "week_start,"
-                    "updated_at"
+                    client
+                    .table(
+                        ACCOUNT_USAGE_TABLE
+                    )
+                    .update(
+                        update_data
+                    )
+                    .eq(
+                        "account_id",
+                        account_id,
+                    )
+                    .execute()
                 )
-            )
-            .execute()
-        )
 
-        rows = list(
-            response.data
-            or []
-        )
+            except Exception as exc:
+                # Dashboard read must remain healthy.
+                # The next dashboard poll / worker usage read
+                # will retry the normalization.
+                print(
+                    "[outreach_account_usage] "
+                    f"best-effort reset failed for "
+                    f"{account_id}: {exc}"
+                )
 
     return {
         _safe_text(
@@ -1284,7 +1274,7 @@ def get_account_usage(
                 "account_id"
             )
         ): row
-        for row in rows
+        for row in normalized_rows
         if _safe_text(
             row.get(
                 "account_id"
