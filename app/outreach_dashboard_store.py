@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta, timezone
 
 from supabase import Client, create_client
 
@@ -22,8 +21,8 @@ ACCEPTANCE_CHECK_TABLE = "outreach_acceptance_checks"
 
 WEEKLY_SUCCESS_LIMIT = 100
 
-LOCAL_TIMEZONE = ZoneInfo(
-    "Asia/Ho_Chi_Minh"
+LOCAL_TIMEZONE = timezone(
+    timedelta(hours=7)
 )
 
 SCHEDULER_NAME = "linkedin_outreach"
