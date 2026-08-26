@@ -46,8 +46,8 @@ This is a message-flow test.
 
 
 TEST_URLS = [
-    "PASTE_URL_01_HERE",
-    "PASTE_URL_02_HERE",
+    "https://www.linkedin.com/in/minh-quân-851170229/",
+    "https://www.linkedin.com/in/minh-quân-851170229/",
 ]
 
 
