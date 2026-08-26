@@ -456,6 +456,11 @@ def execute_target_with_browser(
         send_result = send_message_once(
             page,
             final_message,
+            expected_profile_name=(
+                profile_name[
+                    "full_name"
+                ]
+            ),
         )
 
         if not bool(
