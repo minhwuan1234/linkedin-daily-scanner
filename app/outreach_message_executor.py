@@ -590,6 +590,11 @@ def execute_one_prepared_message_target(
         send_result = send_message_once(
             page,
             final_message,
+            expected_profile_name=(
+                profile_name[
+                    "full_name"
+                ]
+            ),
         )
 
         # Send click is the final success boundary.
