@@ -585,27 +585,39 @@ def verify_message_sent(
     return False
 
 
-def find_message_dialog(
+def find_message_panel(
     textbox: Locator,
 ) -> Locator:
     """
-    Resolve the exact messaging dialog that owns the textbox.
+    Resolve the exact mini Messaging panel that owns this textbox.
 
-    We intentionally scope all close-button discovery to this dialog.
-    This prevents another global button[aria-label="Dismiss"] on the
-    LinkedIn page from being clicked by mistake.
+    LinkedIn currently renders the close control as a button containing:
+
+        svg[data-test-icon="close-small"]
+
+    The mini Messaging panel is not guaranteed to use role="dialog" and
+    the close button is not guaranteed to have aria-label="Dismiss".
+
+    Scope from the textbox upward to the nearest ancestor that contains
+    that semantic close icon. This prevents a different global Messaging
+    window from being closed.
     """
 
-    dialog = textbox.locator(
-        'xpath=ancestor::*[@role="dialog"][1]'
+    panel = textbox.locator(
+        'xpath=ancestor::*['
+        './/button['
+        './/*[local-name()="svg" and '
+        '@data-test-icon="close-small"]'
+        ']'
+        '][1]'
     )
 
-    if dialog.count() <= 0:
+    if panel.count() <= 0:
         raise RuntimeError(
-            "Messaging dialog containing the textbox was not found."
+            "Messaging panel containing this textbox was not found."
         )
 
-    return dialog
+    return panel
 
 
 def close_message_composer(
@@ -615,28 +627,29 @@ def close_message_composer(
     timeout_ms: int = 5_000,
 ) -> bool:
     """
-    Close the SAME messaging dialog after a send was strictly verified.
+    Close the SAME mini Messaging panel that owns the sent textbox.
 
-    Confirmed LinkedIn DOM from the live page:
+    Confirmed live LinkedIn DOM:
 
-        button[aria-label="Dismiss"]
+        button
             svg[data-test-icon="close-small"]
+                use[href="#close-small"]
 
     Important:
-    - never uses LinkedIn random CSS classes;
-    - never uses x/y coordinates;
-    - never clicks a global Dismiss button;
-    - only clicks Dismiss inside the dialog that owns this textbox;
-    - verifies that the dialog disappears before returning True.
+    - no random LinkedIn CSS classes;
+    - no x/y coordinates;
+    - no dependency on aria-label="Dismiss";
+    - no dependency on role="dialog";
+    - scope is derived from the current textbox;
+    - verify that this exact panel disappears before continuing.
     """
 
-    dialog = find_message_dialog(
+    panel = find_message_panel(
         textbox
     )
 
-    close_buttons = dialog.locator(
-        'button[aria-label="Dismiss"]'
-        ':has(svg[data-test-icon="close-small"])'
+    close_buttons = panel.locator(
+        'button:has(svg[data-test-icon="close-small"])'
     )
 
     close_button: Locator | None = None
@@ -658,12 +671,20 @@ def close_message_composer(
 
     if close_button is None:
         raise RuntimeError(
-            "Message was sent, but the messaging dialog close "
-            'button [aria-label="Dismiss"] with '
-            'svg[data-test-icon="close-small"] was not found.'
+            "Message was sent, but the close button containing "
+            'svg[data-test-icon="close-small"] was not found '
+            "inside the current Messaging panel."
         )
 
-    close_button.click()
+    try:
+        close_button.click(
+            timeout=2_500
+        )
+    except Exception:
+        close_button.click(
+            timeout=2_500,
+            force=True,
+        )
 
     deadline = (
         page.evaluate("Date.now()")
@@ -675,16 +696,15 @@ def close_message_composer(
         < deadline
     ):
         try:
-            dialog_visible = (
-                dialog.count() > 0
-                and dialog.is_visible()
+            panel_visible = (
+                panel.count() > 0
+                and panel.is_visible()
             )
 
         except Exception:
-            # Detached from DOM is also a successful close.
-            dialog_visible = False
+            panel_visible = False
 
-        if not dialog_visible:
+        if not panel_visible:
             return True
 
         page.wait_for_timeout(
@@ -692,10 +712,9 @@ def close_message_composer(
         )
 
     raise RuntimeError(
-        "Message was sent and Dismiss was clicked, "
-        "but the messaging dialog remained visible."
+        "Message was sent and the close-small button was clicked, "
+        "but the current Messaging panel remained visible."
     )
-
 
 def send_message_once(
     page: Page,
@@ -710,7 +729,7 @@ def send_message_once(
         -> fill message
         -> find Send button
         -> click Send
-        -> STRICT verify
+        -> close the current mini Messaging panel
 
     IMPORTANT:
     This function performs a real LinkedIn Send click.
@@ -741,22 +760,10 @@ def send_message_once(
     # once the Send button click succeeds, treat the action as sent.
     # We no longer require DOM delivery verification because LinkedIn's
     # post-send rendering is not stable enough for this worker.
-    # Send click is the success boundary.
-    # Closing the composer is cleanup only and must never convert
-    # a successful send into a failed/retryable target.
-    composer_closed = False
-    composer_close_error = None
-
-    try:
-        composer_closed = close_message_composer(
-            page,
-            textbox,
-        )
-
-    except Exception as exc:
-        composer_close_error = (
-            f"{type(exc).__name__}: {exc}"
-        )
+    composer_closed = close_message_composer(
+        page,
+        textbox,
+    )
 
     return {
         "composer_opened": True,
@@ -766,5 +773,4 @@ def send_message_once(
         "send_clicked": True,
         "sent_verified": True,
         "composer_closed": composer_closed,
-        "composer_close_error": composer_close_error,
     }
