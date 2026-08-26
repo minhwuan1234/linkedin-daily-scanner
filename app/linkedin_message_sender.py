@@ -1,776 +1,309 @@
 from __future__ import annotations
 
-from playwright.sync_api import (
-    Locator,
-    Page,
+from app.linkedin_message_sender import (
+    send_message_once,
+)
+from app.linkedin_message_template import (
+    build_message,
+)
+from app.linkedin_profile_message import (
+    get_profile_name,
+)
+from app.outreach_account_pool import (
+    OutreachAccountPool,
 )
 
 
 # =========================================================
-# STEP 1 — MESSAGE COMPOSER DISCOVERY
+# MESSAGE WORKER FLOW TEST — ACCOUNT 02 ONLY
 # =========================================================
 #
-# Mục tiêu của file này ở step hiện tại:
+# This mirrors the deployed worker's per-account flow:
 #
-# LinkedIn profile page
-# -> scroll đúng container
-# -> tìm đúng profile Message action
-# -> mở messaging composer
-# -> tìm textbox
-# -> tìm Send button
+# one assigned account
+# -> start ONE persistent browser session
+# -> process target 1
+# -> send
+# -> close composer
+# -> process target 2
+# -> send
+# -> close composer
+# -> stop browser
 #
-# CHƯA:
-# - build template
-# - fill message
-# - click Send
-# - verify sent
-# - update Supabase
-# - dùng worker / batch
+# Supabase is NOT read or updated by this test.
 #
-# File chỉ phụ thuộc vào Playwright Page.
-# Browser/account sẽ được truyền từ Outreach system hiện tại.
+# IMPORTANT:
+# This performs REAL LinkedIn message sends.
 # =========================================================
 
 
+ACCOUNT_ID = "outreach_account_02"
 
-def assert_profile_page_available(
-    page: Page,
-) -> None:
-    """
-    Stop early when LinkedIn did not open a usable profile page.
+MESSAGE_TEMPLATE = """Hi {first_name},
 
-    This prevents a misleading downstream error such as:
-        "Visible LinkedIn profile Message action was not found."
+This is a message-flow test.
+"""
 
-    when the real problem is:
-        - 404 / Page not found
-        - profile unavailable
-        - authwall / checkpoint / login redirect
-    """
 
-    current_url = str(
-        page.url
-        or ""
-    ).strip()
+TEST_URLS = [
+    "PASTE_URL_01_HERE",
+    "PASTE_URL_02_HERE",
+]
 
-    lowered_url = current_url.lower()
 
-    blocked_fragments = (
-        "/404",
-        "/login",
-        "/checkpoint",
-        "/authwall",
-        "/challenge",
-    )
+def validate_urls() -> list[str]:
+    cleaned_urls: list[str] = []
 
-    if any(
-        fragment in lowered_url
-        for fragment in blocked_fragments
+    for index, raw_url in enumerate(
+        TEST_URLS,
+        start=1,
     ):
-        raise RuntimeError(
-            "LinkedIn profile page is unavailable or redirected | "
-            f"url={current_url}"
-        )
+        url = str(
+            raw_url
+            or ""
+        ).strip()
 
-    # Read a small amount of visible page text only for state detection.
-    try:
-        body_text = (
-            page.locator("body")
-            .inner_text(
-                timeout=3_000
+        if (
+            not url
+            or url.startswith(
+                "PASTE_URL_"
             )
-            .strip()
-            .lower()
-        )
-    except Exception:
-        body_text = ""
+        ):
+            raise ValueError(
+                f"Missing LinkedIn URL #{index}."
+            )
 
-    unavailable_markers = (
-        "page not found",
-        "this page doesn’t exist",
-        "this page doesn't exist",
-        "profile not found",
-        "profile unavailable",
-        "this profile is not available",
+        cleaned_urls.append(
+            url
+        )
+
+    return cleaned_urls
+
+
+def process_one_target(
+    *,
+    browser,
+    linkedin_url: str,
+) -> dict:
+    page = browser.open_linkedin_url(
+        linkedin_url
     )
 
-    if any(
-        marker in body_text
-        for marker in unavailable_markers
+    profile_name = get_profile_name(
+        page
+    )
+
+    final_message = build_message(
+        first_name=(
+            profile_name[
+                "first_name"
+            ]
+        ),
+        template=MESSAGE_TEMPLATE,
+    )
+
+    send_result = send_message_once(
+        page,
+        final_message,
+        expected_profile_name=(
+            profile_name[
+                "full_name"
+            ]
+        ),
+    )
+
+    # Same success boundary as the deployed message worker:
+    # a successful Send click means the message is treated as sent.
+    if not bool(
+        send_result.get(
+            "send_clicked"
+        )
     ):
         raise RuntimeError(
-            "LinkedIn profile page is unavailable / 404 | "
-            f"url={current_url}"
+            "Message Send button was not clicked."
         )
 
+    return {
+        "linkedin_url": (
+            linkedin_url
+        ),
+        "full_name": (
+            profile_name[
+                "full_name"
+            ]
+        ),
+        "first_name": (
+            profile_name[
+                "first_name"
+            ]
+        ),
+        "send_clicked": bool(
+            send_result.get(
+                "send_clicked"
+            )
+        ),
+        "composer_closed": bool(
+            send_result.get(
+                "composer_closed"
+            )
+        ),
+        "message_text": (
+            final_message
+        ),
+    }
 
-def scroll_profile_to_bottom(
-    page: Page,
-) -> None:
-    """
-    LinkedIn có thể scroll trong một internal container
-    thay vì document/window.
 
-    Logic được port từ repo linkedin-auto-mass-messeages:
-    tìm vertical scroll container có scroll distance lớn nhất,
-    rồi scroll container đó xuống cuối.
-    """
+def main() -> None:
+    urls = validate_urls()
 
-    page.evaluate(
-        """
-        () => {
-            const elements = Array.from(
-                document.querySelectorAll("*")
-            );
+    pool = OutreachAccountPool()
 
-            const candidates = [];
+    account = pool.get_account(
+        ACCOUNT_ID
+    )
 
-            for (const element of elements) {
-                const style =
-                    window.getComputedStyle(element);
+    browser = (
+        account
+        .create_browser_manager()
+    )
 
-                const overflowY =
-                    style.overflowY;
+    results: list[dict] = []
 
-                const scrollable =
-                    (
-                        overflowY === "auto" ||
-                        overflowY === "scroll"
-                    ) &&
-                    element.scrollHeight >
-                    element.clientHeight + 200;
+    print("")
+    print("=" * 64)
+    print("MESSAGE WORKER FLOW TEST")
+    print("=" * 64)
+    print(
+        "account_id:",
+        ACCOUNT_ID,
+    )
+    print(
+        "targets:",
+        len(urls),
+    )
 
-                if (!scrollable) {
-                    continue;
+    try:
+        # IMPORTANT:
+        # browser starts ONCE for account 02,
+        # matching the deployed worker's account-group behavior.
+        browser.start()
+
+        for index, linkedin_url in enumerate(
+            urls,
+            start=1,
+        ):
+            print("")
+            print("-" * 64)
+            print(
+                f"TARGET {index}/{len(urls)}"
+            )
+            print(
+                "url:",
+                linkedin_url,
+            )
+
+            try:
+                result = process_one_target(
+                    browser=browser,
+                    linkedin_url=linkedin_url,
+                )
+
+                result[
+                    "ok"
+                ] = True
+
+                print(
+                    "full_name:",
+                    result[
+                        "full_name"
+                    ],
+                )
+                print(
+                    "send_clicked:",
+                    result[
+                        "send_clicked"
+                    ],
+                )
+                print(
+                    "composer_closed:",
+                    result[
+                        "composer_closed"
+                    ],
+                )
+
+            except Exception as exc:
+                result = {
+                    "ok": False,
+                    "linkedin_url": (
+                        linkedin_url
+                    ),
+                    "send_clicked": False,
+                    "composer_closed": False,
+                    "error": (
+                        f"{type(exc).__name__}: "
+                        f"{exc}"
+                    ),
                 }
 
-                candidates.push({
-                    element,
-                    distance:
-                        element.scrollHeight -
-                        element.clientHeight
-                });
-            }
-
-            candidates.sort(
-                (a, b) =>
-                    b.distance - a.distance
-            );
-
-            if (candidates.length > 0) {
-                const target =
-                    candidates[0].element;
-
-                target.scrollTop =
-                    target.scrollHeight;
-
-                target.dispatchEvent(
-                    new Event(
-                        "scroll",
-                        {
-                            bubbles: true
-                        }
-                    )
-                );
-
-                return;
-            }
-
-            const scrollingElement =
-                document.scrollingElement;
-
-            if (scrollingElement) {
-                scrollingElement.scrollTop =
-                    scrollingElement.scrollHeight;
-            }
-        }
-        """
-    )
-
-    page.wait_for_timeout(
-        1_500
-    )
-
-
-def find_profile_message_action(
-    page: Page,
-) -> Locator:
-    """
-    Tìm profile Message action.
-
-    Repo cũ dùng href semantics:
-        recipient=
-        interop=msgOverlay
-
-    Không dùng text "Message" chung trên toàn page.
-    """
-
-    candidates = page.locator(
-        'a[href*="recipient="]'
-        '[href*="interop=msgOverlay"]'
-    )
-
-    visible_candidates: list[
-        Locator
-    ] = []
-
-    for index in range(
-        candidates.count()
-    ):
-        candidate = candidates.nth(
-            index
-        )
-
-        try:
-            if not candidate.is_visible():
-                continue
-
-            text = (
-                candidate
-                .inner_text()
-                .strip()
-            )
-
-            if text != "Message":
-                continue
-
-            visible_candidates.append(
-                candidate
-            )
-
-        except Exception:
-            continue
-
-    if not visible_candidates:
-        raise RuntimeError(
-            "Visible LinkedIn profile Message action "
-            "was not found."
-        )
-
-    # Repo cũ sort theo Y position.
-    # Ở integration mới chưa dùng positional heuristic.
-    # Nếu DOM test thực tế cho thấy nhiều candidates,
-    # ta sẽ inspect rồi chọn semantic scope chính xác.
-    return visible_candidates[0]
-
-
-def open_message_composer(
-    page: Page,
-) -> None:
-    """
-    Open LinkedIn messaging composer từ profile page.
-    """
-
-    assert_profile_page_available(
-        page
-    )
-
-    scroll_profile_to_bottom(
-        page
-    )
-
-    message_action = (
-        find_profile_message_action(
-            page
-        )
-    )
-
-    message_action.click(
-        force=True
-    )
-
-    page.wait_for_timeout(
-        1_500
-    )
-
-
-def find_message_textbox(
-    page: Page,
-) -> Locator:
-    """
-    Tìm visible message textbox.
-
-    Đây vẫn là selector gốc của repo cũ.
-    Step sau sẽ scope chặt hơn vào đúng messaging overlay
-    nếu DOM thực tế cho phép.
-    """
-
-    candidates = page.locator(
-        '[contenteditable="true"][role="textbox"], '
-        '[contenteditable="true"]'
-    )
-
-    for index in range(
-        candidates.count()
-    ):
-        candidate = candidates.nth(
-            index
-        )
-
-        try:
-            if candidate.is_visible():
-                return candidate
-
-        except Exception:
-            continue
-
-    raise RuntimeError(
-        "Visible message textbox was not found."
-    )
-
-
-def find_send_button(
-    page: Page,
-    textbox: Locator,
-) -> Locator:
-    """
-    Ưu tiên tìm Send trong dialog chứa textbox.
-    Chỉ fallback global nếu không tìm thấy trong dialog.
-    """
-
-    dialog = textbox.locator(
-        'xpath=ancestor::*[@role="dialog"][1]'
-    )
-
-    if dialog.count() > 0:
-        buttons = dialog.get_by_role(
-            "button",
-            name="Send",
-            exact=True,
-        )
-
-        for index in range(
-            buttons.count()
-        ):
-            button = buttons.nth(
-                index
-            )
-
-            try:
-                if button.is_visible():
-                    return button
-
-            except Exception:
-                continue
-
-    buttons = page.get_by_role(
-        "button",
-        name="Send",
-        exact=True,
-    )
-
-    for index in range(
-        buttons.count()
-    ):
-        button = buttons.nth(
-            index
-        )
-
-        try:
-            if button.is_visible():
-                return button
-
-        except Exception:
-            continue
-
-    raise RuntimeError(
-        "Visible Send button was not found."
-    )
-
-
-def inspect_message_composer(
-    page: Page,
-) -> dict[str, bool]:
-    """
-    Test helper cho integration step 1.
-
-    Nó mở composer và xác nhận:
-    - textbox tìm thấy
-    - Send button tìm thấy
-
-    KHÔNG fill và KHÔNG click Send.
-    """
-
-    open_message_composer(
-        page
-    )
-
-    textbox = find_message_textbox(
-        page
-    )
-
-    send_button = find_send_button(
-        page,
-        textbox,
-    )
-
-    return {
-        "composer_opened": True,
-        "textbox_found": (
-            textbox.is_visible()
-        ),
-        "send_button_found": (
-            send_button.is_visible()
-        ),
-    }
-
-
-def fill_message_textbox(
-    textbox: Locator,
-    message: str,
-) -> None:
-    """
-    STEP 4 — fill the LinkedIn message textbox.
-
-    IMPORTANT:
-    - fills the textbox only;
-    - does NOT click Send;
-    - does NOT update any database state.
-    """
-
-    cleaned_message = str(
-        message
-        or ""
-    ).strip()
-
-    if not cleaned_message:
-        raise ValueError(
-            "Message cannot be empty."
-        )
-
-    textbox.click()
-
-    textbox.fill(
-        cleaned_message
-    )
-
-
-def prepare_message_in_composer(
-    page: Page,
-    message: str,
-) -> dict[str, bool]:
-    """
-    Open composer and place message text into the textbox.
-
-    This is the last safe test before actual sending.
-
-    It does NOT click Send.
-    """
-
-    open_message_composer(
-        page
-    )
-
-    textbox = find_message_textbox(
-        page
-    )
-
-    fill_message_textbox(
-        textbox,
-        message,
-    )
-
-    send_button = find_send_button(
-        page,
-        textbox,
-    )
-
-    return {
-        "composer_opened": True,
-        "textbox_found": (
-            textbox.is_visible()
-        ),
-        "message_filled": True,
-        "send_button_found": (
-            send_button.is_visible()
-        ),
-    }
-
-
-def verify_message_sent(
-    page: Page,
-    textbox: Locator,
-    message: str,
-    *,
-    timeout_ms: int = 8_000,
-) -> bool:
-    """
-    Strict confirmation after clicking Send.
-
-    Success requires BOTH:
-    1. the composer textbox becomes empty;
-    2. the sent message text becomes visible inside the same
-       messaging dialog.
-
-    This is intentionally stricter than the old repo, which
-    treated a successful click as "sent".
-    """
-
-    cleaned_message = str(
-        message
-        or ""
-    ).strip()
-
-    if not cleaned_message:
-        return False
-
-    try:
-        dialog = textbox.locator(
-            'xpath=ancestor::*[@role="dialog"][1]'
-        )
-
-        scope = (
-            dialog
-            if dialog.count() > 0
-            else page.locator("body")
-        )
-
-        deadline = (
-            page.evaluate("Date.now()")
-            + timeout_ms
-        )
-
-        while (
-            page.evaluate("Date.now()")
-            < deadline
-        ):
-            try:
-                current_value = (
-                    textbox
-                    .inner_text()
-                    .strip()
-                )
-            except Exception:
-                current_value = ""
-
-            textbox_cleared = (
-                current_value == ""
-            )
-
-            message_visible = False
-
-            try:
-                exact_matches = scope.get_by_text(
-                    cleaned_message,
-                    exact=True,
+                print(
+                    "ERROR:",
+                    result[
+                        "error"
+                    ],
                 )
 
-                for index in range(
-                    exact_matches.count()
-                ):
-                    candidate = exact_matches.nth(
-                        index
-                    )
-
-                    if candidate.is_visible():
-                        message_visible = True
-                        break
-
-            except Exception:
-                message_visible = False
-
-            if (
-                textbox_cleared
-                and message_visible
-            ):
-                return True
-
-            page.wait_for_timeout(
-                300
+            results.append(
+                result
             )
 
-    except Exception:
-        return False
+    finally:
+        browser.stop()
 
-    return False
+    print("")
+    print("=" * 64)
+    print("FINAL RESULT")
+    print("=" * 64)
 
-
-def find_message_panel(
-    textbox: Locator,
-) -> Locator:
-    """
-    Resolve the exact mini Messaging panel that owns this textbox.
-
-    LinkedIn currently renders the close control as a button containing:
-
-        svg[data-test-icon="close-small"]
-
-    The mini Messaging panel is not guaranteed to use role="dialog" and
-    the close button is not guaranteed to have aria-label="Dismiss".
-
-    Scope from the textbox upward to the nearest ancestor that contains
-    that semantic close icon. This prevents a different global Messaging
-    window from being closed.
-    """
-
-    panel = textbox.locator(
-        'xpath=ancestor::*['
-        './/button['
-        './/*[local-name()="svg" and '
-        '@data-test-icon="close-small"]'
-        ']'
-        '][1]'
-    )
-
-    if panel.count() <= 0:
-        raise RuntimeError(
-            "Messaging panel containing this textbox was not found."
-        )
-
-    return panel
-
-
-def close_message_composer(
-    page: Page,
-    textbox: Locator,
-    *,
-    timeout_ms: int = 5_000,
-) -> bool:
-    """
-    Close the SAME mini Messaging panel that owns the sent textbox.
-
-    Confirmed live LinkedIn DOM:
-
-        button
-            svg[data-test-icon="close-small"]
-                use[href="#close-small"]
-
-    Important:
-    - no random LinkedIn CSS classes;
-    - no x/y coordinates;
-    - no dependency on aria-label="Dismiss";
-    - no dependency on role="dialog";
-    - scope is derived from the current textbox;
-    - verify that this exact panel disappears before continuing.
-    """
-
-    panel = find_message_panel(
-        textbox
-    )
-
-    close_buttons = panel.locator(
-        'button:has(svg[data-test-icon="close-small"])'
-    )
-
-    close_button: Locator | None = None
-
-    for index in range(
-        close_buttons.count()
+    for index, result in enumerate(
+        results,
+        start=1,
     ):
-        candidate = close_buttons.nth(
-            index
+        print("")
+        print(
+            f"target_{index}:",
+            result.get(
+                "linkedin_url"
+            ),
+        )
+        print(
+            "ok:",
+            result.get(
+                "ok"
+            ),
+        )
+        print(
+            "send_clicked:",
+            result.get(
+                "send_clicked"
+            ),
+        )
+        print(
+            "composer_closed:",
+            result.get(
+                "composer_closed"
+            ),
         )
 
-        try:
-            if candidate.is_visible():
-                close_button = candidate
-                break
-
-        except Exception:
-            continue
-
-    if close_button is None:
-        raise RuntimeError(
-            "Message was sent, but the close button containing "
-            'svg[data-test-icon="close-small"] was not found '
-            "inside the current Messaging panel."
-        )
-
-    try:
-        close_button.click(
-            timeout=2_500
-        )
-    except Exception:
-        close_button.click(
-            timeout=2_500,
-            force=True,
-        )
-
-    deadline = (
-        page.evaluate("Date.now()")
-        + timeout_ms
-    )
-
-    while (
-        page.evaluate("Date.now()")
-        < deadline
-    ):
-        try:
-            panel_visible = (
-                panel.count() > 0
-                and panel.is_visible()
+        if result.get(
+            "error"
+        ):
+            print(
+                "error:",
+                result[
+                    "error"
+                ],
             )
 
-        except Exception:
-            panel_visible = False
 
-        if not panel_visible:
-            return True
-
-        page.wait_for_timeout(
-            200
-        )
-
-    raise RuntimeError(
-        "Message was sent and the close-small button was clicked, "
-        "but the current Messaging panel remained visible."
-    )
-
-def send_message_once(
-    page: Page,
-    message: str,
-) -> dict[str, bool]:
-    """
-    STEP 5 — send ONE prepared message.
-
-    Flow:
-        open composer
-        -> find textbox
-        -> fill message
-        -> find Send button
-        -> click Send
-        -> close the current mini Messaging panel
-
-    IMPORTANT:
-    This function performs a real LinkedIn Send click.
-    It does NOT update Supabase yet.
-    """
-
-    open_message_composer(
-        page
-    )
-
-    textbox = find_message_textbox(
-        page
-    )
-
-    fill_message_textbox(
-        textbox,
-        message,
-    )
-
-    send_button = find_send_button(
-        page,
-        textbox,
-    )
-
-    send_button.click()
-
-    # User-approved success rule:
-    # once the Send button click succeeds, treat the action as sent.
-    # We no longer require DOM delivery verification because LinkedIn's
-    # post-send rendering is not stable enough for this worker.
-    composer_closed = close_message_composer(
-        page,
-        textbox,
-    )
-
-    return {
-        "composer_opened": True,
-        "textbox_found": True,
-        "message_filled": True,
-        "send_button_found": True,
-        "send_clicked": True,
-        "sent_verified": True,
-        "composer_closed": composer_closed,
-    }
+if __name__ == "__main__":
+    main()
