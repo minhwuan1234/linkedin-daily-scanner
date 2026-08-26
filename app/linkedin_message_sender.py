@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from app.linkedin_message_sender import (
-    send_message_once,
-)
 from app.linkedin_message_template import (
     build_message,
 )
