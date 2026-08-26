@@ -46,8 +46,8 @@ This is a message-flow test.
 
 
 TEST_URLS = [
-    "https://www.linkedin.com/in/minh-quân-851170229/",
-    "https://www.linkedin.com/in/frank-nguyen-flearningstudio/",
+    "PASTE_URL_01_HERE",
+    "PASTE_URL_02_HERE",
 ]
 
 
@@ -105,6 +105,11 @@ def process_one_target(
     send_result = send_message_once(
         page,
         final_message,
+        expected_profile_name=(
+            profile_name[
+                "full_name"
+            ]
+        ),
     )
 
     # Same success boundary as the deployed message worker:
