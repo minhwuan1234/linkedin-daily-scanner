@@ -18,8 +18,7 @@ TEST_TARGETS = [
     },
     {
         "account_id": "outreach_account_02",
-        "linkedin_url": "https://www.linkedin.com/in/minh-quân-851170229/
-",
+        "linkedin_url": "https://www.linkedin.com/in/minh-quân-851170229/",
     },
 ]
 
