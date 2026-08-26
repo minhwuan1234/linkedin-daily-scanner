@@ -14,11 +14,12 @@ This is a message-flow test.
 TEST_TARGETS = [
     {
         "account_id": "outreach_account_01",
-        "linkedin_url": "PASTE_URL_ACCOUNT_01_HERE",
+        "linkedin_url": "https://www.linkedin.com/in/frank-nguyen-flearningstudio/",
     },
     {
         "account_id": "outreach_account_02",
-        "linkedin_url": "PASTE_URL_ACCOUNT_02_HERE",
+        "linkedin_url": "https://www.linkedin.com/in/minh-quân-851170229/
+",
     },
 ]
 
