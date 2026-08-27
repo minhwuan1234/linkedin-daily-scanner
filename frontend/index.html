@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260821-delete-popup-1" />
+<link rel="stylesheet" href="./styles.css?v=20260827-session-status-1" />
 </head>
 
 <body>
@@ -81,6 +81,18 @@
           <button class="tab-button" type="button" data-tab="health">
             <span class="sidebar-nav-icon">H</span>
             <span class="sidebar-nav-text">Health</span>
+          </button>
+
+          <button
+            id="sessionStatusButton"
+            class="tab-button sidebar-action-button"
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="sessionStatusModal"
+          >
+            <span class="sidebar-nav-icon">S</span>
+            <span class="sidebar-nav-text">Login Sessions</span>
+            <span id="sessionStatusBadge" class="tab-count session-status-sidebar-badge">—</span>
           </button>
         </div>
       </nav>
@@ -1417,6 +1429,79 @@
   </div>
 
 
+
+  <!-- OUTREACH LOGIN SESSION STATUS MODAL -->
+  <div
+    id="sessionStatusModal"
+    class="message-send-modal session-status-modal"
+    hidden
+  >
+    <div
+      class="message-send-modal-backdrop"
+      data-session-status-close
+    ></div>
+
+    <section
+      class="message-send-dialog session-status-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="sessionStatusTitle"
+    >
+      <div class="message-send-dialog-header session-status-header">
+        <div>
+          <p class="panel-kicker">Outreach accounts</p>
+          <h2 id="sessionStatusTitle">LinkedIn Login Sessions</h2>
+          <p class="panel-meta">
+            Check whether each persistent Outreach browser profile is currently authenticated on LinkedIn.
+          </p>
+        </div>
+
+        <button
+          id="sessionStatusCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close LinkedIn login sessions"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="message-send-dialog-body session-status-body">
+        <div class="session-status-toolbar">
+          <div>
+            <span class="session-status-toolbar-label">Session state</span>
+            <strong id="sessionStatusSummary">Not checked yet</strong>
+          </div>
+
+          <button
+            id="sessionStatusCheckButton"
+            class="primary-button session-status-check-button"
+            type="button"
+          >
+            Check all accounts
+          </button>
+        </div>
+
+        <div id="sessionStatusError" class="outreach-error" hidden></div>
+
+        <div id="sessionStatusList" class="session-status-list" aria-live="polite">
+          <div class="session-status-empty">Open this popup to load session status.</div>
+        </div>
+      </div>
+
+      <div class="message-send-dialog-footer session-status-footer">
+        <span id="sessionStatusUpdatedAt" class="panel-meta">Never checked</span>
+        <button
+          id="sessionStatusDoneButton"
+          class="secondary-button"
+          type="button"
+        >
+          Done
+        </button>
+      </div>
+    </section>
+  </div>
+
   <!-- MESSAGE PREPARATION CONFIRM MODAL -->
   <div
     id="messagePrepareConfirmModal"
@@ -1669,6 +1754,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260824-acceptance-weekly-1"></script>
+  <script src="./app.js?v=20260827-session-status-1"></script>
 </body>
 </html>
