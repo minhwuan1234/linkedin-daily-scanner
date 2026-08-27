@@ -63,6 +63,12 @@ from app.outreach_message_queue_store import (
     queue_message_batch,
 )
 
+from app.outreach_session_status import (
+    OutreachSessionStatusError,
+    list_outreach_session_statuses,
+    queue_outreach_session_checks,
+)
+
 
 
 # =========================================================
@@ -1514,6 +1520,108 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
     )
 
 
+
+
+
+# =========================================================
+# OUTREACH LINKEDIN SESSION STATUS API
+# =========================================================
+
+
+@app.get("/api/outreach/sessions")
+async def get_outreach_sessions_api() -> JSONResponse:
+    try:
+        accounts = list_outreach_session_statuses()
+    except OutreachSessionStatusError as exc:
+        logger.exception("Could not load Outreach session statuses")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach session statuses",
+                "detail": str(exc),
+            },
+        )
+    except Exception as exc:
+        logger.exception("Unexpected Outreach session status error")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected Outreach session status error",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "count": len(accounts),
+            "accounts": accounts,
+        },
+    )
+
+
+@app.post("/api/outreach/sessions/check")
+async def queue_outreach_sessions_check_api(
+    request: Request,
+) -> JSONResponse:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    raw_account_ids = payload.get("account_ids")
+    account_ids = None
+
+    if raw_account_ids is not None:
+        if not isinstance(raw_account_ids, list):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "ok": False,
+                    "error": "account_ids must be an array.",
+                },
+            )
+
+        account_ids = [
+            str(value or "").strip()
+            for value in raw_account_ids
+        ]
+
+    try:
+        accounts = queue_outreach_session_checks(
+            account_ids=account_ids
+        )
+    except OutreachSessionStatusError as exc:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": "Could not queue Outreach session checks",
+                "detail": str(exc),
+            },
+        )
+    except Exception as exc:
+        logger.exception("Unexpected Outreach session queue error")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected Outreach session queue error",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=202,
+        content={
+            "ok": True,
+            "queued": True,
+            "accounts": accounts,
+        },
+    )
 
 
 # =========================================================
