@@ -17,10 +17,28 @@ from app.settings import load_settings
 
 logger = logging.getLogger("outreach_session_worker")
 
-_work_queue: asyncio.Queue[str] = asyncio.Queue()
+_work_queue: asyncio.Queue[str] | None = None
 _queued_accounts: set[str] = set()
 
 _RECOVER_PENDING = "__recover_pending__"
+
+
+def _get_work_queue() -> asyncio.Queue[str]:
+    """
+    Return the queue created inside the currently running asyncio loop.
+
+    Python 3.9 can bind asyncio primitives to the event loop that existed
+    when they were created. Creating the queue at module import time can
+    therefore produce "Future attached to a different loop" once
+    asyncio.run() starts its own loop.
+    """
+
+    if _work_queue is None:
+        raise RuntimeError(
+            "Session worker queue has not been initialized."
+        )
+
+    return _work_queue
 
 
 def _utc_now_iso() -> str:
@@ -84,7 +102,7 @@ def _enqueue_account(
         account_id
     )
 
-    _work_queue.put_nowait(
+    _get_work_queue().put_nowait(
         account_id
     )
 
@@ -98,7 +116,7 @@ def _finish_account(
 
 
 def _enqueue_recovery() -> None:
-    _work_queue.put_nowait(
+    _get_work_queue().put_nowait(
         _RECOVER_PENDING
     )
 
@@ -369,7 +387,8 @@ async def worker_loop(
     pool: OutreachAccountPool,
 ) -> None:
     while True:
-        item = await _work_queue.get()
+        queue = _get_work_queue()
+        item = await queue.get()
 
         try:
             if item == _RECOVER_PENDING:
@@ -390,10 +409,17 @@ async def worker_loop(
                     item
                 )
 
-            _work_queue.task_done()
+            queue.task_done()
 
 
 async def run_forever() -> None:
+    global _work_queue
+
+    # IMPORTANT: create asyncio primitives only after asyncio.run() has
+    # created the active loop. This avoids cross-loop Future errors on
+    # Python 3.9.
+    _work_queue = asyncio.Queue()
+
     logging.basicConfig(
         level=logging.INFO,
         format=(
