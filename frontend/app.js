@@ -26,6 +26,13 @@ const els = {
   sessionStatusError: document.querySelector("#sessionStatusError"),
   sessionStatusUpdatedAt: document.querySelector("#sessionStatusUpdatedAt"),
 
+  settingsButton: document.querySelector("#settingsButton"),
+  settingsModal: document.querySelector("#settingsModal"),
+  settingsCloseButton: document.querySelector("#settingsCloseButton"),
+  settingsDoneButton: document.querySelector("#settingsDoneButton"),
+  settingsRememberTab: document.querySelector("#settingsRememberTab"),
+  settingsReduceMotion: document.querySelector("#settingsReduceMotion"),
+
   totalProfiles: document.querySelector("#totalProfiles"),
   pendingCount: document.querySelector("#pendingCount"),
   processingCount: document.querySelector("#processingCount"),
@@ -7428,9 +7435,24 @@ document
   .querySelectorAll(".tab-button")
   .forEach((button) => {
     button.addEventListener("click", () => {
-      switchTab(button.dataset.tab);
+      const tabName = button.dataset.tab;
 
-      if (button.dataset.tab === "youtube") {
+      if (!tabName) {
+        return;
+      }
+
+      switchTab(tabName);
+
+      const uiSettings = loadUiSettings();
+
+      if (uiSettings.rememberLastSection) {
+        localStorage.setItem(
+          LAST_TAB_STORAGE_KEY,
+          tabName
+        );
+      }
+
+      if (tabName === "youtube") {
         loadYoutubeResearch();
       }
 
@@ -7535,6 +7557,134 @@ function setOutreachProcessTab(
   }
 }
 
+
+
+// =========================================================
+// SETTINGS
+// =========================================================
+
+const SETTINGS_STORAGE_KEY = "linkedinOps.settings.v1";
+const LAST_TAB_STORAGE_KEY = "linkedinOps.lastTab";
+
+const DEFAULT_UI_SETTINGS = {
+  rememberLastSection: true,
+  reduceMotion: false
+};
+
+function loadUiSettings() {
+  try {
+    const saved = JSON.parse(
+      localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}"
+    );
+
+    return {
+      ...DEFAULT_UI_SETTINGS,
+      ...(saved && typeof saved === "object" ? saved : {})
+    };
+  } catch (error) {
+    return { ...DEFAULT_UI_SETTINGS };
+  }
+}
+
+function saveUiSettings(settings) {
+  localStorage.setItem(
+    SETTINGS_STORAGE_KEY,
+    JSON.stringify(settings)
+  );
+}
+
+function applyUiSettings(settings) {
+  document.body.classList.toggle(
+    "reduce-motion",
+    Boolean(settings.reduceMotion)
+  );
+
+  if (els.settingsRememberTab) {
+    els.settingsRememberTab.checked =
+      Boolean(settings.rememberLastSection);
+  }
+
+  if (els.settingsReduceMotion) {
+    els.settingsReduceMotion.checked =
+      Boolean(settings.reduceMotion);
+  }
+}
+
+function updateUiSettingsFromControls() {
+  const settings = {
+    rememberLastSection: Boolean(
+      els.settingsRememberTab?.checked
+    ),
+    reduceMotion: Boolean(
+      els.settingsReduceMotion?.checked
+    )
+  };
+
+  saveUiSettings(settings);
+  applyUiSettings(settings);
+
+  if (!settings.rememberLastSection) {
+    localStorage.removeItem(
+      LAST_TAB_STORAGE_KEY
+    );
+  }
+}
+
+function openSettingsModal() {
+  if (!els.settingsModal) {
+    return;
+  }
+
+  applyUiSettings(loadUiSettings());
+
+  els.settingsModal.hidden = false;
+  document.body.classList.add("has-modal-open");
+}
+
+function closeSettingsModal() {
+  if (!els.settingsModal) {
+    return;
+  }
+
+  els.settingsModal.hidden = true;
+  document.body.classList.remove("has-modal-open");
+}
+
+els.settingsButton?.addEventListener(
+  "click",
+  openSettingsModal
+);
+
+els.settingsCloseButton?.addEventListener(
+  "click",
+  closeSettingsModal
+);
+
+els.settingsDoneButton?.addEventListener(
+  "click",
+  closeSettingsModal
+);
+
+els.settingsRememberTab?.addEventListener(
+  "change",
+  updateUiSettingsFromControls
+);
+
+els.settingsReduceMotion?.addEventListener(
+  "change",
+  updateUiSettingsFromControls
+);
+
+els.settingsModal
+  ?.querySelectorAll("[data-settings-close]")
+  .forEach((element) => {
+    element.addEventListener(
+      "click",
+      closeSettingsModal
+    );
+  });
+
+applyUiSettings(loadUiSettings());
 
 
 // =========================================================
@@ -8333,9 +8483,27 @@ document.addEventListener(
   (event) => {
     if (event.key === "Escape") {
       closeDrawer();
+      closeSettingsModal();
     }
   }
 );
+
+const initialUiSettings = loadUiSettings();
+
+if (initialUiSettings.rememberLastSection) {
+  const savedTab = localStorage.getItem(
+    LAST_TAB_STORAGE_KEY
+  );
+
+  if (
+    savedTab &&
+    document.querySelector(
+      `.tab-button[data-tab="${savedTab}"]`
+    )
+  ) {
+    switchTab(savedTab);
+  }
+}
 
 updateOutreachDetectedCount();
 
