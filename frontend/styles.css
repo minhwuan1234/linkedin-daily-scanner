@@ -5741,3 +5741,217 @@ a.outreach-profile-link:hover {
     max-height: calc(100vh - 28px);
   }
 }
+
+
+/* =========================================================
+ * OUTREACH LOGIN SESSION STATUS
+ * ========================================================= */
+
+.sidebar-action-button {
+  border: 0;
+}
+
+.session-status-sidebar-badge {
+  min-width: 28px;
+  background: rgba(155, 164, 176, 0.08);
+  color: var(--muted);
+}
+
+.session-status-sidebar-badge.is-healthy {
+  background: var(--green-soft);
+  color: #79e4b7;
+}
+
+.session-status-sidebar-badge.is-warning {
+  background: var(--amber-soft);
+  color: #f8ca72;
+}
+
+.session-status-sidebar-badge.is-error {
+  background: var(--red-soft);
+  color: #ff9ba6;
+}
+
+.session-status-dialog {
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 48px));
+}
+
+.session-status-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.session-status-header h2 {
+  margin: 0 0 7px;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+
+.session-status-body {
+  display: grid;
+  gap: 14px;
+}
+
+.session-status-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+}
+
+.session-status-toolbar > div {
+  display: grid;
+  gap: 4px;
+}
+
+.session-status-toolbar-label {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.session-status-toolbar strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.session-status-check-button {
+  min-height: 36px;
+  padding: 0 13px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.session-status-list {
+  display: grid;
+  gap: 8px;
+}
+
+.session-status-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 18px;
+  align-items: center;
+  min-height: 66px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.session-status-account {
+  min-width: 0;
+}
+
+.session-status-account strong {
+  display: block;
+  overflow: hidden;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-status-account span {
+  display: block;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(155, 164, 176, 0.08);
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.session-status-pill::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  content: "";
+}
+
+.session-status-pill.is-logged-in {
+  border-color: rgba(35, 196, 131, 0.25);
+  background: var(--green-soft);
+  color: #79e4b7;
+}
+
+.session-status-pill.is-logged-out,
+.session-status-pill.is-failed {
+  border-color: rgba(255, 107, 122, 0.25);
+  background: var(--red-soft);
+  color: #ff9ba6;
+}
+
+.session-status-pill.is-checkpoint,
+.session-status-pill.is-busy {
+  border-color: rgba(244, 183, 64, 0.25);
+  background: var(--amber-soft);
+  color: #f8ca72;
+}
+
+.session-status-pill.is-pending,
+.session-status-pill.is-checking {
+  border-color: rgba(124, 109, 242, 0.25);
+  background: var(--accent-soft);
+  color: #c9c3ff;
+}
+
+.session-status-empty {
+  padding: 24px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--faint);
+  font-size: 10px;
+  text-align: center;
+}
+
+.session-status-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+@media (max-width: 680px) {
+  .session-status-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .session-status-check-button {
+    width: 100%;
+  }
+
+  .session-status-item {
+    grid-template-columns: 1fr;
+  }
+
+  .session-status-pill {
+    justify-self: start;
+  }
+}
