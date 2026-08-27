@@ -504,7 +504,8 @@ const els = {
 const state = {
   sessionStatuses: [],
   sessionStatusLoading: false,
-  sessionStatusPollingTimer: null,
+  sessionStatusRealtimeChannel: null,
+  sessionStatusRealtimeReady: false,
   profiles: [],
   filteredProfiles: [],
   sources: [],
@@ -7538,6 +7539,7 @@ function setOutreachProcessTab(
 
 // =========================================================
 // OUTREACH LINKEDIN SESSION STATUS POPUP
+// Event-driven: no 1.8s polling.
 // =========================================================
 
 function getSessionStatusMeta(status) {
@@ -7691,11 +7693,108 @@ function renderSessionStatuses() {
   }
 }
 
-async function loadSessionStatuses({ silent = false } = {}) {
-  if (!silent) {
-    state.sessionStatusLoading = true;
-    renderSessionStatuses();
+function getSessionRealtimeRow(payload) {
+  if (!payload || typeof payload !== "object") {
+    return null;
   }
+
+  const candidates = [
+    payload.new,
+    payload.record,
+    payload.data?.record,
+    payload.data?.new
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      candidate &&
+      typeof candidate === "object" &&
+      candidate.account_id
+    ) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function applySessionRealtimeRow(row) {
+  const accountId = String(row?.account_id || "").trim();
+
+  if (!accountId) {
+    return;
+  }
+
+  const accounts = Array.isArray(state.sessionStatuses)
+    ? [...state.sessionStatuses]
+    : [];
+
+  const index = accounts.findIndex(
+    (account) => String(account.account_id || "") === accountId
+  );
+
+  if (index >= 0) {
+    accounts[index] = {
+      ...accounts[index],
+      ...row
+    };
+  } else {
+    accounts.push(row);
+  }
+
+  state.sessionStatuses = accounts;
+  renderSessionStatuses();
+}
+
+function setupSessionStatusRealtime() {
+  stopSessionStatusRealtime();
+
+  state.sessionStatusRealtimeReady = false;
+
+  state.sessionStatusRealtimeChannel = client
+    .channel("outreach-session-status-modal")
+    .on(
+      "postgres_changes",
+      {
+        event: "*",
+        schema: "public",
+        table: "outreach_account_sessions"
+      },
+      (payload) => {
+        const row = getSessionRealtimeRow(payload);
+
+        if (row) {
+          applySessionRealtimeRow(row);
+        }
+      }
+    )
+    .subscribe((status) => {
+      state.sessionStatusRealtimeReady = status === "SUBSCRIBED";
+
+      if (status === "CHANNEL_ERROR") {
+        console.warn(
+          "LinkedIn session Realtime channel error. " +
+          "Use Check all accounts again after reconnecting."
+        );
+      }
+    });
+}
+
+function stopSessionStatusRealtime() {
+  if (state.sessionStatusRealtimeChannel) {
+    client.removeChannel(
+      state.sessionStatusRealtimeChannel
+    );
+
+    state.sessionStatusRealtimeChannel = null;
+  }
+
+  state.sessionStatusRealtimeReady = false;
+}
+
+async function loadSessionStatuses() {
+  state.sessionStatusLoading = true;
+  renderSessionStatuses();
 
   try {
     const response = await fetch(
@@ -7723,42 +7822,14 @@ async function loadSessionStatuses({ silent = false } = {}) {
       els.sessionStatusError.hidden = true;
       els.sessionStatusError.textContent = "";
     }
-
-    renderSessionStatuses();
-
-    const isChecking = state.sessionStatuses.some(
-      (account) => ["pending", "checking"].includes(account.status)
-    );
-
-    if (!isChecking) {
-      stopSessionStatusPolling();
-    }
   } catch (error) {
-    if (!silent && els.sessionStatusError) {
+    if (els.sessionStatusError) {
       els.sessionStatusError.textContent = error.message || String(error);
       els.sessionStatusError.hidden = false;
     }
   } finally {
     state.sessionStatusLoading = false;
     renderSessionStatuses();
-  }
-}
-
-function startSessionStatusPolling() {
-  stopSessionStatusPolling();
-
-  state.sessionStatusPollingTimer = window.setInterval(
-    () => {
-      void loadSessionStatuses({ silent: true });
-    },
-    1800
-  );
-}
-
-function stopSessionStatusPolling() {
-  if (state.sessionStatusPollingTimer) {
-    window.clearInterval(state.sessionStatusPollingTimer);
-    state.sessionStatusPollingTimer = null;
   }
 }
 
@@ -7795,9 +7866,6 @@ async function queueSessionStatusCheck() {
       els.sessionStatusError.hidden = true;
       els.sessionStatusError.textContent = "";
     }
-
-    renderSessionStatuses();
-    startSessionStatusPolling();
   } catch (error) {
     if (els.sessionStatusError) {
       els.sessionStatusError.textContent = error.message || String(error);
@@ -7816,6 +7884,10 @@ function openSessionStatusModal() {
 
   els.sessionStatusModal.hidden = false;
   document.body.classList.add("has-modal-open");
+
+  // Subscribe only while the popup is open.
+  // No timer and no repeated GET requests.
+  setupSessionStatusRealtime();
   void loadSessionStatuses();
 }
 
@@ -7826,9 +7898,8 @@ function closeSessionStatusModal() {
 
   els.sessionStatusModal.hidden = true;
   document.body.classList.remove("has-modal-open");
-  stopSessionStatusPolling();
+  stopSessionStatusRealtime();
 }
-
 
 
 els.sessionStatusButton?.addEventListener(
@@ -7859,6 +7930,7 @@ els.sessionStatusModal
       closeSessionStatusModal
     );
   });
+
 
 els.acceptanceInsightsDrawerButton?.addEventListener(
   "click",
