@@ -32,24 +32,24 @@
           <p class="sidebar-nav-label">Workspace</p>
 
           <button class="tab-button is-active" type="button" data-tab="overview">
-            <span class="sidebar-nav-icon">⌂</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span>
             <span class="sidebar-nav-text">Tổng quan</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="profiles">
-            <span class="sidebar-nav-icon">P</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A4.5 4.5 0 0 0 11.5 14h-4A4.5 4.5 0 0 0 3 18.5V20M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM17 11a3 3 0 1 0 0-6M18 14.5a4 4 0 0 1 3 3.87V20"/></svg></span>
             <span class="sidebar-nav-text">Profiles</span>
             <span id="profilesTabCount" class="tab-count">0</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="queue">
-            <span class="sidebar-nav-icon">Q</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></span>
             <span class="sidebar-nav-text">Queue</span>
             <span id="queueTabCount" class="tab-count">0</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="accounts">
-            <span class="sidebar-nav-icon">A</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5zM8 8.5a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM7.5 15c.6-1.4 1.7-2 2.5-2s1.9.6 2.5 2M15 8h2M15 12h2"/></svg></span>
             <span class="sidebar-nav-text">Accounts</span>
           </button>
         </div>
@@ -58,7 +58,7 @@
           <p class="sidebar-nav-label">Research</p>
 
           <button class="tab-button" type="button" data-tab="youtube">
-            <span class="sidebar-nav-icon">Y</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12s0-4.2-.55-5.55A2.8 2.8 0 0 0 18.5 4.5C17.15 4 12 4 12 4s-5.15 0-6.5.5a2.8 2.8 0 0 0-1.95 1.95C3 7.8 3 12 3 12s0 4.2.55 5.55A2.8 2.8 0 0 0 5.5 19.5c1.35.5 6.5.5 6.5.5s5.15 0 6.5-.5a2.8 2.8 0 0 0 1.95-1.95C21 16.2 21 12 21 12Z"/><path d="m10 9 5 3-5 3z"/></svg></span>
             <span class="sidebar-nav-text">YouTube Research</span>
             <span id="youtubeTabCount" class="tab-count">0</span>
           </button>
@@ -68,7 +68,7 @@
           <p class="sidebar-nav-label">Outreach</p>
 
           <button class="tab-button" type="button" data-tab="outreach">
-            <span class="sidebar-nav-icon">O</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg></span>
             <span class="sidebar-nav-text">Connect & Messaging</span>
           </button>
 
@@ -79,7 +79,7 @@
           <p class="sidebar-nav-label">System</p>
 
           <button class="tab-button" type="button" data-tab="health">
-            <span class="sidebar-nav-icon">H</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span>
             <span class="sidebar-nav-text">Health</span>
           </button>
 
@@ -90,9 +90,20 @@
             aria-haspopup="dialog"
             aria-controls="sessionStatusModal"
           >
-            <span class="sidebar-nav-icon">S</span>
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5zM12 15v2"/></svg></span>
             <span class="sidebar-nav-text">Login Sessions</span>
             <span id="sessionStatusBadge" class="tab-count session-status-sidebar-badge">—</span>
+          </button>
+
+          <button
+            id="settingsButton"
+            class="tab-button sidebar-action-button"
+            type="button"
+            aria-haspopup="dialog"
+            aria-controls="settingsModal"
+          >
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.2 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H2v-4h.5a1.7 1.7 0 0 0 1.7-1.2 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 8.6 4.2a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V2h4v.5a1.7 1.7 0 0 0 1.2 1.7 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 8.6a1.7 1.7 0 0 0 .6 1 1.7 1.7 0 0 0 1.1.4h.9v4h-.9a1.7 1.7 0 0 0-1.7 1Z"/></svg></span>
+            <span class="sidebar-nav-text">Settings</span>
           </button>
         </div>
       </nav>
@@ -1429,6 +1440,115 @@
   </div>
 
 
+
+  <!-- SETTINGS MODAL -->
+  <div id="settingsModal" class="message-send-modal settings-modal" hidden>
+    <div class="message-send-modal-backdrop" data-settings-close></div>
+
+    <section
+      class="message-send-dialog settings-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="settingsTitle"
+    >
+      <div class="message-send-dialog-header settings-header">
+        <div>
+          <p class="panel-kicker">System preferences</p>
+          <h2 id="settingsTitle">Settings</h2>
+          <p class="panel-meta">
+            Local interface preferences and operational behavior for this console.
+          </p>
+        </div>
+
+        <button
+          id="settingsCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close settings"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="message-send-dialog-body settings-body">
+        <section class="settings-section">
+          <div class="settings-section-heading">
+            <div>
+              <span class="settings-section-kicker">Interface</span>
+              <strong>Console behavior</strong>
+            </div>
+          </div>
+
+          <label class="settings-row">
+            <div class="settings-row-copy">
+              <strong>Remember last section</strong>
+              <span>Return to the last sidebar section when this browser opens again.</span>
+            </div>
+            <input id="settingsRememberTab" class="settings-switch-input" type="checkbox" />
+            <span class="settings-switch" aria-hidden="true"></span>
+          </label>
+
+          <label class="settings-row">
+            <div class="settings-row-copy">
+              <strong>Reduce motion</strong>
+              <span>Disable non-essential transitions and animations in the dashboard.</span>
+            </div>
+            <input id="settingsReduceMotion" class="settings-switch-input" type="checkbox" />
+            <span class="settings-switch" aria-hidden="true"></span>
+          </label>
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-section-heading">
+            <div>
+              <span class="settings-section-kicker">Operations</span>
+              <strong>Runtime behavior</strong>
+            </div>
+          </div>
+
+          <div class="settings-info-row">
+            <span>Dashboard refresh</span>
+            <strong>Adaptive</strong>
+            <small>5s active · 45s idle</small>
+          </div>
+
+          <div class="settings-info-row">
+            <span>Login session checks</span>
+            <strong>Realtime</strong>
+            <small>Event-driven · no idle polling</small>
+          </div>
+
+          <div class="settings-info-row">
+            <span>Destructive actions</span>
+            <strong>Confirmation required</strong>
+            <small>Delete operations always require explicit confirmation.</small>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-section-heading">
+            <div>
+              <span class="settings-section-kicker">Recommended next</span>
+              <strong>Operational defaults</strong>
+            </div>
+          </div>
+
+          <div class="settings-note">
+            Next useful settings: weekly Connect quota, per-round batch size,
+            message defaults, and worker/session behavior. These should be
+            stored server-side instead of only in this browser.
+          </div>
+        </section>
+      </div>
+
+      <div class="message-send-dialog-footer settings-footer">
+        <span class="panel-meta">Preferences are saved in this browser.</span>
+        <button id="settingsDoneButton" class="secondary-button" type="button">
+          Done
+        </button>
+      </div>
+    </section>
+  </div>
 
   <!-- OUTREACH LOGIN SESSION STATUS MODAL -->
   <div
