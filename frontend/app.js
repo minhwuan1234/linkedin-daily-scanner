@@ -15,6 +15,17 @@ const els = {
   systemBadgeText: document.querySelector("#systemBadgeText"),
   globalError: document.querySelector("#globalError"),
 
+  sessionStatusButton: document.querySelector("#sessionStatusButton"),
+  sessionStatusBadge: document.querySelector("#sessionStatusBadge"),
+  sessionStatusModal: document.querySelector("#sessionStatusModal"),
+  sessionStatusCloseButton: document.querySelector("#sessionStatusCloseButton"),
+  sessionStatusDoneButton: document.querySelector("#sessionStatusDoneButton"),
+  sessionStatusCheckButton: document.querySelector("#sessionStatusCheckButton"),
+  sessionStatusSummary: document.querySelector("#sessionStatusSummary"),
+  sessionStatusList: document.querySelector("#sessionStatusList"),
+  sessionStatusError: document.querySelector("#sessionStatusError"),
+  sessionStatusUpdatedAt: document.querySelector("#sessionStatusUpdatedAt"),
+
   totalProfiles: document.querySelector("#totalProfiles"),
   pendingCount: document.querySelector("#pendingCount"),
   processingCount: document.querySelector("#processingCount"),
@@ -491,6 +502,9 @@ const els = {
 };
 
 const state = {
+  sessionStatuses: [],
+  sessionStatusLoading: false,
+  sessionStatusPollingTimer: null,
   profiles: [],
   filteredProfiles: [],
   sources: [],
@@ -3577,6 +3591,14 @@ async function deleteSelectedAcceptanceJobs() {
 
     // If the drawer is open, refresh immediately so the table changes
     // without closing/reopening the drawer.
+    if (
+      els.sessionStatusModal &&
+      !els.sessionStatusModal.hidden
+    ) {
+      closeSessionStatusModal();
+      return;
+    }
+
     if (
       els.acceptanceInsightsDrawer?.classList.contains(
         "is-open"
@@ -7511,6 +7533,332 @@ function setOutreachProcessTab(
     ]);
   }
 }
+
+
+
+// =========================================================
+// OUTREACH LINKEDIN SESSION STATUS POPUP
+// =========================================================
+
+function getSessionStatusMeta(status) {
+  const cleaned = String(status || "unknown").trim().toLowerCase();
+
+  const map = {
+    logged_in: { label: "Logged in", className: "is-logged-in" },
+    logged_out: { label: "Logged out", className: "is-logged-out" },
+    checkpoint: { label: "Checkpoint", className: "is-checkpoint" },
+    busy: { label: "In use", className: "is-busy" },
+    pending: { label: "Queued", className: "is-pending" },
+    checking: { label: "Checking", className: "is-checking" },
+    failed: { label: "Check failed", className: "is-failed" },
+    never_checked: { label: "Not checked", className: "" },
+    unknown: { label: "Unknown", className: "" }
+  };
+
+  return map[cleaned] || map.unknown;
+}
+
+function formatSessionCheckedAt(value) {
+  if (!value) {
+    return "Never checked";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Never checked";
+  }
+
+  return date.toLocaleString();
+}
+
+function renderSessionStatuses() {
+  const accounts = Array.isArray(state.sessionStatuses)
+    ? state.sessionStatuses
+    : [];
+
+  if (!els.sessionStatusList) {
+    return;
+  }
+
+  if (!accounts.length) {
+    els.sessionStatusList.innerHTML = `
+      <div class="session-status-empty">
+        No Outreach account session data yet.
+      </div>
+    `;
+  } else {
+    els.sessionStatusList.innerHTML = accounts
+      .map((account) => {
+        const meta = getSessionStatusMeta(account.status);
+        const accountId = escapeHtml(account.account_id || "—");
+        const displayName = escapeHtml(account.display_name || accountId);
+        const checkedAt = formatSessionCheckedAt(account.checked_at);
+        const detail = String(account.last_error || "").trim();
+        const secondary = detail
+          ? `${checkedAt} · ${detail}`
+          : checkedAt;
+
+        return `
+          <div class="session-status-item">
+            <div class="session-status-account">
+              <strong>${displayName}</strong>
+              <span title="${escapeHtml(secondary)}">
+                ${accountId} · ${escapeHtml(secondary)}
+              </span>
+            </div>
+            <span class="session-status-pill ${meta.className}">
+              ${escapeHtml(meta.label)}
+            </span>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  const loggedInCount = accounts.filter(
+    (account) => account.status === "logged_in"
+  ).length;
+
+  const attentionCount = accounts.filter(
+    (account) => [
+      "logged_out",
+      "checkpoint",
+      "failed"
+    ].includes(account.status)
+  ).length;
+
+  const activeCheckCount = accounts.filter(
+    (account) => ["pending", "checking"].includes(account.status)
+  ).length;
+
+  if (els.sessionStatusSummary) {
+    if (!accounts.length) {
+      els.sessionStatusSummary.textContent = "Not checked yet";
+    } else if (activeCheckCount > 0) {
+      els.sessionStatusSummary.textContent =
+        `${activeCheckCount} checking · ${loggedInCount}/${accounts.length} logged in`;
+    } else {
+      els.sessionStatusSummary.textContent =
+        `${loggedInCount}/${accounts.length} logged in`;
+    }
+  }
+
+  if (els.sessionStatusBadge) {
+    els.sessionStatusBadge.classList.remove(
+      "is-healthy",
+      "is-warning",
+      "is-error"
+    );
+
+    if (!accounts.length) {
+      els.sessionStatusBadge.textContent = "—";
+    } else if (attentionCount > 0) {
+      els.sessionStatusBadge.textContent = String(attentionCount);
+      els.sessionStatusBadge.classList.add("is-error");
+    } else if (activeCheckCount > 0) {
+      els.sessionStatusBadge.textContent = "…";
+      els.sessionStatusBadge.classList.add("is-warning");
+    } else if (loggedInCount === accounts.length) {
+      els.sessionStatusBadge.textContent = "OK";
+      els.sessionStatusBadge.classList.add("is-healthy");
+    } else {
+      els.sessionStatusBadge.textContent = String(loggedInCount);
+      els.sessionStatusBadge.classList.add("is-warning");
+    }
+  }
+
+  if (els.sessionStatusCheckButton) {
+    els.sessionStatusCheckButton.disabled =
+      state.sessionStatusLoading || activeCheckCount > 0;
+
+    els.sessionStatusCheckButton.textContent =
+      activeCheckCount > 0
+        ? "Checking…"
+        : "Check all accounts";
+  }
+
+  const latestCheckedAt = accounts
+    .map((account) => account.checked_at)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+
+  if (els.sessionStatusUpdatedAt) {
+    els.sessionStatusUpdatedAt.textContent = latestCheckedAt
+      ? `Last checked ${formatSessionCheckedAt(latestCheckedAt)}`
+      : "Never checked";
+  }
+}
+
+async function loadSessionStatuses({ silent = false } = {}) {
+  if (!silent) {
+    state.sessionStatusLoading = true;
+    renderSessionStatuses();
+  }
+
+  try {
+    const response = await fetch(
+      "/api/outreach/sessions",
+      {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail || result.error || "Could not load LinkedIn session status."
+      );
+    }
+
+    state.sessionStatuses = Array.isArray(result.accounts)
+      ? result.accounts
+      : [];
+
+    if (els.sessionStatusError) {
+      els.sessionStatusError.hidden = true;
+      els.sessionStatusError.textContent = "";
+    }
+
+    renderSessionStatuses();
+
+    const isChecking = state.sessionStatuses.some(
+      (account) => ["pending", "checking"].includes(account.status)
+    );
+
+    if (!isChecking) {
+      stopSessionStatusPolling();
+    }
+  } catch (error) {
+    if (!silent && els.sessionStatusError) {
+      els.sessionStatusError.textContent = error.message || String(error);
+      els.sessionStatusError.hidden = false;
+    }
+  } finally {
+    state.sessionStatusLoading = false;
+    renderSessionStatuses();
+  }
+}
+
+function startSessionStatusPolling() {
+  stopSessionStatusPolling();
+
+  state.sessionStatusPollingTimer = window.setInterval(
+    () => {
+      void loadSessionStatuses({ silent: true });
+    },
+    1800
+  );
+}
+
+function stopSessionStatusPolling() {
+  if (state.sessionStatusPollingTimer) {
+    window.clearInterval(state.sessionStatusPollingTimer);
+    state.sessionStatusPollingTimer = null;
+  }
+}
+
+async function queueSessionStatusCheck() {
+  state.sessionStatusLoading = true;
+  renderSessionStatuses();
+
+  try {
+    const response = await fetch(
+      "/api/outreach/sessions/check",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({})
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail || result.error || "Could not queue LinkedIn session checks."
+      );
+    }
+
+    state.sessionStatuses = Array.isArray(result.accounts)
+      ? result.accounts
+      : state.sessionStatuses;
+
+    if (els.sessionStatusError) {
+      els.sessionStatusError.hidden = true;
+      els.sessionStatusError.textContent = "";
+    }
+
+    renderSessionStatuses();
+    startSessionStatusPolling();
+  } catch (error) {
+    if (els.sessionStatusError) {
+      els.sessionStatusError.textContent = error.message || String(error);
+      els.sessionStatusError.hidden = false;
+    }
+  } finally {
+    state.sessionStatusLoading = false;
+    renderSessionStatuses();
+  }
+}
+
+function openSessionStatusModal() {
+  if (!els.sessionStatusModal) {
+    return;
+  }
+
+  els.sessionStatusModal.hidden = false;
+  document.body.classList.add("has-modal-open");
+  void loadSessionStatuses();
+}
+
+function closeSessionStatusModal() {
+  if (!els.sessionStatusModal) {
+    return;
+  }
+
+  els.sessionStatusModal.hidden = true;
+  document.body.classList.remove("has-modal-open");
+  stopSessionStatusPolling();
+}
+
+
+
+els.sessionStatusButton?.addEventListener(
+  "click",
+  openSessionStatusModal
+);
+
+els.sessionStatusCloseButton?.addEventListener(
+  "click",
+  closeSessionStatusModal
+);
+
+els.sessionStatusDoneButton?.addEventListener(
+  "click",
+  closeSessionStatusModal
+);
+
+els.sessionStatusCheckButton?.addEventListener(
+  "click",
+  queueSessionStatusCheck
+);
+
+els.sessionStatusModal
+  ?.querySelectorAll("[data-session-status-close]")
+  .forEach((element) => {
+    element.addEventListener(
+      "click",
+      closeSessionStatusModal
+    );
+  });
 
 els.acceptanceInsightsDrawerButton?.addEventListener(
   "click",
