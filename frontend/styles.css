@@ -4874,3 +4874,870 @@ body.has-rate-limit-drawer-open {
   }
 }
 
+
+/* =========================================================
+   DESIGN SYSTEM SYNC — 2026-08-27
+   Source of truth: /design.md
+   Purpose: normalize late-added UI so every workspace follows
+   the same dark operations-dashboard visual language.
+   ========================================================= */
+
+:root {
+  --success-text: #79e4b7;
+  --warning-text: #f8ca72;
+  --danger-text: #ff9ba6;
+  --info-text: #8ec3ff;
+  --accent-text: #c9c3ff;
+
+  --control-height-sm: 34px;
+  --control-height-md: 40px;
+  --control-height-lg: 42px;
+
+  --control-radius-sm: 9px;
+  --control-radius-md: 11px;
+  --control-radius-lg: 13px;
+
+  --overlay-backdrop: rgba(4, 7, 13, 0.72);
+  --overlay-shadow: 0 24px 80px rgba(0, 0, 0, 0.48);
+}
+
+/* ---------- Global interaction language ---------- */
+
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(124, 109, 242, 0.14);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+/* ---------- Page shell ---------- */
+
+.app-layout {
+  background: transparent;
+}
+
+.app-sidebar {
+  border-right-color: var(--border);
+  background:
+    linear-gradient(180deg, rgba(124, 109, 242, 0.045), transparent 22%),
+    var(--bg-soft);
+}
+
+.sidebar-brand .brand-mark,
+.brand-mark {
+  border-color: rgba(124, 109, 242, 0.35);
+  background: linear-gradient(135deg, #8d80f8, #6252df);
+  color: #fff;
+}
+
+.sidebar-navigation .tab-button {
+  border: 1px solid transparent;
+  border-radius: var(--control-radius-md);
+}
+
+.sidebar-navigation .tab-button:hover:not(.is-active) {
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--text);
+}
+
+.sidebar-navigation .tab-button.is-active {
+  border-color: transparent;
+}
+
+.topbar {
+  border-bottom-color: rgba(36, 43, 53, 0.82);
+  background: rgba(9, 11, 15, 0.88);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+}
+
+/* ---------- Typography hierarchy ---------- */
+
+.page-heading h1 {
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+}
+
+.panel-kicker,
+.eyebrow {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.panel-meta,
+.subtitle {
+  color: var(--muted);
+}
+
+.panel-header h2,
+.panel-toolbar h2,
+.outreach-connect-workspace-header h2,
+.rate-limit-drawer-header h2,
+.acceptance-insights-drawer-header h2,
+.message-send-dialog h2,
+.message-prepare-confirm-dialog h2 {
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+
+/* ---------- Core surfaces ---------- */
+
+.panel,
+.stat-card,
+.account-card {
+  border: 1px solid var(--border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent),
+    var(--panel);
+}
+
+.panel {
+  border-radius: var(--radius-xl);
+}
+
+.stat-card,
+.account-card {
+  border-radius: var(--radius-lg);
+}
+
+.panel-header,
+.panel-toolbar {
+  border-bottom-color: var(--border);
+  background: transparent;
+}
+
+/* Nested operational surfaces */
+.active-process-card,
+.compact-account-row,
+.outreach-progress-block,
+.outreach-stat,
+.outreach-info-item,
+.outreach-target-row,
+.outreach-target-detail,
+.outreach-job-meta-grid > div,
+.outreach-current-targets-toggle,
+.message-batch-row,
+.outreach-acceptance-history-panel,
+.outreach-acceptance-history-item,
+.outreach-acceptance-history-metrics > div,
+.acceptance-insights-summary-card,
+.acceptance-insights-section,
+.rate-limit-section,
+.rate-limit-account-card,
+.message-send-preview,
+.message-send-meta-item,
+.message-prepare-confirm-summary,
+.message-prepare-confirm-item,
+.message-preparation-status-card {
+  border-color: var(--border);
+  background: var(--bg-soft);
+}
+
+.active-process-card:hover,
+.compact-account-row:hover,
+.outreach-target-row:hover,
+.message-batch-row:hover,
+.outreach-acceptance-history-item:hover,
+.rate-limit-account-card:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+}
+
+/* ---------- Buttons ---------- */
+
+.primary-button,
+.message-batch-send-button,
+.message-send-confirm-button,
+.message-prepare-confirm-button {
+  min-height: var(--control-height-lg);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--control-radius-lg);
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: none;
+}
+
+.primary-button:hover:not(:disabled),
+.message-batch-send-button:hover:not(:disabled),
+.message-send-confirm-button:hover:not(:disabled),
+.message-prepare-confirm-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  filter: none;
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.message-batch-send-button:disabled,
+.message-send-confirm-button:disabled,
+.message-prepare-confirm-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.secondary-button,
+.control-button,
+.outreach-workflow-tab,
+.outreach-rate-limit-button,
+.outreach-insights-button,
+.message-batch-detail-button,
+.outreach-acceptance-history-button,
+.outreach-delete-selected-button,
+.accepted-pagination-button,
+.close-button {
+  min-height: var(--control-height-sm);
+  border: 1px solid var(--border);
+  border-radius: var(--control-radius-sm);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.secondary-button:hover:not(:disabled),
+.control-button:hover:not(:disabled),
+.outreach-workflow-tab:hover:not(:disabled),
+.outreach-rate-limit-button:hover:not(:disabled),
+.outreach-insights-button:hover:not(:disabled),
+.message-batch-detail-button:hover:not(:disabled),
+.outreach-acceptance-history-button:hover:not(:disabled),
+.outreach-delete-selected-button:hover:not(:disabled),
+.accepted-pagination-button:hover:not(:disabled),
+.close-button:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+  color: var(--text);
+}
+
+.close-button {
+  display: inline-grid;
+  width: 34px;
+  min-width: 34px;
+  height: 34px;
+  min-height: 34px;
+  place-items: center;
+  padding: 0;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.control-button-warning {
+  border-color: rgba(244, 183, 64, 0.34);
+  background: var(--amber-soft);
+  color: var(--warning-text);
+}
+
+.control-button-warning:hover:not(:disabled) {
+  border-color: rgba(244, 183, 64, 0.48);
+  background: rgba(244, 183, 64, 0.18);
+  color: var(--warning-text);
+}
+
+.control-button.is-resume {
+  border-color: rgba(35, 196, 131, 0.34);
+  background: var(--green-soft);
+  color: var(--success-text);
+}
+
+.outreach-delete-selected-button:not(:disabled),
+.outreach-danger-button {
+  border-color: rgba(255, 107, 122, 0.4) !important;
+  background: var(--red-soft) !important;
+  color: var(--danger-text) !important;
+}
+
+.outreach-delete-selected-button:not(:disabled):hover,
+.outreach-danger-button:hover:not(:disabled) {
+  border-color: rgba(255, 107, 122, 0.56) !important;
+  background: rgba(255, 107, 122, 0.18) !important;
+  color: #ffc0c7 !important;
+}
+
+/* ---------- Tabs and segmented controls ---------- */
+
+.segmented-filter,
+.outreach-workflow-tabs {
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+}
+
+.outreach-accepted-filter,
+.outreach-workflow-tab {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+
+.outreach-accepted-filter.is-active,
+.outreach-workflow-tab.is-active,
+.outreach-workflow-tab[aria-selected="true"] {
+  background: var(--panel-hover);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* ---------- Form controls ---------- */
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea,
+.search-field,
+.youtube-keyword-field input,
+.outreach-url-field textarea,
+.acceptance-insights-filter-field select,
+.outreach-account-filter select {
+  border-color: var(--border);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):hover,
+select:hover,
+textarea:hover,
+.search-field:hover {
+  border-color: var(--border-strong);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus,
+.youtube-keyword-field input:focus,
+.outreach-url-field textarea:focus,
+.acceptance-insights-filter-field select:focus,
+.outreach-account-filter select:focus {
+  border-color: var(--accent);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(124, 109, 242, 0.1);
+}
+
+.search-field:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 109, 242, 0.1);
+}
+
+.search-field input {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.youtube-keyword-field > span,
+.outreach-url-field > span,
+.acceptance-insights-filter-field > span,
+.outreach-account-filter > span,
+.message-send-field > span,
+.message-prepare-confirm-label {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Native checkbox/radio follows product accent. */
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--accent);
+}
+
+/* ---------- Tables ---------- */
+
+.table-wrap {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.table-wrap::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+th,
+.acceptance-insights-table th {
+  border-bottom-color: var(--border);
+  background: var(--bg-soft);
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+td,
+.acceptance-insights-table td {
+  border-bottom-color: var(--border);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+tbody tr {
+  transition: background-color 140ms ease;
+}
+
+tbody tr:hover {
+  background: var(--panel-hover);
+}
+
+.outreach-acceptance-history-row:hover {
+  background: transparent !important;
+}
+
+/* ---------- Badges and state chips ---------- */
+
+.pill,
+.status-badge,
+.post-count-badge,
+.outreach-current-status,
+.youtube-keyword-chip,
+.outreach-message-status-badge {
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.status-available,
+.status-completed,
+.status-idle,
+.pill-green {
+  border-color: rgba(35, 196, 131, 0.28);
+  background: var(--green-soft);
+  color: var(--success-text);
+}
+
+.status-processing,
+.status-scanning,
+.status-starting,
+.pill-purple {
+  border-color: rgba(124, 109, 242, 0.3);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.status-pending,
+.status-cooldown,
+.pill-amber {
+  border-color: rgba(244, 183, 64, 0.28);
+  background: var(--amber-soft);
+  color: var(--warning-text);
+}
+
+.status-failed,
+.status-error,
+.status-needs_login,
+.status-offline,
+.status-stopping,
+.pill-red {
+  border-color: rgba(255, 107, 122, 0.28);
+  background: var(--red-soft);
+  color: var(--danger-text);
+}
+
+.status-disabled,
+.status-unknown,
+.pill-neutral {
+  border-color: var(--border);
+  background: rgba(155, 164, 176, 0.08);
+  color: var(--muted);
+}
+
+/* ---------- Progress ---------- */
+
+.process-progress,
+.youtube-progress-track,
+.outreach-progress-track,
+.rate-limit-progress-track {
+  overflow: hidden;
+  border-radius: 999px;
+  background: #202630;
+}
+
+.process-progress,
+.outreach-progress-track,
+.rate-limit-progress-track {
+  height: 7px;
+}
+
+.process-progress-bar,
+.youtube-progress-bar,
+.outreach-progress-bar,
+.rate-limit-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #a49af9);
+}
+
+/* ---------- Outreach workspace ---------- */
+
+#tab-outreach {
+  gap: 16px;
+}
+
+.outreach-connect-workspace,
+.outreach-accepted-pool-panel,
+.outreach-history-panel,
+.outreach-message-panel {
+  border-color: var(--border);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent),
+    var(--panel);
+}
+
+.outreach-connect-workspace-header {
+  padding: 18px 20px;
+  border-bottom-color: var(--border);
+}
+
+.outreach-connect-input-section,
+.outreach-connect-execution-section {
+  padding: 20px;
+}
+
+.outreach-connect-input-section {
+  border-right-color: var(--border);
+}
+
+.outreach-connect-section-heading h3,
+.rate-limit-section-heading h3,
+.acceptance-insights-section-heading h3 {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.outreach-stat-equal,
+.outreach-stat-primary,
+.outreach-secondary-stat-row > div {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.outreach-stat-equal span,
+.outreach-stat-primary span,
+.outreach-secondary-stat-row span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.outreach-stat-equal strong,
+.outreach-stat-primary strong,
+.outreach-secondary-stat-row strong {
+  color: var(--text);
+  font-weight: 800;
+}
+
+.outreach-stat-success strong,
+.outreach-stat-equal:nth-child(2) strong,
+.outreach-stat-equal:nth-child(4) strong,
+.outreach-secondary-stat-row > div:nth-child(1) strong {
+  color: var(--success-text);
+}
+
+.outreach-stat-failed strong,
+.outreach-stat-equal:nth-child(5) strong,
+.outreach-stat-equal:nth-child(7) strong,
+.outreach-secondary-stat-row > div:nth-child(3) strong {
+  color: var(--danger-text);
+}
+
+.outreach-stat-equal:nth-child(6) strong,
+.outreach-secondary-stat-row > div:nth-child(2) strong {
+  color: var(--warning-text);
+}
+
+.outreach-delete-job-checkbox {
+  border-color: var(--border);
+  border-radius: 8px;
+  background: var(--bg-soft);
+}
+
+.outreach-delete-job-checkbox:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+}
+
+.outreach-delete-job-checkbox span {
+  border-color: var(--faint);
+}
+
+.outreach-delete-job-checkbox input:checked + span {
+  border-color: var(--red);
+  background: var(--red-soft);
+}
+
+.outreach-delete-job-checkbox input:checked + span::after {
+  color: var(--danger-text);
+}
+
+.outreach-delete-warning,
+.youtube-last-error,
+.global-error {
+  border-color: rgba(255, 107, 122, 0.28);
+  background: var(--red-soft);
+  color: var(--danger-text);
+}
+
+/* ---------- Rate-limit and acceptance drawers ---------- */
+
+.rate-limit-drawer,
+.acceptance-insights-drawer {
+  color: var(--text);
+}
+
+.rate-limit-drawer-backdrop,
+.acceptance-insights-drawer-backdrop,
+.message-send-modal-backdrop,
+.message-prepare-confirm-backdrop,
+#outreachDeleteJobsModal .message-prepare-confirm-backdrop {
+  background: var(--overlay-backdrop);
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.rate-limit-drawer-panel,
+.acceptance-insights-drawer-panel {
+  border-left: 1px solid var(--border-strong);
+  background: var(--panel);
+  box-shadow: -24px 0 70px rgba(0, 0, 0, 0.36);
+}
+
+.rate-limit-drawer-header,
+.acceptance-insights-drawer-header {
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.rate-limit-drawer-body,
+.acceptance-insights-drawer-body {
+  gap: 16px;
+  padding: 18px 22px 28px;
+  background: var(--panel);
+}
+
+.rate-limit-section,
+.acceptance-insights-section {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-soft);
+  box-shadow: none;
+}
+
+.rate-limit-section-heading,
+.acceptance-insights-section-heading {
+  padding: 14px 15px;
+  border-bottom: 1px solid var(--border);
+}
+
+.acceptance-insights-summary-card-best > strong {
+  color: var(--success-text);
+}
+
+/* ---------- Modal system ---------- */
+
+.message-send-modal,
+.message-prepare-confirm-modal,
+#outreachDeleteJobsModal {
+  padding: 24px;
+}
+
+.message-send-dialog,
+.message-prepare-confirm-dialog,
+#outreachDeleteJobsModal .message-prepare-confirm-dialog {
+  overflow: hidden auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent),
+    var(--panel);
+  box-shadow: var(--overlay-shadow);
+  color: var(--text);
+}
+
+.message-send-dialog-header,
+.message-prepare-confirm-header,
+#outreachDeleteJobsModal .message-prepare-confirm-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.message-send-dialog-body,
+.message-prepare-confirm-body,
+#outreachDeleteJobsModal .message-prepare-confirm-body {
+  padding: 20px;
+  background: transparent;
+}
+
+.message-send-dialog-footer,
+.message-prepare-confirm-footer,
+#outreachDeleteJobsModal .message-prepare-confirm-footer {
+  gap: 8px;
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  background: transparent;
+}
+
+/* ---------- Acceptance history ---------- */
+
+.outreach-acceptance-history-panel {
+  border-radius: 12px;
+}
+
+.outreach-acceptance-history-item {
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.outreach-acceptance-history-metrics > div {
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.outreach-acceptance-history-metrics span {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ---------- Links ---------- */
+
+.youtube-channel-cell a,
+.outreach-accepted-pool-table a,
+a.outreach-profile-link {
+  color: var(--info-text);
+  text-decoration: none;
+}
+
+.youtube-channel-cell a:hover,
+.outreach-accepted-pool-table a:hover,
+a.outreach-profile-link:hover {
+  color: #b6d8ff;
+  text-decoration: underline;
+}
+
+.youtube-link-chip {
+  border-color: rgba(77, 158, 255, 0.25);
+  background: var(--blue-soft);
+  color: var(--info-text);
+}
+
+/* ---------- Empty / loading states ---------- */
+
+.state,
+.empty-process,
+.outreach-job-empty,
+.outreach-job-empty-smart,
+.outreach-acceptance-history-empty {
+  color: var(--faint);
+}
+
+.loading-block {
+  color: var(--muted);
+}
+
+.spinner {
+  border-color: var(--border-strong);
+  border-top-color: var(--accent);
+}
+
+/* ---------- Responsive consistency ---------- */
+
+@media (max-width: 980px) {
+  .outreach-connect-input-section {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .rate-limit-drawer-panel,
+  .acceptance-insights-drawer-panel {
+    width: min(620px, 100%);
+  }
+}
+
+@media (max-width: 680px) {
+  .panel-header,
+  .panel-toolbar,
+  .outreach-connect-workspace-header {
+    gap: 12px;
+  }
+
+  .rate-limit-drawer-header,
+  .acceptance-insights-drawer-header,
+  .rate-limit-drawer-body,
+  .acceptance-insights-drawer-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .message-send-modal,
+  .message-prepare-confirm-modal,
+  #outreachDeleteJobsModal {
+    padding: 14px;
+  }
+
+  .message-send-dialog,
+  .message-prepare-confirm-dialog,
+  #outreachDeleteJobsModal .message-prepare-confirm-dialog {
+    width: 100%;
+    max-height: calc(100vh - 28px);
+  }
+}
