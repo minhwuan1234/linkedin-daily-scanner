@@ -1363,15 +1363,52 @@
   </label>
 </div></div></div>
       <div id="outreachAcceptedPoolEmpty" class="state">Chưa có user accepted.</div>
-      <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template></div>
+      <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Campaign</th><th>Send ID</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message campaign"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><div class="recipient-campaign-cell"><strong data-accepted-campaign-name>—</strong><span data-accepted-campaign-code>—</span></div></td><td><span class="recipient-send-code" data-accepted-send-code>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template></div>
       <div id="outreachAcceptedPagination" class="outreach-list-pagination" hidden><span id="outreachAcceptedPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptedPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptedNextPage" type="button" class="secondary-button">Next</button></div></div>
     </article>
 
-    <article class="panel message-preparation-panel outreach-secondary-action-panel"><div class="panel-header"><div><p class="panel-kicker">Recipient preparation</p><h2>Create Message Batch</h2><p class="panel-meta">Prepare selected recipients or keep the original Prepare All behavior for every currently eligible profile.</p></div><span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span></div><div class="message-preparation-body"><div class="message-preparation-copy"><strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong><span id="messagePreparationMeta">Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.</span></div><div class="message-preparation-actions"><button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button><button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button></div></div><p id="messagePreparationError" class="outreach-error" hidden></p></article>
+    <article class="panel message-preparation-panel outreach-secondary-action-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Campaign preparation</p>
+          <h2>Create Message Campaign</h2>
+          <p class="panel-meta">Group selected recipients into one campaign. Every recipient receives its own immutable Send ID.</p>
+        </div>
+        <span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span>
+      </div>
+
+      <div class="message-campaign-create-grid">
+        <label class="message-campaign-name-field">
+          <span>Campaign name</span>
+          <input
+            id="messageCampaignNameInput"
+            type="text"
+            maxlength="120"
+            autocomplete="off"
+            placeholder="e.g. Cardiology September"
+          />
+          <small>Stored with the prepared recipient snapshot and shown beside every Send ID.</small>
+        </label>
+
+        <div class="message-preparation-body">
+          <div class="message-preparation-copy">
+            <strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong>
+            <span id="messagePreparationMeta">Accepted users chưa nằm trong prepared campaign sẽ xuất hiện ở đây.</span>
+          </div>
+
+          <div class="message-preparation-actions">
+            <button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Create selected</button>
+            <button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Create all</button>
+          </div>
+        </div>
+      </div>
+
+      <p id="messagePreparationError" class="outreach-error" hidden></p>
+    </article>
   </section>
 
   <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
-    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Prepared snapshots</p><h2>Message Batches</h2><p class="panel-meta">Review prepared recipients, then queue a batch for the Mac Message Worker.</p></div><span id="messageBatchCount" class="pill pill-neutral">0 batches</span></div><div id="messageBatchEmpty" class="state">Chưa có prepared batch.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><strong data-message-batch-code>Prepared batch</strong><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
+    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Campaign queue</p><h2>Message Campaigns</h2><p class="panel-meta">Review campaign recipients, then queue the campaign for the Mac Message Worker.</p></div><span id="messageBatchCount" class="pill pill-neutral">0 campaigns</span></div><div id="messageBatchEmpty" class="state">Chưa có message campaign.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><strong data-message-batch-code>Prepared batch</strong><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
   </section>
 </section>
 
@@ -1641,9 +1678,9 @@
     >
       <div class="message-send-dialog-header">
         <div>
-          <p class="panel-kicker">Recipient preparation</p>
+          <p class="panel-kicker">Campaign preparation</p>
           <h2 id="messagePrepareConfirmTitle">
-            Prepare recipients
+            Create campaign
           </h2>
           <p
             id="messagePrepareConfirmMeta"
@@ -1665,13 +1702,18 @@
 
       <div class="message-send-dialog-body">
         <div class="message-prepare-confirm-copy">
+          <div class="message-campaign-confirm-identity">
+            <span>Campaign</span>
+            <strong id="messagePrepareConfirmCampaignName">—</strong>
+          </div>
+
           <strong>
-            This step only creates a frozen recipient batch.
+            This creates a frozen campaign recipient snapshot.
           </strong>
 
           <p>
-            No LinkedIn message will be sent yet. You can review the
-            prepared snapshot before using Send Messages.
+            Every recipient gets a unique Send ID now. No LinkedIn message
+            is sent until this campaign is queued from the Messages tab.
           </p>
         </div>
 
@@ -1696,7 +1738,7 @@
           class="primary-button"
           type="button"
         >
-          Prepare recipients
+          Create campaign
         </button>
       </div>
     </section>
