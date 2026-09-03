@@ -247,17 +247,26 @@ def _chunked(
         ]
 
 
-def _load_latest_message_assignments(
+def _load_existing_send_batches(
     *,
     client: Client,
     prospect_ids: list[str],
 ) -> dict[str, dict]:
     """
-    Load only message-target metadata for prospects already present in the
-    Accepted Pool. This avoids a full message-target table scan.
+    Resolve the existing Message Batch for Accepted Pool rows.
 
-    One prospect may eventually participate in multiple campaigns. The newest
-    target is the identity shown in the Recipients table.
+    No new "send id" is created here.
+
+    Existing identity:
+        outreach_message_targets.batch_id
+            -> outreach_message_batches.id / batch_code
+
+    If a prospect has appeared in more than one message batch, Recipients
+    shows the newest assignment because that is the current/latest send
+    context for the profile.
+
+    The query is restricted to prospect_ids already loaded for Accepted Pool;
+    it never scans the whole message-target table.
     """
 
     cleaned_ids = list(
@@ -271,7 +280,10 @@ def _load_latest_message_assignments(
     if not cleaned_ids:
         return {}
 
-    target_rows: list[dict] = []
+    latest_target_by_prospect: dict[
+        str,
+        dict,
+    ] = {}
 
     for chunk in _chunked(
         cleaned_ids
@@ -285,7 +297,6 @@ def _load_latest_message_assignments(
                 (
                     "id,"
                     "batch_id,"
-                    "send_code,"
                     "prospect_id,"
                     "status,"
                     "created_at,"
@@ -303,67 +314,24 @@ def _load_latest_message_assignments(
             .execute()
         )
 
-        target_rows.extend(
-            list(
-                response.data
-                or []
-            )
-        )
-
-    latest_by_prospect: dict[
-        str,
-        dict,
-    ] = {}
-
-    for row in target_rows:
-        prospect_id = _safe_text(
-            row.get(
-                "prospect_id"
-            )
-        )
-
-        if not prospect_id:
-            continue
-
-        existing = latest_by_prospect.get(
-            prospect_id
-        )
-
-        row_time = max(
-            _timestamp_value(
-                row.get(
-                    "updated_at"
-                )
-            ),
-            _timestamp_value(
-                row.get(
-                    "created_at"
-                )
-            ),
-        )
-
-        existing_time = (
-            max(
-                _timestamp_value(
-                    existing.get(
-                        "updated_at"
-                    )
-                ),
-                _timestamp_value(
-                    existing.get(
-                        "created_at"
-                    )
-                ),
-            )
-            if existing
-            else ""
-        )
-
-        if (
-            existing is None
-            or row_time > existing_time
+        for row in list(
+            response.data
+            or []
         ):
-            latest_by_prospect[
+            prospect_id = _safe_text(
+                row.get(
+                    "prospect_id"
+                )
+            )
+
+            if (
+                not prospect_id
+                or prospect_id
+                in latest_target_by_prospect
+            ):
+                continue
+
+            latest_target_by_prospect[
                 prospect_id
             ] = dict(
                 row
@@ -376,7 +344,10 @@ def _load_latest_message_assignments(
                     "batch_id"
                 )
             )
-            for row in latest_by_prospect.values()
+            for row in (
+                latest_target_by_prospect
+                .values()
+            )
             if _safe_text(
                 row.get(
                     "batch_id"
@@ -385,7 +356,7 @@ def _load_latest_message_assignments(
         )
     )
 
-    batches_by_id: dict[
+    batch_by_id: dict[
         str,
         dict,
     ] = {}
@@ -402,9 +373,8 @@ def _load_latest_message_assignments(
                 (
                     "id,"
                     "batch_code,"
-                    "campaign_code,"
-                    "campaign_name,"
-                    "status"
+                    "status,"
+                    "created_at"
                 )
             )
             .in_(
@@ -425,7 +395,7 @@ def _load_latest_message_assignments(
             )
 
             if batch_id:
-                batches_by_id[
+                batch_by_id[
                     batch_id
                 ] = dict(
                     row
@@ -437,7 +407,8 @@ def _load_latest_message_assignments(
     ] = {}
 
     for prospect_id, target in (
-        latest_by_prospect.items()
+        latest_target_by_prospect
+        .items()
     ):
         batch_id = _safe_text(
             target.get(
@@ -446,7 +417,7 @@ def _load_latest_message_assignments(
         )
 
         batch = (
-            batches_by_id.get(
+            batch_by_id.get(
                 batch_id
             )
             or {}
@@ -455,35 +426,35 @@ def _load_latest_message_assignments(
         result[
             prospect_id
         ] = {
-            "message_target_id": _safe_text(
-                target.get(
-                    "id"
+            "message_batch_id": (
+                batch_id
+            ),
+            "message_batch_code": (
+                _safe_text(
+                    batch.get(
+                        "batch_code"
+                    )
                 )
             ),
-            "send_code": _safe_text(
-                target.get(
-                    "send_code"
+            "message_batch_status": (
+                _safe_text(
+                    batch.get(
+                        "status"
+                    )
                 )
             ),
-            "message_target_status": _safe_text(
-                target.get(
-                    "status"
+            "message_target_id": (
+                _safe_text(
+                    target.get(
+                        "id"
+                    )
                 )
             ),
-            "campaign_id": batch_id,
-            "campaign_code": _safe_text(
-                batch.get(
-                    "campaign_code"
-                )
-            ),
-            "campaign_name": _safe_text(
-                batch.get(
-                    "campaign_name"
-                )
-            ),
-            "campaign_status": _safe_text(
-                batch.get(
-                    "status"
+            "message_target_status": (
+                _safe_text(
+                    target.get(
+                        "status"
+                    )
                 )
             ),
         }
@@ -680,8 +651,8 @@ def get_accepted_pool(
         reverse=True,
     )
 
-    message_assignments = (
-        _load_latest_message_assignments(
+    existing_send_batches = (
+        _load_existing_send_batches(
             client=active_client,
             prospect_ids=[
                 _safe_text(
@@ -701,8 +672,8 @@ def get_accepted_pool(
             )
         )
 
-        assignment = (
-            message_assignments.get(
+        send_batch = (
+            existing_send_batches.get(
                 prospect_id
             )
             or {}
@@ -710,39 +681,39 @@ def get_accepted_pool(
 
         item.update(
             {
-                "message_target_id": _safe_text(
-                    assignment.get(
-                        "message_target_id"
+                "message_batch_id": (
+                    _safe_text(
+                        send_batch.get(
+                            "message_batch_id"
+                        )
                     )
                 ),
-                "send_code": _safe_text(
-                    assignment.get(
-                        "send_code"
+                "message_batch_code": (
+                    _safe_text(
+                        send_batch.get(
+                            "message_batch_code"
+                        )
                     )
                 ),
-                "message_target_status": _safe_text(
-                    assignment.get(
-                        "message_target_status"
+                "message_batch_status": (
+                    _safe_text(
+                        send_batch.get(
+                            "message_batch_status"
+                        )
                     )
                 ),
-                "campaign_id": _safe_text(
-                    assignment.get(
-                        "campaign_id"
+                "message_target_id": (
+                    _safe_text(
+                        send_batch.get(
+                            "message_target_id"
+                        )
                     )
                 ),
-                "campaign_code": _safe_text(
-                    assignment.get(
-                        "campaign_code"
-                    )
-                ),
-                "campaign_name": _safe_text(
-                    assignment.get(
-                        "campaign_name"
-                    )
-                ),
-                "campaign_status": _safe_text(
-                    assignment.get(
-                        "campaign_status"
+                "message_target_status": (
+                    _safe_text(
+                        send_batch.get(
+                            "message_target_status"
+                        )
                     )
                 ),
             }
