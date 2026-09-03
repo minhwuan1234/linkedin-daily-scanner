@@ -6284,3 +6284,93 @@ body.reduce-motion *::after {
     gap: 4px;
   }
 }
+
+
+/* =========================================================
+ * MESSAGES — SOURCE CONNECT ID
+ * Compact operational identity/filter treatment per Design.md.
+ * Connect ID is identity, not status, so it stays neutral.
+ * ========================================================= */
+
+.message-batch-header-tools {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.message-batch-source-filter {
+  display: grid;
+  gap: 5px;
+}
+
+.message-batch-source-filter > span {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.message-batch-source-filter select {
+  min-width: 190px;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: 0;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.message-batch-source-filter select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(124, 109, 242, 0.1);
+}
+
+.message-batch-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.message-batch-source-id {
+  display: inline-flex;
+  align-items: center;
+  max-width: 260px;
+  min-height: 22px;
+  padding: 0 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .message-batch-header-tools {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .message-batch-source-filter,
+  .message-batch-source-filter select {
+    width: 100%;
+  }
+}
