@@ -6159,3 +6159,134 @@ body.reduce-motion *::after {
     text-align: left;
   }
 }
+
+
+/* =========================================================
+ * RECIPIENT CAMPAIGNS + SEND ID
+ * Follows Design.md: neutral surfaces, compact metadata,
+ * purple only for actions/focus.
+ * ========================================================= */
+
+.outreach-accepted-pool-table {
+  min-width: 1180px;
+}
+
+.recipient-campaign-cell {
+  display: grid;
+  gap: 3px;
+  min-width: 150px;
+}
+
+.recipient-campaign-cell strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipient-campaign-cell span {
+  color: var(--faint);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.recipient-send-code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-soft);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.message-campaign-create-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.28fr);
+  border-top: 1px solid var(--border);
+}
+
+.message-campaign-name-field {
+  display: grid;
+  align-content: center;
+  gap: 7px;
+  padding: 18px 20px;
+  border-right: 1px solid var(--border);
+}
+
+.message-campaign-name-field > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.message-campaign-name-field input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.message-campaign-name-field input::placeholder {
+  color: var(--faint);
+}
+
+.message-campaign-name-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.message-campaign-name-field small {
+  color: var(--faint);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.message-campaign-confirm-identity {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-soft);
+}
+
+.message-campaign-confirm-identity span {
+  color: var(--faint);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.message-campaign-confirm-identity strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .message-campaign-create-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .message-campaign-name-field {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
