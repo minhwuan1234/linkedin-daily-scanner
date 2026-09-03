@@ -1339,21 +1339,6 @@ async def prepare_selected_outreach_messages_api(
         else []
     )
 
-    campaign_name = str(
-        (
-            payload
-            if isinstance(
-                payload,
-                dict,
-            )
-            else {}
-        ).get(
-            "campaign_name",
-            "",
-        )
-        or ""
-    ).strip()
-
     if not isinstance(prospect_ids, list):
         return JSONResponse(
             status_code=400,
@@ -1365,8 +1350,7 @@ async def prepare_selected_outreach_messages_api(
 
     try:
         result = prepare_selected_unsent_accepted(
-            prospect_ids=prospect_ids,
-            campaign_name=campaign_name,
+            prospect_ids=prospect_ids
         )
 
     except OutreachMessagePreparationStoreError as exc:
@@ -1426,9 +1410,7 @@ async def prepare_selected_outreach_messages_api(
 
 
 @app.post("/api/outreach/messages/prepare-all")
-async def prepare_all_outreach_messages_api(
-    request: Request,
-) -> JSONResponse:
+async def prepare_all_outreach_messages_api() -> JSONResponse:
     """
     Snapshot ALL currently eligible accepted + not-sent users
     into one prepared message batch.
@@ -1441,30 +1423,8 @@ async def prepare_all_outreach_messages_api(
     - outreach_message_targets
     """
     try:
-        try:
-            payload = await request.json()
-        except Exception:
-            payload = {}
-
-        campaign_name = str(
-            (
-                payload
-                if isinstance(
-                    payload,
-                    dict,
-                )
-                else {}
-            ).get(
-                "campaign_name",
-                "",
-            )
-            or ""
-        ).strip()
-
         result = (
-            prepare_all_unsent_accepted(
-                campaign_name=campaign_name,
-            )
+            prepare_all_unsent_accepted()
         )
 
     except OutreachMessagePreparationStoreError as exc:
