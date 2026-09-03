@@ -856,6 +856,97 @@ def close_message_composer(
     return True
 
 
+def click_discard_confirmation(
+    page: Page,
+    *,
+    timeout_ms: int = 2_000,
+) -> bool:
+    """
+    Click LinkedIn's visible "Discard" confirmation after closing a
+    Messaging composer.
+
+    This is cleanup only:
+    - if the confirmation does not appear, return False;
+    - if it appears, click the exact visible Discard button;
+    - do not change the already-successful Send result.
+    """
+
+    # Give the confirmation a short chance to appear after the X click.
+    page.wait_for_timeout(
+        300
+    )
+
+    deadline = (
+        page.evaluate("Date.now()")
+        + timeout_ms
+    )
+
+    while (
+        page.evaluate("Date.now()")
+        < deadline
+    ):
+        # Prefer a visible dialog scope so we do not click an unrelated
+        # "Discard" action somewhere else on the page.
+        dialogs = page.locator(
+            '[role="dialog"]'
+        )
+
+        for dialog_index in range(
+            dialogs.count()
+        ):
+            dialog = dialogs.nth(
+                dialog_index
+            )
+
+            try:
+                if not dialog.is_visible():
+                    continue
+            except Exception:
+                continue
+
+            buttons = dialog.get_by_role(
+                "button",
+                name="Discard",
+                exact=True,
+            )
+
+            for button_index in range(
+                buttons.count()
+            ):
+                button = buttons.nth(
+                    button_index
+                )
+
+                try:
+                    if not button.is_visible():
+                        continue
+
+                    try:
+                        button.click(
+                            timeout=1_500
+                        )
+                    except Exception:
+                        button.click(
+                            timeout=1_500,
+                            force=True,
+                        )
+
+                    page.wait_for_timeout(
+                        300
+                    )
+
+                    return True
+
+                except Exception:
+                    continue
+
+        page.wait_for_timeout(
+            150
+        )
+
+    return False
+
+
 def send_message_once(
     page: Page,
     message: str,
@@ -916,9 +1007,22 @@ def send_message_once(
 
     send_button.click()
 
+    # Give LinkedIn time to commit the sent message and clear the composer
+    # state before closing the mini-chat. Closing too quickly can trigger
+    # LinkedIn's "Discard message?" confirmation.
+    page.wait_for_timeout(
+        1800
+    )
+
     composer_closed = close_message_composer(
         page,
         textbox,
+    )
+
+    # LinkedIn can occasionally show a "Discard message?" confirmation
+    # even after Send succeeded. Clear it before moving to the next profile.
+    discard_clicked = click_discard_confirmation(
+        page
     )
 
     return {
@@ -929,6 +1033,7 @@ def send_message_once(
         "send_clicked": True,
         "sent_verified": True,
         "composer_closed": composer_closed,
+        "discard_clicked": discard_clicked,
         "closed_unrelated_panels": (
             closed_unrelated_before_send
             + closed_unrelated_after_open
