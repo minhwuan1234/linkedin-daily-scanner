@@ -382,6 +382,12 @@ const els = {
   outreachAcceptedAccountFilter:
     document.querySelector("#outreachAcceptedAccountFilter"),
 
+  outreachAcceptedSendBatchFilter:
+    document.querySelector("#outreachAcceptedSendBatchFilter"),
+
+  outreachAcceptedPoolGroupTemplate:
+    document.querySelector("#outreachAcceptedPoolGroupTemplate"),
+
   outreachAcceptedSelectPage:
     document.querySelector("#outreachAcceptedSelectPage"),
 
@@ -406,9 +412,6 @@ const els = {
   messagePreparationMeta:
     document.querySelector("#messagePreparationMeta"),
 
-  messageCampaignNameInput:
-    document.querySelector("#messageCampaignNameInput"),
-
   messagePrepareSelectedButton:
     document.querySelector("#messagePrepareSelectedButton"),
 
@@ -423,9 +426,6 @@ const els = {
 
   messagePrepareConfirmMeta:
     document.querySelector("#messagePrepareConfirmMeta"),
-
-  messagePrepareConfirmCampaignName:
-    document.querySelector("#messagePrepareConfirmCampaignName"),
 
   messagePrepareConfirmError:
     document.querySelector("#messagePrepareConfirmError"),
@@ -567,6 +567,7 @@ const state = {
   },
   outreachAcceptedPoolFilter: "all",
   outreachAcceptedAccountFilter: "all",
+  outreachAcceptedSendBatchFilter: "all",
   outreachAcceptedPoolPage: 1,
   outreachAcceptedPoolPageSize: 15,
   outreachAcceptedSelectedProspectIds: new Set(),
@@ -4187,6 +4188,207 @@ function renderAcceptedPoolAccountFilter() {
 }
 
 
+
+function getAcceptedPoolBatchCode(
+  item
+) {
+  return String(
+    item?.message_batch_code ||
+    ""
+  ).trim();
+}
+
+
+function getAcceptedPoolAvailableSendBatches() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const batchCodes =
+    new Set();
+
+  items.forEach((item) => {
+    const batchCode =
+      getAcceptedPoolBatchCode(
+        item
+      );
+
+    if (batchCode) {
+      batchCodes.add(
+        batchCode
+      );
+    }
+  });
+
+  return Array.from(
+    batchCodes
+  ).sort(
+    (a, b) =>
+      b.localeCompare(
+        a,
+        undefined,
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      )
+  );
+}
+
+
+function renderAcceptedPoolSendBatchFilter() {
+  const select =
+    els.outreachAcceptedSendBatchFilter;
+
+  if (!select) {
+    return;
+  }
+
+  const batchCodes =
+    getAcceptedPoolAvailableSendBatches();
+
+  const currentValue =
+    state.outreachAcceptedSendBatchFilter ||
+    "all";
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const allOption =
+    document.createElement("option");
+
+  allOption.value =
+    "all";
+
+  allOption.textContent =
+    "All send batches";
+
+  fragment.append(
+    allOption
+  );
+
+  const unassignedOption =
+    document.createElement("option");
+
+  unassignedOption.value =
+    "unassigned";
+
+  unassignedOption.textContent =
+    "Ready / no batch";
+
+  fragment.append(
+    unassignedOption
+  );
+
+  batchCodes.forEach(
+    (batchCode) => {
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        batchCode;
+
+      option.textContent =
+        batchCode;
+
+      fragment.append(
+        option
+      );
+    }
+  );
+
+  select.replaceChildren(
+    fragment
+  );
+
+  const stillExists =
+    currentValue === "all" ||
+    currentValue === "unassigned" ||
+    batchCodes.includes(
+      currentValue
+    );
+
+  state.outreachAcceptedSendBatchFilter =
+    stillExists
+      ? currentValue
+      : "all";
+
+  select.value =
+    state.outreachAcceptedSendBatchFilter;
+}
+
+
+function sortAcceptedPoolBySendBatch(
+  items
+) {
+  return [
+    ...items
+  ].sort(
+    (left, right) => {
+      const leftBatch =
+        getAcceptedPoolBatchCode(
+          left
+        );
+
+      const rightBatch =
+        getAcceptedPoolBatchCode(
+          right
+        );
+
+      // Ready / unassigned stays as its own group after assigned batches.
+      if (
+        Boolean(leftBatch) !==
+        Boolean(rightBatch)
+      ) {
+        return leftBatch
+          ? -1
+          : 1;
+      }
+
+      if (
+        leftBatch !==
+        rightBatch
+      ) {
+        return rightBatch.localeCompare(
+          leftBatch,
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+      }
+
+      const leftAccount =
+        String(
+          left?.assigned_account_id ||
+          ""
+        );
+
+      const rightAccount =
+        String(
+          right?.assigned_account_id ||
+          ""
+        );
+
+      return leftAccount.localeCompare(
+        rightAccount,
+        undefined,
+        {
+          sensitivity: "base"
+        }
+      );
+    }
+  );
+}
+
+
+
 function getAcceptedPoolUiBucket(
   item,
   eligibleIds = null
@@ -4238,10 +4440,15 @@ function getAcceptedPoolFilteredItems() {
     state.outreachAcceptedAccountFilter ||
     "all";
 
+  const sendBatchFilter =
+    state.outreachAcceptedSendBatchFilter ||
+    "all";
+
   const eligibleIds =
     getEligibleMessageProspectIds();
 
-  return items.filter((item) => {
+  const filtered =
+    items.filter((item) => {
     const statusMatches =
       filter === "all" ||
       getAcceptedPoolUiBucket(
@@ -4260,11 +4467,31 @@ function getAcceptedPoolFilteredItems() {
       itemAccountId ===
         accountFilter;
 
+    const itemBatchCode =
+      getAcceptedPoolBatchCode(
+        item
+      );
+
+    const sendBatchMatches =
+      sendBatchFilter === "all" ||
+      (
+        sendBatchFilter ===
+          "unassigned"
+          ? !itemBatchCode
+          : itemBatchCode ===
+            sendBatchFilter
+      );
+
     return (
       statusMatches &&
-      accountMatches
+      accountMatches &&
+      sendBatchMatches
     );
   });
+
+  return sortAcceptedPoolBySendBatch(
+    filtered
+  );
 }
 
 function getAcceptedPoolUiSummary() {
@@ -4473,6 +4700,7 @@ function renderOutreachAcceptedPool() {
   reconcileAcceptedPoolSelection();
 
   renderAcceptedPoolAccountFilter();
+  renderAcceptedPoolSendBatchFilter();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -4602,7 +4830,89 @@ function renderOutreachAcceptedPool() {
   els.outreachAcceptedPoolBody
     .replaceChildren();
 
+  const pageBatchCounts =
+    pageItems.reduce(
+      (counts, item) => {
+        const batchCode =
+          getAcceptedPoolBatchCode(
+            item
+          ) || "unassigned";
+
+        counts.set(
+          batchCode,
+          (
+            counts.get(
+              batchCode
+            ) || 0
+          ) + 1
+        );
+
+        return counts;
+      },
+      new Map()
+    );
+
+  let previousBatchCode =
+    null;
+
   pageItems.forEach((item) => {
+    const currentBatchCode =
+      getAcceptedPoolBatchCode(
+        item
+      ) || "unassigned";
+
+    if (
+      currentBatchCode !==
+      previousBatchCode &&
+      els.outreachAcceptedPoolGroupTemplate
+    ) {
+      const groupFragment =
+        els.outreachAcceptedPoolGroupTemplate
+          .content
+          .cloneNode(true);
+
+      const groupCode =
+        groupFragment.querySelector(
+          "[data-accepted-group-code]"
+        );
+
+      const groupCount =
+        groupFragment.querySelector(
+          "[data-accepted-group-count]"
+        );
+
+      if (groupCode) {
+        groupCode.textContent =
+          currentBatchCode ===
+            "unassigned"
+            ? "Ready / no batch"
+            : currentBatchCode;
+      }
+
+      if (groupCount) {
+        const count =
+          Number(
+            pageBatchCounts.get(
+              currentBatchCode
+            ) || 0
+          );
+
+        groupCount.textContent =
+          `${count} ${
+            count === 1
+              ? "profile"
+              : "profiles"
+          }`;
+      }
+
+      els.outreachAcceptedPoolBody.append(
+        groupFragment
+      );
+
+      previousBatchCode =
+        currentBatchCode;
+    }
+
     const prospectId =
       String(
         item.prospect_id ||
@@ -4659,19 +4969,9 @@ function renderOutreachAcceptedPool() {
         "[data-accepted-at]"
       );
 
-    const campaignName =
+    const sendBatch =
       fragment.querySelector(
-        "[data-accepted-campaign-name]"
-      );
-
-    const campaignCode =
-      fragment.querySelector(
-        "[data-accepted-campaign-code]"
-      );
-
-    const sendCode =
-      fragment.querySelector(
-        "[data-accepted-send-code]"
+        "[data-accepted-send-batch]"
       );
 
     const message =
@@ -4693,10 +4993,10 @@ function renderOutreachAcceptedPool() {
 
       checkbox.title =
         uiBucket === "prepared"
-          ? "Recipient is already in a prepared message campaign."
+          ? "Recipient is already in a prepared message batch."
           : uiBucket === "sent"
             ? "Message already sent."
-            : "Select recipient for a new message campaign.";
+            : "Select recipient for a new message batch.";
 
       checkbox.addEventListener(
         "change",
@@ -4745,27 +5045,30 @@ function renderOutreachAcceptedPool() {
         );
     }
 
-    if (campaignName) {
-      campaignName.textContent =
-        item.campaign_name ||
-        "—";
-    }
+    if (sendBatch) {
+      const batchCode =
+        String(
+          item.message_batch_code ||
+          ""
+        ).trim();
 
-    if (campaignCode) {
-      campaignCode.textContent =
-        item.campaign_code ||
-        "—";
-    }
-
-    if (sendCode) {
-      sendCode.textContent =
-        item.send_code ||
+      sendBatch.textContent =
+        batchCode ||
         "—";
 
-      sendCode.title =
-        item.message_target_id ||
-        item.send_code ||
-        "";
+      sendBatch.classList.toggle(
+        "is-assigned",
+        Boolean(batchCode)
+      );
+
+      sendBatch.title =
+        batchCode
+          ? (
+              item.message_batch_id
+                ? `Batch ID: ${item.message_batch_id}`
+                : batchCode
+            )
+          : "Not assigned to a message batch yet.";
     }
 
     if (message) {
@@ -4992,40 +5295,6 @@ function getMessageBatchSendLabel(
 }
 
 
-
-function getMessageCampaignName() {
-  return String(
-    els.messageCampaignNameInput?.value || ""
-  )
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-
-function validateMessageCampaignName() {
-  const name = getMessageCampaignName();
-
-  if (!name) {
-    return {
-      ok: false,
-      error: "Campaign name is required."
-    };
-  }
-
-  if (name.length > 120) {
-    return {
-      ok: false,
-      error: "Campaign name must be 120 characters or fewer."
-    };
-  }
-
-  return {
-    ok: true,
-    name
-  };
-}
-
-
 function renderMessagePreparation() {
   const count = Number(
     state.messagePreparation?.count || 0
@@ -5042,19 +5311,16 @@ function renderMessagePreparation() {
   if (els.messagePreparationHeadline) {
     els.messagePreparationHeadline.textContent =
       count > 0
-        ? `${count} accepted users sẵn sàng cho campaign`
-        : "Chưa có recipient cho campaign";
+        ? `${count} accepted users sẵn sàng để prepare`
+        : "Chưa có recipient cần prepare";
   }
 
   if (els.messagePreparationMeta) {
     els.messagePreparationMeta.textContent =
       count > 0
-        ? "Create All sẽ snapshot toàn bộ danh sách hiện tại vào cùng một campaign."
-        : "Accepted users chưa nằm trong prepared campaign sẽ xuất hiện ở đây.";
+        ? "Prepare All sẽ snapshot toàn bộ danh sách hiện tại thành một batch cố định."
+        : "Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.";
   }
-
-  const campaignNameValid =
-    validateMessageCampaignName().ok;
 
   const selectedCount =
     state.outreachAcceptedSelectedProspectIds.size;
@@ -5063,30 +5329,28 @@ function renderMessagePreparation() {
     els.messagePrepareSelectedButton.disabled =
       state.messagePreparationSubmitting ||
       state.messagePreparationSelectedSubmitting ||
-      !campaignNameValid ||
       selectedCount <= 0;
 
     els.messagePrepareSelectedButton.textContent =
       state.messagePreparationSelectedSubmitting
         ? "Preparing..."
         : selectedCount > 0
-          ? `Create selected ${selectedCount}`
-          : "Create selected";
+          ? `Prepare selected ${selectedCount}`
+          : "Prepare selected";
   }
 
   if (els.messagePrepareAllButton) {
     els.messagePrepareAllButton.disabled =
       state.messagePreparationSubmitting ||
       state.messagePreparationSelectedSubmitting ||
-      !campaignNameValid ||
       count <= 0;
 
     els.messagePrepareAllButton.textContent =
       state.messagePreparationSubmitting
         ? "Preparing..."
         : count > 0
-          ? `Create all ${count}`
-          : "Create all";
+          ? `Prepare all ${count}`
+          : "Prepare all";
   }
 
   const batches =
@@ -5096,7 +5360,7 @@ function renderMessagePreparation() {
 
   if (els.messageBatchCount) {
     els.messageBatchCount.textContent =
-      `${batches.length} campaigns`;
+      `${batches.length} batches`;
   }
 
   if (els.messageBatchEmpty) {
@@ -5186,17 +5450,13 @@ function renderMessagePreparation() {
 
     if (code) {
       code.textContent =
-        batch.campaign_name ||
-        batch.campaign_code ||
         batch.batch_code ||
-        "Message campaign";
+        "Prepared batch";
     }
 
     if (meta) {
       meta.textContent =
-        `${batch.campaign_code || batch.batch_code || "—"} · ${Number(
-          batch.target_count || 0
-        )} recipients · ${formatDate(
+        `${Number(batch.target_count || 0)} recipients · ${formatDate(
           batch.created_at
         )}`;
     }
@@ -5304,7 +5564,7 @@ function openMessageSendModal(
 
   if (els.messageSendDialogMeta) {
     els.messageSendDialogMeta.textContent =
-      `${batch.campaign_name || batch.campaign_code || batch.batch_code || "Message campaign"} · ${Number(
+      `${batch.batch_code || "Message batch"} · ${Number(
         batch.target_count || 0
       )} recipients`;
   }
@@ -5500,18 +5760,14 @@ async function openPreparedMessageBatch(batchId) {
 
     if (els.drawerName) {
       els.drawerName.textContent =
-        batch.campaign_name ||
-        batch.campaign_code ||
-        batch.batch_code ||
-        "Message Campaign";
+        batch.batch_code || "Prepared Message Batch";
     }
 
     if (els.drawerContent) {
       els.drawerContent.innerHTML = `
         <div class="drawer-section">
           <p class="panel-meta">
-            ${escapeHtml(batch.campaign_code || batch.batch_code || "—")}
-            · ${escapeHtml(String(batch.target_count || targets.length))}
+            ${escapeHtml(String(batch.target_count || targets.length))}
             recipients · ${escapeHtml(batch.status || "prepared")}
           </p>
         </div>
@@ -5521,7 +5777,6 @@ async function openPreparedMessageBatch(batchId) {
             ? targets.map((target) => `
                 <div class="detail-row">
                   <span>${escapeHtml(
-                    target.send_code ||
                     getOutreachAccountDisplayName(
                       target.assigned_account_id
                     )
@@ -5577,26 +5832,14 @@ function openMessagePrepareConfirmModal(
     return;
   }
 
-  const campaignValidation =
-    validateMessageCampaignName();
-
-  if (!campaignValidation.ok) {
-    if (els.messagePreparationError) {
-      els.messagePreparationError.hidden = false;
-      els.messagePreparationError.textContent =
-        campaignValidation.error;
-    }
-
-    els.messageCampaignNameInput?.focus();
-    return;
-  }
-
   state.messagePrepareConfirmMode =
     mode;
 
   if (els.messagePrepareConfirmTitle) {
     els.messagePrepareConfirmTitle.textContent =
-      "Create message campaign";
+      mode === "selected"
+        ? "Prepare selected recipients"
+        : "Prepare all recipients";
   }
 
   if (els.messagePrepareConfirmMeta) {
@@ -5606,16 +5849,11 @@ function openMessagePrepareConfirmModal(
         : `${count} currently eligible accepted profiles`;
   }
 
-  if (els.messagePrepareConfirmCampaignName) {
-    els.messagePrepareConfirmCampaignName.textContent =
-      campaignValidation.name;
-  }
-
   if (els.messagePrepareConfirmButton) {
     els.messagePrepareConfirmButton.textContent =
       mode === "selected"
-        ? `Create selected ${count}`
-        : `Create all ${count}`;
+        ? `Prepare selected ${count}`
+        : `Prepare all ${count}`;
   }
 
   if (els.messagePrepareConfirmError) {
@@ -5719,8 +5957,7 @@ async function prepareSelectedMessageRecipients(
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          prospect_ids: prospectIds,
-          campaign_name: getMessageCampaignName()
+          prospect_ids: prospectIds
         })
       }
     );
@@ -5738,10 +5975,6 @@ async function prepareSelectedMessageRecipients(
     state
       .outreachAcceptedSelectedProspectIds
       .clear();
-
-    if (els.messageCampaignNameInput) {
-      els.messageCampaignNameInput.value = "";
-    }
 
     closeMessagePrepareConfirmModal();
 
@@ -5828,12 +6061,8 @@ async function prepareAllMessageRecipients(
       {
         method: "POST",
         headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          campaign_name: getMessageCampaignName()
-        })
+          "Accept": "application/json"
+        }
       }
     );
 
@@ -5845,10 +6074,6 @@ async function prepareAllMessageRecipients(
         result.error ||
         "Không thể prepare recipients."
       );
-    }
-
-    if (els.messageCampaignNameInput) {
-      els.messageCampaignNameInput.value = "";
     }
 
     closeMessagePrepareConfirmModal();
@@ -8414,6 +8639,21 @@ els.outreachAcceptedAccountFilter?.addEventListener(
 );
 
 
+els.outreachAcceptedSendBatchFilter?.addEventListener(
+  "change",
+  () => {
+    state.outreachAcceptedSendBatchFilter =
+      els.outreachAcceptedSendBatchFilter.value ||
+      "all";
+
+    state.outreachAcceptedPoolPage =
+      1;
+
+    renderOutreachAcceptedPool();
+  }
+);
+
+
 els.outreachAcceptedPrevPage?.addEventListener(
   "click",
   () => {
@@ -8463,18 +8703,6 @@ els.outreachAcceptedSelectPage?.addEventListener(
     });
 
     renderOutreachAcceptedPool();
-  }
-);
-
-els.messageCampaignNameInput?.addEventListener(
-  "input",
-  () => {
-    if (els.messagePreparationError) {
-      els.messagePreparationError.hidden = true;
-      els.messagePreparationError.textContent = "";
-    }
-
-    renderMessagePreparation();
   }
 );
 
