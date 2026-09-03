@@ -47,7 +47,8 @@ This is a message-flow test.
 
 TEST_URLS = [
     "https://www.linkedin.com/in/minh-quân-851170229/",
-    "https://www.linkedin.com/in/frank-nguyen-flearningstudio/"
+    "https://www.linkedin.com/in/frank-nguyen-flearningstudio/",
+    "https://www.linkedin.com/in/linh-nguyen-huyen-6070a530a/"
 ]
 
 
