@@ -6162,7 +6162,7 @@ body.reduce-motion *::after {
 
 
 /* =========================================================
- * RECIPIENTS — EXISTING SEND BATCH
+ * RECIPIENTS — EXISTING CONNECT ID
  * Design.md: compact table metadata, neutral nested surface,
  * restrained identity treatment, no decorative semantic color.
  * ========================================================= */
@@ -6209,7 +6209,7 @@ body.reduce-motion *::after {
 
 
 /* =========================================================
- * RECIPIENTS — SEND BATCH FILTER + GROUPING
+ * RECIPIENTS — CONNECT ID FILTER + GROUPING
  * Design.md:
  * - compact operational controls
  * - neutral nested rows
