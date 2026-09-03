@@ -1363,23 +1363,23 @@
   </label>
 
   <label class="outreach-account-filter outreach-send-batch-filter">
-    <span>Send batch</span>
+    <span>Connect ID</span>
     <select
       id="outreachAcceptedSendBatchFilter"
-      aria-label="Filter recipients by send batch"
+      aria-label="Filter recipients by original Connect Job ID"
     >
-      <option value="all">All send batches</option>
+      <option value="all">All Connect IDs</option>
     </select>
   </label>
 </div></div></div>
       <div id="outreachAcceptedPoolEmpty" class="state">Chưa có user accepted.</div>
-      <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Send batch</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="recipient-send-batch" data-accepted-send-batch>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template>
+      <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Connect ID</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="recipient-send-batch" data-accepted-send-batch>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template>
         <template id="outreachAcceptedPoolGroupTemplate">
           <tr class="recipient-batch-group-row">
             <td colspan="6">
               <div class="recipient-batch-group">
                 <div>
-                  <span class="recipient-batch-group-label">Send batch</span>
+                  <span class="recipient-batch-group-label">Connect ID</span>
                   <strong data-accepted-group-code>—</strong>
                 </div>
                 <span class="recipient-batch-group-count" data-accepted-group-count>0 profiles</span>
