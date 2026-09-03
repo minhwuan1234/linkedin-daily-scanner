@@ -406,6 +406,9 @@ const els = {
   messagePreparationMeta:
     document.querySelector("#messagePreparationMeta"),
 
+  messageCampaignNameInput:
+    document.querySelector("#messageCampaignNameInput"),
+
   messagePrepareSelectedButton:
     document.querySelector("#messagePrepareSelectedButton"),
 
@@ -420,6 +423,9 @@ const els = {
 
   messagePrepareConfirmMeta:
     document.querySelector("#messagePrepareConfirmMeta"),
+
+  messagePrepareConfirmCampaignName:
+    document.querySelector("#messagePrepareConfirmCampaignName"),
 
   messagePrepareConfirmError:
     document.querySelector("#messagePrepareConfirmError"),
@@ -4653,6 +4659,21 @@ function renderOutreachAcceptedPool() {
         "[data-accepted-at]"
       );
 
+    const campaignName =
+      fragment.querySelector(
+        "[data-accepted-campaign-name]"
+      );
+
+    const campaignCode =
+      fragment.querySelector(
+        "[data-accepted-campaign-code]"
+      );
+
+    const sendCode =
+      fragment.querySelector(
+        "[data-accepted-send-code]"
+      );
+
     const message =
       fragment.querySelector(
         "[data-accepted-message]"
@@ -4672,10 +4693,10 @@ function renderOutreachAcceptedPool() {
 
       checkbox.title =
         uiBucket === "prepared"
-          ? "Recipient is already in a prepared message batch."
+          ? "Recipient is already in a prepared message campaign."
           : uiBucket === "sent"
             ? "Message already sent."
-            : "Select recipient for a new message batch.";
+            : "Select recipient for a new message campaign.";
 
       checkbox.addEventListener(
         "change",
@@ -4722,6 +4743,29 @@ function renderOutreachAcceptedPool() {
           item.accepted_at ||
           item.acceptance_checked_at
         );
+    }
+
+    if (campaignName) {
+      campaignName.textContent =
+        item.campaign_name ||
+        "—";
+    }
+
+    if (campaignCode) {
+      campaignCode.textContent =
+        item.campaign_code ||
+        "—";
+    }
+
+    if (sendCode) {
+      sendCode.textContent =
+        item.send_code ||
+        "—";
+
+      sendCode.title =
+        item.message_target_id ||
+        item.send_code ||
+        "";
     }
 
     if (message) {
@@ -4948,6 +4992,40 @@ function getMessageBatchSendLabel(
 }
 
 
+
+function getMessageCampaignName() {
+  return String(
+    els.messageCampaignNameInput?.value || ""
+  )
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+
+function validateMessageCampaignName() {
+  const name = getMessageCampaignName();
+
+  if (!name) {
+    return {
+      ok: false,
+      error: "Campaign name is required."
+    };
+  }
+
+  if (name.length > 120) {
+    return {
+      ok: false,
+      error: "Campaign name must be 120 characters or fewer."
+    };
+  }
+
+  return {
+    ok: true,
+    name
+  };
+}
+
+
 function renderMessagePreparation() {
   const count = Number(
     state.messagePreparation?.count || 0
@@ -4964,16 +5042,19 @@ function renderMessagePreparation() {
   if (els.messagePreparationHeadline) {
     els.messagePreparationHeadline.textContent =
       count > 0
-        ? `${count} accepted users sẵn sàng để prepare`
-        : "Chưa có recipient cần prepare";
+        ? `${count} accepted users sẵn sàng cho campaign`
+        : "Chưa có recipient cho campaign";
   }
 
   if (els.messagePreparationMeta) {
     els.messagePreparationMeta.textContent =
       count > 0
-        ? "Prepare All sẽ snapshot toàn bộ danh sách hiện tại thành một batch cố định."
-        : "Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.";
+        ? "Create All sẽ snapshot toàn bộ danh sách hiện tại vào cùng một campaign."
+        : "Accepted users chưa nằm trong prepared campaign sẽ xuất hiện ở đây.";
   }
+
+  const campaignNameValid =
+    validateMessageCampaignName().ok;
 
   const selectedCount =
     state.outreachAcceptedSelectedProspectIds.size;
@@ -4982,28 +5063,30 @@ function renderMessagePreparation() {
     els.messagePrepareSelectedButton.disabled =
       state.messagePreparationSubmitting ||
       state.messagePreparationSelectedSubmitting ||
+      !campaignNameValid ||
       selectedCount <= 0;
 
     els.messagePrepareSelectedButton.textContent =
       state.messagePreparationSelectedSubmitting
         ? "Preparing..."
         : selectedCount > 0
-          ? `Prepare selected ${selectedCount}`
-          : "Prepare selected";
+          ? `Create selected ${selectedCount}`
+          : "Create selected";
   }
 
   if (els.messagePrepareAllButton) {
     els.messagePrepareAllButton.disabled =
       state.messagePreparationSubmitting ||
       state.messagePreparationSelectedSubmitting ||
+      !campaignNameValid ||
       count <= 0;
 
     els.messagePrepareAllButton.textContent =
       state.messagePreparationSubmitting
         ? "Preparing..."
         : count > 0
-          ? `Prepare all ${count}`
-          : "Prepare all";
+          ? `Create all ${count}`
+          : "Create all";
   }
 
   const batches =
@@ -5013,7 +5096,7 @@ function renderMessagePreparation() {
 
   if (els.messageBatchCount) {
     els.messageBatchCount.textContent =
-      `${batches.length} batches`;
+      `${batches.length} campaigns`;
   }
 
   if (els.messageBatchEmpty) {
@@ -5103,13 +5186,17 @@ function renderMessagePreparation() {
 
     if (code) {
       code.textContent =
+        batch.campaign_name ||
+        batch.campaign_code ||
         batch.batch_code ||
-        "Prepared batch";
+        "Message campaign";
     }
 
     if (meta) {
       meta.textContent =
-        `${Number(batch.target_count || 0)} recipients · ${formatDate(
+        `${batch.campaign_code || batch.batch_code || "—"} · ${Number(
+          batch.target_count || 0
+        )} recipients · ${formatDate(
           batch.created_at
         )}`;
     }
@@ -5217,7 +5304,7 @@ function openMessageSendModal(
 
   if (els.messageSendDialogMeta) {
     els.messageSendDialogMeta.textContent =
-      `${batch.batch_code || "Message batch"} · ${Number(
+      `${batch.campaign_name || batch.campaign_code || batch.batch_code || "Message campaign"} · ${Number(
         batch.target_count || 0
       )} recipients`;
   }
@@ -5413,14 +5500,18 @@ async function openPreparedMessageBatch(batchId) {
 
     if (els.drawerName) {
       els.drawerName.textContent =
-        batch.batch_code || "Prepared Message Batch";
+        batch.campaign_name ||
+        batch.campaign_code ||
+        batch.batch_code ||
+        "Message Campaign";
     }
 
     if (els.drawerContent) {
       els.drawerContent.innerHTML = `
         <div class="drawer-section">
           <p class="panel-meta">
-            ${escapeHtml(String(batch.target_count || targets.length))}
+            ${escapeHtml(batch.campaign_code || batch.batch_code || "—")}
+            · ${escapeHtml(String(batch.target_count || targets.length))}
             recipients · ${escapeHtml(batch.status || "prepared")}
           </p>
         </div>
@@ -5430,6 +5521,7 @@ async function openPreparedMessageBatch(batchId) {
             ? targets.map((target) => `
                 <div class="detail-row">
                   <span>${escapeHtml(
+                    target.send_code ||
                     getOutreachAccountDisplayName(
                       target.assigned_account_id
                     )
@@ -5485,14 +5577,26 @@ function openMessagePrepareConfirmModal(
     return;
   }
 
+  const campaignValidation =
+    validateMessageCampaignName();
+
+  if (!campaignValidation.ok) {
+    if (els.messagePreparationError) {
+      els.messagePreparationError.hidden = false;
+      els.messagePreparationError.textContent =
+        campaignValidation.error;
+    }
+
+    els.messageCampaignNameInput?.focus();
+    return;
+  }
+
   state.messagePrepareConfirmMode =
     mode;
 
   if (els.messagePrepareConfirmTitle) {
     els.messagePrepareConfirmTitle.textContent =
-      mode === "selected"
-        ? "Prepare selected recipients"
-        : "Prepare all recipients";
+      "Create message campaign";
   }
 
   if (els.messagePrepareConfirmMeta) {
@@ -5502,11 +5606,16 @@ function openMessagePrepareConfirmModal(
         : `${count} currently eligible accepted profiles`;
   }
 
+  if (els.messagePrepareConfirmCampaignName) {
+    els.messagePrepareConfirmCampaignName.textContent =
+      campaignValidation.name;
+  }
+
   if (els.messagePrepareConfirmButton) {
     els.messagePrepareConfirmButton.textContent =
       mode === "selected"
-        ? `Prepare selected ${count}`
-        : `Prepare all ${count}`;
+        ? `Create selected ${count}`
+        : `Create all ${count}`;
   }
 
   if (els.messagePrepareConfirmError) {
@@ -5610,7 +5719,8 @@ async function prepareSelectedMessageRecipients(
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          prospect_ids: prospectIds
+          prospect_ids: prospectIds,
+          campaign_name: getMessageCampaignName()
         })
       }
     );
@@ -5628,6 +5738,10 @@ async function prepareSelectedMessageRecipients(
     state
       .outreachAcceptedSelectedProspectIds
       .clear();
+
+    if (els.messageCampaignNameInput) {
+      els.messageCampaignNameInput.value = "";
+    }
 
     closeMessagePrepareConfirmModal();
 
@@ -5714,8 +5828,12 @@ async function prepareAllMessageRecipients(
       {
         method: "POST",
         headers: {
-          "Accept": "application/json"
-        }
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          campaign_name: getMessageCampaignName()
+        })
       }
     );
 
@@ -5727,6 +5845,10 @@ async function prepareAllMessageRecipients(
         result.error ||
         "Không thể prepare recipients."
       );
+    }
+
+    if (els.messageCampaignNameInput) {
+      els.messageCampaignNameInput.value = "";
     }
 
     closeMessagePrepareConfirmModal();
@@ -8341,6 +8463,18 @@ els.outreachAcceptedSelectPage?.addEventListener(
     });
 
     renderOutreachAcceptedPool();
+  }
+);
+
+els.messageCampaignNameInput?.addEventListener(
+  "input",
+  () => {
+    if (els.messagePreparationError) {
+      els.messagePreparationError.hidden = true;
+      els.messagePreparationError.textContent = "";
+    }
+
+    renderMessagePreparation();
   }
 );
 
