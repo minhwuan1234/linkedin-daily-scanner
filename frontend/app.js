@@ -445,6 +445,9 @@ const els = {
   messageBatchCount:
     document.querySelector("#messageBatchCount"),
 
+  messageBatchSourceFilter:
+    document.querySelector("#messageBatchSourceFilter"),
+
   messageBatchEmpty:
     document.querySelector("#messageBatchEmpty"),
 
@@ -547,6 +550,7 @@ const state = {
   outreachAcceptancePageSize: 10,
   messageBatchPage: 1,
   messageBatchPageSize: 8,
+  messageBatchSourceFilter: "all",
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   outreachProfilesLoading: false,
@@ -5345,6 +5349,198 @@ function getMessageBatchSendLabel(
 }
 
 
+
+function getMessageBatchSourceConnectIds(
+  batch
+) {
+  return Array.isArray(
+    batch?.source_connect_ids
+  )
+    ? batch.source_connect_ids.filter(
+        (item) =>
+          String(
+            item?.id ||
+            ""
+          ).trim()
+      )
+    : [];
+}
+
+
+function getMessageBatchSourceLabel(
+  source
+) {
+  const code =
+    String(
+      source?.code ||
+      ""
+    ).trim();
+
+  if (code) {
+    return code;
+  }
+
+  const id =
+    String(
+      source?.id ||
+      ""
+    ).trim();
+
+  if (!id) {
+    return "Unknown";
+  }
+
+  return id.length > 16
+    ? `${id.slice(0, 8)}…${id.slice(-5)}`
+    : id;
+}
+
+
+function renderMessageBatchSourceFilter() {
+  const select =
+    els.messageBatchSourceFilter;
+
+  if (!select) {
+    return;
+  }
+
+  const sourcesById =
+    new Map();
+
+  (
+    Array.isArray(state.messageBatches)
+      ? state.messageBatches
+      : []
+  ).forEach((batch) => {
+    getMessageBatchSourceConnectIds(
+      batch
+    ).forEach((source) => {
+      const id =
+        String(
+          source.id ||
+          ""
+        ).trim();
+
+      if (!id) {
+        return;
+      }
+
+      sourcesById.set(
+        id,
+        getMessageBatchSourceLabel(
+          source
+        )
+      );
+    });
+  });
+
+  const sortedSources =
+    Array.from(
+      sourcesById.entries()
+    ).sort(
+      (left, right) =>
+        right[1].localeCompare(
+          left[1],
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        )
+    );
+
+  const current =
+    state.messageBatchSourceFilter ||
+    "all";
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const allOption =
+    document.createElement(
+      "option"
+    );
+
+  allOption.value =
+    "all";
+
+  allOption.textContent =
+    "All Connect IDs";
+
+  fragment.append(
+    allOption
+  );
+
+  sortedSources.forEach(
+    ([id, label]) => {
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        id;
+
+      option.textContent =
+        label;
+
+      fragment.append(
+        option
+      );
+    }
+  );
+
+  select.replaceChildren(
+    fragment
+  );
+
+  const stillExists =
+    current === "all" ||
+    sourcesById.has(
+      current
+    );
+
+  state.messageBatchSourceFilter =
+    stillExists
+      ? current
+      : "all";
+
+  select.value =
+    state.messageBatchSourceFilter;
+}
+
+
+function getFilteredMessageBatches() {
+  const batches =
+    Array.isArray(state.messageBatches)
+      ? state.messageBatches
+      : [];
+
+  const sourceFilter =
+    state.messageBatchSourceFilter ||
+    "all";
+
+  if (sourceFilter === "all") {
+    return batches;
+  }
+
+  return batches.filter(
+    (batch) =>
+      getMessageBatchSourceConnectIds(
+        batch
+      ).some(
+        (source) =>
+          String(
+            source.id ||
+            ""
+          ).trim() ===
+          sourceFilter
+      )
+  );
+}
+
+
+
 function renderMessagePreparation() {
   const count = Number(
     state.messagePreparation?.count || 0
@@ -5403,14 +5599,21 @@ function renderMessagePreparation() {
           : "Prepare all";
   }
 
-  const batches =
+  renderMessageBatchSourceFilter();
+
+  const allBatches =
     Array.isArray(state.messageBatches)
       ? state.messageBatches
       : [];
 
+  const batches =
+    getFilteredMessageBatches();
+
   if (els.messageBatchCount) {
     els.messageBatchCount.textContent =
-      `${batches.length} batches`;
+      state.messageBatchSourceFilter === "all"
+        ? `${allBatches.length} batches`
+        : `${batches.length} of ${allBatches.length}`;
   }
 
   if (els.messageBatchEmpty) {
@@ -5483,6 +5686,11 @@ function renderMessagePreparation() {
         "[data-message-batch-meta]"
       );
 
+    const source =
+      fragment.querySelector(
+        "[data-message-batch-source]"
+      );
+
     const status =
       fragment.querySelector(
         "[data-message-batch-status]"
@@ -5509,6 +5717,40 @@ function renderMessagePreparation() {
         `${Number(batch.target_count || 0)} recipients · ${formatDate(
           batch.created_at
         )}`;
+    }
+
+    if (source) {
+      const sourceIds =
+        getMessageBatchSourceConnectIds(
+          batch
+        );
+
+      if (sourceIds.length === 1) {
+        source.textContent =
+          `Connect ID ${getMessageBatchSourceLabel(
+            sourceIds[0]
+          )}`;
+
+        source.title =
+          `Connect Job ID: ${sourceIds[0].id}`;
+      } else if (sourceIds.length > 1) {
+        source.textContent =
+          `${sourceIds.length} Connect IDs`;
+
+        source.title =
+          sourceIds
+            .map(
+              (item) =>
+                `${getMessageBatchSourceLabel(item)} · ${item.id}`
+            )
+            .join("\n");
+      } else {
+        source.textContent =
+          "Connect ID —";
+
+        source.title =
+          "Source Connect Job unavailable.";
+      }
     }
 
     if (status) {
@@ -8646,6 +8888,20 @@ els.outreachDeleteJobsModal
 els.outreachDeleteJobsConfirmButton?.addEventListener(
   "click",
   deleteSelectedAcceptanceJobs
+);
+
+els.messageBatchSourceFilter?.addEventListener(
+  "change",
+  () => {
+    state.messageBatchSourceFilter =
+      els.messageBatchSourceFilter.value ||
+      "all";
+
+    state.messageBatchPage =
+      1;
+
+    renderMessagePreparation();
+  }
 );
 
 els.messageBatchPrevPage?.addEventListener("click",()=>{state.messageBatchPage=Math.max(1,state.messageBatchPage-1);renderMessagePreparation()});
