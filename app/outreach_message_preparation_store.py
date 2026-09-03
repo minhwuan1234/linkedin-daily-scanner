@@ -45,6 +45,62 @@ def _safe_text(
     ).strip()
 
 
+def _clean_campaign_name(
+    value,
+) -> str:
+    cleaned = " ".join(
+        _safe_text(value).split()
+    )
+
+    if len(cleaned) > 120:
+        raise OutreachMessagePreparationStoreError(
+            "campaign_name must be 120 characters or fewer."
+        )
+
+    return cleaned
+
+
+def _campaign_code_from_batch_code(
+    batch_code: str,
+) -> str:
+    cleaned = _safe_text(
+        batch_code
+    )
+
+    if cleaned.startswith(
+        "MSG-"
+    ):
+        return (
+            "CMP-"
+            + cleaned[4:]
+        )
+
+    return (
+        "CMP-"
+        + cleaned
+    )
+
+
+def _send_code_from_batch_code(
+    *,
+    batch_code: str,
+    sequence: int,
+) -> str:
+    cleaned = _safe_text(
+        batch_code
+    )
+
+    if cleaned.startswith(
+        "MSG-"
+    ):
+        cleaned = cleaned[4:]
+
+    return (
+        f"SND-{cleaned}-"
+        f"{int(sequence):03d}"
+    )
+
+
 # =========================================================
 # SUPABASE
 # =========================================================
@@ -345,7 +401,21 @@ def _create_prepared_batch_from_candidates(
     *,
     candidates: list[dict],
     client: Client,
+    campaign_name: str | None = None,
 ) -> dict:
+    """
+    Create one Campaign using the existing message-batch container.
+
+    Important identities:
+        batch.id      -> internal UUID
+        campaign_code -> human-readable campaign id
+        target.id     -> internal UUID for one recipient send
+        send_code     -> human-readable id for that exact send
+
+    Existing Mac Message Worker behavior remains unchanged because it still
+    consumes outreach_message_batches + outreach_message_targets.
+    """
+
     if not candidates:
         return {
             "created": False,
@@ -358,6 +428,23 @@ def _create_prepared_batch_from_candidates(
         client=client
     )
 
+    campaign_code = (
+        _campaign_code_from_batch_code(
+            batch_code
+        )
+    )
+
+    cleaned_campaign_name = (
+        _clean_campaign_name(
+            campaign_name
+        )
+    )
+
+    if not cleaned_campaign_name:
+        cleaned_campaign_name = (
+            f"Campaign {campaign_code}"
+        )
+
     now = _utc_now()
 
     batch_response = (
@@ -367,6 +454,10 @@ def _create_prepared_batch_from_candidates(
         .insert(
             {
                 "batch_code": batch_code,
+                "campaign_code": campaign_code,
+                "campaign_name": (
+                    cleaned_campaign_name
+                ),
                 "status": "prepared",
                 "target_count": 0,
                 "created_at": now,
@@ -383,35 +474,49 @@ def _create_prepared_batch_from_candidates(
 
     if not batch_rows:
         raise OutreachMessagePreparationStoreError(
-            "Could not create message preparation batch."
+            "Could not create message campaign."
         )
 
-    batch = batch_rows[0]
+    batch = dict(
+        batch_rows[0]
+    )
+
     batch_id = _safe_text(
         batch.get("id")
     )
 
     if not batch_id:
         raise OutreachMessagePreparationStoreError(
-            "Created message batch has no id."
+            "Created message campaign has no id."
         )
 
-    target_rows = [
-        {
-            "batch_id": batch_id,
-            "prospect_id": item["prospect_id"],
-            "source_target_id": item["source_target_id"],
-            "assigned_account_id": item["assigned_account_id"],
-            "linkedin_url": item["linkedin_url"],
-            "normalized_url": (
-                item["normalized_url"] or None
-            ),
-            "status": "prepared",
-            "created_at": now,
-            "updated_at": now,
-        }
-        for item in candidates
-    ]
+    target_rows = []
+
+    for sequence, item in enumerate(
+        candidates,
+        start=1,
+    ):
+        target_rows.append(
+            {
+                "batch_id": batch_id,
+                "send_code": (
+                    _send_code_from_batch_code(
+                        batch_code=batch_code,
+                        sequence=sequence,
+                    )
+                ),
+                "prospect_id": item["prospect_id"],
+                "source_target_id": item["source_target_id"],
+                "assigned_account_id": item["assigned_account_id"],
+                "linkedin_url": item["linkedin_url"],
+                "normalized_url": (
+                    item["normalized_url"] or None
+                ),
+                "status": "prepared",
+                "created_at": now,
+                "updated_at": now,
+            }
+        )
 
     try:
         target_response = (
@@ -437,7 +542,7 @@ def _create_prepared_batch_from_candidates(
             target_rows
         ):
             raise OutreachMessagePreparationStoreError(
-                "Prepared target insert count mismatch: "
+                "Campaign target insert count mismatch: "
                 f"expected {len(target_rows)}, "
                 f"got {inserted_count}."
             )
@@ -477,7 +582,9 @@ def _create_prepared_batch_from_candidates(
 
         raise
 
-    batch["target_count"] = inserted_count
+    batch[
+        "target_count"
+    ] = inserted_count
 
     return {
         "created": True,
@@ -493,6 +600,7 @@ def _create_prepared_batch_from_candidates(
 
 def prepare_all_unsent_accepted(
     *,
+    campaign_name: str | None = None,
     client: Client | None = None,
 ) -> dict:
     active_client = (
@@ -513,6 +621,7 @@ def prepare_all_unsent_accepted(
             or []
         ),
         client=active_client,
+        campaign_name=campaign_name,
     )
 
 
@@ -523,6 +632,7 @@ def prepare_all_unsent_accepted(
 def prepare_selected_unsent_accepted(
     *,
     prospect_ids: list[str],
+    campaign_name: str | None = None,
     client: Client | None = None,
 ) -> dict:
     active_client = (
@@ -591,6 +701,7 @@ def prepare_selected_unsent_accepted(
     return _create_prepared_batch_from_candidates(
         candidates=selected_candidates,
         client=active_client,
+        campaign_name=campaign_name,
     )
 
 
@@ -631,6 +742,8 @@ def list_prepared_message_batches(
             (
                 "id,"
                 "batch_code,"
+                "campaign_code,"
+                "campaign_name,"
                 "status,"
                 "target_count,"
                 "created_at,"
@@ -684,6 +797,8 @@ def get_prepared_message_batch(
             (
                 "id,"
                 "batch_code,"
+                "campaign_code,"
+                "campaign_name,"
                 "status,"
                 "target_count,"
                 "created_at,"
@@ -716,6 +831,7 @@ def get_prepared_message_batch(
             (
                 "id,"
                 "batch_id,"
+                "send_code,"
                 "prospect_id,"
                 "source_target_id,"
                 "assigned_account_id,"
