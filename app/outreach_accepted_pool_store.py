@@ -8,8 +8,7 @@ from app.settings import load_settings
 
 
 TARGET_TABLE = "outreach_job_targets"
-MESSAGE_TARGET_TABLE = "outreach_message_targets"
-MESSAGE_BATCH_TABLE = "outreach_message_batches"
+JOB_TABLE = "outreach_jobs"
 
 
 class OutreachAcceptedPoolStoreError(
@@ -233,46 +232,27 @@ def _normalize_pool_row(
 
 
 
-def _chunked(
-    values: list[str],
-    size: int = 200,
-):
-    for start in range(
-        0,
-        len(values),
-        size,
-    ):
-        yield values[
-            start:start + size
-        ]
-
-
-def _load_existing_send_batches(
+def _load_job_codes(
     *,
     client: Client,
-    prospect_ids: list[str],
-) -> dict[str, dict]:
+    job_ids: list[str],
+) -> dict[str, str]:
     """
-    Resolve the existing Message Batch for Accepted Pool rows.
+    Resolve the existing Connect Job code for the job_id already stored on
+    outreach_job_targets.
 
-    No new "send id" is created here.
+    This is the original send/run identity:
+        outreach_job_targets.job_id
+            -> outreach_jobs.id
+            -> outreach_jobs.job_code
 
-    Existing identity:
-        outreach_message_targets.batch_id
-            -> outreach_message_batches.id / batch_code
-
-    If a prospect has appeared in more than one message batch, Recipients
-    shows the newest assignment because that is the current/latest send
-    context for the profile.
-
-    The query is restricted to prospect_ids already loaded for Accepted Pool;
-    it never scans the whole message-target table.
+    Only the distinct job IDs present in the Accepted Pool are requested.
     """
 
     cleaned_ids = list(
         dict.fromkeys(
             _safe_text(value)
-            for value in prospect_ids
+            for value in job_ids
             if _safe_text(value)
         )
     )
@@ -280,184 +260,46 @@ def _load_existing_send_batches(
     if not cleaned_ids:
         return {}
 
-    latest_target_by_prospect: dict[
-        str,
-        dict,
-    ] = {}
-
-    for chunk in _chunked(
-        cleaned_ids
-    ):
-        response = (
-            client
-            .table(
-                MESSAGE_TARGET_TABLE
-            )
-            .select(
-                (
-                    "id,"
-                    "batch_id,"
-                    "prospect_id,"
-                    "status,"
-                    "created_at,"
-                    "updated_at"
-                )
-            )
-            .in_(
-                "prospect_id",
-                chunk,
-            )
-            .order(
-                "created_at",
-                desc=True,
-            )
-            .execute()
+    response = (
+        client
+        .table(
+            JOB_TABLE
         )
-
-        for row in list(
-            response.data
-            or []
-        ):
-            prospect_id = _safe_text(
-                row.get(
-                    "prospect_id"
-                )
-            )
-
-            if (
-                not prospect_id
-                or prospect_id
-                in latest_target_by_prospect
-            ):
-                continue
-
-            latest_target_by_prospect[
-                prospect_id
-            ] = dict(
-                row
-            )
-
-    batch_ids = list(
-        dict.fromkeys(
-            _safe_text(
-                row.get(
-                    "batch_id"
-                )
-            )
-            for row in (
-                latest_target_by_prospect
-                .values()
-            )
-            if _safe_text(
-                row.get(
-                    "batch_id"
-                )
-            )
+        .select(
+            "id,job_code"
         )
+        .in_(
+            "id",
+            cleaned_ids,
+        )
+        .execute()
     )
-
-    batch_by_id: dict[
-        str,
-        dict,
-    ] = {}
-
-    for chunk in _chunked(
-        batch_ids
-    ):
-        response = (
-            client
-            .table(
-                MESSAGE_BATCH_TABLE
-            )
-            .select(
-                (
-                    "id,"
-                    "batch_code,"
-                    "status,"
-                    "created_at"
-                )
-            )
-            .in_(
-                "id",
-                chunk,
-            )
-            .execute()
-        )
-
-        for row in list(
-            response.data
-            or []
-        ):
-            batch_id = _safe_text(
-                row.get(
-                    "id"
-                )
-            )
-
-            if batch_id:
-                batch_by_id[
-                    batch_id
-                ] = dict(
-                    row
-                )
 
     result: dict[
         str,
-        dict,
+        str,
     ] = {}
 
-    for prospect_id, target in (
-        latest_target_by_prospect
-        .items()
+    for row in list(
+        response.data
+        or []
     ):
-        batch_id = _safe_text(
-            target.get(
-                "batch_id"
+        job_id = _safe_text(
+            row.get(
+                "id"
             )
         )
 
-        batch = (
-            batch_by_id.get(
-                batch_id
-            )
-            or {}
-        )
+        if not job_id:
+            continue
 
         result[
-            prospect_id
-        ] = {
-            "message_batch_id": (
-                batch_id
-            ),
-            "message_batch_code": (
-                _safe_text(
-                    batch.get(
-                        "batch_code"
-                    )
-                )
-            ),
-            "message_batch_status": (
-                _safe_text(
-                    batch.get(
-                        "status"
-                    )
-                )
-            ),
-            "message_target_id": (
-                _safe_text(
-                    target.get(
-                        "id"
-                    )
-                )
-            ),
-            "message_target_status": (
-                _safe_text(
-                    target.get(
-                        "status"
-                    )
-                )
-            ),
-        }
+            job_id
+        ] = _safe_text(
+            row.get(
+                "job_code"
+            )
+        )
 
     return result
 
@@ -651,13 +493,13 @@ def get_accepted_pool(
         reverse=True,
     )
 
-    existing_send_batches = (
-        _load_existing_send_batches(
+    job_code_by_id = (
+        _load_job_codes(
             client=active_client,
-            prospect_ids=[
+            job_ids=[
                 _safe_text(
                     item.get(
-                        "prospect_id"
+                        "job_id"
                     )
                 )
                 for item in items
@@ -666,57 +508,19 @@ def get_accepted_pool(
     )
 
     for item in items:
-        prospect_id = _safe_text(
+        job_id = _safe_text(
             item.get(
-                "prospect_id"
+                "job_id"
             )
         )
 
-        send_batch = (
-            existing_send_batches.get(
-                prospect_id
+        item[
+            "job_code"
+        ] = (
+            job_code_by_id.get(
+                job_id,
+                "",
             )
-            or {}
-        )
-
-        item.update(
-            {
-                "message_batch_id": (
-                    _safe_text(
-                        send_batch.get(
-                            "message_batch_id"
-                        )
-                    )
-                ),
-                "message_batch_code": (
-                    _safe_text(
-                        send_batch.get(
-                            "message_batch_code"
-                        )
-                    )
-                ),
-                "message_batch_status": (
-                    _safe_text(
-                        send_batch.get(
-                            "message_batch_status"
-                        )
-                    )
-                ),
-                "message_target_id": (
-                    _safe_text(
-                        send_batch.get(
-                            "message_target_id"
-                        )
-                    )
-                ),
-                "message_target_status": (
-                    _safe_text(
-                        send_batch.get(
-                            "message_target_status"
-                        )
-                    )
-                ),
-            }
         )
 
     sent_count = sum(
