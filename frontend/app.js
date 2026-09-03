@@ -4193,9 +4193,37 @@ function getAcceptedPoolBatchCode(
   item
 ) {
   return String(
-    item?.message_batch_code ||
+    item?.job_id ||
     ""
   ).trim();
+}
+
+
+function getAcceptedPoolConnectIdLabel(
+  item
+) {
+  const jobCode =
+    String(
+      item?.job_code ||
+      ""
+    ).trim();
+
+  if (jobCode) {
+    return jobCode;
+  }
+
+  const jobId =
+    getAcceptedPoolBatchCode(
+      item
+    );
+
+  if (!jobId) {
+    return "Unknown Connect ID";
+  }
+
+  return jobId.length > 16
+    ? `${jobId.slice(0, 8)}…${jobId.slice(-5)}`
+    : jobId;
 }
 
 
@@ -4207,28 +4235,33 @@ function getAcceptedPoolAvailableSendBatches() {
       ? state.outreachAcceptedPool.items
       : [];
 
-  const batchCodes =
-    new Set();
+  const connectIds =
+    new Map();
 
   items.forEach((item) => {
-    const batchCode =
+    const jobId =
       getAcceptedPoolBatchCode(
         item
       );
 
-    if (batchCode) {
-      batchCodes.add(
-        batchCode
-      );
+    if (!jobId) {
+      return;
     }
+
+    connectIds.set(
+      jobId,
+      getAcceptedPoolConnectIdLabel(
+        item
+      )
+    );
   });
 
   return Array.from(
-    batchCodes
+    connectIds.entries()
   ).sort(
-    (a, b) =>
-      b.localeCompare(
-        a,
+    (left, right) =>
+      right[1].localeCompare(
+        left[1],
         undefined,
         {
           numeric: true,
@@ -4247,7 +4280,7 @@ function renderAcceptedPoolSendBatchFilter() {
     return;
   }
 
-  const batchCodes =
+  const connectIds =
     getAcceptedPoolAvailableSendBatches();
 
   const currentValue =
@@ -4264,7 +4297,7 @@ function renderAcceptedPoolSendBatchFilter() {
     "all";
 
   allOption.textContent =
-    "All send batches";
+    "All Connect IDs";
 
   fragment.append(
     allOption
@@ -4277,24 +4310,24 @@ function renderAcceptedPoolSendBatchFilter() {
     "unassigned";
 
   unassignedOption.textContent =
-    "Ready / no batch";
+    "Unknown Connect ID";
 
   fragment.append(
     unassignedOption
   );
 
-  batchCodes.forEach(
-    (batchCode) => {
+  connectIds.forEach(
+    ([jobId, jobLabel]) => {
       const option =
         document.createElement(
           "option"
         );
 
       option.value =
-        batchCode;
+        jobId;
 
       option.textContent =
-        batchCode;
+        jobLabel;
 
       fragment.append(
         option
@@ -4309,8 +4342,9 @@ function renderAcceptedPoolSendBatchFilter() {
   const stillExists =
     currentValue === "all" ||
     currentValue === "unassigned" ||
-    batchCodes.includes(
-      currentValue
+    connectIds.some(
+      ([jobId]) =>
+        jobId === currentValue
     );
 
   state.outreachAcceptedSendBatchFilter =
@@ -4354,8 +4388,18 @@ function sortAcceptedPoolBySendBatch(
         leftBatch !==
         rightBatch
       ) {
-        return rightBatch.localeCompare(
-          leftBatch,
+        const leftLabel =
+          getAcceptedPoolConnectIdLabel(
+            left
+          );
+
+        const rightLabel =
+          getAcceptedPoolConnectIdLabel(
+            right
+          );
+
+        return rightLabel.localeCompare(
+          leftLabel,
           undefined,
           {
             numeric: true,
@@ -4885,8 +4929,16 @@ function renderOutreachAcceptedPool() {
         groupCode.textContent =
           currentBatchCode ===
             "unassigned"
-            ? "Ready / no batch"
-            : currentBatchCode;
+            ? "Unknown Connect ID"
+            : getAcceptedPoolConnectIdLabel(
+                item
+              );
+
+        groupCode.title =
+          currentBatchCode ===
+            "unassigned"
+            ? ""
+            : `Connect Job ID: ${currentBatchCode}`;
       }
 
       if (groupCount) {
@@ -5046,29 +5098,27 @@ function renderOutreachAcceptedPool() {
     }
 
     if (sendBatch) {
-      const batchCode =
-        String(
-          item.message_batch_code ||
-          ""
-        ).trim();
+      const jobId =
+        getAcceptedPoolBatchCode(
+          item
+        );
 
       sendBatch.textContent =
-        batchCode ||
-        "—";
+        jobId
+          ? getAcceptedPoolConnectIdLabel(
+              item
+            )
+          : "—";
 
       sendBatch.classList.toggle(
         "is-assigned",
-        Boolean(batchCode)
+        Boolean(jobId)
       );
 
       sendBatch.title =
-        batchCode
-          ? (
-              item.message_batch_id
-                ? `Batch ID: ${item.message_batch_id}`
-                : batchCode
-            )
-          : "Not assigned to a message batch yet.";
+        jobId
+          ? `Connect Job ID: ${jobId}`
+          : "Connect Job ID unavailable.";
     }
 
     if (message) {
