@@ -6592,6 +6592,145 @@ th {
   box-shadow: var(--shadow);
 }
 
+.outreach-workspace-header,
+.outreach-connect-workspace-header,
+.panel-toolbar,
+.panel-header,
+.rate-limit-section-heading,
+.acceptance-insights-section-heading {
+  gap: 16px;
+}
+
+.outreach-workspace-header,
+.outreach-connect-workspace-header,
+.panel-toolbar {
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.outreach-stat,
+.outreach-info-item,
+.outreach-account-card,
+.outreach-target-card,
+.message-batch-row {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel-raised);
+}
+
+.outreach-stat {
+  padding: 16px;
+}
+
+.outreach-stat span,
+.outreach-info-item span,
+.outreach-target-meta span,
+.outreach-account-card span {
+  color: var(--faint);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.outreach-stat strong,
+.outreach-info-item strong,
+.outreach-target-meta strong,
+.outreach-account-card strong {
+  color: var(--text);
+  font-feature-settings: "tnum" 1;
+}
+
+.outreach-target-card:hover,
+.outreach-account-card:hover,
+.message-batch-row:hover {
+  border-color: var(--border-strong);
+  background: var(--panel-hover);
+}
+
+.outreach-accepted-pool-table,
+.outreach-acceptance-table,
+.outreach-history-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.outreach-accepted-pool-table th,
+.outreach-accepted-pool-table td,
+.outreach-acceptance-table th,
+.outreach-acceptance-table td,
+.outreach-history-table th,
+.outreach-history-table td {
+  border-bottom-color: var(--border);
+}
+
+.outreach-accepted-pool-table tbody tr:last-child td,
+.outreach-acceptance-table tbody tr:last-child td,
+.outreach-history-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.state,
+.outreach-target-empty,
+.outreach-job-empty {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-soft);
+  color: var(--muted);
+}
+
+.close-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.close-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.modal,
+.drawer-panel,
+.acceptance-insights-drawer-panel,
+.rate-limit-drawer-panel,
+.message-send-modal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--panel-raised);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.34);
+}
+
+.modal-backdrop,
+.drawer-backdrop,
+.acceptance-insights-drawer-backdrop,
+.rate-limit-drawer-backdrop,
+.message-send-modal-backdrop {
+  background: rgba(2, 9, 18, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.pagination-button,
+.outreach-list-pagination button,
+.secondary-button {
+  min-height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.pagination-button:hover,
+.outreach-list-pagination button:hover,
+.secondary-button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 @media (max-width: 860px) {
   .app-sidebar {
     position: sticky;
@@ -6657,6 +6796,466 @@ th {
 
   .header-actions .primary-button {
     flex: 1;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+}
+
+/* =========================================================
+   Outreach-only product UI
+   A restrained Stripe-inspired layer: clear hierarchy,
+   quiet surfaces, precise controls, and action-first flow.
+   ========================================================= */
+:root {
+  --bg: #07111f;
+  --bg-soft: #0b1728;
+  --panel: #101d30;
+  --panel-raised: #14253b;
+  --panel-hover: #182b45;
+  --border: #20334b;
+  --border-strong: #304966;
+  --text: #f6f9fc;
+  --muted: #a7b7ca;
+  --faint: #72859d;
+  --accent: #635bff;
+  --accent-hover: #5148d8;
+  --accent-press: #4038b8;
+  --accent-soft: rgba(99, 91, 255, 0.16);
+  --green: #2dd4bf;
+  --green-soft: rgba(45, 212, 191, 0.13);
+  --amber: #f5b94c;
+  --amber-soft: rgba(245, 185, 76, 0.14);
+  --red: #f4778b;
+  --red-soft: rgba(244, 119, 139, 0.14);
+  --blue: #66a8ff;
+  --blue-soft: rgba(102, 168, 255, 0.14);
+  --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow: 0 8px 24px rgba(10, 37, 64, 0.08), 0 2px 6px rgba(10, 37, 64, 0.04);
+}
+
+html,
+body {
+  background:
+    radial-gradient(760px 260px at 68% -100px, rgba(99, 91, 255, 0.13), transparent 72%),
+    var(--bg);
+}
+
+body {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 400;
+  font-feature-settings: "ss01" 1;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  color: var(--text);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  font-size: clamp(26px, 2.6vw, 34px);
+  line-height: 1.1;
+}
+
+h2 {
+  font-size: 21px;
+  line-height: 1.2;
+}
+
+h3 {
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.app-sidebar {
+  width: 232px;
+  padding: 24px 16px 18px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-soft);
+}
+
+.sidebar-brand {
+  min-height: 52px;
+  padding: 0 8px 20px;
+  border-bottom-color: var(--border);
+}
+
+.sidebar-brand .brand-mark {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  box-shadow: none;
+  font-size: 14px;
+}
+
+.sidebar-brand-copy strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sidebar-brand-copy span,
+.sidebar-footer {
+  color: var(--faint);
+}
+
+.sidebar-navigation.tab-navigation {
+  gap: 24px;
+  margin-top: 22px;
+}
+
+.sidebar-nav-group:has(.tab-button[hidden]) {
+  display: none;
+}
+
+.sidebar-nav-group:has(.tab-button:not([hidden])) {
+  display: grid;
+}
+
+.sidebar-nav-label {
+  margin-inline: 10px;
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-navigation .tab-button {
+  min-height: 40px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.sidebar-navigation .tab-button:hover,
+.sidebar-navigation .tab-button:focus-visible {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.sidebar-navigation .tab-button.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sidebar-navigation .tab-button.is-active .sidebar-nav-icon {
+  background: transparent;
+  color: var(--accent);
+}
+
+.sidebar-nav-icon {
+  background: transparent;
+  color: var(--faint);
+}
+
+.sidebar-footer {
+  padding: 16px 10px 0;
+  border-top-color: var(--border);
+  font-size: 11px;
+}
+
+.app-shell {
+  max-width: 1440px;
+  margin-left: 232px;
+  padding: 28px 40px 72px;
+}
+
+.topbar {
+  margin: -28px -40px 32px;
+  padding: 22px 40px;
+  border-bottom: 1px solid rgba(223, 231, 240, 0.92);
+  background: rgba(246, 249, 252, 0.88);
+  backdrop-filter: blur(18px);
+}
+
+.page-heading .eyebrow,
+.panel-kicker {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.page-heading .subtitle,
+.panel-meta {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.system-badge {
+  min-height: 40px;
+  border-color: var(--border);
+  border-radius: 9999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.primary-button,
+.control-button,
+.outreach-rate-limit-button,
+.message-batch-send-button,
+.message-batch-detail-button {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  font-size: 14px;
+  font-weight: 400;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.primary-button {
+  background: var(--accent);
+  color: #fff;
+}
+
+.primary-button:hover {
+  background: var(--accent-hover);
+}
+
+.panel,
+.stat-card,
+.outreach-primary-panel,
+.outreach-secondary-action-panel {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(10, 37, 64, 0.03);
+}
+
+.panel {
+  padding: 24px;
+}
+
+.panel:hover,
+.stat-card:hover {
+  border-color: var(--border-strong);
+}
+
+input,
+select,
+textarea {
+  min-height: 40px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  color: var(--text);
+  font-size: 14px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--faint);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid rgba(99, 91, 255, 0.7);
+  outline-offset: 2px;
+}
+
+table {
+  font-feature-settings: "tnum" 1;
+}
+
+th {
+  color: var(--faint);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+}
+
+td {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.pill,
+.tab-count,
+.status-badge {
+  border-radius: 9999px;
+}
+
+.segmented-filter,
+.outreach-workflow-tabs {
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  background: var(--bg-soft);
+}
+
+.outreach-workflow-tab,
+.outreach-accepted-filter {
+  min-height: 36px;
+  border-radius: 9999px;
+  font-size: 13px;
+}
+
+.outreach-workflow-tab.is-active,
+.outreach-workflow-tab[aria-selected="true"],
+.outreach-accepted-filter.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.outreach-process-panel {
+  animation: outreach-panel-in 160ms ease-out;
+}
+
+@keyframes outreach-panel-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.outreach-connect-workspace,
+.message-preparation-panel,
+.message-batches-panel {
+  box-shadow: var(--shadow);
+}
+
+.outreach-workflow-actions {
+  gap: 8px;
+}
+
+.outreach-rate-limit-button,
+.message-batch-detail-button {
+  border: 1px solid var(--border-strong);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.outreach-rate-limit-button:hover,
+.message-batch-detail-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.message-batch-send-button {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+}
+
+.message-batch-send-button:hover {
+  background: var(--accent-hover);
+}
+
+.outreach-error,
+.state-error {
+  border-radius: var(--radius-md);
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .outreach-process-panel {
+    animation: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .app-sidebar {
+    position: sticky;
+    width: 100%;
+    min-height: auto;
+    padding: 14px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-brand {
+    padding-bottom: 14px;
+  }
+
+  .sidebar-navigation.tab-navigation {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 12px;
+  }
+
+  .sidebar-nav-group,
+  .sidebar-nav-group-bottom {
+    display: contents !important;
+  }
+
+  .sidebar-nav-label,
+  .sidebar-footer,
+  .sidebar-navigation .sidebar-action-button {
+    display: none !important;
+  }
+
+  .sidebar-navigation .tab-button {
+    flex: 1 1 180px;
+    min-width: 150px;
+  }
+
+  .app-shell {
+    margin-left: 0;
+    padding: 20px 16px 48px;
+  }
+
+  .topbar {
+    position: static;
+    margin: -20px -16px 24px;
+    padding: 18px 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .sidebar-navigation .tab-button {
+    flex-basis: calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .topbar,
+  .header-actions,
+  .outreach-workflow-nav-row,
+  .outreach-workflow-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .header-actions,
+  .outreach-workflow-actions,
+  .outreach-workflow-tabs {
+    width: 100%;
+  }
+
+  .header-actions .primary-button,
+  .outreach-workflow-actions > button {
+    width: 100%;
+  }
+
+  .outreach-workflow-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .outreach-workflow-tab {
+    width: 100%;
   }
 
   .panel {
