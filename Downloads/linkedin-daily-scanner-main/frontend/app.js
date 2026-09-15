@@ -8794,7 +8794,7 @@ document.addEventListener(
 
 els.refreshButton?.addEventListener(
   "click",
-  loadDashboard
+  loadOutreachDashboard
 );
 
 els.searchInput?.addEventListener(
@@ -9160,10 +9160,7 @@ if (initialUiSettings.rememberLastSection) {
   );
 
   if (
-    savedTab &&
-    document.querySelector(
-      `.tab-button[data-tab="${savedTab}"]`
-    )
+    savedTab === "outreach"
   ) {
     switchTab(savedTab);
   }
@@ -9178,9 +9175,6 @@ renderOutreachSubmittingState();
 loadOutreachDashboard();
 
 startOutreachPolling();
-
-loadDashboard();
-
 
 document.addEventListener(
   "DOMContentLoaded",

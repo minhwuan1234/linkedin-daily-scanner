@@ -4,16 +4,16 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="color-scheme" content="dark" />
-  <title>LinkedIn Scanner Operations</title>
+  <title>Outreach Operations</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260827-session-status-1" />
+<link rel="stylesheet" href="./styles.css?v=20260915-outreach-stripe-2" />
 </head>
 
 <body>
@@ -110,7 +110,7 @@
 
       <div class="sidebar-footer">
         <span class="status-dot"></span>
-        <span>LinkedIn operations</span>
+        <span>Outreach operations</span>
       </div>
     </aside>
 
@@ -472,10 +472,10 @@
     <main class="app-shell">
       <header class="topbar">
         <div class="page-heading">
-          <p id="pageEyebrow" class="eyebrow">Workspace</p>
-          <h1 id="pageTitle">Tổng quan</h1>
+          <p id="pageEyebrow" class="eyebrow">Outreach</p>
+          <h1 id="pageTitle">Connect &amp; Messaging</h1>
           <p id="pageSubtitle" class="subtitle">
-            Theo dõi toàn bộ scanner, queue, worker và outreach trong một workspace.
+            Quản lý Connect, acceptance và message workflow trong một workspace.
           </p>
         </div>
 
@@ -489,6 +489,7 @@
             id="killProcessButton"
             class="control-button control-button-danger"
             type="button"
+            hidden
             title="Dừng ngay lượt quét hiện tại và trả job về queue"
           >
             <span class="button-icon">■</span>
@@ -499,6 +500,7 @@
             id="stopScanButton"
             class="control-button control-button-warning"
             type="button"
+            hidden
             title="Tạm dừng nhận batch mới sau source hiện tại"
           >
             <span class="button-icon">Ⅱ</span>
