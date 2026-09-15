@@ -10,17 +10,6 @@ from supabase import create_client
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.lark_command_router import (
-    handle_lark_command,
-)
-from backend.linkedin_url_parser import (
-    LinkedInUrlLimitError,
-    extract_linkedin_urls_with_limit,
-    get_max_urls_per_request,
-)
-from backend.supabase_sources import (
-    insert_new_linkedin_urls,
-)
 from app.outreach_job_store import (
     OutreachJobStoreError,
     create_connect_job,
@@ -237,6 +226,14 @@ async def create_worker_command(
     Railway writes a command to Supabase; the local worker
     reads and acknowledges it.
     """
+    return JSONResponse(
+        status_code=410,
+        content={
+            "ok": False,
+            "error": "LinkedIn Scanner has been removed",
+        },
+    )
+
     try:
         body = await request.json()
     except Exception:
@@ -356,7 +353,7 @@ async def create_worker_command(
 YOUTUBE_JOB_TABLE = "youtube_scan_jobs"
 
 
-@app.post("/api/youtube/jobs")
+@app.post("/api/youtube/jobs", include_in_schema=False)
 async def create_youtube_job(
     request: Request,
 ) -> JSONResponse:
@@ -366,6 +363,14 @@ async def create_youtube_job(
     The Railway backend only creates the queue row.
     The Mac YouTube worker claims and processes the job.
     """
+
+    return JSONResponse(
+        status_code=410,
+        content={
+            "ok": False,
+            "error": "YouTube Research has been removed",
+        },
+    )
 
     if not SUPABASE_URL or not SUPABASE_SECRET_KEY:
         return JSONResponse(
@@ -1929,6 +1934,14 @@ async def receive_lark_event(
 
     Railway không trực tiếp chạy LinkedIn browser.
     """
+
+    return JSONResponse(
+        status_code=410,
+        content={
+            "ok": False,
+            "error": "LinkedIn Scanner has been removed",
+        },
+    )
 
     # -----------------------------------------------------
     # 1. READ JSON PAYLOAD

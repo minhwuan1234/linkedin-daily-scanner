@@ -8091,10 +8091,6 @@ document
         );
       }
 
-      if (tabName === "youtube") {
-        loadYoutubeResearch();
-      }
-
       if (button.dataset.tab === "profiles") {
         void loadOutreachProfiles();
       }
@@ -9178,8 +9174,6 @@ updateOutreachDetectedCount();
 renderOutreachDashboard();
 
 renderOutreachSubmittingState();
-
-setupYoutubeRealtime();
 
 loadOutreachDashboard();
 
