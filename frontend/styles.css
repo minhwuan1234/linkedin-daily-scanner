@@ -6895,6 +6895,18 @@ th {
   margin-bottom: 8px;
 }
 
+.acceptance-period-filters {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.acceptance-period-filters .outreach-accepted-filter {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
 .filter-chip-list {
   display: flex;
   flex-wrap: wrap;
@@ -6934,6 +6946,16 @@ th {
 @media (max-width: 900px) {
   .filter-chip-list {
     max-width: none;
+  }
+
+  .acceptance-period-filters {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .acceptance-period-filters .outreach-accepted-filter {
+    flex: 1;
   }
 }
 

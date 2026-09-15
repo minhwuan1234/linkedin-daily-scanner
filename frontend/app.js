@@ -357,6 +357,9 @@ const els = {
   outreachAcceptanceNextPage:
     document.querySelector("#outreachAcceptanceNextPage"),
 
+  outreachAcceptancePeriodFilters:
+    document.querySelector("#outreachAcceptancePeriodFilters"),
+
 
   outreachAcceptedPoolPanel:
     document.querySelector("#outreachAcceptedPoolPanel"),
@@ -557,6 +560,7 @@ const state = {
   outreachHistoryPageSize: 5,
   outreachAcceptancePage: 1,
   outreachAcceptancePageSize: 10,
+  outreachAcceptancePeriod: "week",
   messageBatchPage: 1,
   messageBatchPageSize: 8,
   messageBatchSourceFilter: "all",
@@ -3657,17 +3661,91 @@ async function deleteSelectedAcceptanceJobs() {
 }
 
 
+function getIsoWeekNumber(date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  value.setDate(value.getDate() + 3 - ((value.getDay() + 6) % 7));
+  const firstThursday = new Date(value.getFullYear(), 0, 4);
+  return 1 + Math.round(
+    ((value - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
+  );
+}
+
+
+function getAcceptancePeriodLabel() {
+  const now = new Date();
+
+  if (state.outreachAcceptancePeriod === "month") {
+    return `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
+  }
+
+  if (state.outreachAcceptancePeriod === "all") {
+    return "Tất cả dữ liệu";
+  }
+
+  return `Tuần ${getIsoWeekNumber(now)}/${now.getFullYear()}`;
+}
+
+
+function getAcceptancePeriodRows(jobs) {
+  const rows = Array.isArray(jobs) ? jobs : [];
+
+  if (state.outreachAcceptancePeriod === "all") {
+    return rows;
+  }
+
+  const now = new Date();
+
+  return rows.filter((job) => {
+    const createdAt = new Date(job?.created_at);
+
+    if (Number.isNaN(createdAt.getTime())) {
+      return false;
+    }
+
+    if (state.outreachAcceptancePeriod === "month") {
+      return createdAt.getFullYear() === now.getFullYear() &&
+        createdAt.getMonth() === now.getMonth();
+    }
+
+    return createdAt.getFullYear() === now.getFullYear() &&
+      getIsoWeekNumber(createdAt) === getIsoWeekNumber(now);
+  });
+}
+
+
+function renderAcceptancePeriodFilters() {
+  const now = new Date();
+
+  els.outreachAcceptancePeriodFilters?.querySelectorAll("[data-acceptance-period]")
+    .forEach((button) => {
+      const period = button.dataset.acceptancePeriod;
+
+      button.textContent =
+        period === "week"
+          ? `Tuần ${getIsoWeekNumber(now)}/${now.getFullYear()}`
+          : period === "month"
+            ? `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`
+            : "Tất cả dữ liệu";
+
+      button.classList.toggle(
+        "is-active",
+        period === state.outreachAcceptancePeriod
+      );
+    });
+}
+
+
 function renderOutreachAcceptanceJobs(
   jobs
 ) {
-  const rows =
-    Array.isArray(jobs)
-      ? jobs
-      : [];
+  const rows = getAcceptancePeriodRows(jobs);
+
+  renderAcceptancePeriodFilters();
 
   if (els.outreachAcceptanceJobCount) {
     els.outreachAcceptanceJobCount.textContent =
-      `${rows.length} jobs`;
+      `${getAcceptancePeriodLabel()} · ${rows.length} jobs`;
   }
 
   updateAcceptanceDeleteSelectionUi();
@@ -8995,6 +9073,18 @@ els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistory
 els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
+
+els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-acceptance-period]");
+
+  if (!button) {
+    return;
+  }
+
+  state.outreachAcceptancePeriod = button.dataset.acceptancePeriod || "week";
+  state.outreachAcceptancePage = 1;
+  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
+});
 
 els.outreachAcceptanceDeleteSelectedButton?.addEventListener(
   "click",
