@@ -6374,3 +6374,292 @@ body.reduce-motion *::after {
     width: 100%;
   }
 }
+
+/* =========================================================
+   Stripe-inspired dark product layer
+   Source of truth for the current Outreach workspace.
+   ========================================================= */
+:root {
+  --bg: #07111f;
+  --bg-soft: #0b1728;
+  --panel: #101d30;
+  --panel-raised: #14253b;
+  --panel-hover: #182b45;
+  --border: #20334b;
+  --border-strong: #304966;
+  --text: #f6f9fc;
+  --muted: #a7b7ca;
+  --faint: #72859d;
+  --accent: #635bff;
+  --accent-hover: #817cff;
+  --accent-press: #5148d8;
+  --accent-soft: rgba(99, 91, 255, 0.16);
+  --green: #2dd4bf;
+  --green-soft: rgba(45, 212, 191, 0.13);
+  --amber: #f5b94c;
+  --amber-soft: rgba(245, 185, 76, 0.14);
+  --red: #f4778b;
+  --red-soft: rgba(244, 119, 139, 0.14);
+  --blue: #66a8ff;
+  --blue-soft: rgba(102, 168, 255, 0.14);
+  --radius-xl: 16px;
+  --radius-lg: 12px;
+  --radius-md: 8px;
+  --shadow: 0 18px 48px rgba(0, 20, 45, 0.32);
+}
+
+html,
+body {
+  background:
+    radial-gradient(900px 360px at 50% -160px, rgba(99, 91, 255, 0.2), transparent 70%),
+    var(--bg);
+}
+
+body {
+  font-size: 15px;
+  font-weight: 400;
+  font-feature-settings: "ss01" 1;
+}
+
+h1,
+h2,
+h3 {
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+h1 {
+  font-size: clamp(26px, 2.5vw, 34px);
+  line-height: 1.1;
+}
+
+.app-sidebar {
+  background:
+    linear-gradient(180deg, rgba(99, 91, 255, 0.09), transparent 24%),
+    #081321;
+  border-right-color: rgba(48, 73, 102, 0.7);
+}
+
+.sidebar-brand {
+  border-bottom-color: var(--border);
+}
+
+.sidebar-brand .brand-mark {
+  border-radius: 10px;
+  background: var(--accent);
+  box-shadow: 0 10px 24px rgba(99, 91, 255, 0.28);
+}
+
+.sidebar-navigation .tab-button {
+  min-height: 40px;
+  border-radius: var(--radius-md);
+}
+
+.sidebar-navigation .tab-button.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.tab-button:hover,
+.sidebar-navigation .tab-button:focus-visible {
+  background: var(--panel-hover);
+}
+
+.app-shell {
+  padding-top: 28px;
+}
+
+.topbar {
+  margin-top: -28px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+  border-bottom-color: rgba(32, 51, 75, 0.85);
+  background: rgba(7, 17, 31, 0.88);
+}
+
+.primary-button,
+.control-button,
+.outreach-rate-limit-button,
+.message-batch-send-button,
+.message-batch-detail-button {
+  min-height: 40px;
+  border-radius: 9999px;
+  padding-inline: 16px;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.primary-button {
+  background: var(--accent);
+}
+
+.primary-button:hover {
+  background: var(--accent-hover);
+}
+
+.primary-button:active,
+.outreach-rate-limit-button:active,
+.message-batch-send-button:active {
+  background: var(--accent-press);
+}
+
+.panel,
+.stat-card,
+.outreach-primary-panel,
+.outreach-secondary-action-panel {
+  border-color: var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.panel {
+  padding: 24px;
+}
+
+.panel:hover,
+.stat-card:hover {
+  border-color: var(--border-strong);
+}
+
+.panel-kicker,
+.eyebrow,
+.stat-label,
+th,
+.sidebar-nav-label {
+  letter-spacing: 0.08em;
+}
+
+.panel-kicker,
+.eyebrow {
+  color: #9d99ff;
+}
+
+input,
+select,
+textarea {
+  min-height: 40px;
+  border-color: var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 2px;
+}
+
+table {
+  font-feature-settings: "tnum" 1;
+}
+
+th {
+  color: var(--faint);
+}
+
+.pill,
+.tab-count,
+.status-badge {
+  border-radius: 9999px;
+}
+
+.outreach-workflow-tabs,
+.segmented-filter {
+  border-radius: 9999px;
+  background: var(--bg-soft);
+}
+
+.outreach-workflow-tab,
+.outreach-accepted-filter {
+  min-height: 36px;
+  border-radius: 9999px;
+}
+
+.outreach-workflow-tab.is-active,
+.outreach-accepted-filter.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.outreach-connect-workspace,
+.message-preparation-panel,
+.message-batches-panel {
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 860px) {
+  .app-sidebar {
+    position: sticky;
+    width: 100%;
+    min-height: auto;
+    padding: 12px 14px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar-brand {
+    padding-bottom: 12px;
+  }
+
+  .sidebar-navigation.tab-navigation {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 12px;
+  }
+
+  .sidebar-nav-group,
+  .sidebar-nav-group-bottom {
+    display: contents;
+  }
+
+  .sidebar-nav-label,
+  .sidebar-footer,
+  .sidebar-navigation .sidebar-action-button {
+    display: none;
+  }
+
+  .sidebar-navigation .tab-button {
+    grid-template-columns: 24px minmax(0, 1fr);
+    padding-inline: 8px;
+  }
+
+  .sidebar-navigation .tab-count {
+    display: none;
+  }
+
+  .app-shell {
+    margin-left: 0;
+    padding: 20px 16px 48px;
+  }
+
+  .topbar {
+    position: static;
+    margin: -20px -16px 20px;
+    padding: 16px;
+  }
+}
+
+@media (max-width: 560px) {
+  .sidebar-navigation.tab-navigation {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .header-actions .primary-button {
+    flex: 1;
+  }
+
+  .panel {
+    padding: 18px;
+  }
+}
