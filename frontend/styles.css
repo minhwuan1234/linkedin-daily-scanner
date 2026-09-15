@@ -6891,6 +6891,52 @@ th {
   padding: 0 14px;
 }
 
+.outreach-period-filters {
+  margin-bottom: 8px;
+}
+
+.filter-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 440px;
+}
+
+.filter-chip {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.filter-chip:hover,
+.filter-chip:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.filter-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #b3afff;
+}
+
+.outreach-account-filter {
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .filter-chip-list {
+    max-width: none;
+  }
+}
+
 #tab-outreach .outreach-workflow-actions,
 #tab-outreach .message-batch-actions,
 #tab-outreach .outreach-input-footer {
