@@ -357,6 +357,9 @@ const els = {
   outreachAcceptanceNextPage:
     document.querySelector("#outreachAcceptanceNextPage"),
 
+  outreachAcceptancePeriodFilters:
+    document.querySelector("#outreachAcceptancePeriodFilters"),
+
 
   outreachAcceptedPoolPanel:
     document.querySelector("#outreachAcceptedPoolPanel"),
@@ -382,8 +385,17 @@ const els = {
   outreachAcceptedAccountFilter:
     document.querySelector("#outreachAcceptedAccountFilter"),
 
+  outreachAcceptedAccountFilterChips:
+    document.querySelector("#outreachAcceptedAccountFilterChips"),
+
   outreachAcceptedSendBatchFilter:
     document.querySelector("#outreachAcceptedSendBatchFilter"),
+
+  outreachAcceptedSendBatchFilterChips:
+    document.querySelector("#outreachAcceptedSendBatchFilterChips"),
+
+  outreachAcceptedPeriodFilters:
+    document.querySelector("#outreachAcceptedPeriodFilters"),
 
   outreachAcceptedPoolGroupTemplate:
     document.querySelector("#outreachAcceptedPoolGroupTemplate"),
@@ -548,6 +560,7 @@ const state = {
   outreachHistoryPageSize: 5,
   outreachAcceptancePage: 1,
   outreachAcceptancePageSize: 10,
+  outreachAcceptancePeriod: "week",
   messageBatchPage: 1,
   messageBatchPageSize: 8,
   messageBatchSourceFilter: "all",
@@ -570,6 +583,7 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
+  outreachAcceptedPoolPeriod: "week",
   outreachAcceptedAccountFilter: "all",
   outreachAcceptedSendBatchFilter: "all",
   outreachAcceptedPoolPage: 1,
@@ -3647,17 +3661,91 @@ async function deleteSelectedAcceptanceJobs() {
 }
 
 
+function getIsoWeekNumber(date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  value.setDate(value.getDate() + 3 - ((value.getDay() + 6) % 7));
+  const firstThursday = new Date(value.getFullYear(), 0, 4);
+  return 1 + Math.round(
+    ((value - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
+  );
+}
+
+
+function getAcceptancePeriodLabel() {
+  const now = new Date();
+
+  if (state.outreachAcceptancePeriod === "month") {
+    return `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
+  }
+
+  if (state.outreachAcceptancePeriod === "all") {
+    return "Tất cả dữ liệu";
+  }
+
+  return `Tuần ${getIsoWeekNumber(now)}/${now.getFullYear()}`;
+}
+
+
+function getAcceptancePeriodRows(jobs) {
+  const rows = Array.isArray(jobs) ? jobs : [];
+
+  if (state.outreachAcceptancePeriod === "all") {
+    return rows;
+  }
+
+  const now = new Date();
+
+  return rows.filter((job) => {
+    const createdAt = new Date(job?.created_at);
+
+    if (Number.isNaN(createdAt.getTime())) {
+      return false;
+    }
+
+    if (state.outreachAcceptancePeriod === "month") {
+      return createdAt.getFullYear() === now.getFullYear() &&
+        createdAt.getMonth() === now.getMonth();
+    }
+
+    return createdAt.getFullYear() === now.getFullYear() &&
+      getIsoWeekNumber(createdAt) === getIsoWeekNumber(now);
+  });
+}
+
+
+function renderAcceptancePeriodFilters() {
+  const now = new Date();
+
+  els.outreachAcceptancePeriodFilters?.querySelectorAll("[data-acceptance-period]")
+    .forEach((button) => {
+      const period = button.dataset.acceptancePeriod;
+
+      button.textContent =
+        period === "week"
+          ? `Tuần ${getIsoWeekNumber(now)}/${now.getFullYear()}`
+          : period === "month"
+            ? `Tháng ${now.getMonth() + 1}/${now.getFullYear()}`
+            : "Tất cả dữ liệu";
+
+      button.classList.toggle(
+        "is-active",
+        period === state.outreachAcceptancePeriod
+      );
+    });
+}
+
+
 function renderOutreachAcceptanceJobs(
   jobs
 ) {
-  const rows =
-    Array.isArray(jobs)
-      ? jobs
-      : [];
+  const rows = getAcceptancePeriodRows(jobs);
+
+  renderAcceptancePeriodFilters();
 
   if (els.outreachAcceptanceJobCount) {
     els.outreachAcceptanceJobCount.textContent =
-      `${rows.length} jobs`;
+      `${getAcceptancePeriodLabel()} · ${rows.length} jobs`;
   }
 
   updateAcceptanceDeleteSelectionUi();
@@ -4110,13 +4198,39 @@ function getEligibleMessageProspectIds() {
 }
 
 
+function getAcceptedPoolVisibleItems() {
+  const items = Array.isArray(state.outreachAcceptedPool?.items)
+    ? state.outreachAcceptedPool.items
+    : [];
+
+  if (state.outreachAcceptedPoolPeriod === "history") {
+    return items.filter((item) => !isAcceptedPoolInCurrentWeek(item));
+  }
+
+  return items.filter((item) => isAcceptedPoolInCurrentWeek(item));
+}
+
+
+function isAcceptedPoolInCurrentWeek(item) {
+  const rawDate = item?.accepted_at || item?.acceptance_checked_at;
+  const acceptedAt = rawDate ? new Date(rawDate) : null;
+
+  if (!acceptedAt || Number.isNaN(acceptedAt.getTime())) {
+    return false;
+  }
+
+  const today = new Date();
+  const dayFromMonday = (today.getDay() + 6) % 7;
+  const weekStart = new Date(today);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(today.getDate() - dayFromMonday);
+
+  return acceptedAt >= weekStart && acceptedAt <= today;
+}
+
+
 function getAcceptedPoolAvailableAccounts() {
-  const items =
-    Array.isArray(
-      state.outreachAcceptedPool?.items
-    )
-      ? state.outreachAcceptedPool.items
-      : [];
+  const items = getAcceptedPoolVisibleItems();
 
   const accountIds = new Set();
 
@@ -4232,12 +4346,7 @@ function getAcceptedPoolConnectIdLabel(
 
 
 function getAcceptedPoolAvailableSendBatches() {
-  const items =
-    Array.isArray(
-      state.outreachAcceptedPool?.items
-    )
-      ? state.outreachAcceptedPool.items
-      : [];
+  const items = getAcceptedPoolVisibleItems();
 
   const connectIds =
     new Map();
@@ -4361,6 +4470,83 @@ function renderAcceptedPoolSendBatchFilter() {
 }
 
 
+function renderAcceptedPoolFilterChips() {
+  const accountWrap = els.outreachAcceptedAccountFilterChips;
+  const batchWrap = els.outreachAcceptedSendBatchFilterChips;
+
+  const addChip = (wrap, value, label, active, attribute) => {
+    if (!wrap) {
+      return;
+    }
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `filter-chip${active ? " is-active" : ""}`;
+    button.dataset[attribute] = value;
+    button.textContent = label;
+    wrap.append(button);
+  };
+
+  accountWrap?.replaceChildren();
+  batchWrap?.replaceChildren();
+
+  addChip(
+    accountWrap,
+    "all",
+    "All accounts",
+    state.outreachAcceptedAccountFilter === "all",
+    "acceptedAccountFilter"
+  );
+
+  getAcceptedPoolAvailableAccounts().forEach((accountId) => {
+    addChip(
+      accountWrap,
+      accountId,
+      getOutreachAccountDisplayName(accountId),
+      state.outreachAcceptedAccountFilter === accountId,
+      "acceptedAccountFilter"
+    );
+  });
+
+  addChip(
+    batchWrap,
+    "all",
+    "All Connect IDs",
+    state.outreachAcceptedSendBatchFilter === "all",
+    "acceptedSendBatchFilter"
+  );
+
+  addChip(
+    batchWrap,
+    "unassigned",
+    "Unknown",
+    state.outreachAcceptedSendBatchFilter === "unassigned",
+    "acceptedSendBatchFilter"
+  );
+
+  getAcceptedPoolAvailableSendBatches().forEach(([jobId, jobLabel]) => {
+    addChip(
+      batchWrap,
+      jobId,
+      jobLabel,
+      state.outreachAcceptedSendBatchFilter === jobId,
+      "acceptedSendBatchFilter"
+    );
+  });
+}
+
+
+function renderAcceptedPoolPeriodFilters() {
+  els.outreachAcceptedPeriodFilters?.querySelectorAll("[data-accepted-period]")
+    .forEach((button) => {
+      button.classList.toggle(
+        "is-active",
+        button.dataset.acceptedPeriod === state.outreachAcceptedPoolPeriod
+      );
+    });
+}
+
+
 function sortAcceptedPoolBySendBatch(
   items
 ) {
@@ -4473,12 +4659,7 @@ function getAcceptedPoolUiBucket(
 
 
 function getAcceptedPoolFilteredItems() {
-  const items =
-    Array.isArray(
-      state.outreachAcceptedPool?.items
-    )
-      ? state.outreachAcceptedPool.items
-      : [];
+  const items = getAcceptedPoolVisibleItems();
 
   const filter =
     state.outreachAcceptedPoolFilter ||
@@ -4543,12 +4724,7 @@ function getAcceptedPoolFilteredItems() {
 }
 
 function getAcceptedPoolUiSummary() {
-  const items =
-    Array.isArray(
-      state.outreachAcceptedPool?.items
-    )
-      ? state.outreachAcceptedPool.items
-      : [];
+  const items = getAcceptedPoolVisibleItems();
 
   const eligibleIds =
     getEligibleMessageProspectIds();
@@ -4749,6 +4925,8 @@ function renderOutreachAcceptedPool() {
 
   renderAcceptedPoolAccountFilter();
   renderAcceptedPoolSendBatchFilter();
+  renderAcceptedPoolFilterChips();
+  renderAcceptedPoolPeriodFilters();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -4763,8 +4941,13 @@ function renderOutreachAcceptedPool() {
     pageData.pageItems;
 
   if (els.outreachAcceptedPoolSummary) {
+    const periodLabel =
+      state.outreachAcceptedPoolPeriod === "history"
+        ? "Explore history"
+        : "This week";
+
     els.outreachAcceptedPoolSummary.textContent =
-      `${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
+      `${periodLabel} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
   }
 
   if (els.outreachAcceptedSelectedCount) {
@@ -8836,6 +9019,40 @@ els.outreachUrlInput?.addEventListener(
 document.addEventListener(
   "click",
   (event) => {
+    const periodButton = event.target.closest("[data-accepted-period]");
+
+    if (periodButton) {
+      state.outreachAcceptedPoolPeriod =
+        periodButton.dataset.acceptedPeriod === "history"
+          ? "history"
+          : "week";
+      state.outreachAcceptedPoolPage = 1;
+      state.outreachAcceptedAccountFilter = "all";
+      state.outreachAcceptedSendBatchFilter = "all";
+      renderOutreachAcceptedPool();
+      return;
+    }
+
+    const accountButton = event.target.closest("[data-accepted-account-filter]");
+
+    if (accountButton) {
+      state.outreachAcceptedAccountFilter =
+        accountButton.dataset.acceptedAccountFilter || "all";
+      state.outreachAcceptedPoolPage = 1;
+      renderOutreachAcceptedPool();
+      return;
+    }
+
+    const batchButton = event.target.closest("[data-accepted-send-batch-filter]");
+
+    if (batchButton) {
+      state.outreachAcceptedSendBatchFilter =
+        batchButton.dataset.acceptedSendBatchFilter || "all";
+      state.outreachAcceptedPoolPage = 1;
+      renderOutreachAcceptedPool();
+      return;
+    }
+
     const button =
       event.target.closest(
         "[data-outreach-process-tab]"
@@ -8856,6 +9073,18 @@ els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistory
 els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
+
+els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-acceptance-period]");
+
+  if (!button) {
+    return;
+  }
+
+  state.outreachAcceptancePeriod = button.dataset.acceptancePeriod || "week";
+  state.outreachAcceptancePage = 1;
+  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
+});
 
 els.outreachAcceptanceDeleteSelectedButton?.addEventListener(
   "click",

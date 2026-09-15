@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260915-outreach-stripe-2" />
+<link rel="stylesheet" href="./styles.css?v=20260915-outreach-stripe-4" />
 </head>
 
 <body>
@@ -1145,6 +1145,12 @@
           </p>
         </div>
 
+        <div id="outreachAcceptancePeriodFilters" class="segmented-filter acceptance-period-filters" aria-label="Acceptance time range">
+          <button type="button" class="outreach-accepted-filter is-active" data-acceptance-period="week">Tuần hiện tại</button>
+          <button type="button" class="outreach-accepted-filter" data-acceptance-period="month">Tháng hiện tại</button>
+          <button type="button" class="outreach-accepted-filter" data-acceptance-period="all">Tất cả</button>
+        </div>
+
         <div class="outreach-acceptance-header-actions">
           <button
             id="outreachAcceptanceDeleteSelectedButton"
@@ -1346,7 +1352,11 @@
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
-      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
+      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">This week · 0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
+  <div id="outreachAcceptedPeriodFilters" class="segmented-filter outreach-period-filters" aria-label="Accepted pool time range">
+    <button type="button" data-accepted-period="week" class="outreach-accepted-filter is-active">This week</button>
+    <button type="button" data-accepted-period="history" class="outreach-accepted-filter">Explore history</button>
+  </div>
   <div id="outreachAcceptedPoolFilters" class="segmented-filter">
     <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
     <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
@@ -1356,9 +1366,11 @@
 
   <label class="outreach-account-filter">
     <span>Account</span>
+    <div id="outreachAcceptedAccountFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by Outreach account"></div>
     <select
       id="outreachAcceptedAccountFilter"
       aria-label="Filter recipients by Outreach account"
+      hidden
     >
       <option value="all">All accounts</option>
     </select>
@@ -1366,9 +1378,11 @@
 
   <label class="outreach-account-filter outreach-send-batch-filter">
     <span>Connect ID</span>
+    <div id="outreachAcceptedSendBatchFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by original Connect Job ID"></div>
     <select
       id="outreachAcceptedSendBatchFilter"
       aria-label="Filter recipients by original Connect Job ID"
+      hidden
     >
       <option value="all">All Connect IDs</option>
     </select>
