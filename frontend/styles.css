@@ -6803,6 +6803,112 @@ th {
   }
 }
 
+/* Final chrome normalization: prevent legacy variants from leaking into
+   the Outreach shell and keep every action visually aligned. */
+.topbar {
+  background: rgba(7, 17, 31, 0.96) !important;
+  border-bottom: 1px solid #20334b !important;
+  color: #f6f9fc !important;
+}
+
+.topbar h1,
+.topbar .subtitle,
+.topbar .eyebrow {
+  color: #f6f9fc;
+}
+
+.topbar .eyebrow {
+  color: #9d99ff;
+}
+
+.topbar .subtitle {
+  color: #a7b7ca;
+}
+
+.topbar .header-actions > button,
+.topbar .system-badge,
+#tab-outreach button,
+#tab-outreach .outreach-rate-limit-button,
+#tab-outreach .message-batch-send-button,
+#tab-outreach .message-batch-detail-button,
+#tab-outreach .secondary-button {
+  min-height: 40px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 9999px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.topbar .system-badge {
+  display: inline-flex;
+  gap: 8px;
+  border: 1px solid rgba(45, 212, 191, 0.38);
+  background: rgba(45, 212, 191, 0.1);
+  color: #70e1cd;
+  font-size: 13px;
+}
+
+.topbar #refreshButton,
+#tab-outreach .message-batch-send-button,
+#tab-outreach .outreach-start-button,
+#tab-outreach button[type="submit"] {
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+}
+
+.topbar #refreshButton:hover,
+#tab-outreach .message-batch-send-button:hover,
+#tab-outreach .outreach-start-button:hover,
+#tab-outreach button[type="submit"]:hover {
+  background: var(--accent-hover);
+}
+
+#tab-outreach .outreach-rate-limit-button,
+#tab-outreach .message-batch-detail-button,
+#tab-outreach .secondary-button {
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+}
+
+#tab-outreach .outreach-rate-limit-button:hover,
+#tab-outreach .message-batch-detail-button:hover,
+#tab-outreach .secondary-button:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+#tab-outreach .outreach-workflow-tab {
+  height: 36px;
+  min-height: 36px;
+  padding: 0 16px;
+}
+
+#tab-outreach .outreach-accepted-filter {
+  min-height: 36px;
+  padding: 0 14px;
+}
+
+#tab-outreach .outreach-workflow-actions,
+#tab-outreach .message-batch-actions,
+#tab-outreach .outreach-input-footer {
+  align-items: center;
+}
+
+@media (max-width: 560px) {
+  .topbar .header-actions > button,
+  .topbar .system-badge,
+  #tab-outreach button,
+  #tab-outreach .outreach-rate-limit-button,
+  #tab-outreach .message-batch-send-button,
+  #tab-outreach .message-batch-detail-button,
+  #tab-outreach .secondary-button {
+    width: 100%;
+  }
+}
+
 /* =========================================================
    Outreach-only product UI
    A restrained Stripe-inspired layer: clear hierarchy,
