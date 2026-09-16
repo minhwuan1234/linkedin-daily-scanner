@@ -1835,6 +1835,85 @@ body,
   justify-self: center;
 }
 
+/* Keep recipient controls in the reading path: header → filters → weeks → table. */
+#outreachAcceptedPoolPanel {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 18px;
+}
+
+#outreachAcceptedPoolPanel > .outreach-pool-toolbar {
+  order: 0;
+}
+
+#outreachAcceptedPoolPanel > .outreach-pool-controls {
+  order: 1;
+  margin: 0;
+  justify-content: start !important;
+}
+
+#outreachAcceptedPoolPanel > .week-browser {
+  order: 2;
+}
+
+#outreachAcceptedPoolPanel > #outreachAcceptedPoolEmpty {
+  order: 3;
+}
+
+#outreachAcceptedPoolPanel > #outreachAcceptedPoolTableWrap {
+  order: 4;
+}
+
+#outreachAcceptedPoolPanel > #outreachAcceptedPagination {
+  order: 5;
+}
+
+#outreachAcceptedPoolPanel .outreach-recipient-filter-group {
+  align-items: start !important;
+  justify-content: start !important;
+}
+
+#outreachAcceptedPoolPanel .outreach-pool-controls,
+#outreachAcceptedPoolPanel .recipient-secondary-filters {
+  width: 100% !important;
+}
+
+#outreachAcceptedPoolPanel .accepted-select-control input {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+
+#outreachAcceptedPoolPanel .accepted-select-control span {
+  position: relative;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1px solid rgba(170, 187, 211, 0.48);
+  border-radius: 4px;
+  background: rgba(170, 187, 211, 0.18);
+  pointer-events: none;
+}
+
+#outreachAcceptedPoolPanel .accepted-select-control input:checked + span {
+  border-color: var(--stripe-purple);
+  background: var(--stripe-purple);
+}
+
+#outreachAcceptedPoolPanel .accepted-select-control input:checked + span::after {
+  content: "✓";
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
