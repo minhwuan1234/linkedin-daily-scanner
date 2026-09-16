@@ -1354,6 +1354,23 @@ td strong {
   scrollbar-gutter: stable;
 }
 
+/* Message-row controls should size to their labels, never stretch to the row. */
+#tab-outreach .message-batch-source-id,
+#tab-outreach .message-batch-actions > .message-batch-detail-button,
+#tab-outreach .message-batch-actions > .message-batch-send-button {
+  width: fit-content !important;
+  max-width: 100%;
+  flex: 0 0 auto !important;
+}
+
+#tab-outreach .message-batch-source-id {
+  justify-self: start;
+}
+
+#tab-outreach .message-batch-actions {
+  justify-content: flex-end;
+}
+
 .acceptance-insights-drawer,
 .rate-limit-drawer {
   position: fixed;
