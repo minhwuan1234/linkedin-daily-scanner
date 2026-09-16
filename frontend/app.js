@@ -3644,6 +3644,21 @@ function getAcceptancePeriodRows(jobs) {
 }
 
 
+function getAcceptanceAcceptedCount(acceptance) {
+  if (!acceptance) {
+    return 0;
+  }
+
+  const allRunsCount = Number(
+    acceptance.all_runs_new_accepted_count
+  );
+
+  return Number.isFinite(allRunsCount)
+    ? allRunsCount
+    : Number(acceptance.new_accepted_count || 0);
+}
+
+
 function getAcceptanceWeekGroups(jobs) {
   const groups = new Map();
 
@@ -3669,7 +3684,7 @@ function getAcceptanceWeekGroups(jobs) {
     const acceptance = job.acceptance || {};
     group.jobs.push(job);
     group.totalProfiles += Number(job.target_count || 0);
-    group.accepted += Number(acceptance.new_accepted_count || 0);
+    group.accepted += getAcceptanceAcceptedCount(acceptance);
     group.pending += Number(acceptance.still_pending_count || 0);
     group.failed += Number(acceptance.failed_count || 0);
   });
@@ -3831,9 +3846,7 @@ function renderOutreachAcceptanceJobs(
     setText(
       "[data-acceptance-accepted]",
       acceptance
-        ? Number(
-            acceptance.new_accepted_count || 0
-          )
+        ? getAcceptanceAcceptedCount(acceptance)
         : "—"
     );
 
