@@ -93,6 +93,8 @@ The Outreach area is one workspace with four process tabs:
 3. **Recipients** — filter accepted profiles and prepare a message batch.
 4. **Messages** — review a prepared snapshot and queue it for sending.
 
+Historical data uses a week-first index across Acceptance, Recipients, and Messages. The default view shows dated week cards with lightweight totals; selecting a week reveals only the Connect Jobs, accepted profiles, or message batches belonging to that week. Batch-level filters remain available after a week is selected, but a default dropdown must never be the primary navigation for historical data.
+
 Keep actions close to the data they affect. Destructive actions require a deliberate confirmation surface. Long-running actions show an immediate pending state, progress, and an actionable error when they fail.
 
 ### Responsive behavior
@@ -137,7 +139,7 @@ Status should be expressed redundantly through text, color, and where useful an 
 
 ### Tables and lists
 
-Use compact rows with strong first-column identity, muted secondary metadata, and tabular numerics. Keep filters above the table, show result counts, provide an empty state that explains the next action, and keep pagination controls adjacent to the count.
+Use compact rows with strong first-column identity, muted secondary metadata, and tabular numerics. For historical operational data, show a week index before the table and progressively disclose the rows after a week is selected. Keep filters above the revealed table, show result counts, provide an empty state that explains the next action, and keep pagination controls adjacent to the count.
 
 ### Drawers and modals
 
@@ -182,4 +184,3 @@ Before shipping a visual change:
 3. Test at 1440px, 1024px, 768px, and 390px widths.
 4. Navigate using keyboard only and confirm visible focus.
 5. Run `node --check frontend/app.js` and a Python compile check for backend changes.
-

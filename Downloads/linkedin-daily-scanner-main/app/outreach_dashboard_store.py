@@ -873,8 +873,12 @@ def load_latest_acceptance_checks(
     job_ids: list[str],
 ) -> dict[str, dict]:
     """
-    Load all Acceptance Check rows for the visible Connect Jobs,
-    then keep only the latest run_number for each source_job_id.
+    Load all Acceptance Check rows for the visible Connect Jobs.
+
+    The dashboard keeps the latest run for the current status columns,
+    but also carries the sum of ``new_accepted_count`` across every run
+    for each job.  The weekly accepted total must include #1 + #2 + #3
+    without exposing the full history in the normal polling payload.
     """
     cleaned_job_ids = [
         str(job_id).strip()
@@ -929,6 +933,11 @@ def load_latest_acceptance_checks(
         dict,
     ] = {}
 
+    accepted_totals_by_job: dict[
+        str,
+        int,
+    ] = {}
+
     for row in rows:
         source_job_id = _safe_text(
             row.get(
@@ -939,6 +948,11 @@ def load_latest_acceptance_checks(
         if not source_job_id:
             continue
 
+        accepted_totals_by_job[source_job_id] = (
+            accepted_totals_by_job.get(source_job_id, 0)
+            + _to_int(row.get("new_accepted_count"))
+        )
+
         if source_job_id in latest_by_job:
             continue
 
@@ -946,6 +960,11 @@ def load_latest_acceptance_checks(
             source_job_id
         ] = _normalize_acceptance_check(
             row
+        )
+
+    for source_job_id, acceptance in latest_by_job.items():
+        acceptance["all_runs_new_accepted_count"] = (
+            accepted_totals_by_job.get(source_job_id, 0)
         )
 
     return latest_by_job
@@ -2053,4 +2072,3 @@ def get_outreach_dashboard(
         "accounts": accounts,
         "recent_jobs": recent_jobs,
     }
-

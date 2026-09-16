@@ -6938,6 +6938,91 @@ th {
   color: #b3afff;
 }
 
+.outreach-week-list {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+}
+
+.week-card {
+  display: grid;
+  min-height: 78px;
+  gap: 5px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-soft);
+  color: var(--text);
+  text-align: left;
+}
+
+.week-card:hover,
+.week-card:focus-visible {
+  border-color: var(--accent);
+  background: var(--panel-hover);
+}
+
+.week-card.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.week-card-label {
+  color: var(--accent-hover);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.week-card strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.week-card small,
+.week-list-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.week-list-empty {
+  padding: 12px 0;
+}
+
+#outreachAcceptedPoolPanel .outreach-pool-toolbar {
+  display: grid;
+  gap: 20px;
+}
+
+#outreachAcceptedPoolPanel .outreach-pool-controls {
+  display: grid;
+  gap: 14px;
+}
+
+#outreachAcceptedPoolPanel .outreach-recipient-filter-group {
+  display: grid;
+  gap: 14px;
+}
+
+#outreachAcceptedPoolPanel .outreach-week-list {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+#outreachAcceptedPoolPanel .outreachAcceptedPoolFilters,
+#outreachAcceptedPoolPanel #outreachAcceptedPoolFilters {
+  width: fit-content;
+}
+
+#outreachAcceptanceWeekList {
+  width: min(100%, 700px);
+}
+
+.outreach-history-panel > .panel-header {
+  align-items: flex-start;
+}
+
 .outreach-account-filter {
   display: grid;
   gap: 8px;
@@ -6957,6 +7042,10 @@ th {
   .acceptance-period-filters .outreach-accepted-filter {
     flex: 1;
   }
+
+  #outreachAcceptanceWeekList {
+    width: 100%;
+  }
 }
 
 #tab-outreach .outreach-workflow-actions,
@@ -6974,6 +7063,57 @@ th {
   #tab-outreach .message-batch-detail-button,
   #tab-outreach .secondary-button {
     width: 100%;
+  }
+}
+
+/* Week-first navigation for every historical batch view. */
+.outreach-history-panel > .panel-header {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.6fr) auto;
+  gap: 20px;
+}
+
+.outreach-history-panel .outreach-acceptance-header-actions {
+  align-self: start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.message-batches-panel > .outreach-week-list {
+  margin: 4px 0 18px;
+}
+
+.message-batches-panel .message-batch-source-filter[hidden] {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .outreach-history-panel > .panel-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .outreach-history-panel > .panel-header > #outreachAcceptanceWeekList {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 680px) {
+  .outreach-history-panel > .panel-header {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-history-panel > .panel-header > #outreachAcceptanceWeekList,
+  .outreach-history-panel .outreach-acceptance-header-actions {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .outreach-history-panel .outreach-acceptance-header-actions {
+    justify-content: space-between;
   }
 }
 
