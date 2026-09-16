@@ -13,7 +13,7 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260915-outreach-stripe-4" />
+<link rel="stylesheet" href="./styles.css?v=20260916-outreach-week-index-1" />
 </head>
 
 <body>
@@ -33,7 +33,7 @@
 
           <button class="tab-button" type="button" data-tab="overview" hidden>
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span>
-            <span class="sidebar-nav-text">Tổng quan</span>
+            <span class="sidebar-nav-text">Overview</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="profiles" hidden>
@@ -220,7 +220,7 @@
             </div>
 
             <div id="acceptanceInsightsEmpty" class="outreach-job-empty">
-              Performance data chưa được API trả về.
+              Performance data is not available from the API.
             </div>
 
             <div id="acceptanceInsightsTableWrap" class="table-wrap acceptance-insights-table-wrap" hidden>
@@ -344,7 +344,7 @@
               class="rate-limit-accounts-list"
             >
               <div class="outreach-job-empty">
-                Chưa có dữ liệu account.
+                No account data available.
               </div>
             </div>
 
@@ -475,14 +475,14 @@
           <p id="pageEyebrow" class="eyebrow">Outreach</p>
           <h1 id="pageTitle">Connect &amp; Messaging</h1>
           <p id="pageSubtitle" class="subtitle">
-            Quản lý Connect, acceptance và message workflow trong một workspace.
+            Manage Connect, acceptance, and messaging in one workspace.
           </p>
         </div>
 
         <div class="header-actions">
           <div id="systemBadge" class="system-badge is-neutral">
             <span class="status-dot"></span>
-            <span id="systemBadgeText">Đang kiểm tra hệ thống</span>
+            <span id="systemBadgeText">Checking system status</span>
           </div>
 
           <button
@@ -490,7 +490,7 @@
             class="control-button control-button-danger"
             type="button"
             hidden
-            title="Dừng ngay lượt quét hiện tại và trả job về queue"
+            title="Stop the current scan and return the job to the queue"
           >
             <span class="button-icon">■</span>
             <span>Kill process</span>
@@ -501,7 +501,7 @@
             class="control-button control-button-warning"
             type="button"
             hidden
-            title="Tạm dừng nhận batch mới sau source hiện tại"
+            title="Pause new batches after the current source"
           >
             <span class="button-icon">Ⅱ</span>
             <span id="stopScanButtonText">Stop scan</span>
@@ -509,7 +509,7 @@
 
           <button id="refreshButton" class="primary-button" type="button">
             <span class="button-icon">↻</span>
-            <span>Làm mới</span>
+            <span>Refresh</span>
           </button>
         </div>
       </header>
@@ -518,14 +518,14 @@
 
     <!-- OVERVIEW -->
     <section id="tab-overview" class="tab-panel" hidden>
-      <section class="stats-grid" aria-label="Tổng quan hệ thống">
+      <section class="stats-grid" aria-label="System overview">
         <article class="stat-card">
           <div class="stat-card-top">
-            <span class="stat-label">Tổng profile</span>
+            <span class="stat-label">Total profiles</span>
             <span class="stat-icon stat-icon-purple">P</span>
           </div>
           <strong id="totalProfiles">—</strong>
-          <small>Snapshot mới nhất mỗi source</small>
+          <small>Latest snapshot per source</small>
         </article>
 
         <article class="stat-card">
@@ -534,7 +534,7 @@
             <span class="stat-icon stat-icon-slate">Q</span>
           </div>
           <strong id="pendingCount">—</strong>
-          <small>URL đang chờ trong queue</small>
+          <small>URLs waiting in the queue</small>
         </article>
 
         <article class="stat-card">
@@ -543,7 +543,7 @@
             <span class="stat-icon stat-icon-amber">↻</span>
           </div>
           <strong id="processingCount">—</strong>
-          <small>URL đang được xử lý</small>
+          <small>URLs currently processing</small>
         </article>
 
         <article class="stat-card">
@@ -552,7 +552,7 @@
             <span class="stat-icon stat-icon-green">✓</span>
           </div>
           <strong id="completedCount">—</strong>
-          <small>Job đã hoàn thành</small>
+          <small>Completed jobs</small>
         </article>
 
         <article class="stat-card">
@@ -561,7 +561,7 @@
             <span class="stat-icon stat-icon-red">!</span>
           </div>
           <strong id="failedCount">—</strong>
-          <small>Job cần kiểm tra lại</small>
+          <small>Jobs that need attention</small>
         </article>
       </section>
 
@@ -570,18 +570,18 @@
           <div class="panel-header">
             <div>
               <p class="panel-kicker">Live process</p>
-              <h2>Đang xử lý</h2>
+              <h2>In progress</h2>
             </div>
 
             <span id="activeProcessBadge" class="pill pill-purple">
-              Đang tải
+              Loading
             </span>
           </div>
 
           <div id="activeProcessContent" class="active-process-content">
             <div class="loading-block">
               <span class="spinner"></span>
-              <span>Đang đọc trạng thái worker...</span>
+              <span>Reading worker status...</span>
             </div>
           </div>
         </article>
@@ -590,7 +590,7 @@
           <div class="panel-header">
             <div>
               <p class="panel-kicker">Account pool</p>
-              <h2>Tài khoản LinkedIn</h2>
+              <h2>LinkedIn accounts</h2>
             </div>
 
             <span id="readyAccountSummary" class="panel-meta">—</span>
@@ -599,7 +599,7 @@
           <div id="overviewAccountList" class="compact-account-list">
             <div class="loading-block">
               <span class="spinner"></span>
-              <span>Đang tải accounts...</span>
+              <span>Loading accounts...</span>
             </div>
           </div>
         </article>
@@ -609,7 +609,7 @@
         <div class="panel-header">
           <div>
             <p class="panel-kicker">Recent activity</p>
-            <h2>Tiến trình gần nhất</h2>
+            <h2>Recent activity</h2>
           </div>
 
           <span id="lastUpdated" class="panel-meta">—</span>
@@ -618,7 +618,7 @@
         <div id="activityTimeline" class="activity-timeline">
           <div class="loading-block">
             <span class="spinner"></span>
-            <span>Đang tổng hợp hoạt động...</span>
+            <span>Loading recent activity...</span>
           </div>
         </div>
       </article>
@@ -630,7 +630,7 @@
         <div class="panel-toolbar">
           <div>
             <p class="panel-kicker">Outreach database</p>
-            <h2>Profiles đã gửi Connect</h2>
+            <h2>Connected profiles</h2>
             <p id="resultSummary" class="panel-meta">—</p>
           </div>
 
@@ -640,14 +640,14 @@
               <input
                 id="searchInput"
                 type="search"
-                placeholder="Tìm URL, account, job hoặc status"
+                placeholder="Search URL, account, job, or status"
                 autocomplete="off"
               />
             </label>
 
-            <select id="sortSelect" aria-label="Sắp xếp">
-              <option value="newest">Mới nhất</option>
-              <option value="oldest">Cũ nhất</option>
+                    <select id="sortSelect" aria-label="Sort profiles">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
               <option value="name">URL A–Z</option>
             </select>
           </div>
@@ -656,7 +656,7 @@
         <div id="errorState" class="state state-error" hidden></div>
 
         <div id="emptyState" class="state" hidden>
-          Không có profile Connect đã gửi.
+          No connected profiles found.
         </div>
 
         <div id="tableWrap" class="table-wrap" hidden>
@@ -695,13 +695,13 @@
               <input
                 id="queueSearchInput"
                 type="search"
-                placeholder="Tìm URL, account hoặc status"
+                placeholder="Search URL, account, or status"
                 autocomplete="off"
               />
             </label>
 
-            <select id="queueStatusFilter" aria-label="Lọc trạng thái queue">
-              <option value="all">Tất cả trạng thái</option>
+            <select id="queueStatusFilter" aria-label="Filter queue status">
+              <option value="all">All statuses</option>
               <option value="pending">Pending</option>
               <option value="processing">Processing</option>
               <option value="completed">Completed</option>
@@ -712,7 +712,7 @@
         </div>
 
         <div id="queueEmptyState" class="state" hidden>
-          Không có URL trong queue.
+          No URLs in the queue.
         </div>
 
         <div id="queueTableWrap" class="table-wrap" hidden>
@@ -739,7 +739,7 @@
       <div id="accountsGrid" class="accounts-grid">
         <div class="loading-block">
           <span class="spinner"></span>
-          <span>Đang tải accounts...</span>
+          <span>Loading accounts...</span>
         </div>
       </div>
     </section>
@@ -753,7 +753,7 @@
               <p class="panel-kicker">Channel research</p>
               <h2>YouTube Research</h2>
               <p class="panel-meta">
-                Nhập một keyword để research tối đa 40 kênh YouTube.
+                Enter a keyword to research up to 40 YouTube channels.
               </p>
             </div>
 
@@ -766,7 +766,7 @@
               <input
                 id="youtubeKeywordInput"
                 type="text"
-                placeholder="Ví dụ: cardiology 101"
+                placeholder="Example: cardiology 101"
                 autocomplete="off"
                 required
               />
@@ -774,7 +774,7 @@
 
             <div class="youtube-form-actions">
               <div class="youtube-limit-note">
-                Mỗi lượt scan tối đa <strong>40 kênh</strong>.
+                Each research run supports up to <strong>40 channels</strong>.
               </div>
 
               <button id="youtubeStartButton" class="primary-button" type="submit">
@@ -792,7 +792,7 @@
               <h2>Research progress</h2>
             </div>
 
-            <span id="youtubeProgressText" class="panel-meta">Chưa có job</span>
+            <span id="youtubeProgressText" class="panel-meta">No job yet</span>
           </div>
 
           <div class="youtube-progress-content">
@@ -815,7 +815,7 @@
           <div>
             <p class="panel-kicker">Live channel results</p>
             <h2>Channels researched</h2>
-            <p id="youtubeResultSummary" class="panel-meta">Chưa có dữ liệu.</p>
+            <p id="youtubeResultSummary" class="panel-meta">No data yet.</p>
           </div>
 
           <div class="toolbar-actions youtube-filter-toolbar">
@@ -824,43 +824,43 @@
               <input
                 id="youtubeSearchInput"
                 type="search"
-                placeholder="Tìm tên kênh, email, location, URL hoặc keyword"
+                placeholder="Search channel name, email, location, URL, or keyword"
                 autocomplete="off"
               />
             </label>
 
             <select id="youtubeKeywordFilter">
-              <option value="all">Tất cả keyword</option>
+              <option value="all">All keywords</option>
             </select>
 
             <select id="youtubeLocationFilter">
-              <option value="all">Tất cả location</option>
+              <option value="all">All locations</option>
             </select>
 
             <select id="youtubeEmailFilter">
-              <option value="all">Tất cả email</option>
-              <option value="available">Có email</option>
-              <option value="missing">Chưa có email</option>
+              <option value="all">All email states</option>
+              <option value="available">Email available</option>
+              <option value="missing">Email missing</option>
             </select>
 
             <select id="youtubeSubscriberFilter">
-              <option value="all">Mọi subscriber</option>
+              <option value="all">All subscribers</option>
               <option value="10000">≥ 10K</option>
               <option value="100000">≥ 100K</option>
               <option value="1000000">≥ 1M</option>
             </select>
 
             <select id="youtubeSortSelect">
-              <option value="newest">Mới scan nhất</option>
-              <option value="subscribers">Subscribers cao nhất</option>
-              <option value="views">Views cao nhất</option>
-              <option value="name">Tên A–Z</option>
+              <option value="newest">Newest research</option>
+              <option value="subscribers">Most subscribers</option>
+              <option value="views">Most views</option>
+              <option value="name">Name A–Z</option>
             </select>
           </div>
         </div>
 
         <div id="youtubeEmptyState" class="state">
-          Chưa có channel nào. Nhập keyword và bắt đầu research.
+          No channels yet. Enter a keyword to start research.
         </div>
 
         <div id="youtubeTableWrap" class="table-wrap" hidden>
@@ -956,7 +956,7 @@
 
     <div class="outreach-connect-workspace-header-meta">
       <span id="outreachJobCode" class="panel-meta">
-        Chưa có job
+        No job yet
       </span>
 
       <span id="outreachJobBadge" class="pill pill-neutral">
@@ -1025,7 +1025,7 @@
         id="outreachJobEmpty"
         class="outreach-job-empty outreach-job-empty-smart"
       >
-        Chưa có Connect Job.
+        No Connect Job yet.
       </div>
 
       <div
@@ -1145,11 +1145,7 @@
           </p>
         </div>
 
-        <div id="outreachAcceptancePeriodFilters" class="segmented-filter acceptance-period-filters" aria-label="Acceptance time range">
-          <button type="button" class="outreach-accepted-filter is-active" data-acceptance-period="week">Tuần hiện tại</button>
-          <button type="button" class="outreach-accepted-filter" data-acceptance-period="month">Tháng hiện tại</button>
-          <button type="button" class="outreach-accepted-filter" data-acceptance-period="all">Tất cả</button>
-        </div>
+        <div id="outreachAcceptanceWeekList" class="outreach-week-list" aria-label="Acceptance weeks"></div>
 
         <div class="outreach-acceptance-header-actions">
           <button
@@ -1168,7 +1164,7 @@
       </div>
 
       <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
-        Chưa có Connect Job để check acceptance.
+        Select a week to view its Connect Jobs.
       </div>
 
       <div id="outreachAcceptanceTableWrap" class="table-wrap" hidden>
@@ -1352,11 +1348,8 @@
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
-      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">This week · 0 accepted profiles</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
-  <div id="outreachAcceptedPeriodFilters" class="segmented-filter outreach-period-filters" aria-label="Accepted pool time range">
-    <button type="button" data-accepted-period="week" class="outreach-accepted-filter is-active">This week</button>
-    <button type="button" data-accepted-period="history" class="outreach-accepted-filter">Explore history</button>
-  </div>
+      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">Select a week to view its accepted profiles.</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
+  <div id="outreachAcceptedWeekList" class="outreach-week-list" aria-label="Accepted profile weeks"></div>
   <div id="outreachAcceptedPoolFilters" class="segmented-filter">
     <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
     <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
@@ -1388,7 +1381,7 @@
     </select>
   </label>
 </div></div></div>
-      <div id="outreachAcceptedPoolEmpty" class="state">Chưa có user accepted.</div>
+      <div id="outreachAcceptedPoolEmpty" class="state">No accepted profiles found.</div>
       <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Connect ID</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="recipient-send-batch" data-accepted-send-batch>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template>
         <template id="outreachAcceptedPoolGroupTemplate">
           <tr class="recipient-batch-group-row">
@@ -1407,11 +1400,11 @@
       <div id="outreachAcceptedPagination" class="outreach-list-pagination" hidden><span id="outreachAcceptedPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptedPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptedNextPage" type="button" class="secondary-button">Next</button></div></div>
     </article>
 
-    <article class="panel message-preparation-panel outreach-secondary-action-panel"><div class="panel-header"><div><p class="panel-kicker">Recipient preparation</p><h2>Create Message Batch</h2><p class="panel-meta">Prepare selected recipients or keep the original Prepare All behavior for every currently eligible profile.</p></div><span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span></div><div class="message-preparation-body"><div class="message-preparation-copy"><strong id="messagePreparationHeadline">Chưa có recipient cần prepare</strong><span id="messagePreparationMeta">Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.</span></div><div class="message-preparation-actions"><button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button><button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button></div></div><p id="messagePreparationError" class="outreach-error" hidden></p></article>
+    <article class="panel message-preparation-panel outreach-secondary-action-panel"><div class="panel-header"><div><p class="panel-kicker">Recipient preparation</p><h2>Create Message Batch</h2><p class="panel-meta">Prepare selected recipients or keep the original Prepare All behavior for every currently eligible profile.</p></div><span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span></div><div class="message-preparation-body"><div class="message-preparation-copy"><strong id="messagePreparationHeadline">No recipients ready to prepare</strong><span id="messagePreparationMeta">Accepted profiles not yet assigned to a prepared batch appear here.</span></div><div class="message-preparation-actions"><button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button><button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button></div></div><p id="messagePreparationError" class="outreach-error" hidden></p></article>
   </section>
 
   <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
-    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Prepared snapshots</p><h2>Message Batches</h2><p class="panel-meta">Review prepared recipients, see the original Connect ID, then queue a batch for the Mac Message Worker.</p></div><div class="message-batch-header-tools"><label class="message-batch-source-filter"><span>Connect ID</span><select id="messageBatchSourceFilter" aria-label="Filter message batches by source Connect ID"><option value="all">All Connect IDs</option></select></label><span id="messageBatchCount" class="pill pill-neutral">0 batches</span></div></div><div id="messageBatchEmpty" class="state">Chưa có prepared batch.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><div class="message-batch-title-line"><strong data-message-batch-code>Prepared batch</strong><span class="message-batch-source-id" data-message-batch-source>Connect ID —</span></div><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
+    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Prepared snapshots</p><h2>Message Batches</h2><p class="panel-meta">Choose a week to review prepared recipients, see the original Connect ID, and queue a batch.</p></div><div class="message-batch-header-tools"><span id="messageBatchCount" class="pill pill-neutral">Select a week</span></div></div><div id="messageBatchWeekList" class="outreach-week-list" aria-label="Message batch weeks"></div><label class="message-batch-source-filter" hidden><span>Connect ID</span><select id="messageBatchSourceFilter" aria-label="Filter message batches by source Connect ID"><option value="all">All Connect IDs</option></select></label><div id="messageBatchEmpty" class="state">Select a week to view message batches.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><div class="message-batch-title-line"><strong data-message-batch-code>Prepared batch</strong><span class="message-batch-source-id" data-message-batch-source>Connect ID —</span></div><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
   </section>
 </section>
 
@@ -1422,11 +1415,11 @@
           <div class="panel-header">
             <div>
               <p class="panel-kicker">System health</p>
-              <h2>Trạng thái hệ thống</h2>
+              <h2>System status</h2>
             </div>
 
             <span id="healthOverallBadge" class="pill pill-neutral">
-              Đang kiểm tra
+              Checking
             </span>
           </div>
 
@@ -1449,7 +1442,7 @@
         <div class="panel-header">
           <div>
             <p class="panel-kicker">Queue health</p>
-            <h2>Chỉ số kiểm tra</h2>
+          <h2>Health metrics</h2>
           </div>
         </div>
 
@@ -1796,7 +1789,7 @@
           ></textarea>
 
           <small>
-            Dùng <code>{first_name}</code> để tự động chèn tên người nhận.
+            Use <code>{first_name}</code> to insert the recipient's first name.
           </small>
         </label>
 
@@ -1914,6 +1907,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260827-session-status-1"></script>
+  <script src="./app.js?v=20260916-outreach-week-index-1"></script>
 </body>
 </html>
