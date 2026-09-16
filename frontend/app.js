@@ -499,6 +499,21 @@ const els = {
   messageBatchWeekList:
     document.querySelector("#messageBatchWeekList"),
 
+  messageBatchHistoryButton:
+    document.querySelector("#messageBatchHistoryButton"),
+
+  messageBatchWeekModal:
+    document.querySelector("#messageBatchWeekModal"),
+
+  messageBatchWeekModalBackdrop:
+    document.querySelector("#messageBatchWeekModalBackdrop"),
+
+  messageBatchWeekModalClose:
+    document.querySelector("#messageBatchWeekModalClose"),
+
+  messageBatchWeekModalList:
+    document.querySelector("#messageBatchWeekModalList"),
+
   messageBatchEmpty:
     document.querySelector("#messageBatchEmpty"),
 
@@ -5662,6 +5677,58 @@ function getMessageBatchWeekGroups() {
 }
 
 
+function renderMessageBatchWeekCard(group, {compact = false} = {}) {
+  const element = document.createElement(compact ? "button" : "article");
+
+  element.className = compact
+    ? "week-card week-history-option"
+    : "week-card week-current-card";
+
+  if (compact) {
+    element.type = "button";
+    element.dataset.messageBatchWeekOption = group.key;
+  }
+
+  element.innerHTML = `
+    <span class="week-card-label">${escapeHtml(group.label)}</span>
+    <strong>${group.batches} batches</strong>
+    <div class="week-card-metrics">
+      <span>${group.recipients} recipients</span>
+      <span>Completed <b>${group.completed}</b></span>
+    </div>
+  `;
+
+  return element;
+}
+
+
+function getMessageBatchWeekSelection() {
+  const groups = getMessageBatchWeekGroups();
+  const current = getWeekInfo(new Date());
+  const selectedKey = state.messageBatchWeekKey || current?.key || groups[0]?.key;
+  const selectedGroup = groups.find((group) => group.key === selectedKey);
+
+  if (!state.messageBatchWeekKey) {
+    state.messageBatchWeekKey = selectedKey || null;
+  }
+
+  return {
+    groups,
+    current,
+    selected: selectedGroup || {
+      ...(current || {
+        key: "current",
+        label: "Current week",
+        start: Date.now()
+      }),
+      batches: 0,
+      recipients: 0,
+      completed: 0
+    }
+  };
+}
+
+
 function renderMessageBatchWeekList() {
   const wrap = els.messageBatchWeekList;
 
@@ -5669,24 +5736,67 @@ function renderMessageBatchWeekList() {
     return;
   }
 
-  wrap.replaceChildren();
+  const selection = getMessageBatchWeekSelection();
+  wrap.replaceChildren(renderMessageBatchWeekCard(selection.selected));
 
-  getMessageBatchWeekGroups().forEach((group) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `week-card${group.key === state.messageBatchWeekKey ? " is-active" : ""}`;
-    button.dataset.messageBatchWeek = group.key;
-    button.innerHTML = `
-      <span class="week-card-label">${escapeHtml(group.label)}</span>
-      <strong>${group.batches} batches</strong>
-      <small>${group.recipients} recipients · ${group.completed} completed</small>
-    `;
-    wrap.append(button);
-  });
+  const hasPreviousWeeks = selection.groups.some(
+    (group) => group.key !== selection.current?.key
+  );
+
+  if (els.messageBatchHistoryButton) {
+    els.messageBatchHistoryButton.hidden = !hasPreviousWeeks;
+    els.messageBatchHistoryButton.textContent =
+      selection.selected.key === selection.current?.key
+        ? "Explore previous weeks"
+        : "Back to current week";
+  }
 
   if (!wrap.children.length) {
     wrap.innerHTML = '<span class="week-list-empty">No dated message batches yet.</span>';
   }
+}
+
+
+function openMessageBatchWeekModal() {
+  const modal = els.messageBatchWeekModal;
+  const list = els.messageBatchWeekModalList;
+
+  if (!modal || !list) {
+    return;
+  }
+
+  const {groups, current} = getMessageBatchWeekSelection();
+  const previousGroups = groups.filter(
+    (group) => group.key !== current?.key
+  );
+
+  list.replaceChildren();
+
+  if (!previousGroups.length) {
+    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
+  } else {
+    previousGroups.forEach((group) => {
+      const option = renderMessageBatchWeekCard(group, {compact: true});
+      option.classList.toggle(
+        "is-active",
+        group.key === state.messageBatchWeekKey
+      );
+      list.append(option);
+    });
+  }
+
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
+}
+
+
+function closeMessageBatchWeekModal() {
+  if (!els.messageBatchWeekModal) {
+    return;
+  }
+
+  els.messageBatchWeekModal.hidden = true;
+  els.messageBatchWeekModal.setAttribute("aria-hidden", "true");
 }
 
 
@@ -8987,6 +9097,14 @@ document.addEventListener(
       !els.outreachAcceptedWeekModal.hidden
     ) {
       closeAcceptedPoolWeekModal();
+      return;
+    }
+
+    if (
+      els.messageBatchWeekModal &&
+      !els.messageBatchWeekModal.hidden
+    ) {
+      closeMessageBatchWeekModal();
     }
   }
 );
@@ -9036,13 +9154,14 @@ els.outreachUrlInput?.addEventListener(
 document.addEventListener(
   "click",
   (event) => {
-    const messageBatchWeekButton = event.target.closest("[data-message-batch-week]");
+    const messageBatchWeekButton = event.target.closest("[data-message-batch-week-option]");
 
     if (messageBatchWeekButton) {
       state.messageBatchWeekKey =
-        messageBatchWeekButton.dataset.messageBatchWeek || null;
+        messageBatchWeekButton.dataset.messageBatchWeekOption || null;
       state.messageBatchPage = 1;
       state.messageBatchSourceFilter = "all";
+      closeMessageBatchWeekModal();
       renderMessagePreparation();
       return;
     }
@@ -9140,6 +9259,29 @@ els.outreachAcceptedWeekModalList?.addEventListener("click", (event) => {
   closeAcceptedPoolWeekModal();
   renderOutreachAcceptedPool();
 });
+
+els.messageBatchHistoryButton?.addEventListener("click", () => {
+  const currentKey = getWeekInfo(new Date())?.key;
+
+  if (state.messageBatchWeekKey !== currentKey) {
+    state.messageBatchWeekKey = currentKey;
+    state.messageBatchPage = 1;
+    renderMessagePreparation();
+    return;
+  }
+
+  openMessageBatchWeekModal();
+});
+
+els.messageBatchWeekModalClose?.addEventListener(
+  "click",
+  closeMessageBatchWeekModal
+);
+
+els.messageBatchWeekModalBackdrop?.addEventListener(
+  "click",
+  closeMessageBatchWeekModal
+);
 
 els.outreachAcceptanceHistoryModalClose?.addEventListener(
   "click",

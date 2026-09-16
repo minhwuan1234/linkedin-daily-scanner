@@ -1418,6 +1418,42 @@
     </section>
   </div>
 
+  <div
+    id="messageBatchWeekModal"
+    class="outreach-week-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <button
+      id="messageBatchWeekModalBackdrop"
+      class="outreach-week-modal-backdrop"
+      type="button"
+      aria-label="Close prepared batch history"
+    ></button>
+
+    <section
+      class="outreach-week-modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="messageBatchWeekModalTitle"
+    >
+      <header class="outreach-week-modal-header">
+        <div>
+          <p class="panel-kicker">Prepared batch history</p>
+          <h2 id="messageBatchWeekModalTitle">Explore previous weeks</h2>
+          <p class="panel-meta">Select a week to load its prepared message batches.</p>
+        </div>
+        <button
+          id="messageBatchWeekModalClose"
+          class="close-button"
+          type="button"
+          aria-label="Close prepared batch history"
+        >×</button>
+      </header>
+      <div id="messageBatchWeekModalList" class="outreach-week-modal-list"></div>
+    </section>
+  </div>
+
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
       <div class="panel-toolbar outreach-pool-toolbar">
@@ -1499,8 +1535,16 @@
           <div>
             <span class="week-browser-label">Prepared history</span>
             <h3 id="messageWeekBrowserTitle">Choose a week</h3>
+            <p>Current week is shown first. Open history only when you need an older week.</p>
           </div>
-          <p>Only batches prepared during the selected week are shown.</p>
+          <button
+            id="messageBatchHistoryButton"
+            class="secondary-button week-history-button"
+            type="button"
+            hidden
+          >
+            Explore previous weeks
+          </button>
         </div>
         <div id="messageBatchWeekList" class="outreach-week-list" aria-label="Message batch weeks"></div>
       </section>

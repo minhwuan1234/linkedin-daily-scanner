@@ -1942,7 +1942,8 @@ body,
 }
 
 [aria-labelledby="acceptanceWeekBrowserTitle"] .week-browser-heading,
-[aria-labelledby="recipientWeekBrowserTitle"] .week-browser-heading {
+[aria-labelledby="recipientWeekBrowserTitle"] .week-browser-heading,
+[aria-labelledby="messageWeekBrowserTitle"] .week-browser-heading {
   display: flex;
   min-height: 156px;
   flex-direction: column;
@@ -2050,7 +2051,8 @@ body,
 
 @media (max-width: 680px) {
   [aria-labelledby="acceptanceWeekBrowserTitle"] .week-browser-heading,
-  [aria-labelledby="recipientWeekBrowserTitle"] .week-browser-heading {
+  [aria-labelledby="recipientWeekBrowserTitle"] .week-browser-heading,
+  [aria-labelledby="messageWeekBrowserTitle"] .week-browser-heading {
     min-height: 0;
     gap: 16px;
   }
