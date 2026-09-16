@@ -375,6 +375,21 @@ const els = {
   outreachAcceptanceWeekModalList:
     document.querySelector("#outreachAcceptanceWeekModalList"),
 
+  outreachAcceptedHistoryButton:
+    document.querySelector("#outreachAcceptedHistoryButton"),
+
+  outreachAcceptedWeekModal:
+    document.querySelector("#outreachAcceptedWeekModal"),
+
+  outreachAcceptedWeekModalBackdrop:
+    document.querySelector("#outreachAcceptedWeekModalBackdrop"),
+
+  outreachAcceptedWeekModalClose:
+    document.querySelector("#outreachAcceptedWeekModalClose"),
+
+  outreachAcceptedWeekModalList:
+    document.querySelector("#outreachAcceptedWeekModalList"),
+
   outreachAcceptanceHistoryModal:
     document.querySelector("#outreachAcceptanceHistoryModal"),
 
@@ -417,15 +432,6 @@ const els = {
 
   outreachAcceptedSelectedCount:
     document.querySelector("#outreachAcceptedSelectedCount"),
-
-  outreachAcceptedAccountFilter:
-    document.querySelector("#outreachAcceptedAccountFilter"),
-
-  outreachAcceptedAccountFilterChips:
-    document.querySelector("#outreachAcceptedAccountFilterChips"),
-
-  outreachAcceptedPeriodFilters:
-    document.querySelector("#outreachAcceptedPeriodFilters"),
 
   outreachAcceptedPoolGroupTemplate:
     document.querySelector("#outreachAcceptedPoolGroupTemplate"),
@@ -617,10 +623,8 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
-  outreachAcceptedPoolPeriod: "week",
   outreachAcceptedPoolWeekKey: null,
   outreachAcceptanceWeekKey: null,
-  outreachAcceptedAccountFilter: "all",
   outreachAcceptedPoolPage: 1,
   outreachAcceptedPoolPageSize: 15,
   outreachAcceptedSelectedProspectIds: new Set(),
@@ -4314,6 +4318,71 @@ function getAcceptedPoolWeekGroups() {
 }
 
 
+function createEmptyAcceptedPoolWeekGroup(weekInfo) {
+  return {
+    ...(weekInfo || {
+      key: "current",
+      label: "Current week",
+      start: Date.now()
+    }),
+    profiles: 0,
+    ready: 0,
+    prepared: 0,
+    sent: 0,
+    batches: new Set(),
+    batchCount: 0
+  };
+}
+
+
+function renderAcceptedPoolWeekCard(group, {compact = false} = {}) {
+  const element = document.createElement(compact ? "button" : "article");
+
+  element.className = compact
+    ? "week-card week-history-option"
+    : "week-card week-current-card";
+
+  if (compact) {
+    element.type = "button";
+    element.dataset.acceptedWeekOption = group.key;
+  }
+
+  element.innerHTML = `
+    <span class="week-card-label">${escapeHtml(group.label)}</span>
+    <strong>${group.profiles} profiles</strong>
+    <div class="week-card-metrics">
+      <span>${group.batchCount} batches</span>
+      <span>Ready <b>${group.ready}</b></span>
+      <span>Sent <b>${group.sent}</b></span>
+    </div>
+  `;
+
+  return element;
+}
+
+
+function getAcceptedPoolWeekSelection() {
+  const groups = getAcceptedPoolWeekGroups();
+  const current = getWeekInfo(new Date());
+  const selectedKey = state.outreachAcceptedPoolWeekKey || current?.key || groups[0]?.key;
+  const selectedGroup = groups.find((group) => group.key === selectedKey);
+
+  if (!state.outreachAcceptedPoolWeekKey) {
+    state.outreachAcceptedPoolWeekKey = selectedKey || null;
+  }
+
+  return {
+    groups,
+    current,
+    selected: selectedGroup || createEmptyAcceptedPoolWeekGroup(
+      selectedKey === current?.key
+        ? current
+        : getWeekInfo(new Date(selectedGroup?.start || current?.start || Date.now()))
+    )
+  };
+}
+
+
 function renderAcceptedPoolWeekList() {
   const wrap = document.querySelector("#outreachAcceptedWeekList");
 
@@ -4321,20 +4390,20 @@ function renderAcceptedPoolWeekList() {
     return;
   }
 
-  wrap.replaceChildren();
+  const selection = getAcceptedPoolWeekSelection();
+  wrap.replaceChildren(renderAcceptedPoolWeekCard(selection.selected));
 
-  getAcceptedPoolWeekGroups().forEach((group) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `week-card${group.key === state.outreachAcceptedPoolWeekKey ? " is-active" : ""}`;
-    button.dataset.acceptedWeek = group.key;
-    button.innerHTML = `
-      <span class="week-card-label">${escapeHtml(group.label)}</span>
-      <strong>${group.profiles} profiles</strong>
-      <small>${group.batchCount} batches · ${group.ready} ready · ${group.sent} sent</small>
-    `;
-    wrap.append(button);
-  });
+  const hasPreviousWeeks = selection.groups.some(
+    (group) => group.key !== selection.current?.key
+  );
+
+  if (els.outreachAcceptedHistoryButton) {
+    els.outreachAcceptedHistoryButton.hidden = !hasPreviousWeeks;
+    els.outreachAcceptedHistoryButton.textContent =
+      selection.selected.key === selection.current?.key
+        ? "Explore previous weeks"
+        : "Back to current week";
+  }
 
   if (!wrap.children.length) {
     wrap.innerHTML = '<span class="week-list-empty">No dated accepted profiles yet.</span>';
@@ -4342,82 +4411,47 @@ function renderAcceptedPoolWeekList() {
 }
 
 
-function getAcceptedPoolAvailableAccounts() {
-  const items = getAcceptedPoolVisibleItems();
+function openAcceptedPoolWeekModal() {
+  const modal = els.outreachAcceptedWeekModal;
+  const list = els.outreachAcceptedWeekModalList;
 
-  const accountIds = new Set();
-
-  items.forEach((item) => {
-    const accountId =
-      String(
-        item.assigned_account_id ||
-        ""
-      ).trim();
-
-    if (accountId) {
-      accountIds.add(accountId);
-    }
-  });
-
-  return Array.from(accountIds);
-}
-
-
-function renderAcceptedPoolAccountFilter() {
-  const select =
-    els.outreachAcceptedAccountFilter;
-
-  if (!select) {
+  if (!modal || !list) {
     return;
   }
 
-  const accountIds =
-    getAcceptedPoolAvailableAccounts();
+  const {groups, current} = getAcceptedPoolWeekSelection();
+  const previousGroups = groups.filter(
+    (group) => group.key !== current?.key
+  );
 
-  const currentValue =
-    state.outreachAcceptedAccountFilter ||
-    "all";
+  list.replaceChildren();
 
-  const fragment =
-    document.createDocumentFragment();
-
-  const allOption =
-    document.createElement("option");
-
-  allOption.value = "all";
-  allOption.textContent = "All accounts";
-
-  fragment.append(allOption);
-
-  accountIds.forEach((accountId) => {
-    const option =
-      document.createElement("option");
-
-    option.value = accountId;
-
-    option.textContent =
-      getOutreachAccountDisplayName(
-        accountId
+  if (!previousGroups.length) {
+    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
+  } else {
+    previousGroups.forEach((group) => {
+      const option = renderAcceptedPoolWeekCard(group, {compact: true});
+      option.classList.toggle(
+        "is-active",
+        group.key === state.outreachAcceptedPoolWeekKey
       );
+      list.append(option);
+    });
+  }
 
-    fragment.append(option);
-  });
-
-  select.replaceChildren(fragment);
-
-  const stillExists =
-    currentValue === "all" ||
-    accountIds.includes(currentValue);
-
-  state.outreachAcceptedAccountFilter =
-    stillExists
-      ? currentValue
-      : "all";
-
-  select.value =
-    state.outreachAcceptedAccountFilter;
+  modal.hidden = false;
+  modal.setAttribute("aria-hidden", "false");
 }
 
+
+function closeAcceptedPoolWeekModal() {
+  if (!els.outreachAcceptedWeekModal) {
+    return;
+  }
+
+  els.outreachAcceptedWeekModal.hidden = true;
+  els.outreachAcceptedWeekModal.setAttribute("aria-hidden", "true");
+}
 
 
 function getAcceptedPoolBatchCode(
@@ -4455,65 +4489,6 @@ function getAcceptedPoolConnectIdLabel(
   return jobId.length > 16
     ? `${jobId.slice(0, 8)}…${jobId.slice(-5)}`
     : jobId;
-}
-
-
-function renderAcceptedPoolFilterChips() {
-  const accountWrap = els.outreachAcceptedAccountFilterChips;
-
-  const addChip = (wrap, value, label, active, attribute) => {
-    if (!wrap) {
-      return;
-    }
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = `filter-chip${active ? " is-active" : ""}`;
-    button.dataset[attribute] = value;
-    button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.textContent = label;
-
-    if (attribute === "acceptedAccountFilter") {
-      button.addEventListener("click", () => {
-        state.outreachAcceptedAccountFilter = value || "all";
-        state.outreachAcceptedPoolPage = 1;
-        renderOutreachAcceptedPool();
-      });
-    }
-
-    wrap.append(button);
-  };
-
-  accountWrap?.replaceChildren();
-
-  addChip(
-    accountWrap,
-    "all",
-    "All accounts",
-    state.outreachAcceptedAccountFilter === "all",
-    "acceptedAccountFilter"
-  );
-
-  getAcceptedPoolAvailableAccounts().forEach((accountId) => {
-    addChip(
-      accountWrap,
-      accountId,
-      getOutreachAccountDisplayName(accountId),
-      state.outreachAcceptedAccountFilter === accountId,
-      "acceptedAccountFilter"
-    );
-  });
-}
-
-
-function renderAcceptedPoolPeriodFilters() {
-  els.outreachAcceptedPeriodFilters?.querySelectorAll("[data-accepted-period]")
-    .forEach((button) => {
-      button.classList.toggle(
-        "is-active",
-        button.dataset.acceptedPeriod === state.outreachAcceptedPoolPeriod
-      );
-    });
 }
 
 
@@ -4635,10 +4610,6 @@ function getAcceptedPoolFilteredItems() {
     state.outreachAcceptedPoolFilter ||
     "all";
 
-  const accountFilter =
-    state.outreachAcceptedAccountFilter ||
-    "all";
-
   const eligibleIds =
     getEligibleMessageProspectIds();
 
@@ -4651,21 +4622,7 @@ function getAcceptedPoolFilteredItems() {
         eligibleIds
       ) === filter;
 
-    const itemAccountId =
-      String(
-        item.assigned_account_id ||
-        ""
-      ).trim();
-
-    const accountMatches =
-      accountFilter === "all" ||
-      itemAccountId ===
-        accountFilter;
-
-    return (
-      statusMatches &&
-      accountMatches
-    );
+    return statusMatches;
   });
 
   return sortAcceptedPoolBySendBatch(
@@ -4874,9 +4831,6 @@ function renderOutreachAcceptedPool() {
   reconcileAcceptedPoolSelection();
 
   renderAcceptedPoolWeekList();
-  renderAcceptedPoolAccountFilter();
-  renderAcceptedPoolFilterChips();
-  renderAcceptedPoolPeriodFilters();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -4891,12 +4845,8 @@ function renderOutreachAcceptedPool() {
     pageData.pageItems;
 
   if (els.outreachAcceptedPoolSummary) {
-    const periodLabel = state.outreachAcceptedPoolWeekKey
-      ? getWeekInfo(
-          getAcceptedPoolVisibleItems()[0]?.accepted_at ||
-          getAcceptedPoolVisibleItems()[0]?.acceptance_checked_at
-        )?.label || "Selected week"
-      : "Select a week";
+    const selectedWeek = getAcceptedPoolWeekSelection().selected;
+    const periodLabel = selectedWeek?.label || "Current week";
 
     els.outreachAcceptedPoolSummary.textContent =
       `${periodLabel} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
@@ -9047,6 +8997,14 @@ document.addEventListener(
       !els.outreachAcceptanceWeekModal.hidden
     ) {
       closeAcceptanceWeekModal();
+      return;
+    }
+
+    if (
+      els.outreachAcceptedWeekModal &&
+      !els.outreachAcceptedWeekModal.hidden
+    ) {
+      closeAcceptedPoolWeekModal();
     }
   }
 );
@@ -9107,40 +9065,6 @@ document.addEventListener(
       return;
     }
 
-    const weekButton = event.target.closest("[data-accepted-week]");
-
-    if (weekButton) {
-      state.outreachAcceptedPoolWeekKey =
-        weekButton.dataset.acceptedWeek || null;
-      state.outreachAcceptedPoolPage = 1;
-      state.outreachAcceptedAccountFilter = "all";
-      renderOutreachAcceptedPool();
-      return;
-    }
-
-    const periodButton = event.target.closest("[data-accepted-period]");
-
-    if (periodButton) {
-      state.outreachAcceptedPoolPeriod =
-        periodButton.dataset.acceptedPeriod === "history"
-          ? "history"
-          : "week";
-      state.outreachAcceptedPoolPage = 1;
-      state.outreachAcceptedAccountFilter = "all";
-      renderOutreachAcceptedPool();
-      return;
-    }
-
-    const accountButton = event.target.closest("[data-accepted-account-filter]");
-
-    if (accountButton) {
-      state.outreachAcceptedAccountFilter =
-        accountButton.dataset.acceptedAccountFilter || "all";
-      state.outreachAcceptedPoolPage = 1;
-      renderOutreachAcceptedPool();
-      return;
-    }
-
     const button =
       event.target.closest(
         "[data-outreach-process-tab]"
@@ -9196,6 +9120,43 @@ els.outreachAcceptanceWeekModalList?.addEventListener("click", (event) => {
   state.outreachAcceptancePage = 1;
   closeAcceptanceWeekModal();
   renderOutreachAcceptanceJobs(state.outreachRecentJobs);
+});
+
+els.outreachAcceptedHistoryButton?.addEventListener("click", () => {
+  const currentKey = getWeekInfo(new Date())?.key;
+
+  if (state.outreachAcceptedPoolWeekKey !== currentKey) {
+    state.outreachAcceptedPoolWeekKey = currentKey;
+    state.outreachAcceptedPoolPage = 1;
+    renderOutreachAcceptedPool();
+    return;
+  }
+
+  openAcceptedPoolWeekModal();
+});
+
+els.outreachAcceptedWeekModalClose?.addEventListener(
+  "click",
+  closeAcceptedPoolWeekModal
+);
+
+els.outreachAcceptedWeekModalBackdrop?.addEventListener(
+  "click",
+  closeAcceptedPoolWeekModal
+);
+
+els.outreachAcceptedWeekModalList?.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-accepted-week-option]");
+
+  if (!option) {
+    return;
+  }
+
+  state.outreachAcceptedPoolWeekKey =
+    option.dataset.acceptedWeekOption || null;
+  state.outreachAcceptedPoolPage = 1;
+  closeAcceptedPoolWeekModal();
+  renderOutreachAcceptedPool();
 });
 
 els.outreachAcceptanceHistoryModalClose?.addEventListener(
@@ -9276,21 +9237,6 @@ document.addEventListener(
     renderOutreachAcceptedPool();
   }
 );
-
-els.outreachAcceptedAccountFilter?.addEventListener(
-  "change",
-  () => {
-    state.outreachAcceptedAccountFilter =
-      els.outreachAcceptedAccountFilter.value ||
-      "all";
-
-    state.outreachAcceptedPoolPage =
-      1;
-
-    renderOutreachAcceptedPool();
-  }
-);
-
 
 els.outreachAcceptedPrevPage?.addEventListener(
   "click",

@@ -859,6 +859,19 @@ textarea::placeholder {
   transform: translateY(-1px);
 }
 
+#tab-outreach .week-current-card {
+  grid-column: 1 / -1;
+  cursor: default;
+}
+
+#tab-outreach .week-current-card:hover {
+  transform: none;
+}
+
+#tab-outreach .week-history-option {
+  cursor: pointer;
+}
+
 #tab-outreach .week-card.is-active {
   border-color: rgba(122, 115, 255, 0.9) !important;
   background: linear-gradient(145deg, rgba(99, 91, 255, 0.2), rgba(24, 41, 67, 0.94)) !important;
