@@ -2042,26 +2042,27 @@ body,
 /* The drawer owns scrolling; the page behind it must remain locked. */
 .rate-limit-drawer-panel,
 .acceptance-insights-drawer-panel {
-  display: flex !important;
+  display: block !important;
+  height: 100vh !important;
   height: 100dvh !important;
+  max-height: 100vh !important;
   max-height: 100dvh !important;
-  min-height: 0 !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .rate-limit-drawer-header,
 .acceptance-insights-drawer-header {
-  flex: 0 0 auto;
+  position: sticky !important;
+  top: 0;
 }
 
 .rate-limit-drawer-body,
 .acceptance-insights-drawer-body {
-  min-height: 0 !important;
-  flex: 1 1 auto !important;
-  overflow-y: auto !important;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
+  min-height: auto !important;
+  overflow: visible !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
