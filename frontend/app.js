@@ -409,12 +409,6 @@ const els = {
   outreachAcceptedAccountFilterChips:
     document.querySelector("#outreachAcceptedAccountFilterChips"),
 
-  outreachAcceptedSendBatchFilter:
-    document.querySelector("#outreachAcceptedSendBatchFilter"),
-
-  outreachAcceptedSendBatchFilterChips:
-    document.querySelector("#outreachAcceptedSendBatchFilterChips"),
-
   outreachAcceptedPeriodFilters:
     document.querySelector("#outreachAcceptedPeriodFilters"),
 
@@ -612,7 +606,6 @@ const state = {
   outreachAcceptedPoolWeekKey: null,
   outreachAcceptanceWeekKey: null,
   outreachAcceptedAccountFilter: "all",
-  outreachAcceptedSendBatchFilter: "all",
   outreachAcceptedPoolPage: 1,
   outreachAcceptedPoolPageSize: 15,
   outreachAcceptedSelectedProspectIds: new Set(),
@@ -4342,134 +4335,8 @@ function getAcceptedPoolConnectIdLabel(
 }
 
 
-function getAcceptedPoolAvailableSendBatches() {
-  const items = getAcceptedPoolVisibleItems();
-
-  const connectIds =
-    new Map();
-
-  items.forEach((item) => {
-    const jobId =
-      getAcceptedPoolBatchCode(
-        item
-      );
-
-    if (!jobId) {
-      return;
-    }
-
-    connectIds.set(
-      jobId,
-      getAcceptedPoolConnectIdLabel(
-        item
-      )
-    );
-  });
-
-  return Array.from(
-    connectIds.entries()
-  ).sort(
-    (left, right) =>
-      right[1].localeCompare(
-        left[1],
-        undefined,
-        {
-          numeric: true,
-          sensitivity: "base"
-        }
-      )
-  );
-}
-
-
-function renderAcceptedPoolSendBatchFilter() {
-  const select =
-    els.outreachAcceptedSendBatchFilter;
-
-  if (!select) {
-    return;
-  }
-
-  const connectIds =
-    getAcceptedPoolAvailableSendBatches();
-
-  const currentValue =
-    state.outreachAcceptedSendBatchFilter ||
-    "all";
-
-  const fragment =
-    document.createDocumentFragment();
-
-  const allOption =
-    document.createElement("option");
-
-  allOption.value =
-    "all";
-
-  allOption.textContent =
-    "All Connect IDs";
-
-  fragment.append(
-    allOption
-  );
-
-  const unassignedOption =
-    document.createElement("option");
-
-  unassignedOption.value =
-    "unassigned";
-
-  unassignedOption.textContent =
-    "Unknown Connect ID";
-
-  fragment.append(
-    unassignedOption
-  );
-
-  connectIds.forEach(
-    ([jobId, jobLabel]) => {
-      const option =
-        document.createElement(
-          "option"
-        );
-
-      option.value =
-        jobId;
-
-      option.textContent =
-        jobLabel;
-
-      fragment.append(
-        option
-      );
-    }
-  );
-
-  select.replaceChildren(
-    fragment
-  );
-
-  const stillExists =
-    currentValue === "all" ||
-    currentValue === "unassigned" ||
-    connectIds.some(
-      ([jobId]) =>
-        jobId === currentValue
-    );
-
-  state.outreachAcceptedSendBatchFilter =
-    stillExists
-      ? currentValue
-      : "all";
-
-  select.value =
-    state.outreachAcceptedSendBatchFilter;
-}
-
-
 function renderAcceptedPoolFilterChips() {
   const accountWrap = els.outreachAcceptedAccountFilterChips;
-  const batchWrap = els.outreachAcceptedSendBatchFilterChips;
 
   const addChip = (wrap, value, label, active, attribute) => {
     if (!wrap) {
@@ -4480,12 +4347,21 @@ function renderAcceptedPoolFilterChips() {
     button.type = "button";
     button.className = `filter-chip${active ? " is-active" : ""}`;
     button.dataset[attribute] = value;
+    button.setAttribute("aria-pressed", active ? "true" : "false");
     button.textContent = label;
+
+    if (attribute === "acceptedAccountFilter") {
+      button.addEventListener("click", () => {
+        state.outreachAcceptedAccountFilter = value || "all";
+        state.outreachAcceptedPoolPage = 1;
+        renderOutreachAcceptedPool();
+      });
+    }
+
     wrap.append(button);
   };
 
   accountWrap?.replaceChildren();
-  batchWrap?.replaceChildren();
 
   addChip(
     accountWrap,
@@ -4502,32 +4378,6 @@ function renderAcceptedPoolFilterChips() {
       getOutreachAccountDisplayName(accountId),
       state.outreachAcceptedAccountFilter === accountId,
       "acceptedAccountFilter"
-    );
-  });
-
-  addChip(
-    batchWrap,
-    "all",
-    "All Connect IDs",
-    state.outreachAcceptedSendBatchFilter === "all",
-    "acceptedSendBatchFilter"
-  );
-
-  addChip(
-    batchWrap,
-    "unassigned",
-    "Unknown",
-    state.outreachAcceptedSendBatchFilter === "unassigned",
-    "acceptedSendBatchFilter"
-  );
-
-  getAcceptedPoolAvailableSendBatches().forEach(([jobId, jobLabel]) => {
-    addChip(
-      batchWrap,
-      jobId,
-      jobLabel,
-      state.outreachAcceptedSendBatchFilter === jobId,
-      "acceptedSendBatchFilter"
     );
   });
 }
@@ -4666,10 +4516,6 @@ function getAcceptedPoolFilteredItems() {
     state.outreachAcceptedAccountFilter ||
     "all";
 
-  const sendBatchFilter =
-    state.outreachAcceptedSendBatchFilter ||
-    "all";
-
   const eligibleIds =
     getEligibleMessageProspectIds();
 
@@ -4693,25 +4539,9 @@ function getAcceptedPoolFilteredItems() {
       itemAccountId ===
         accountFilter;
 
-    const itemBatchCode =
-      getAcceptedPoolBatchCode(
-        item
-      );
-
-    const sendBatchMatches =
-      sendBatchFilter === "all" ||
-      (
-        sendBatchFilter ===
-          "unassigned"
-          ? !itemBatchCode
-          : itemBatchCode ===
-            sendBatchFilter
-      );
-
     return (
       statusMatches &&
-      accountMatches &&
-      sendBatchMatches
+      accountMatches
     );
   });
 
@@ -4922,7 +4752,6 @@ function renderOutreachAcceptedPool() {
 
   renderAcceptedPoolWeekList();
   renderAcceptedPoolAccountFilter();
-  renderAcceptedPoolSendBatchFilter();
   renderAcceptedPoolFilterChips();
   renderAcceptedPoolPeriodFilters();
 
@@ -9154,7 +8983,6 @@ document.addEventListener(
         weekButton.dataset.acceptedWeek || null;
       state.outreachAcceptedPoolPage = 1;
       state.outreachAcceptedAccountFilter = "all";
-      state.outreachAcceptedSendBatchFilter = "all";
       renderOutreachAcceptedPool();
       return;
     }
@@ -9168,7 +8996,6 @@ document.addEventListener(
           : "week";
       state.outreachAcceptedPoolPage = 1;
       state.outreachAcceptedAccountFilter = "all";
-      state.outreachAcceptedSendBatchFilter = "all";
       renderOutreachAcceptedPool();
       return;
     }
@@ -9178,16 +9005,6 @@ document.addEventListener(
     if (accountButton) {
       state.outreachAcceptedAccountFilter =
         accountButton.dataset.acceptedAccountFilter || "all";
-      state.outreachAcceptedPoolPage = 1;
-      renderOutreachAcceptedPool();
-      return;
-    }
-
-    const batchButton = event.target.closest("[data-accepted-send-batch-filter]");
-
-    if (batchButton) {
-      state.outreachAcceptedSendBatchFilter =
-        batchButton.dataset.acceptedSendBatchFilter || "all";
       state.outreachAcceptedPoolPage = 1;
       renderOutreachAcceptedPool();
       return;
@@ -9310,21 +9127,6 @@ els.outreachAcceptedAccountFilter?.addEventListener(
   () => {
     state.outreachAcceptedAccountFilter =
       els.outreachAcceptedAccountFilter.value ||
-      "all";
-
-    state.outreachAcceptedPoolPage =
-      1;
-
-    renderOutreachAcceptedPool();
-  }
-);
-
-
-els.outreachAcceptedSendBatchFilter?.addEventListener(
-  "change",
-  () => {
-    state.outreachAcceptedSendBatchFilter =
-      els.outreachAcceptedSendBatchFilter.value ||
       "all";
 
     state.outreachAcceptedPoolPage =

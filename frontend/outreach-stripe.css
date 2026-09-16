@@ -1726,6 +1726,10 @@ td strong {
   flex: 0 0 auto;
 }
 
+.recipient-secondary-filters {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
 /* A single content frame prevents panels and popups from creating a wider page. */
 html,
 body,
@@ -1747,6 +1751,88 @@ body,
 .session-status-modal-dialog,
 .message-send-modal-dialog {
   max-width: calc(100vw - 32px);
+}
+
+/* Align every table checkbox to one 32px hit area and one 15px control. */
+.outreach-acceptance-row-actions {
+  display: grid !important;
+  grid-template-columns: 32px auto auto;
+  align-items: center;
+  justify-content: end;
+  gap: 8px;
+}
+
+.outreach-delete-job-checkbox,
+.accepted-select-control {
+  position: relative;
+  display: grid !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  place-items: center;
+  border: 1px solid var(--stripe-border-strong) !important;
+  border-radius: 10px !important;
+  background: rgba(7, 16, 31, 0.58) !important;
+  cursor: pointer;
+}
+
+.outreach-delete-job-checkbox input {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  opacity: 0 !important;
+  pointer-events: auto !important;
+  cursor: pointer;
+}
+
+.outreach-delete-job-checkbox span,
+.accepted-select-control input {
+  width: 15px !important;
+  height: 15px !important;
+  margin: 0 !important;
+  border: 1px solid rgba(170, 187, 211, 0.48) !important;
+  border-radius: 4px !important;
+  background: rgba(170, 187, 211, 0.18) !important;
+}
+
+.accepted-select-control input {
+  appearance: none;
+  cursor: pointer;
+}
+
+.accepted-select-control input:checked,
+.outreach-delete-job-checkbox input:checked + span {
+  border-color: var(--stripe-purple) !important;
+  background: var(--stripe-purple) !important;
+}
+
+.accepted-select-control input:checked::after,
+.outreach-delete-job-checkbox input:checked + span::after {
+  content: "✓";
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.accepted-select-column {
+  width: 52px !important;
+  min-width: 52px !important;
+  padding-inline: 10px !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+.accepted-select-control {
+  justify-self: center;
 }
 
 @media (prefers-reduced-motion: reduce) {
