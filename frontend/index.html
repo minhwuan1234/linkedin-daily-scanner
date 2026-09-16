@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,7 +13,8 @@
     rel="stylesheet"
   />
 
-<link rel="stylesheet" href="./styles.css?v=20260916-outreach-week-index-1" />
+  <link rel="stylesheet" href="./styles.css?v=20260916-outreach-week-index-1" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260916-stripe-rebuild-1" />
 </head>
 
 <body>
@@ -897,19 +898,23 @@
     aria-label="Connect and messaging workflow"
   >
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
-      Connect
+      <span class="workflow-step-number">1</span>
+      <span class="workflow-step-label">Connect</span>
     </button>
 
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
-      Acceptance
+      <span class="workflow-step-number">2</span>
+      <span class="workflow-step-label">Acceptance</span>
     </button>
 
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
-      Recipients
+      <span class="workflow-step-number">3</span>
+      <span class="workflow-step-label">Recipients</span>
     </button>
 
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
-      Messages
+      <span class="workflow-step-number">4</span>
+      <span class="workflow-step-label">Messages</span>
     </button>
   </div>
 
@@ -1145,8 +1150,6 @@
           </p>
         </div>
 
-        <div id="outreachAcceptanceWeekList" class="outreach-week-list" aria-label="Acceptance weeks"></div>
-
         <div class="outreach-acceptance-header-actions">
           <button
             id="outreachAcceptanceDeleteSelectedButton"
@@ -1162,6 +1165,19 @@
           </span>
         </div>
       </div>
+
+      <section class="week-browser" aria-labelledby="acceptanceWeekBrowserTitle">
+        <div class="week-browser-heading">
+          <div>
+            <span class="week-browser-label">History</span>
+            <h3 id="acceptanceWeekBrowserTitle">Choose a week</h3>
+          </div>
+          <p>Connect Jobs are grouped by their creation week.</p>
+        </div>
+        <div id="outreachAcceptanceWeekList" class="outreach-week-list" aria-label="Acceptance weeks"></div>
+      </section>
+
+      <div class="history-results">
 
       <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
         Select a week to view its Connect Jobs.
@@ -1343,44 +1359,60 @@
           </button>
         </div>
       </div>
+      </div>
     </article>
   </section>
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
-      <div class="panel-toolbar outreach-pool-toolbar"><div><p class="panel-kicker">Accepted connections</p><h2>Accepted Pool</h2><p id="outreachAcceptedPoolSummary" class="panel-meta">Select a week to view its accepted profiles.</p></div><div class="outreach-pool-controls"><span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span><div class="outreach-recipient-filter-group">
-  <div id="outreachAcceptedWeekList" class="outreach-week-list" aria-label="Accepted profile weeks"></div>
-  <div id="outreachAcceptedPoolFilters" class="segmented-filter">
-    <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
-    <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
-    <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
-    <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
-  </div>
+      <div class="panel-toolbar outreach-pool-toolbar">
+        <div>
+          <p class="panel-kicker">Accepted connections</p>
+          <h2>Accepted Pool</h2>
+          <p id="outreachAcceptedPoolSummary" class="panel-meta">Select a week to view its accepted profiles.</p>
+        </div>
+        <span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span>
+      </div>
 
-  <label class="outreach-account-filter">
-    <span>Account</span>
-    <div id="outreachAcceptedAccountFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by Outreach account"></div>
-    <select
-      id="outreachAcceptedAccountFilter"
-      aria-label="Filter recipients by Outreach account"
-      hidden
-    >
-      <option value="all">All accounts</option>
-    </select>
-  </label>
+      <section class="week-browser" aria-labelledby="recipientWeekBrowserTitle">
+        <div class="week-browser-heading">
+          <div>
+            <span class="week-browser-label">Accepted history</span>
+            <h3 id="recipientWeekBrowserTitle">Choose a week</h3>
+          </div>
+          <p>Select a week before narrowing the recipient list.</p>
+        </div>
+        <div id="outreachAcceptedWeekList" class="outreach-week-list" aria-label="Accepted profile weeks"></div>
+      </section>
 
-  <label class="outreach-account-filter outreach-send-batch-filter">
-    <span>Connect ID</span>
-    <div id="outreachAcceptedSendBatchFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by original Connect Job ID"></div>
-    <select
-      id="outreachAcceptedSendBatchFilter"
-      aria-label="Filter recipients by original Connect Job ID"
-      hidden
-    >
-      <option value="all">All Connect IDs</option>
-    </select>
-  </label>
-</div></div></div>
+      <div class="outreach-pool-controls">
+        <div class="outreach-recipient-filter-group">
+          <div id="outreachAcceptedPoolFilters" class="segmented-filter">
+            <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
+            <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
+            <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
+            <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
+          </div>
+
+          <div class="recipient-secondary-filters">
+            <label class="outreach-account-filter">
+              <span>Account</span>
+              <div id="outreachAcceptedAccountFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by Outreach account"></div>
+              <select id="outreachAcceptedAccountFilter" aria-label="Filter recipients by Outreach account" hidden>
+                <option value="all">All accounts</option>
+              </select>
+            </label>
+
+            <label class="outreach-account-filter outreach-send-batch-filter">
+              <span>Connect ID</span>
+              <div id="outreachAcceptedSendBatchFilterChips" class="filter-chip-list" role="group" aria-label="Filter recipients by original Connect Job ID"></div>
+              <select id="outreachAcceptedSendBatchFilter" aria-label="Filter recipients by original Connect Job ID" hidden>
+                <option value="all">All Connect IDs</option>
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
       <div id="outreachAcceptedPoolEmpty" class="state">No accepted profiles found.</div>
       <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Connect ID</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="recipient-send-batch" data-accepted-send-batch>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template>
         <template id="outreachAcceptedPoolGroupTemplate">
@@ -1404,7 +1436,64 @@
   </section>
 
   <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
-    <article class="panel message-batches-panel outreach-primary-panel"><div class="panel-header"><div><p class="panel-kicker">Prepared snapshots</p><h2>Message Batches</h2><p class="panel-meta">Choose a week to review prepared recipients, see the original Connect ID, and queue a batch.</p></div><div class="message-batch-header-tools"><span id="messageBatchCount" class="pill pill-neutral">Select a week</span></div></div><div id="messageBatchWeekList" class="outreach-week-list" aria-label="Message batch weeks"></div><label class="message-batch-source-filter" hidden><span>Connect ID</span><select id="messageBatchSourceFilter" aria-label="Filter message batches by source Connect ID"><option value="all">All Connect IDs</option></select></label><div id="messageBatchEmpty" class="state">Select a week to view message batches.</div><div id="messageBatchList" class="message-batch-list"></div><template id="messageBatchRowTemplate"><div class="message-batch-row"><div class="message-batch-copy"><div class="message-batch-title-line"><strong data-message-batch-code>Prepared batch</strong><span class="message-batch-source-id" data-message-batch-source>Connect ID —</span></div><span data-message-batch-meta>0 recipients</span></div><div class="message-batch-actions"><span class="pill pill-neutral" data-message-batch-status>prepared</span><button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button><button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button></div></div></template><div id="messageBatchPagination" class="outreach-list-pagination" hidden><span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button><button id="messageBatchNextPage" type="button" class="secondary-button">Next</button></div></div></article>
+    <article class="panel message-batches-panel outreach-primary-panel">
+      <div class="panel-header">
+        <div>
+          <p class="panel-kicker">Prepared snapshots</p>
+          <h2>Message Batches</h2>
+          <p class="panel-meta">Choose a week, review its prepared recipients, then queue a batch for sending.</p>
+        </div>
+        <div class="message-batch-header-tools">
+          <span id="messageBatchCount" class="pill pill-neutral">Select a week</span>
+        </div>
+      </div>
+
+      <section class="week-browser" aria-labelledby="messageWeekBrowserTitle">
+        <div class="week-browser-heading">
+          <div>
+            <span class="week-browser-label">Prepared history</span>
+            <h3 id="messageWeekBrowserTitle">Choose a week</h3>
+          </div>
+          <p>Only batches prepared during the selected week are shown.</p>
+        </div>
+        <div id="messageBatchWeekList" class="outreach-week-list" aria-label="Message batch weeks"></div>
+      </section>
+
+      <label class="message-batch-source-filter" hidden>
+        <span>Connect ID</span>
+        <select id="messageBatchSourceFilter" aria-label="Filter message batches by source Connect ID">
+          <option value="all">All Connect IDs</option>
+        </select>
+      </label>
+
+      <div id="messageBatchEmpty" class="state">Select a week to view message batches.</div>
+      <div id="messageBatchList" class="message-batch-list"></div>
+
+      <template id="messageBatchRowTemplate">
+        <div class="message-batch-row">
+          <div class="message-batch-copy">
+            <div class="message-batch-title-line">
+              <strong data-message-batch-code>Prepared batch</strong>
+              <span class="message-batch-source-id" data-message-batch-source>Connect ID —</span>
+            </div>
+            <span data-message-batch-meta>0 recipients</span>
+          </div>
+          <div class="message-batch-actions">
+            <span class="pill pill-neutral" data-message-batch-status>prepared</span>
+            <button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button>
+            <button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button>
+          </div>
+        </div>
+      </template>
+
+      <div id="messageBatchPagination" class="outreach-list-pagination" hidden>
+        <span id="messageBatchPageMeta" class="panel-meta">Page 1 / 1</span>
+        <div class="outreach-list-pagination-actions">
+          <button id="messageBatchPrevPage" type="button" class="secondary-button">Previous</button>
+          <button id="messageBatchNextPage" type="button" class="secondary-button">Next</button>
+        </div>
+      </div>
+    </article>
   </section>
 </section>
 
