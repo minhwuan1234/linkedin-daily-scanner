@@ -4252,27 +4252,9 @@ function getAcceptedPoolVisibleItems() {
   }
 
   return items.filter((item) => {
-    const info = getWeekInfo(item?.accepted_at || item?.acceptance_checked_at);
+    const info = getWeekInfo(item?.job_created_at);
     return info?.key === state.outreachAcceptedPoolWeekKey;
   });
-}
-
-
-function isAcceptedPoolInCurrentWeek(item) {
-  const rawDate = item?.accepted_at || item?.acceptance_checked_at;
-  const acceptedAt = rawDate ? new Date(rawDate) : null;
-
-  if (!acceptedAt || Number.isNaN(acceptedAt.getTime())) {
-    return false;
-  }
-
-  const today = new Date();
-  const dayFromMonday = (today.getDay() + 6) % 7;
-  const weekStart = new Date(today);
-  weekStart.setHours(0, 0, 0, 0);
-  weekStart.setDate(today.getDate() - dayFromMonday);
-
-  return acceptedAt >= weekStart && acceptedAt <= today;
 }
 
 
@@ -4284,7 +4266,7 @@ function getAcceptedPoolWeekGroups() {
     ? state.outreachAcceptedPool.items
     : []
   ).forEach((item) => {
-    const info = getWeekInfo(item?.accepted_at || item?.acceptance_checked_at);
+    const info = getWeekInfo(item?.job_created_at);
 
     if (!info) {
       return;

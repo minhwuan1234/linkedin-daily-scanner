@@ -228,23 +228,26 @@ def _normalize_pool_row(
                 "updated_at"
             )
         ),
+        # Filled from the parent Connect Job below. This is the only
+        # timestamp used to attribute a profile to a reporting week.
+        "job_created_at": None,
     }
 
 
 
-def _load_job_codes(
+def _load_job_metadata(
     *,
     client: Client,
     job_ids: list[str],
-) -> dict[str, str]:
+) -> dict[str, dict[str, str]]:
     """
-    Resolve the existing Connect Job code for the job_id already stored on
-    outreach_job_targets.
+    Resolve the existing Connect Job metadata for the job_id already stored
+    on outreach_job_targets.
 
     This is the original send/run identity:
         outreach_job_targets.job_id
             -> outreach_jobs.id
-            -> outreach_jobs.job_code
+            -> outreach_jobs.job_code + outreach_jobs.created_at
 
     Only the distinct job IDs present in the Accepted Pool are requested.
     """
@@ -266,7 +269,7 @@ def _load_job_codes(
             JOB_TABLE
         )
         .select(
-            "id,job_code"
+            "id,job_code,created_at"
         )
         .in_(
             "id",
@@ -275,10 +278,7 @@ def _load_job_codes(
         .execute()
     )
 
-    result: dict[
-        str,
-        str,
-    ] = {}
+    result: dict[str, dict[str, str]] = {}
 
     for row in list(
         response.data
@@ -293,13 +293,10 @@ def _load_job_codes(
         if not job_id:
             continue
 
-        result[
-            job_id
-        ] = _safe_text(
-            row.get(
-                "job_code"
-            )
-        )
+        result[job_id] = {
+            "job_code": _safe_text(row.get("job_code")),
+            "created_at": _safe_text(row.get("created_at")),
+        }
 
     return result
 
@@ -318,6 +315,8 @@ def get_accepted_pool(
     - no separate accepted-pool table;
     - every Acceptance Check update is visible on the next API read;
     - one profile appears only once;
+    - week attribution comes from the parent Connect Job's created_at;
+      later Acceptance Checks never move a profile into another week;
     - primary dedupe key is prospect_id;
     - normalized_url is the safety fallback;
     - the accepted target with the latest accepted/check timestamp wins.
@@ -476,25 +475,8 @@ def get_accepted_pool(
         unique.values()
     )
 
-    # Stable newest-first output.
-    items.sort(
-        key=lambda item: max(
-            _timestamp_value(
-                item.get(
-                    "accepted_at"
-                )
-            ),
-            _timestamp_value(
-                item.get(
-                    "acceptance_checked_at"
-                )
-            ),
-        ),
-        reverse=True,
-    )
-
-    job_code_by_id = (
-        _load_job_codes(
+    job_metadata_by_id = (
+        _load_job_metadata(
             client=active_client,
             job_ids=[
                 _safe_text(
@@ -514,14 +496,16 @@ def get_accepted_pool(
             )
         )
 
-        item[
-            "job_code"
-        ] = (
-            job_code_by_id.get(
-                job_id,
-                "",
-            )
-        )
+        job_metadata = job_metadata_by_id.get(job_id, {})
+        item["job_code"] = job_metadata.get("job_code", "")
+        item["job_created_at"] = job_metadata.get("created_at")
+
+    # Stable newest-first output by the week the Connect Job was sent.
+    # Acceptance timestamps are deliberately not used for this ordering.
+    items.sort(
+        key=lambda item: _timestamp_value(item.get("job_created_at")),
+        reverse=True,
+    )
 
     sent_count = sum(
         1
