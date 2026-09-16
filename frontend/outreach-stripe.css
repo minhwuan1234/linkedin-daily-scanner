@@ -1914,6 +1914,156 @@ body,
   line-height: 1;
 }
 
+/* Acceptance overview: one current-week card, older weeks behind one action. */
+#acceptanceWeekBrowserTitle {
+  max-width: 220px;
+}
+
+[aria-labelledby="acceptanceWeekBrowserTitle"] .week-browser-heading {
+  display: flex;
+  min-height: 156px;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.week-history-button {
+  align-self: flex-start;
+}
+
+#outreachAcceptanceWeekList {
+  width: 100% !important;
+}
+
+#outreachAcceptanceWeekList .week-current-card {
+  display: grid !important;
+  min-height: 156px;
+  align-content: start;
+  gap: 8px;
+}
+
+.week-card-metrics {
+  display: flex;
+  margin-top: auto;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  color: var(--stripe-text-muted);
+  font-size: 10px;
+}
+
+.week-card-metrics span {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.week-card-metrics b {
+  color: var(--stripe-text-secondary);
+  font-weight: 700;
+}
+
+.outreach-week-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+}
+
+.outreach-week-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 7, 15, 0.78);
+  backdrop-filter: blur(7px);
+}
+
+.outreach-week-modal-dialog {
+  position: relative;
+  display: grid;
+  width: min(760px, 100%);
+  max-height: min(720px, 88vh);
+  overflow: hidden;
+  border: 1px solid var(--stripe-border-strong);
+  border-radius: var(--stripe-radius-lg);
+  background: var(--stripe-sidebar);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+
+.outreach-week-modal-header {
+  display: flex;
+  padding: 22px 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--stripe-border);
+  background: linear-gradient(135deg, rgba(99, 91, 255, 0.12), transparent 50%);
+}
+
+.outreach-week-modal-header h2 {
+  margin: 0;
+  color: var(--stripe-text);
+  font-size: 18px;
+  letter-spacing: -0.025em;
+}
+
+.outreach-week-modal-list {
+  display: grid;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.outreach-week-modal-list .week-history-option {
+  min-height: 132px;
+  cursor: pointer;
+}
+
+@media (max-width: 680px) {
+  [aria-labelledby="acceptanceWeekBrowserTitle"] .week-browser-heading {
+    min-height: 0;
+    gap: 16px;
+  }
+
+  .outreach-week-modal {
+    padding: 12px;
+  }
+
+  .outreach-week-modal-header,
+  .outreach-week-modal-list {
+    padding-inline: 16px;
+  }
+
+  .outreach-week-modal-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* The drawer owns scrolling; the page behind it must remain locked. */
+.rate-limit-drawer-panel,
+.acceptance-insights-drawer-panel {
+  display: flex !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+.rate-limit-drawer-header,
+.acceptance-insights-drawer-header {
+  flex: 0 0 auto;
+}
+
+.rate-limit-drawer-body,
+.acceptance-insights-drawer-body {
+  min-height: 0 !important;
+  flex: 1 1 auto !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
