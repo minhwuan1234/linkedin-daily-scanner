@@ -6368,6 +6368,9 @@ async function openPreparedMessageBatch(batchId) {
       els.detailDrawer.classList.add("is-open");
       els.detailDrawer.setAttribute("aria-hidden", "false");
     }
+
+    // The snapshot drawer owns vertical scrolling while it is open.
+    document.body.style.overflow = "hidden";
   } catch (error) {
     window.alert(
       error.message || String(error)
