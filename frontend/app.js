@@ -339,9 +339,6 @@ const els = {
   outreachDeleteJobsError:
     document.querySelector("#outreachDeleteJobsError"),
 
-  outreachAcceptanceHistoryRowTemplate:
-    document.querySelector("#outreachAcceptanceHistoryRowTemplate"),
-
   outreachAcceptanceHistoryItemTemplate:
     document.querySelector("#outreachAcceptanceHistoryItemTemplate"),
 
@@ -362,6 +359,27 @@ const els = {
 
   outreachAcceptanceWeekList:
     document.querySelector("#outreachAcceptanceWeekList"),
+
+  outreachAcceptanceHistoryModal:
+    document.querySelector("#outreachAcceptanceHistoryModal"),
+
+  outreachAcceptanceHistoryModalBackdrop:
+    document.querySelector("#outreachAcceptanceHistoryModalBackdrop"),
+
+  outreachAcceptanceHistoryModalClose:
+    document.querySelector("#outreachAcceptanceHistoryModalClose"),
+
+  outreachAcceptanceHistoryModalTitle:
+    document.querySelector("#outreachAcceptanceHistoryModalTitle"),
+
+  outreachAcceptanceHistoryModalCount:
+    document.querySelector("#outreachAcceptanceHistoryModalCount"),
+
+  outreachAcceptanceHistoryModalEmpty:
+    document.querySelector("#outreachAcceptanceHistoryModalEmpty"),
+
+  outreachAcceptanceHistoryModalList:
+    document.querySelector("#outreachAcceptanceHistoryModalList"),
 
 
   outreachAcceptedPoolPanel:
@@ -578,7 +596,7 @@ const state = {
   outreachAcceptanceSubmittingJobIds: new Set(),
   outreachAcceptanceHistoryByJobId: new Map(),
   outreachAcceptanceHistoryLoadingJobIds: new Set(),
-  outreachAcceptanceExpandedJobId: null,
+  outreachAcceptanceHistoryModalJobId: null,
   outreachAcceptanceSelectedDeleteJobIds: new Set(),
   outreachAcceptanceDeleteSubmitting: false,
   outreachAcceptedPool: {
@@ -3136,6 +3154,10 @@ async function loadAcceptanceCheckHistory(
     cleanedJobId
   );
 
+  if (state.outreachAcceptanceHistoryModalJobId === cleanedJobId) {
+    renderAcceptanceHistoryModal();
+  }
+
   try {
     const response = await fetch(
       `/api/outreach/connect/jobs/${encodeURIComponent(
@@ -3191,7 +3213,139 @@ async function loadAcceptanceCheckHistory(
     renderOutreachAcceptanceJobs(
       state.outreachRecentJobs
     );
+
+    if (state.outreachAcceptanceHistoryModalJobId === cleanedJobId) {
+      renderAcceptanceHistoryModal();
+    }
   }
+}
+
+
+function renderAcceptanceHistoryModal() {
+  const modal = els.outreachAcceptanceHistoryModal;
+  const jobId = state.outreachAcceptanceHistoryModalJobId;
+
+  if (!modal || !jobId) {
+    return;
+  }
+
+  const job = state.outreachRecentJobs.find(
+    (item) => String(item?.id || "").trim() === jobId
+  );
+
+  if (!job) {
+    closeAcceptanceHistoryModal();
+    return;
+  }
+
+  const cached = state.outreachAcceptanceHistoryByJobId.get(jobId);
+  const loading = state.outreachAcceptanceHistoryLoadingJobIds.has(jobId);
+  const error = cached && !Array.isArray(cached) ? cached.error : null;
+  const runs = Array.isArray(cached) ? cached : [];
+
+  if (els.outreachAcceptanceHistoryModalTitle) {
+    els.outreachAcceptanceHistoryModalTitle.textContent =
+      `${job.job_code || "Connect Job"} · Check runs`;
+  }
+
+  if (els.outreachAcceptanceHistoryModalCount) {
+    els.outreachAcceptanceHistoryModalCount.textContent = loading
+      ? "Loading"
+      : `${runs.length} ${runs.length === 1 ? "run" : "runs"}`;
+  }
+
+  const empty = els.outreachAcceptanceHistoryModalEmpty;
+  const list = els.outreachAcceptanceHistoryModalList;
+
+  if (!empty || !list) {
+    return;
+  }
+
+  if (loading || error || !runs.length) {
+    empty.hidden = false;
+    empty.textContent = loading
+      ? "Loading acceptance history..."
+      : error || "No acceptance check runs yet.";
+    list.hidden = true;
+    list.replaceChildren();
+    return;
+  }
+
+  empty.hidden = true;
+  list.hidden = false;
+  list.replaceChildren();
+
+  runs.forEach((run) => {
+    const item = els.outreachAcceptanceHistoryItemTemplate?.content.cloneNode(true);
+
+    if (!item) {
+      return;
+    }
+
+    const setText = (selector, value) => {
+      const element = item.querySelector(selector);
+
+      if (element) {
+        element.textContent = String(value);
+      }
+    };
+
+    const status = normaliseStatus(run.status);
+    const badge = item.querySelector("[data-history-run-status]");
+
+    if (badge) {
+      badge.textContent = getAcceptanceRunStatusLabel(run);
+      badge.className = `pill ${getOutreachPillClass(status)}`;
+    }
+
+    setText(
+      "[data-history-run-time]",
+      formatDate(run.completed_at || run.updated_at || run.started_at || run.created_at)
+    );
+    setText(
+      "[data-history-checked]",
+      `${Number(run.checked_count || 0)} / ${Number(run.total_to_check || 0)}`
+    );
+    setText("[data-history-accepted]", Number(run.new_accepted_count || 0));
+    setText("[data-history-pending]", Number(run.still_pending_count || 0));
+    setText(
+      "[data-history-unknown]",
+      Number(run.declined_or_unknown_count || 0)
+    );
+    setText("[data-history-failed]", Number(run.failed_count || 0));
+    list.append(item);
+  });
+}
+
+
+function openAcceptanceHistoryModal(job) {
+  const jobId = String(job?.id || "").trim();
+
+  if (!jobId || !els.outreachAcceptanceHistoryModal) {
+    return;
+  }
+
+  state.outreachAcceptanceHistoryModalJobId = jobId;
+  els.outreachAcceptanceHistoryModal.hidden = false;
+  els.outreachAcceptanceHistoryModal.setAttribute("aria-hidden", "false");
+  renderAcceptanceHistoryModal();
+
+  if (
+    !state.outreachAcceptanceHistoryByJobId.has(jobId) &&
+    !state.outreachAcceptanceHistoryLoadingJobIds.has(jobId)
+  ) {
+    loadAcceptanceCheckHistory(jobId);
+  }
+}
+
+
+function closeAcceptanceHistoryModal() {
+  if (els.outreachAcceptanceHistoryModal) {
+    els.outreachAcceptanceHistoryModal.hidden = true;
+    els.outreachAcceptanceHistoryModal.setAttribute("aria-hidden", "true");
+  }
+
+  state.outreachAcceptanceHistoryModalJobId = null;
 }
 
 
@@ -3589,15 +3743,6 @@ async function deleteSelectedAcceptanceJobs() {
 
     state.outreachAcceptanceSelectedDeleteJobIds.clear();
 
-    if (
-      state.outreachAcceptanceExpandedJobId &&
-      jobIds.includes(
-        state.outreachAcceptanceExpandedJobId
-      )
-    ) {
-      state.outreachAcceptanceExpandedJobId = null;
-    }
-
     if (els.outreachDeleteJobsModal) {
       els.outreachDeleteJobsModal.hidden = true;
     }
@@ -3898,11 +4043,6 @@ function renderOutreachAcceptanceJobs(
         .content
         .cloneNode(true);
 
-    const mainRow =
-      fragment.querySelector(
-        "tr"
-      );
-
     const setText = (
       selector,
       value
@@ -4082,51 +4222,20 @@ function renderOutreachAcceptanceJobs(
           ""
         ).trim();
 
-      const expanded =
-        state.outreachAcceptanceExpandedJobId ===
-        historyJobId;
-
       historyButton.dataset.jobId =
         historyJobId;
 
       historyButton.setAttribute(
         "aria-expanded",
-        expanded
-          ? "true"
-          : "false"
+        "false"
       );
 
-      historyButton.textContent =
-        expanded
-          ? "Hide history"
-          : "History";
+      historyButton.textContent = "View history";
 
       historyButton.addEventListener(
         "click",
         async () => {
-          const nextExpanded =
-            state.outreachAcceptanceExpandedJobId ===
-            historyJobId
-              ? null
-              : historyJobId;
-
-          state.outreachAcceptanceExpandedJobId =
-            nextExpanded;
-
-          renderOutreachAcceptanceJobs(
-            state.outreachRecentJobs
-          );
-
-          if (
-            nextExpanded &&
-            !state.outreachAcceptanceHistoryByJobId.has(
-              historyJobId
-            )
-          ) {
-            await loadAcceptanceCheckHistory(
-              historyJobId
-            );
-          }
+          openAcceptanceHistoryModal(job);
         }
       );
     }
@@ -4188,35 +4297,6 @@ function renderOutreachAcceptanceJobs(
       fragment
     );
 
-    const expandedJobId =
-      String(
-        job.id ||
-        ""
-      ).trim();
-
-    if (
-      mainRow &&
-      state.outreachAcceptanceExpandedJobId ===
-      expandedJobId
-    ) {
-      appendAcceptanceHistoryRow({
-        job,
-        afterRow: mainRow
-      });
-
-      if (
-        !state.outreachAcceptanceHistoryByJobId.has(
-          expandedJobId
-        ) &&
-        !state.outreachAcceptanceHistoryLoadingJobIds.has(
-          expandedJobId
-        )
-      ) {
-        loadAcceptanceCheckHistory(
-          expandedJobId
-        );
-      }
-    }
   });
 
   updateSimplePagination({
@@ -9231,6 +9311,14 @@ document.addEventListener(
       )
     ) {
       closeRateLimitDrawer();
+      return;
+    }
+
+    if (
+      els.outreachAcceptanceHistoryModal &&
+      !els.outreachAcceptanceHistoryModal.hidden
+    ) {
+      closeAcceptanceHistoryModal();
     }
   }
 );
@@ -9369,6 +9457,16 @@ els.outreachAcceptanceWeekList?.addEventListener("click", (event) => {
   state.outreachAcceptancePage = 1;
   renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
+
+els.outreachAcceptanceHistoryModalClose?.addEventListener(
+  "click",
+  closeAcceptanceHistoryModal
+);
+
+els.outreachAcceptanceHistoryModalBackdrop?.addEventListener(
+  "click",
+  closeAcceptanceHistoryModal
+);
 
 els.outreachAcceptanceDeleteSelectedButton?.addEventListener(
   "click",

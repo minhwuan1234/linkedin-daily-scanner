@@ -30,42 +30,6 @@
 
       <nav class="tab-navigation sidebar-navigation" aria-label="Dashboard sections">
         <div class="sidebar-nav-group">
-          <p class="sidebar-nav-label">Workspace</p>
-
-          <button class="tab-button" type="button" data-tab="overview" hidden>
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg></span>
-            <span class="sidebar-nav-text">Overview</span>
-          </button>
-
-          <button class="tab-button" type="button" data-tab="profiles" hidden>
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5A4.5 4.5 0 0 0 11.5 14h-4A4.5 4.5 0 0 0 3 18.5V20M9.5 10a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM17 11a3 3 0 1 0 0-6M18 14.5a4 4 0 0 1 3 3.87V20"/></svg></span>
-            <span class="sidebar-nav-text">Profiles</span>
-            <span id="profilesTabCount" class="tab-count">0</span>
-          </button>
-
-          <button class="tab-button" type="button" data-tab="queue" hidden>
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></span>
-            <span class="sidebar-nav-text">Queue</span>
-            <span id="queueTabCount" class="tab-count">0</span>
-          </button>
-
-          <button class="tab-button" type="button" data-tab="accounts" hidden>
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v13a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 18.5zM8 8.5a2 2 0 1 0 4 0 2 2 0 0 0-4 0ZM7.5 15c.6-1.4 1.7-2 2.5-2s1.9.6 2.5 2M15 8h2M15 12h2"/></svg></span>
-            <span class="sidebar-nav-text">Accounts</span>
-          </button>
-        </div>
-
-        <div class="sidebar-nav-group">
-          <p class="sidebar-nav-label">Research</p>
-
-          <button class="tab-button" type="button" data-tab="youtube" hidden>
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12s0-4.2-.55-5.55A2.8 2.8 0 0 0 18.5 4.5C17.15 4 12 4 12 4s-5.15 0-6.5.5a2.8 2.8 0 0 0-1.95 1.95C3 7.8 3 12 3 12s0 4.2.55 5.55A2.8 2.8 0 0 0 5.5 19.5c1.35.5 6.5.5 6.5.5s5.15 0 6.5-.5a2.8 2.8 0 0 0 1.95-1.95C21 16.2 21 12 21 12Z"/><path d="m10 9 5 3-5 3z"/></svg></span>
-            <span class="sidebar-nav-text">YouTube Research</span>
-            <span id="youtubeTabCount" class="tab-count">0</span>
-          </button>
-        </div>
-
-        <div class="sidebar-nav-group">
           <p class="sidebar-nav-label">Outreach</p>
 
           <button class="tab-button is-active" type="button" data-tab="outreach">
@@ -1261,41 +1225,6 @@
           </tr>
         </template>
 
-        <template id="outreachAcceptanceHistoryRowTemplate">
-          <tr class="outreach-acceptance-history-row">
-            <td colspan="10">
-              <div class="outreach-acceptance-history-panel">
-                <div class="outreach-acceptance-history-heading">
-                  <div>
-                    <span class="outreach-table-subtext">Acceptance history</span>
-                    <strong data-acceptance-history-title>Check runs</strong>
-                  </div>
-
-                  <span
-                    class="pill pill-neutral"
-                    data-acceptance-history-count
-                  >
-                    0 runs
-                  </span>
-                </div>
-
-                <div
-                  class="outreach-acceptance-history-empty"
-                  data-acceptance-history-empty
-                >
-                  Loading check history...
-                </div>
-
-                <div
-                  class="outreach-acceptance-history-list"
-                  data-acceptance-history-list
-                  hidden
-                ></div>
-              </div>
-            </td>
-          </tr>
-        </template>
-
         <template id="outreachAcceptanceHistoryItemTemplate">
           <article class="outreach-acceptance-history-item">
             <div class="outreach-acceptance-history-run">
@@ -1362,6 +1291,52 @@
       </div>
     </article>
   </section>
+
+  <div
+    id="outreachAcceptanceHistoryModal"
+    class="outreach-history-modal"
+    hidden
+    aria-hidden="true"
+  >
+    <button
+      id="outreachAcceptanceHistoryModalBackdrop"
+      class="outreach-history-modal-backdrop"
+      type="button"
+      aria-label="Close acceptance history"
+    ></button>
+
+    <section
+      class="outreach-history-modal-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="outreachAcceptanceHistoryModalTitle"
+    >
+      <header class="outreach-history-modal-header">
+        <div>
+          <p class="panel-kicker">Acceptance history</p>
+          <h2 id="outreachAcceptanceHistoryModalTitle">Check runs</h2>
+          <p class="panel-meta">Acceptance checks recorded for this Connect Job.</p>
+        </div>
+        <button
+          id="outreachAcceptanceHistoryModalClose"
+          class="close-button"
+          type="button"
+          aria-label="Close acceptance history"
+        >×</button>
+      </header>
+
+      <div class="outreach-history-modal-body">
+        <div class="outreach-history-modal-summary">
+          <span>Runs</span>
+          <strong id="outreachAcceptanceHistoryModalCount">0 runs</strong>
+        </div>
+        <div id="outreachAcceptanceHistoryModalEmpty" class="outreach-job-empty">
+          Loading acceptance history...
+        </div>
+        <div id="outreachAcceptanceHistoryModalList" class="outreach-acceptance-history-list" hidden></div>
+      </div>
+    </section>
+  </div>
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">

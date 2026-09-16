@@ -1707,3 +1707,126 @@ td strong {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Final viewport and history-popup corrections. */
+.app-sidebar {
+  width: 208px !important;
+}
+
+.app-shell {
+  width: calc(100% - 208px) !important;
+  max-width: none !important;
+  margin-left: 208px !important;
+}
+
+.topbar {
+  margin-right: -38px !important;
+  margin-left: -38px !important;
+}
+
+#tab-outreach {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.outreach-history-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  padding: 24px;
+  place-items: center;
+}
+
+.outreach-history-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(2, 7, 15, 0.78);
+  backdrop-filter: blur(7px);
+}
+
+.outreach-history-modal-dialog {
+  position: relative;
+  width: min(720px, 100%);
+  max-height: min(720px, 88vh);
+  overflow: auto;
+  border: 1px solid var(--stripe-border-strong);
+  border-radius: var(--stripe-radius-lg);
+  background: var(--stripe-sidebar);
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+
+.outreach-history-modal-header {
+  display: flex;
+  padding: 22px 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--stripe-border);
+  background: linear-gradient(135deg, rgba(99, 91, 255, 0.12), transparent 50%);
+}
+
+.outreach-history-modal-header h2 {
+  margin: 0;
+  color: var(--stripe-text);
+  font-size: 18px;
+  letter-spacing: -0.025em;
+}
+
+.outreach-history-modal-body {
+  display: grid;
+  padding: 20px 24px 24px;
+  gap: 14px;
+}
+
+.outreach-history-modal-summary {
+  display: flex;
+  min-height: 38px;
+  padding: 0 12px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--stripe-border);
+  border-radius: var(--stripe-radius-sm);
+  background: rgba(7, 16, 31, 0.42);
+}
+
+.outreach-history-modal-summary span {
+  color: var(--stripe-text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.outreach-history-modal-summary strong {
+  color: var(--stripe-text-secondary);
+  font-size: 12px;
+}
+
+.outreach-history-modal-list {
+  display: grid;
+  gap: 8px;
+}
+
+@media (max-width: 980px) {
+  .app-sidebar {
+    width: 100% !important;
+  }
+
+  .app-shell {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .outreach-history-modal {
+    padding: 12px;
+  }
+
+  .outreach-history-modal-header,
+  .outreach-history-modal-body {
+    padding-inline: 16px;
+  }
+}
