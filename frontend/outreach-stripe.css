@@ -1268,10 +1268,12 @@ td strong {
 }
 
 .message-batch-title-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, auto);
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
+  min-height: 30px;
 }
 
 .message-batch-title-line strong {
@@ -1289,6 +1291,10 @@ td strong {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
+  justify-self: start;
+  min-height: 26px;
+  padding-inline: 10px;
   line-height: 1.2;
   text-align: center;
 }
@@ -1301,6 +1307,52 @@ td strong {
 }
 
 /* Drawers and modals */
+
+/* The shared snapshot drawer must sit above the sticky page header and own
+   its scroll area. Safari otherwise lets the page layer clip the drawer. */
+.drawer-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 149 !important;
+}
+
+.detail-drawer {
+  position: fixed !important;
+  inset: 0 0 0 auto !important;
+  z-index: 150 !important;
+  display: flex !important;
+  width: min(680px, 92vw) !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-left: 1px solid var(--stripe-border) !important;
+  background: var(--stripe-sidebar) !important;
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.34) !important;
+}
+
+.detail-drawer .drawer-header {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding: 24px !important;
+  border-bottom: 1px solid var(--stripe-border) !important;
+  background: rgba(10, 20, 37, 0.96) !important;
+  backdrop-filter: blur(18px);
+}
+
+.detail-drawer .drawer-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain;
+  padding: 24px !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
 
 .acceptance-insights-drawer,
 .rate-limit-drawer {
