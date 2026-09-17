@@ -36,6 +36,7 @@ def _click_first_visible(
     candidates: list[Callable[[Page], object]],
     *,
     description: str,
+    timeout_ms: int = 3_000,
 ) -> None:
     """Click the first visible candidate selector."""
 
@@ -43,7 +44,11 @@ def _click_first_visible(
         locator = build_locator(page)
 
         try:
-            locator.first.wait_for(state="visible", timeout=3_000)
+            locator.first.wait_for(
+                state="visible",
+                timeout=timeout_ms,
+            )
+            locator.first.scroll_into_view_if_needed()
             locator.first.click()
             logger.info("Clicked %s", description)
             return
@@ -140,6 +145,7 @@ def open_connections(page: Page) -> None:
         page,
         candidates,
         description="Connections",
+        timeout_ms=30_000,
     )
     page.wait_for_timeout(1_000)
 
