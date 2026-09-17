@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import time
 from collections.abc import Callable
 
@@ -106,6 +107,21 @@ def open_connections(page: Page) -> None:
     """Click Connections inside LinkedIn Messaging."""
 
     candidates = [
+        lambda active_page: active_page.locator(
+            'button[data-test-messaging-inbox-filters__filter-pill="CONNECTIONS"]'
+        ),
+        lambda active_page: active_page.locator(
+            'button:has-text("Connections")'
+        ),
+        lambda active_page: active_page.locator(
+            'a:has-text("Connections")'
+        ),
+        lambda active_page: active_page.locator(
+            '[role="button"]:has-text("Connections")'
+        ),
+        lambda active_page: active_page.get_by_text(
+            re.compile(r"^\s*Connections\s*$", re.IGNORECASE)
+        ),
         lambda active_page: active_page.get_by_role(
             "button", name="Connections", exact=True
         ),
