@@ -11,38 +11,19 @@ from app.linkedin_browser import (
 )
 
 
-DEFAULT_OUTREACH_ACCOUNT_IDS = (
-    "outreach_account_01",
-    "outreach_account_02",
-    "outreach_account_03",
-    "outreach_account_04",
-    "outreach_account_05",
+DEFAULT_ACCOUNT_IDS = (
+    "account_01",
+    "account_02",
+    "account_03",
+    "account_04",
+    "account_05",
 )
 
-
-# =========================================================
-# DISPLAY NAMES
-# =========================================================
-#
-# CHỈ ĐỔI TÊN HIỂN THỊ Ở ĐÂY.
-# KHÔNG đổi account_id vì account_id đang gắn với:
-# - browser profile folder
-# - scheduler state
-# - Supabase records
-#
-OUTREACH_ACCOUNT_DISPLAY_NAMES = {
-    "outreach_account_01": "Minh Anh",
-    "outreach_account_02": "Trang Liu",
-    "outreach_account_03": "Minh Ánh",
-    "outreach_account_04": "Linh Giang",
-    "outreach_account_05": "Huyền Linh",
-}
-
-DEFAULT_OUTREACH_PROFILE_ROOT = (
-    "outreach_browser_profiles"
+DEFAULT_PROFILE_ROOT = (
+    "linkedin_browser_profiles"
 )
 
-DEFAULT_PROFILES_PER_ACCOUNT_TURN = 10
+DEFAULT_URLS_PER_ACCOUNT_TURN = 10
 
 
 def _read_positive_int_env(
@@ -81,27 +62,22 @@ def _read_positive_int_env(
     return value
 
 
-def _read_outreach_account_ids(
-) -> tuple[str, ...]:
+def _read_account_ids() -> tuple[str, ...]:
     """
-    Cho phép override danh sách Outreach account
-    qua .env.
+    Cho phép override danh sách account qua .env.
 
     Ví dụ:
-        OUTREACH_ACCOUNT_IDS=
-        outreach_account_01,outreach_account_02
+        LINKEDIN_ACCOUNT_IDS=account_01,account_02
 
-    Nếu không cấu hình,
-    mặc định dùng đủ 5 account.
+    Nếu không cấu hình, mặc định dùng đủ 5 account.
     """
-
     raw_value = os.getenv(
-        "OUTREACH_ACCOUNT_IDS",
+        "LINKEDIN_ACCOUNT_IDS",
         "",
     ).strip()
 
     if not raw_value:
-        return DEFAULT_OUTREACH_ACCOUNT_IDS
+        return DEFAULT_ACCOUNT_IDS
 
     account_ids: list[str] = []
     seen: set[str] = set()
@@ -122,7 +98,7 @@ def _read_outreach_account_ids(
 
     if not account_ids:
         raise ValueError(
-            "OUTREACH_ACCOUNT_IDS does not "
+            "LINKEDIN_ACCOUNT_IDS does not "
             "contain any valid account ID"
         )
 
@@ -130,19 +106,15 @@ def _read_outreach_account_ids(
 
 
 @dataclass(frozen=True)
-class OutreachAccount:
+class LinkedInAccount:
     """
-    Một Outreach account tương ứng
-    với một LinkedIn browser profile.
+    Một account slot tương ứng với một browser profile.
 
     Không chứa email hoặc password.
-
-    Session đăng nhập LinkedIn được lưu
-    trong profile_directory.
+    Session đăng nhập được lưu trong profile_directory.
     """
 
     account_id: str
-    display_name: str
     profile_directory: Path
     enabled: bool = True
 
@@ -193,30 +165,16 @@ class OutreachAccount:
 
 
 @dataclass(frozen=True)
-class OutreachAccountPoolSettings:
-    """
-    Cấu hình cho pool Outreach.
-
-    profile_root:
-        Folder chứa browser profile.
-
-    account_ids:
-        Danh sách 5 account Outreach.
-
-    profiles_per_account_turn:
-        Số profile tối đa một account
-        xử lý trong một turn.
-    """
-
+class LinkedInAccountPoolSettings:
     profile_root: Path
     account_ids: tuple[str, ...]
-    profiles_per_account_turn: int
+    urls_per_account_turn: int
 
     @classmethod
     def from_environment(
         cls,
         project_root: Path | None = None,
-    ) -> "OutreachAccountPoolSettings":
+    ) -> "LinkedInAccountPoolSettings":
         root = (
             project_root
             if project_root is not None
@@ -224,8 +182,8 @@ class OutreachAccountPoolSettings:
         )
 
         raw_profile_root = os.getenv(
-            "OUTREACH_ACCOUNT_PROFILE_ROOT",
-            DEFAULT_OUTREACH_PROFILE_ROOT,
+            "LINKEDIN_ACCOUNT_PROFILE_ROOT",
+            DEFAULT_PROFILE_ROOT,
         ).strip()
 
         profile_root = Path(
@@ -239,14 +197,12 @@ class OutreachAccountPoolSettings:
 
         return cls(
             profile_root=profile_root,
-            account_ids=(
-                _read_outreach_account_ids()
-            ),
-            profiles_per_account_turn=(
+            account_ids=_read_account_ids(),
+            urls_per_account_turn=(
                 _read_positive_int_env(
-                    "OUTREACH_PROFILES_PER_ACCOUNT_TURN",
+                    "LINKEDIN_URLS_PER_ACCOUNT_TURN",
                     default=(
-                        DEFAULT_PROFILES_PER_ACCOUNT_TURN
+                        DEFAULT_URLS_PER_ACCOUNT_TURN
                     ),
                     maximum=10,
                 )
@@ -254,26 +210,18 @@ class OutreachAccountPoolSettings:
         )
 
 
-class OutreachAccountPool:
+class LinkedInAccountPool:
     """
-    Quản lý 5 browser sessions
-    dành riêng cho Outreach.
+    Quản lý danh sách browser sessions LinkedIn.
 
-    Pool này dùng chung cho:
-    - LinkedIn Connect
-    - Mass Send sau này
-
-    _next_index chỉ giữ con trỏ
-    trong memory.
-
-    Persistent state thực sự sẽ được
-    lưu trong Supabase bởi scheduler.
+    _next_index giữ account sẽ được sử dụng ở lượt tiếp theo.
+    Worker có thể khôi phục vị trí này từ Supabase.
     """
 
     def __init__(
         self,
         settings: (
-            OutreachAccountPoolSettings
+            LinkedInAccountPoolSettings
             | None
         ) = None,
     ) -> None:
@@ -281,21 +229,14 @@ class OutreachAccountPool:
             settings
             if settings is not None
             else (
-                OutreachAccountPoolSettings
+                LinkedInAccountPoolSettings
                 .from_environment()
             )
         )
 
         self.accounts = tuple(
-            OutreachAccount(
+            LinkedInAccount(
                 account_id=account_id,
-                display_name=(
-                    OUTREACH_ACCOUNT_DISPLAY_NAMES
-                    .get(
-                        account_id,
-                        account_id,
-                    )
-                ),
                 profile_directory=(
                     self.settings
                     .profile_root
@@ -309,7 +250,7 @@ class OutreachAccountPool:
 
         if not self.accounts:
             raise RuntimeError(
-                "Outreach account pool is empty"
+                "LinkedIn account pool is empty"
             )
 
         self._next_index = 0
@@ -323,22 +264,10 @@ class OutreachAccountPool:
     def validate_profiles(
         self,
     ) -> list[str]:
-        """
-        Kiểm tra browser profile
-        của từng Outreach account.
-
-        Trả về list lỗi.
-        Nếu list rỗng nghĩa là OK.
-        """
-
         errors: list[str] = []
 
         for account in self.accounts:
-            if (
-                not account
-                .profile_directory
-                .exists()
-            ):
+            if not account.profile_directory.exists():
                 errors.append(
                     f"{account.account_id}: "
                     "profile directory does not exist"
@@ -347,15 +276,12 @@ class OutreachAccountPool:
 
             try:
                 has_files = any(
-                    account
-                    .profile_directory
-                    .iterdir()
+                    account.profile_directory.iterdir()
                 )
             except OSError as exc:
                 errors.append(
                     f"{account.account_id}: "
-                    "cannot read profile directory: "
-                    f"{exc}"
+                    f"cannot read profile directory: {exc}"
                 )
                 continue
 
@@ -370,7 +296,7 @@ class OutreachAccountPool:
     def get_account(
         self,
         account_id: str,
-    ) -> OutreachAccount:
+    ) -> LinkedInAccount:
         cleaned_account_id = str(
             account_id or ""
         ).strip()
@@ -383,7 +309,7 @@ class OutreachAccountPool:
                 return account
 
         raise KeyError(
-            "Outreach account not found: "
+            "LinkedIn account not found: "
             f"{cleaned_account_id}"
         )
 
@@ -405,22 +331,16 @@ class OutreachAccountPool:
                 return index
 
         raise KeyError(
-            "Outreach account not found: "
+            "LinkedIn account not found: "
             f"{cleaned_account_id}"
         )
 
     def get_next_account(
         self,
-    ) -> OutreachAccount:
+    ) -> LinkedInAccount:
         """
-        Lấy account hiện tại
-        rồi dịch con trỏ sang account sau.
-
-        Ví dụ:
-        outreach_account_01
-        → outreach_account_02
+        Lấy account hiện tại và dịch con trỏ sang account sau.
         """
-
         account = self.accounts[
             self._next_index
         ]
@@ -436,10 +356,8 @@ class OutreachAccountPool:
         account_id: str,
     ) -> None:
         """
-        Chỉ định account sẽ chạy
-        ở lượt tiếp theo.
+        Đặt account sẽ chạy ở lượt tiếp theo.
         """
-
         self._next_index = (
             self.get_account_index(
                 account_id
@@ -451,24 +369,19 @@ class OutreachAccountPool:
         account_id: str | None,
     ) -> None:
         """
-        Đặt account tiếp theo
-        sau account vừa hoàn thành turn.
+        Khôi phục con trỏ từ account vừa chạy gần nhất.
 
         Ví dụ:
-
-        outreach_account_02
-        → next = outreach_account_03
+        last_account_id=account_02
+        → account tiếp theo là account_03.
         """
-
         if not account_id:
             self._next_index = 0
             return
 
         try:
-            last_index = (
-                self.get_account_index(
-                    account_id
-                )
+            last_index = self.get_account_index(
+                account_id
             )
         except KeyError:
             self._next_index = 0
@@ -480,24 +393,17 @@ class OutreachAccountPool:
 
     def iter_round_robin(
         self,
-    ) -> Iterator[OutreachAccount]:
+    ) -> Iterator[LinkedInAccount]:
         while True:
             yield self.get_next_account()
 
     def list_accounts(
         self,
     ) -> list[dict[str, str | bool]]:
-        """
-        Dùng cho debug / Dashboard sau này.
-        """
-
         return [
             {
                 "account_id": (
                     account.account_id
-                ),
-                "display_name": (
-                    account.display_name
                 ),
                 "profile_directory": str(
                     account.profile_directory

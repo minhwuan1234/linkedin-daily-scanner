@@ -339,6 +339,9 @@ const els = {
   outreachDeleteJobsError:
     document.querySelector("#outreachDeleteJobsError"),
 
+  outreachAcceptanceHistoryRowTemplate:
+    document.querySelector("#outreachAcceptanceHistoryRowTemplate"),
+
   outreachAcceptanceHistoryItemTemplate:
     document.querySelector("#outreachAcceptanceHistoryItemTemplate"),
 
@@ -353,63 +356,6 @@ const els = {
 
   outreachAcceptanceNextPage:
     document.querySelector("#outreachAcceptanceNextPage"),
-
-  outreachAcceptancePeriodFilters:
-    document.querySelector("#outreachAcceptancePeriodFilters"),
-
-  outreachAcceptanceWeekList:
-    document.querySelector("#outreachAcceptanceWeekList"),
-
-  outreachAcceptanceHistoryButton:
-    document.querySelector("#outreachAcceptanceHistoryButton"),
-
-  outreachAcceptanceWeekModal:
-    document.querySelector("#outreachAcceptanceWeekModal"),
-
-  outreachAcceptanceWeekModalBackdrop:
-    document.querySelector("#outreachAcceptanceWeekModalBackdrop"),
-
-  outreachAcceptanceWeekModalClose:
-    document.querySelector("#outreachAcceptanceWeekModalClose"),
-
-  outreachAcceptanceWeekModalList:
-    document.querySelector("#outreachAcceptanceWeekModalList"),
-
-  outreachAcceptedHistoryButton:
-    document.querySelector("#outreachAcceptedHistoryButton"),
-
-  outreachAcceptedWeekModal:
-    document.querySelector("#outreachAcceptedWeekModal"),
-
-  outreachAcceptedWeekModalBackdrop:
-    document.querySelector("#outreachAcceptedWeekModalBackdrop"),
-
-  outreachAcceptedWeekModalClose:
-    document.querySelector("#outreachAcceptedWeekModalClose"),
-
-  outreachAcceptedWeekModalList:
-    document.querySelector("#outreachAcceptedWeekModalList"),
-
-  outreachAcceptanceHistoryModal:
-    document.querySelector("#outreachAcceptanceHistoryModal"),
-
-  outreachAcceptanceHistoryModalBackdrop:
-    document.querySelector("#outreachAcceptanceHistoryModalBackdrop"),
-
-  outreachAcceptanceHistoryModalClose:
-    document.querySelector("#outreachAcceptanceHistoryModalClose"),
-
-  outreachAcceptanceHistoryModalTitle:
-    document.querySelector("#outreachAcceptanceHistoryModalTitle"),
-
-  outreachAcceptanceHistoryModalCount:
-    document.querySelector("#outreachAcceptanceHistoryModalCount"),
-
-  outreachAcceptanceHistoryModalEmpty:
-    document.querySelector("#outreachAcceptanceHistoryModalEmpty"),
-
-  outreachAcceptanceHistoryModalList:
-    document.querySelector("#outreachAcceptanceHistoryModalList"),
 
 
   outreachAcceptedPoolPanel:
@@ -432,6 +378,12 @@ const els = {
 
   outreachAcceptedSelectedCount:
     document.querySelector("#outreachAcceptedSelectedCount"),
+
+  outreachAcceptedAccountFilter:
+    document.querySelector("#outreachAcceptedAccountFilter"),
+
+  outreachAcceptedSendBatchFilter:
+    document.querySelector("#outreachAcceptedSendBatchFilter"),
 
   outreachAcceptedPoolGroupTemplate:
     document.querySelector("#outreachAcceptedPoolGroupTemplate"),
@@ -495,24 +447,6 @@ const els = {
 
   messageBatchSourceFilter:
     document.querySelector("#messageBatchSourceFilter"),
-
-  messageBatchWeekList:
-    document.querySelector("#messageBatchWeekList"),
-
-  messageBatchHistoryButton:
-    document.querySelector("#messageBatchHistoryButton"),
-
-  messageBatchWeekModal:
-    document.querySelector("#messageBatchWeekModal"),
-
-  messageBatchWeekModalBackdrop:
-    document.querySelector("#messageBatchWeekModalBackdrop"),
-
-  messageBatchWeekModalClose:
-    document.querySelector("#messageBatchWeekModalClose"),
-
-  messageBatchWeekModalList:
-    document.querySelector("#messageBatchWeekModalList"),
 
   messageBatchEmpty:
     document.querySelector("#messageBatchEmpty"),
@@ -614,11 +548,9 @@ const state = {
   outreachHistoryPageSize: 5,
   outreachAcceptancePage: 1,
   outreachAcceptancePageSize: 10,
-  outreachAcceptancePeriod: "week",
   messageBatchPage: 1,
   messageBatchPageSize: 8,
   messageBatchSourceFilter: "all",
-  messageBatchWeekKey: null,
   outreachPollTimer: null,
   outreachDashboardLoading: false,
   outreachProfilesLoading: false,
@@ -626,7 +558,7 @@ const state = {
   outreachAcceptanceSubmittingJobIds: new Set(),
   outreachAcceptanceHistoryByJobId: new Map(),
   outreachAcceptanceHistoryLoadingJobIds: new Set(),
-  outreachAcceptanceHistoryModalJobId: null,
+  outreachAcceptanceExpandedJobId: null,
   outreachAcceptanceSelectedDeleteJobIds: new Set(),
   outreachAcceptanceDeleteSubmitting: false,
   outreachAcceptedPool: {
@@ -638,8 +570,8 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
-  outreachAcceptedPoolWeekKey: null,
-  outreachAcceptanceWeekKey: null,
+  outreachAcceptedAccountFilter: "all",
+  outreachAcceptedSendBatchFilter: "all",
   outreachAcceptedPoolPage: 1,
   outreachAcceptedPoolPageSize: 15,
   outreachAcceptedSelectedProspectIds: new Set(),
@@ -668,7 +600,7 @@ function assertConfig() {
 
   if (!validUrl || !validKey) {
     throw new Error(
-      "Missing the Supabase URL or publishable/anon key in config.js."
+      "Thiếu Supabase URL hoặc publishable/anon key trong config.js."
     );
   }
 }
@@ -698,19 +630,19 @@ function formatDate(value) {
     return String(value);
   }
 
-  return new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("vi-VN", {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(date);
 }
 
 function formatAge(value) {
-  if (!value) return "No data";
+  if (!value) return "Không có dữ liệu";
 
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "Unknown";
+    return "Không xác định";
   }
 
   const seconds = Math.max(
@@ -718,17 +650,17 @@ function formatAge(value) {
     Math.floor((Date.now() - date.getTime()) / 1000)
   );
 
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 60) return `${seconds} giây trước`;
 
   const minutes = Math.floor(seconds / 60);
 
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${minutes} phút trước`;
 
   const hours = Math.floor(minutes / 60);
 
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${hours} giờ trước`;
 
-  return `${Math.floor(hours / 24)}d ago`;
+  return `${Math.floor(hours / 24)} ngày trước`;
 }
 
 function isToday(value) {
@@ -885,18 +817,18 @@ async function sendWorkerCommand(command) {
 
   if (!workerId) {
     throw new Error(
-      "No active worker ID found."
+      "Không tìm thấy worker_id đang hoạt động."
     );
   }
 
   const labels = {
-    kill_current: "stop the current scan",
-    stop_scan: "pause the scanner",
-    resume_scan: "resume the scanner"
+    kill_current: "kill lượt quét hiện tại",
+    stop_scan: "tạm dừng scanner",
+    resume_scan: "tiếp tục scanner"
   };
 
   const confirmed = window.confirm(
-    `Confirm ${labels[command] || command}?`
+    `Xác nhận ${labels[command] || command}?`
   );
 
   if (!confirmed) {
@@ -927,15 +859,15 @@ async function sendWorkerCommand(command) {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not send the worker command."
+        "Không thể gửi worker command."
       );
     }
 
     els.globalError.hidden = false;
     els.globalError.innerHTML = `
-      <strong>Command sent.</strong><br />
+      <strong>Đã gửi command.</strong><br />
       ${escapeHtml(labels[command] || command)}
-      — the worker will process it in a few seconds.
+      — worker sẽ xử lý trong vài giây.
     `;
 
     window.setTimeout(
@@ -1041,7 +973,7 @@ function populateYoutubeFilterOptions() {
   ).sort((a, b) => a.localeCompare(b));
 
   els.youtubeKeywordFilter.innerHTML = [
-    '<option value="all">All keywords</option>',
+    '<option value="all">Tất cả keyword</option>',
     ...keywords.map(
       (keyword) =>
         `<option value="${escapeHtml(keyword)}">${escapeHtml(keyword)}</option>`
@@ -1049,7 +981,7 @@ function populateYoutubeFilterOptions() {
   ].join("");
 
   els.youtubeLocationFilter.innerHTML = [
-    '<option value="all">All locations</option>',
+    '<option value="all">Tất cả location</option>',
     ...locations.map(
       (location) =>
         `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`
@@ -1260,7 +1192,7 @@ function renderYoutubeResearch() {
   if (youtubeError) {
     els.youtubeLastError.hidden = false;
     els.youtubeLastError.textContent =
-      `Could not read YouTube data from Supabase: ${youtubeError}`;
+      `Không đọc được dữ liệu YouTube từ Supabase: ${youtubeError}`;
   }
 
   if (!job) {
@@ -1268,7 +1200,7 @@ function renderYoutubeResearch() {
       "pill pill-neutral";
     els.youtubeJobBadge.textContent = "Idle";
     els.youtubeProgressText.textContent =
-      "No job yet";
+      "Chưa có job";
     els.youtubeProgressBar.style.width = "0%";
     els.youtubeStageText.textContent = "Idle";
     els.youtubeResultCount.textContent =
@@ -1321,7 +1253,7 @@ function renderYoutubeResearch() {
   }
 
   els.youtubeResultSummary.textContent =
-    `${filteredChannels.length} / ${channels.length} channels shown`;
+    `${filteredChannels.length} / ${channels.length} channel đang hiển thị`;
 
   els.youtubeStartButton.disabled =
     state.youtubeSubmitting ||
@@ -1448,7 +1380,7 @@ async function createYoutubeResearchJob(event) {
   ).trim();
 
   if (!keyword) {
-    window.alert("Enter a YouTube keyword.");
+    window.alert("Hãy nhập keyword YouTube.");
     return;
   }
 
@@ -1476,7 +1408,7 @@ async function createYoutubeResearchJob(event) {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not create the YouTube research job."
+        "Không thể tạo YouTube research job."
       );
     }
 
@@ -1499,7 +1431,7 @@ const OUTREACH_ACTIVE_POLL_INTERVAL_MS = 5000;
 const OUTREACH_IDLE_POLL_INTERVAL_MS = 45000;
 const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
   outreach_account_01: "Minh Anh",
-  outreach_account_02: "Trang Liu",
+  outreach_account_02: "Hân",
   outreach_account_03: "Minh Ánh",
   outreach_account_04: "Linh Giang",
   outreach_account_05: "Huyền Linh"
@@ -1623,7 +1555,7 @@ function renderOutreachJob(job) {
 
     if (els.outreachJobCode) {
       els.outreachJobCode.textContent =
-        "No job yet";
+        "Chưa có job";
     }
 
     if (els.outreachJobBadge) {
@@ -2321,7 +2253,7 @@ function renderAcceptanceInsights() {
           ? "Loading Acceptance Insights..."
           : error
             ? error
-            : "No Connect data in this scope.";
+            : "Chưa có Connect data trong scope này.";
     }
   }
 
@@ -2494,7 +2426,7 @@ async function loadAcceptanceInsights() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load Acceptance Insights."
+        "Không thể load Acceptance Insights."
       );
     }
 
@@ -2733,7 +2665,7 @@ function renderOutreachAccounts(
       "outreach-job-empty";
 
     empty.textContent =
-      "No account data available.";
+      "Chưa có dữ liệu account.";
 
     els.outreachAccountsList.append(
       empty
@@ -3056,7 +2988,7 @@ async function queueOutreachAcceptanceCheck(
 
   if (!cleanedJobId) {
     throw new Error(
-      "Outreach job ID not found."
+      "Không tìm thấy Outreach job_id."
     );
   }
 
@@ -3105,7 +3037,7 @@ async function queueOutreachAcceptanceCheck(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not queue the Acceptance Check."
+        "Không thể queue Acceptance Check."
       );
     }
 
@@ -3181,10 +3113,6 @@ async function loadAcceptanceCheckHistory(
     cleanedJobId
   );
 
-  if (state.outreachAcceptanceHistoryModalJobId === cleanedJobId) {
-    renderAcceptanceHistoryModal();
-  }
-
   try {
     const response = await fetch(
       `/api/outreach/connect/jobs/${encodeURIComponent(
@@ -3209,7 +3137,7 @@ async function loadAcceptanceCheckHistory(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load Acceptance Check history."
+        "Không thể load Acceptance Check history."
       );
     }
 
@@ -3240,140 +3168,253 @@ async function loadAcceptanceCheckHistory(
     renderOutreachAcceptanceJobs(
       state.outreachRecentJobs
     );
-
-    if (state.outreachAcceptanceHistoryModalJobId === cleanedJobId) {
-      renderAcceptanceHistoryModal();
-    }
   }
 }
 
 
-function renderAcceptanceHistoryModal() {
-  const modal = els.outreachAcceptanceHistoryModal;
-  const jobId = state.outreachAcceptanceHistoryModalJobId;
-
-  if (!modal || !jobId) {
+function appendAcceptanceHistoryRow({
+  job,
+  afterRow
+}) {
+  if (
+    !afterRow ||
+    !els.outreachAcceptanceHistoryRowTemplate ||
+    !els.outreachAcceptanceHistoryItemTemplate
+  ) {
     return;
   }
 
-  const job = state.outreachRecentJobs.find(
-    (item) => String(item?.id || "").trim() === jobId
-  );
+  const jobId =
+    String(
+      job?.id ||
+      ""
+    ).trim();
 
-  if (!job) {
-    closeAcceptanceHistoryModal();
+  if (!jobId) {
     return;
   }
 
-  const cached = state.outreachAcceptanceHistoryByJobId.get(jobId);
-  const loading = state.outreachAcceptanceHistoryLoadingJobIds.has(jobId);
-  const error = cached && !Array.isArray(cached) ? cached.error : null;
-  const runs = Array.isArray(cached) ? cached : [];
+  const fragment =
+    els.outreachAcceptanceHistoryRowTemplate
+      .content
+      .cloneNode(
+        true
+      );
 
-  if (els.outreachAcceptanceHistoryModalTitle) {
-    els.outreachAcceptanceHistoryModalTitle.textContent =
+  const row =
+    fragment.querySelector(
+      ".outreach-acceptance-history-row"
+    );
+
+  const title =
+    fragment.querySelector(
+      "[data-acceptance-history-title]"
+    );
+
+  const count =
+    fragment.querySelector(
+      "[data-acceptance-history-count]"
+    );
+
+  const empty =
+    fragment.querySelector(
+      "[data-acceptance-history-empty]"
+    );
+
+  const list =
+    fragment.querySelector(
+      "[data-acceptance-history-list]"
+    );
+
+  if (title) {
+    title.textContent =
       `${job.job_code || "Connect Job"} · Check runs`;
   }
 
-  if (els.outreachAcceptanceHistoryModalCount) {
-    els.outreachAcceptanceHistoryModalCount.textContent = loading
-      ? "Loading"
-      : `${runs.length} ${runs.length === 1 ? "run" : "runs"}`;
+  const loading =
+    state.outreachAcceptanceHistoryLoadingJobIds.has(
+      jobId
+    );
+
+  const cached =
+    state.outreachAcceptanceHistoryByJobId.get(
+      jobId
+    );
+
+  const error =
+    cached &&
+    !Array.isArray(cached)
+      ? cached.error
+      : null;
+
+  const runs =
+    Array.isArray(cached)
+      ? cached
+      : [];
+
+  if (count) {
+    count.textContent =
+      loading
+        ? "Loading"
+        : `${runs.length} ${
+            runs.length === 1
+              ? "run"
+              : "runs"
+          }`;
   }
 
-  const empty = els.outreachAcceptanceHistoryModalEmpty;
-  const list = els.outreachAcceptanceHistoryModalList;
-
-  if (!empty || !list) {
-    return;
-  }
-
-  if (loading || error || !runs.length) {
-    empty.hidden = false;
-    empty.textContent = loading
-      ? "Loading acceptance history..."
-      : error || "No acceptance check runs yet.";
-    list.hidden = true;
-    list.replaceChildren();
-    return;
-  }
-
-  empty.hidden = true;
-  list.hidden = false;
-  list.replaceChildren();
-
-  runs.forEach((run) => {
-    const item = els.outreachAcceptanceHistoryItemTemplate?.content.cloneNode(true);
-
-    if (!item) {
-      return;
+  if (loading) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        "Loading Acceptance Check history...";
     }
 
-    const setText = (selector, value) => {
-      const element = item.querySelector(selector);
-
-      if (element) {
-        element.textContent = String(value);
-      }
-    };
-
-    const status = normaliseStatus(run.status);
-    const badge = item.querySelector("[data-history-run-status]");
-
-    if (badge) {
-      badge.textContent = getAcceptanceRunStatusLabel(run);
-      badge.className = `pill ${getOutreachPillClass(status)}`;
+    if (list) {
+      list.hidden = true;
     }
 
-    setText(
-      "[data-history-run-time]",
-      formatDate(run.completed_at || run.updated_at || run.started_at || run.created_at)
-    );
-    setText(
-      "[data-history-checked]",
-      `${Number(run.checked_count || 0)} / ${Number(run.total_to_check || 0)}`
-    );
-    setText("[data-history-accepted]", Number(run.new_accepted_count || 0));
-    setText("[data-history-pending]", Number(run.still_pending_count || 0));
-    setText(
-      "[data-history-unknown]",
-      Number(run.declined_or_unknown_count || 0)
-    );
-    setText("[data-history-failed]", Number(run.failed_count || 0));
-    list.append(item);
-  });
-}
+  } else if (error) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        error;
+    }
 
+    if (list) {
+      list.hidden = true;
+    }
 
-function openAcceptanceHistoryModal(job) {
-  const jobId = String(job?.id || "").trim();
+  } else if (!runs.length) {
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent =
+        "Chưa có lần Check Acceptance nào.";
+    }
 
-  if (!jobId || !els.outreachAcceptanceHistoryModal) {
-    return;
+    if (list) {
+      list.hidden = true;
+    }
+
+  } else {
+    if (empty) {
+      empty.hidden = true;
+    }
+
+    if (list) {
+      list.hidden = false;
+      list.replaceChildren();
+
+      runs.forEach((run) => {
+        const item =
+          els.outreachAcceptanceHistoryItemTemplate
+            .content
+            .cloneNode(
+              true
+            );
+
+        const setText = (
+          selector,
+          value
+        ) => {
+          const element =
+            item.querySelector(
+              selector
+            );
+
+          if (element) {
+            element.textContent =
+              String(value);
+          }
+        };
+
+        const status =
+          normaliseStatus(
+            run.status
+          );
+
+        const badge =
+          item.querySelector(
+            "[data-history-run-status]"
+          );
+
+        if (badge) {
+          badge.textContent =
+            getAcceptanceRunStatusLabel(
+              run
+            );
+
+          badge.className =
+            `pill ${getOutreachPillClass(
+              status
+            )}`;
+        }
+
+        setText(
+          "[data-history-run-time]",
+          formatDate(
+            run.completed_at ||
+            run.updated_at ||
+            run.started_at ||
+            run.created_at
+          )
+        );
+
+        setText(
+          "[data-history-checked]",
+          `${Number(
+            run.checked_count ||
+            0
+          )} / ${Number(
+            run.total_to_check ||
+            0
+          )}`
+        );
+
+        setText(
+          "[data-history-accepted]",
+          Number(
+            run.new_accepted_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-pending]",
+          Number(
+            run.still_pending_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-unknown]",
+          Number(
+            run.declined_or_unknown_count ||
+            0
+          )
+        );
+
+        setText(
+          "[data-history-failed]",
+          Number(
+            run.failed_count ||
+            0
+          )
+        );
+
+        list.append(
+          item
+        );
+      });
+    }
   }
 
-  state.outreachAcceptanceHistoryModalJobId = jobId;
-  els.outreachAcceptanceHistoryModal.hidden = false;
-  els.outreachAcceptanceHistoryModal.setAttribute("aria-hidden", "false");
-  renderAcceptanceHistoryModal();
-
-  if (
-    !state.outreachAcceptanceHistoryByJobId.has(jobId) &&
-    !state.outreachAcceptanceHistoryLoadingJobIds.has(jobId)
-  ) {
-    loadAcceptanceCheckHistory(jobId);
-  }
+  afterRow.after(
+    row
+  );
 }
 
-
-function closeAcceptanceHistoryModal() {
-  if (els.outreachAcceptanceHistoryModal) {
-    els.outreachAcceptanceHistoryModal.hidden = true;
-    els.outreachAcceptanceHistoryModal.setAttribute("aria-hidden", "true");
-  }
-
-  state.outreachAcceptanceHistoryModalJobId = null;
-}
 
 
 function updateAcceptanceDeleteSelectionUi() {
@@ -3525,6 +3566,15 @@ async function deleteSelectedAcceptanceJobs() {
 
     state.outreachAcceptanceSelectedDeleteJobIds.clear();
 
+    if (
+      state.outreachAcceptanceExpandedJobId &&
+      jobIds.includes(
+        state.outreachAcceptanceExpandedJobId
+      )
+    ) {
+      state.outreachAcceptanceExpandedJobId = null;
+    }
+
     if (els.outreachDeleteJobsModal) {
       els.outreachDeleteJobsModal.hidden = true;
     }
@@ -3597,281 +3647,17 @@ async function deleteSelectedAcceptanceJobs() {
 }
 
 
-function getWeekInfo(dateValue) {
-  const date = new Date(dateValue);
-
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-
-  date.setHours(0, 0, 0, 0);
-  const dayFromMonday = (date.getDay() + 6) % 7;
-  const start = new Date(date);
-  start.setDate(date.getDate() - dayFromMonday);
-
-  const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-
-  const weekNumber = getIsoWeekNumber(date);
-  const isoYear = new Date(date);
-  isoYear.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
-
-  const dateLabel = new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric"
-  });
-
-  return {
-    key: `${isoYear.getFullYear()}-W${String(weekNumber).padStart(2, "0")}`,
-    weekNumber,
-    year: isoYear.getFullYear(),
-    start,
-    end,
-    label: `Week ${weekNumber} · ${dateLabel.format(start)}–${dateLabel.format(end)}`
-  };
-}
-
-
-function getIsoWeekNumber(date) {
-  const value = new Date(date);
-  value.setHours(0, 0, 0, 0);
-  value.setDate(value.getDate() + 3 - ((value.getDay() + 6) % 7));
-  const firstThursday = new Date(value.getFullYear(), 0, 4);
-  return 1 + Math.round(
-    ((value - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7
-  );
-}
-
-
-function getAcceptancePeriodLabel() {
-  const now = new Date();
-
-  if (state.outreachAcceptancePeriod === "month") {
-    return `Month ${now.getMonth() + 1}/${now.getFullYear()}`;
-  }
-
-  if (state.outreachAcceptancePeriod === "all") {
-    return "All data";
-  }
-
-  return `Week ${getIsoWeekNumber(now)}/${now.getFullYear()}`;
-}
-
-
-function getAcceptancePeriodRows(jobs) {
-  const rows = Array.isArray(jobs) ? jobs : [];
-
-  if (!state.outreachAcceptanceWeekKey) {
-    return [];
-  }
-
-  return rows.filter((job) => {
-    return getWeekInfo(job?.created_at)?.key === state.outreachAcceptanceWeekKey;
-  });
-}
-
-
-function getAcceptanceAcceptedCount(acceptance) {
-  if (!acceptance) {
-    return 0;
-  }
-
-  const allRunsCount = Number(
-    acceptance.all_runs_new_accepted_count
-  );
-
-  return Number.isFinite(allRunsCount)
-    ? allRunsCount
-    : Number(acceptance.new_accepted_count || 0);
-}
-
-
-function getAcceptanceWeekGroups(jobs) {
-  const groups = new Map();
-
-  (Array.isArray(jobs) ? jobs : []).forEach((job) => {
-    const info = getWeekInfo(job?.created_at);
-
-    if (!info) {
-      return;
-    }
-
-    if (!groups.has(info.key)) {
-      groups.set(info.key, {
-        ...info,
-        jobs: [],
-        totalProfiles: 0,
-        accepted: 0,
-        pending: 0,
-        failed: 0
-      });
-    }
-
-    const group = groups.get(info.key);
-    const acceptance = job.acceptance || {};
-    group.jobs.push(job);
-    group.totalProfiles += Number(job.target_count || 0);
-    group.accepted += getAcceptanceAcceptedCount(acceptance);
-    group.pending += Number(acceptance.still_pending_count || 0);
-    group.failed += Number(acceptance.failed_count || 0);
-  });
-
-  return Array.from(groups.values()).sort((left, right) => right.start - left.start);
-}
-
-
-function getAcceptanceRate(accepted, sent) {
-  const acceptedCount = Number(accepted || 0);
-  const sentCount = Number(sent || 0);
-
-  if (!sentCount) {
-    return "—";
-  }
-
-  return `${((acceptedCount / sentCount) * 100).toFixed(1)}%`;
-}
-
-
-function createEmptyAcceptanceWeekGroup(info) {
-  return {
-    ...info,
-    jobs: [],
-    totalProfiles: 0,
-    accepted: 0,
-    pending: 0,
-    failed: 0
-  };
-}
-
-
-function renderAcceptanceWeekCard(group, {compact = false} = {}) {
-  const rate = getAcceptanceRate(group.accepted, group.totalProfiles);
-  const element = document.createElement(compact ? "button" : "article");
-
-  element.className = compact
-    ? "week-card week-history-option"
-    : "week-card week-current-card";
-
-  if (compact) {
-    element.type = "button";
-    element.dataset.acceptanceWeekOption = group.key;
-  }
-
-  element.innerHTML = `
-    <span class="week-card-label">${escapeHtml(group.label)}</span>
-    <strong>${group.accepted} accepted</strong>
-    <div class="week-card-metrics">
-      <span>Sent <b>${group.totalProfiles}</b></span>
-      <span>Acceptance rate <b>${rate}</b></span>
-      <span>${group.jobs.length} jobs</span>
-    </div>
-  `;
-
-  return element;
-}
-
-
-function getAcceptanceWeekSelection(jobs) {
-  const groups = getAcceptanceWeekGroups(jobs);
-  const current = getWeekInfo(new Date());
-  const selectedKey = state.outreachAcceptanceWeekKey || current?.key;
-  const selectedGroup = groups.find((group) => group.key === selectedKey);
-
-  if (!state.outreachAcceptanceWeekKey) {
-    state.outreachAcceptanceWeekKey = selectedKey;
-  }
-
-  return {
-    groups,
-    current,
-    selected: selectedGroup || createEmptyAcceptanceWeekGroup(
-      selectedKey === current?.key
-        ? current
-        : getWeekInfo(new Date(selectedGroup?.start || current?.start || Date.now()))
-    )
-  };
-}
-
-
-function renderAcceptanceWeekList(jobs) {
-  const wrap = els.outreachAcceptanceWeekList;
-
-  if (!wrap) {
-    return;
-  }
-
-  const selection = getAcceptanceWeekSelection(jobs);
-  wrap.replaceChildren(renderAcceptanceWeekCard(selection.selected));
-
-  const hasPreviousWeeks = selection.groups.some(
-    (group) => group.key !== selection.current?.key
-  );
-
-  if (els.outreachAcceptanceHistoryButton) {
-    els.outreachAcceptanceHistoryButton.hidden = !hasPreviousWeeks;
-    els.outreachAcceptanceHistoryButton.textContent =
-      selection.selected.key === selection.current?.key
-        ? "Explore previous weeks"
-        : "Back to current week";
-  }
-}
-
-
-function openAcceptanceWeekModal() {
-  const modal = els.outreachAcceptanceWeekModal;
-  const list = els.outreachAcceptanceWeekModalList;
-
-  if (!modal || !list) {
-    return;
-  }
-
-  const {groups, current} = getAcceptanceWeekSelection(state.outreachRecentJobs);
-  const previousGroups = groups.filter((group) => group.key !== current?.key);
-
-  list.replaceChildren();
-
-  if (!previousGroups.length) {
-    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
-  } else {
-    previousGroups.forEach((group) => {
-      const option = renderAcceptanceWeekCard(group, {compact: true});
-      option.classList.toggle("is-active", group.key === state.outreachAcceptanceWeekKey);
-      list.append(option);
-    });
-  }
-
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
-}
-
-
-function closeAcceptanceWeekModal() {
-  if (!els.outreachAcceptanceWeekModal) {
-    return;
-  }
-
-  els.outreachAcceptanceWeekModal.hidden = true;
-  els.outreachAcceptanceWeekModal.setAttribute("aria-hidden", "true");
-}
-
-
-function renderAcceptancePeriodFilters() {
-  renderAcceptanceWeekList(state.outreachRecentJobs);
-
-}
-
-
 function renderOutreachAcceptanceJobs(
   jobs
 ) {
-  renderAcceptancePeriodFilters();
-
-  const rows = getAcceptancePeriodRows(jobs);
-  const selectedWeek = getAcceptanceWeekSelection(jobs).selected;
+  const rows =
+    Array.isArray(jobs)
+      ? jobs
+      : [];
 
   if (els.outreachAcceptanceJobCount) {
     els.outreachAcceptanceJobCount.textContent =
-      `${selectedWeek?.label || "Select a week"} · ${rows.length} jobs`;
+      `${rows.length} jobs`;
   }
 
   updateAcceptanceDeleteSelectionUi();
@@ -3948,6 +3734,11 @@ function renderOutreachAcceptanceJobs(
         .content
         .cloneNode(true);
 
+    const mainRow =
+      fragment.querySelector(
+        "tr"
+      );
+
     const setText = (
       selector,
       value
@@ -3981,7 +3772,9 @@ function renderOutreachAcceptanceJobs(
     setText(
       "[data-acceptance-accepted]",
       acceptance
-        ? getAcceptanceAcceptedCount(acceptance)
+        ? Number(
+            acceptance.new_accepted_count || 0
+          )
         : "—"
     );
 
@@ -4125,20 +3918,51 @@ function renderOutreachAcceptanceJobs(
           ""
         ).trim();
 
+      const expanded =
+        state.outreachAcceptanceExpandedJobId ===
+        historyJobId;
+
       historyButton.dataset.jobId =
         historyJobId;
 
       historyButton.setAttribute(
         "aria-expanded",
-        "false"
+        expanded
+          ? "true"
+          : "false"
       );
 
-      historyButton.textContent = "View history";
+      historyButton.textContent =
+        expanded
+          ? "Hide history"
+          : "History";
 
       historyButton.addEventListener(
         "click",
         async () => {
-          openAcceptanceHistoryModal(job);
+          const nextExpanded =
+            state.outreachAcceptanceExpandedJobId ===
+            historyJobId
+              ? null
+              : historyJobId;
+
+          state.outreachAcceptanceExpandedJobId =
+            nextExpanded;
+
+          renderOutreachAcceptanceJobs(
+            state.outreachRecentJobs
+          );
+
+          if (
+            nextExpanded &&
+            !state.outreachAcceptanceHistoryByJobId.has(
+              historyJobId
+            )
+          ) {
+            await loadAcceptanceCheckHistory(
+              historyJobId
+            );
+          }
         }
       );
     }
@@ -4200,6 +4024,35 @@ function renderOutreachAcceptanceJobs(
       fragment
     );
 
+    const expandedJobId =
+      String(
+        job.id ||
+        ""
+      ).trim();
+
+    if (
+      mainRow &&
+      state.outreachAcceptanceExpandedJobId ===
+      expandedJobId
+    ) {
+      appendAcceptanceHistoryRow({
+        job,
+        afterRow: mainRow
+      });
+
+      if (
+        !state.outreachAcceptanceHistoryByJobId.has(
+          expandedJobId
+        ) &&
+        !state.outreachAcceptanceHistoryLoadingJobIds.has(
+          expandedJobId
+        )
+      ) {
+        loadAcceptanceCheckHistory(
+          expandedJobId
+        );
+      }
+    }
   });
 
   updateSimplePagination({
@@ -4257,198 +4110,87 @@ function getEligibleMessageProspectIds() {
 }
 
 
-function getAcceptedPoolVisibleItems() {
-  const items = Array.isArray(state.outreachAcceptedPool?.items)
-    ? state.outreachAcceptedPool.items
-    : [];
-
-  if (!state.outreachAcceptedPoolWeekKey) {
-    return [];
-  }
-
-  return items.filter((item) => {
-    const info = getWeekInfo(item?.job_created_at);
-    return info?.key === state.outreachAcceptedPoolWeekKey;
-  });
-}
-
-
-function getAcceptedPoolWeekGroups() {
-  const groups = new Map();
-  const eligibleIds = getEligibleMessageProspectIds();
-
-  (Array.isArray(state.outreachAcceptedPool?.items)
-    ? state.outreachAcceptedPool.items
-    : []
-  ).forEach((item) => {
-    const info = getWeekInfo(item?.job_created_at);
-
-    if (!info) {
-      return;
-    }
-
-    if (!groups.has(info.key)) {
-      groups.set(info.key, {
-        ...info,
-        profiles: 0,
-        ready: 0,
-        prepared: 0,
-        sent: 0,
-        batches: new Set()
-      });
-    }
-
-    const group = groups.get(info.key);
-    const bucket = getAcceptedPoolUiBucket(item, eligibleIds);
-    group.profiles += 1;
-    group[bucket] = Number(group[bucket] || 0) + 1;
-
-    const batchCode = getAcceptedPoolBatchCode(item);
-    if (batchCode) {
-      group.batches.add(batchCode);
-    }
-  });
-
-  return Array.from(groups.values())
-    .map((group) => ({ ...group, batchCount: group.batches.size }))
-    .sort((left, right) => right.start - left.start);
-}
-
-
-function createEmptyAcceptedPoolWeekGroup(weekInfo) {
-  return {
-    ...(weekInfo || {
-      key: "current",
-      label: "Current week",
-      start: Date.now()
-    }),
-    profiles: 0,
-    ready: 0,
-    prepared: 0,
-    sent: 0,
-    batches: new Set(),
-    batchCount: 0
-  };
-}
-
-
-function renderAcceptedPoolWeekCard(group, {compact = false} = {}) {
-  const element = document.createElement(compact ? "button" : "article");
-
-  element.className = compact
-    ? "week-card week-history-option"
-    : "week-card week-current-card";
-
-  if (compact) {
-    element.type = "button";
-    element.dataset.acceptedWeekOption = group.key;
-  }
-
-  element.innerHTML = `
-    <span class="week-card-label">${escapeHtml(group.label)}</span>
-    <strong>${group.profiles} profiles</strong>
-    <div class="week-card-metrics">
-      <span>${group.batchCount} batches</span>
-      <span>Ready <b>${group.ready}</b></span>
-      <span>Sent <b>${group.sent}</b></span>
-    </div>
-  `;
-
-  return element;
-}
-
-
-function getAcceptedPoolWeekSelection() {
-  const groups = getAcceptedPoolWeekGroups();
-  const current = getWeekInfo(new Date());
-  const selectedKey = state.outreachAcceptedPoolWeekKey || current?.key || groups[0]?.key;
-  const selectedGroup = groups.find((group) => group.key === selectedKey);
-
-  if (!state.outreachAcceptedPoolWeekKey) {
-    state.outreachAcceptedPoolWeekKey = selectedKey || null;
-  }
-
-  return {
-    groups,
-    current,
-    selected: selectedGroup || createEmptyAcceptedPoolWeekGroup(
-      selectedKey === current?.key
-        ? current
-        : getWeekInfo(new Date(selectedGroup?.start || current?.start || Date.now()))
+function getAcceptedPoolAvailableAccounts() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
     )
-  };
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const accountIds = new Set();
+
+  items.forEach((item) => {
+    const accountId =
+      String(
+        item.assigned_account_id ||
+        ""
+      ).trim();
+
+    if (accountId) {
+      accountIds.add(accountId);
+    }
+  });
+
+  return Array.from(accountIds);
 }
 
 
-function renderAcceptedPoolWeekList() {
-  const wrap = document.querySelector("#outreachAcceptedWeekList");
+function renderAcceptedPoolAccountFilter() {
+  const select =
+    els.outreachAcceptedAccountFilter;
 
-  if (!wrap) {
+  if (!select) {
     return;
   }
 
-  const selection = getAcceptedPoolWeekSelection();
-  wrap.replaceChildren(renderAcceptedPoolWeekCard(selection.selected));
+  const accountIds =
+    getAcceptedPoolAvailableAccounts();
 
-  const hasPreviousWeeks = selection.groups.some(
-    (group) => group.key !== selection.current?.key
-  );
+  const currentValue =
+    state.outreachAcceptedAccountFilter ||
+    "all";
 
-  if (els.outreachAcceptedHistoryButton) {
-    els.outreachAcceptedHistoryButton.hidden = !hasPreviousWeeks;
-    els.outreachAcceptedHistoryButton.textContent =
-      selection.selected.key === selection.current?.key
-        ? "Explore previous weeks"
-        : "Back to current week";
-  }
+  const fragment =
+    document.createDocumentFragment();
 
-  if (!wrap.children.length) {
-    wrap.innerHTML = '<span class="week-list-empty">No dated accepted profiles yet.</span>';
-  }
-}
+  const allOption =
+    document.createElement("option");
 
+  allOption.value = "all";
+  allOption.textContent = "All accounts";
 
-function openAcceptedPoolWeekModal() {
-  const modal = els.outreachAcceptedWeekModal;
-  const list = els.outreachAcceptedWeekModalList;
+  fragment.append(allOption);
 
-  if (!modal || !list) {
-    return;
-  }
+  accountIds.forEach((accountId) => {
+    const option =
+      document.createElement("option");
 
-  const {groups, current} = getAcceptedPoolWeekSelection();
-  const previousGroups = groups.filter(
-    (group) => group.key !== current?.key
-  );
+    option.value = accountId;
 
-  list.replaceChildren();
-
-  if (!previousGroups.length) {
-    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
-  } else {
-    previousGroups.forEach((group) => {
-      const option = renderAcceptedPoolWeekCard(group, {compact: true});
-      option.classList.toggle(
-        "is-active",
-        group.key === state.outreachAcceptedPoolWeekKey
+    option.textContent =
+      getOutreachAccountDisplayName(
+        accountId
       );
-      list.append(option);
-    });
-  }
 
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
+    fragment.append(option);
+  });
+
+  select.replaceChildren(fragment);
+
+  const stillExists =
+    currentValue === "all" ||
+    accountIds.includes(currentValue);
+
+  state.outreachAcceptedAccountFilter =
+    stillExists
+      ? currentValue
+      : "all";
+
+  select.value =
+    state.outreachAcceptedAccountFilter;
 }
 
-
-function closeAcceptedPoolWeekModal() {
-  if (!els.outreachAcceptedWeekModal) {
-    return;
-  }
-
-  els.outreachAcceptedWeekModal.hidden = true;
-  els.outreachAcceptedWeekModal.setAttribute("aria-hidden", "true");
-}
 
 
 function getAcceptedPoolBatchCode(
@@ -4486,6 +4228,136 @@ function getAcceptedPoolConnectIdLabel(
   return jobId.length > 16
     ? `${jobId.slice(0, 8)}…${jobId.slice(-5)}`
     : jobId;
+}
+
+
+function getAcceptedPoolAvailableSendBatches() {
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
+
+  const connectIds =
+    new Map();
+
+  items.forEach((item) => {
+    const jobId =
+      getAcceptedPoolBatchCode(
+        item
+      );
+
+    if (!jobId) {
+      return;
+    }
+
+    connectIds.set(
+      jobId,
+      getAcceptedPoolConnectIdLabel(
+        item
+      )
+    );
+  });
+
+  return Array.from(
+    connectIds.entries()
+  ).sort(
+    (left, right) =>
+      right[1].localeCompare(
+        left[1],
+        undefined,
+        {
+          numeric: true,
+          sensitivity: "base"
+        }
+      )
+  );
+}
+
+
+function renderAcceptedPoolSendBatchFilter() {
+  const select =
+    els.outreachAcceptedSendBatchFilter;
+
+  if (!select) {
+    return;
+  }
+
+  const connectIds =
+    getAcceptedPoolAvailableSendBatches();
+
+  const currentValue =
+    state.outreachAcceptedSendBatchFilter ||
+    "all";
+
+  const fragment =
+    document.createDocumentFragment();
+
+  const allOption =
+    document.createElement("option");
+
+  allOption.value =
+    "all";
+
+  allOption.textContent =
+    "All Connect IDs";
+
+  fragment.append(
+    allOption
+  );
+
+  const unassignedOption =
+    document.createElement("option");
+
+  unassignedOption.value =
+    "unassigned";
+
+  unassignedOption.textContent =
+    "Unknown Connect ID";
+
+  fragment.append(
+    unassignedOption
+  );
+
+  connectIds.forEach(
+    ([jobId, jobLabel]) => {
+      const option =
+        document.createElement(
+          "option"
+        );
+
+      option.value =
+        jobId;
+
+      option.textContent =
+        jobLabel;
+
+      fragment.append(
+        option
+      );
+    }
+  );
+
+  select.replaceChildren(
+    fragment
+  );
+
+  const stillExists =
+    currentValue === "all" ||
+    currentValue === "unassigned" ||
+    connectIds.some(
+      ([jobId]) =>
+        jobId === currentValue
+    );
+
+  state.outreachAcceptedSendBatchFilter =
+    stillExists
+      ? currentValue
+      : "all";
+
+  select.value =
+    state.outreachAcceptedSendBatchFilter;
 }
 
 
@@ -4601,10 +4473,23 @@ function getAcceptedPoolUiBucket(
 
 
 function getAcceptedPoolFilteredItems() {
-  const items = getAcceptedPoolVisibleItems();
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
 
   const filter =
     state.outreachAcceptedPoolFilter ||
+    "all";
+
+  const accountFilter =
+    state.outreachAcceptedAccountFilter ||
+    "all";
+
+  const sendBatchFilter =
+    state.outreachAcceptedSendBatchFilter ||
     "all";
 
   const eligibleIds =
@@ -4619,7 +4504,37 @@ function getAcceptedPoolFilteredItems() {
         eligibleIds
       ) === filter;
 
-    return statusMatches;
+    const itemAccountId =
+      String(
+        item.assigned_account_id ||
+        ""
+      ).trim();
+
+    const accountMatches =
+      accountFilter === "all" ||
+      itemAccountId ===
+        accountFilter;
+
+    const itemBatchCode =
+      getAcceptedPoolBatchCode(
+        item
+      );
+
+    const sendBatchMatches =
+      sendBatchFilter === "all" ||
+      (
+        sendBatchFilter ===
+          "unassigned"
+          ? !itemBatchCode
+          : itemBatchCode ===
+            sendBatchFilter
+      );
+
+    return (
+      statusMatches &&
+      accountMatches &&
+      sendBatchMatches
+    );
   });
 
   return sortAcceptedPoolBySendBatch(
@@ -4628,7 +4543,12 @@ function getAcceptedPoolFilteredItems() {
 }
 
 function getAcceptedPoolUiSummary() {
-  const items = getAcceptedPoolVisibleItems();
+  const items =
+    Array.isArray(
+      state.outreachAcceptedPool?.items
+    )
+      ? state.outreachAcceptedPool.items
+      : [];
 
   const eligibleIds =
     getEligibleMessageProspectIds();
@@ -4827,7 +4747,8 @@ function renderOutreachAcceptedPool() {
 
   reconcileAcceptedPoolSelection();
 
-  renderAcceptedPoolWeekList();
+  renderAcceptedPoolAccountFilter();
+  renderAcceptedPoolSendBatchFilter();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -4842,11 +4763,8 @@ function renderOutreachAcceptedPool() {
     pageData.pageItems;
 
   if (els.outreachAcceptedPoolSummary) {
-    const selectedWeek = getAcceptedPoolWeekSelection().selected;
-    const periodLabel = selectedWeek?.label || "Current week";
-
     els.outreachAcceptedPoolSummary.textContent =
-      `${periodLabel} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
+      `${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
   }
 
   if (els.outreachAcceptedSelectedCount) {
@@ -4907,8 +4825,8 @@ function renderOutreachAcceptedPool() {
 
       els.outreachAcceptedPoolEmpty.textContent =
         uiSummary.all > 0
-          ? "No recipients match this filter."
-          : "No accepted profiles found.";
+          ? "Không có recipient trong filter này."
+          : "Chưa có user accepted.";
     }
 
     if (els.outreachAcceptedPoolTableWrap) {
@@ -5264,7 +5182,7 @@ async function loadOutreachAcceptedPool() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load the Accepted Pool."
+        "Không thể load Accepted Pool."
       );
     }
 
@@ -5332,7 +5250,7 @@ async function loadMessagePreparation() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load message preparation."
+        "Không thể load message preparation."
       );
     }
 
@@ -5388,7 +5306,7 @@ async function loadMessageBatches() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load prepared batches."
+        "Không thể load prepared batches."
       );
     }
 
@@ -5598,205 +5516,27 @@ function getFilteredMessageBatches() {
       ? state.messageBatches
       : [];
 
-  if (!state.messageBatchWeekKey) {
-    return [];
-  }
-
   const sourceFilter =
     state.messageBatchSourceFilter ||
     "all";
 
+  if (sourceFilter === "all") {
+    return batches;
+  }
+
   return batches.filter(
-    (batch) => {
-      const week = getWeekInfo(
-        batch?.created_at ||
-        batch?.prepared_at ||
-        batch?.createdAt
-      );
-
-      const weekMatches =
-        week?.key === state.messageBatchWeekKey;
-
-      const sourceMatches =
-        sourceFilter === "all" ||
-        getMessageBatchSourceConnectIds(
-          batch
-        ).some(
-          (source) =>
-            String(
-              source.id ||
-              ""
-            ).trim() ===
-            sourceFilter
-        );
-
-      return weekMatches && sourceMatches;
-    }
+    (batch) =>
+      getMessageBatchSourceConnectIds(
+        batch
+      ).some(
+        (source) =>
+          String(
+            source.id ||
+            ""
+          ).trim() ===
+          sourceFilter
+      )
   );
-}
-
-
-function getMessageBatchWeekGroups() {
-  const groups = new Map();
-
-  (Array.isArray(state.messageBatches)
-    ? state.messageBatches
-    : []
-  ).forEach((batch) => {
-    const info = getWeekInfo(
-      batch?.created_at ||
-      batch?.prepared_at ||
-      batch?.createdAt
-    );
-
-    if (!info) {
-      return;
-    }
-
-    if (!groups.has(info.key)) {
-      groups.set(info.key, {
-        ...info,
-        batches: 0,
-        recipients: 0,
-        completed: 0
-      });
-    }
-
-    const group = groups.get(info.key);
-    group.batches += 1;
-    group.recipients += Number(batch.target_count || 0);
-
-    if (normaliseStatus(batch.status || "prepared") === "completed") {
-      group.completed += 1;
-    }
-  });
-
-  return Array.from(groups.values()).sort(
-    (left, right) => right.start - left.start
-  );
-}
-
-
-function renderMessageBatchWeekCard(group, {compact = false} = {}) {
-  const element = document.createElement(compact ? "button" : "article");
-
-  element.className = compact
-    ? "week-card week-history-option"
-    : "week-card week-current-card";
-
-  if (compact) {
-    element.type = "button";
-    element.dataset.messageBatchWeekOption = group.key;
-  }
-
-  element.innerHTML = `
-    <span class="week-card-label">${escapeHtml(group.label)}</span>
-    <strong>${group.batches} batches</strong>
-    <div class="week-card-metrics">
-      <span>${group.recipients} recipients</span>
-      <span>Completed <b>${group.completed}</b></span>
-    </div>
-  `;
-
-  return element;
-}
-
-
-function getMessageBatchWeekSelection() {
-  const groups = getMessageBatchWeekGroups();
-  const current = getWeekInfo(new Date());
-  const selectedKey = state.messageBatchWeekKey || current?.key || groups[0]?.key;
-  const selectedGroup = groups.find((group) => group.key === selectedKey);
-
-  if (!state.messageBatchWeekKey) {
-    state.messageBatchWeekKey = selectedKey || null;
-  }
-
-  return {
-    groups,
-    current,
-    selected: selectedGroup || {
-      ...(current || {
-        key: "current",
-        label: "Current week",
-        start: Date.now()
-      }),
-      batches: 0,
-      recipients: 0,
-      completed: 0
-    }
-  };
-}
-
-
-function renderMessageBatchWeekList() {
-  const wrap = els.messageBatchWeekList;
-
-  if (!wrap) {
-    return;
-  }
-
-  const selection = getMessageBatchWeekSelection();
-  wrap.replaceChildren(renderMessageBatchWeekCard(selection.selected));
-
-  const hasPreviousWeeks = selection.groups.some(
-    (group) => group.key !== selection.current?.key
-  );
-
-  if (els.messageBatchHistoryButton) {
-    els.messageBatchHistoryButton.hidden = !hasPreviousWeeks;
-    els.messageBatchHistoryButton.textContent =
-      selection.selected.key === selection.current?.key
-        ? "Explore previous weeks"
-        : "Back to current week";
-  }
-
-  if (!wrap.children.length) {
-    wrap.innerHTML = '<span class="week-list-empty">No dated message batches yet.</span>';
-  }
-}
-
-
-function openMessageBatchWeekModal() {
-  const modal = els.messageBatchWeekModal;
-  const list = els.messageBatchWeekModalList;
-
-  if (!modal || !list) {
-    return;
-  }
-
-  const {groups, current} = getMessageBatchWeekSelection();
-  const previousGroups = groups.filter(
-    (group) => group.key !== current?.key
-  );
-
-  list.replaceChildren();
-
-  if (!previousGroups.length) {
-    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
-  } else {
-    previousGroups.forEach((group) => {
-      const option = renderMessageBatchWeekCard(group, {compact: true});
-      option.classList.toggle(
-        "is-active",
-        group.key === state.messageBatchWeekKey
-      );
-      list.append(option);
-    });
-  }
-
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
-}
-
-
-function closeMessageBatchWeekModal() {
-  if (!els.messageBatchWeekModal) {
-    return;
-  }
-
-  els.messageBatchWeekModal.hidden = true;
-  els.messageBatchWeekModal.setAttribute("aria-hidden", "true");
 }
 
 
@@ -5817,15 +5557,15 @@ function renderMessagePreparation() {
   if (els.messagePreparationHeadline) {
     els.messagePreparationHeadline.textContent =
       count > 0
-        ? `${count} accepted profiles ready to prepare`
-        : "No recipients ready to prepare";
+        ? `${count} accepted users sẵn sàng để prepare`
+        : "Chưa có recipient cần prepare";
   }
 
   if (els.messagePreparationMeta) {
     els.messagePreparationMeta.textContent =
       count > 0
-        ? "Prepare All will snapshot the current eligible list into one fixed batch."
-        : "Accepted profiles not yet assigned to a prepared batch appear here.";
+        ? "Prepare All sẽ snapshot toàn bộ danh sách hiện tại thành một batch cố định."
+        : "Accepted users chưa nằm trong prepared batch sẽ xuất hiện ở đây.";
   }
 
   const selectedCount =
@@ -5859,7 +5599,6 @@ function renderMessagePreparation() {
           : "Prepare all";
   }
 
-  renderMessageBatchWeekList();
   renderMessageBatchSourceFilter();
 
   const allBatches =
@@ -5872,25 +5611,14 @@ function renderMessagePreparation() {
 
   if (els.messageBatchCount) {
     els.messageBatchCount.textContent =
-      !state.messageBatchWeekKey
-        ? "Select a week"
-        : state.messageBatchSourceFilter === "all"
-          ? `${batches.length} batches`
-          : `${batches.length} of ${allBatches.length}`;
+      state.messageBatchSourceFilter === "all"
+        ? `${allBatches.length} batches`
+        : `${batches.length} of ${allBatches.length}`;
   }
 
   if (els.messageBatchEmpty) {
     els.messageBatchEmpty.hidden =
       batches.length > 0;
-
-    if (!batches.length) {
-      els.messageBatchEmpty.textContent =
-        state.messageBatchWeekKey
-          ? "No prepared batches match this week."
-          : allBatches.length
-            ? "Select a week to view message batches."
-            : "No prepared batches yet.";
-    }
   }
 
   if (
@@ -6182,13 +5910,13 @@ async function queueMessageBatchForSending(
 
   if (!cleanedBatchId) {
     throw new Error(
-      "Message Batch ID not found."
+      "Không tìm thấy Message Batch ID."
     );
   }
 
   if (!cleanedTemplate) {
     throw new Error(
-      "Message template cannot be empty."
+      "Message template không được để trống."
     );
   }
 
@@ -6206,7 +5934,7 @@ async function queueMessageBatchForSending(
 
   if (!batch) {
     throw new Error(
-        "Message Batch not found."
+      "Không tìm thấy Message Batch."
     );
   }
 
@@ -6215,7 +5943,7 @@ async function queueMessageBatchForSending(
     "prepared"
   ) {
     throw new Error(
-        "Only prepared batches can be sent."
+      "Chỉ batch có status prepared mới được gửi."
     );
   }
 
@@ -6260,7 +5988,7 @@ async function queueMessageBatchForSending(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not queue the Message Batch."
+        "Không thể queue Message Batch."
       );
     }
 
@@ -6312,7 +6040,7 @@ async function openPreparedMessageBatch(batchId) {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load the prepared batch."
+        "Không thể load prepared batch."
       );
     }
 
@@ -6354,7 +6082,7 @@ async function openPreparedMessageBatch(batchId) {
                   </a>
                 </div>
               `).join("")
-            : '<div class="state">This batch has no recipients.</div>'
+            : '<div class="state">Batch chưa có recipient.</div>'
           }
         </div>
       `;
@@ -6368,9 +6096,6 @@ async function openPreparedMessageBatch(batchId) {
       els.detailDrawer.classList.add("is-open");
       els.detailDrawer.setAttribute("aria-hidden", "false");
     }
-
-    // The snapshot drawer owns vertical scrolling while it is open.
-    document.body.style.overflow = "hidden";
   } catch (error) {
     window.alert(
       error.message || String(error)
@@ -6535,7 +6260,7 @@ async function prepareSelectedMessageRecipients(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not prepare selected recipients."
+        "Không thể prepare selected recipients."
       );
     }
 
@@ -6639,7 +6364,7 @@ async function prepareAllMessageRecipients(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not prepare recipients."
+        "Không thể prepare recipients."
       );
     }
 
@@ -6731,16 +6456,6 @@ function renderOutreachDashboard() {
 // ---------------------------------------------------------
 
 
-function setOutreachDatabaseStatus(healthy, message) {
-  if (!els.systemBadge || !els.systemBadgeText) {
-    return;
-  }
-
-  els.systemBadge.className = `system-badge ${healthy ? "is-healthy" : "is-unhealthy"}`;
-  els.systemBadgeText.textContent = message;
-}
-
-
 
 async function loadOutreachDashboard() {
   if (state.outreachDashboardLoading) {
@@ -6771,7 +6486,7 @@ async function loadOutreachDashboard() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load the Outreach dashboard."
+        "Không thể load Outreach dashboard."
       );
     }
 
@@ -6803,8 +6518,6 @@ async function loadOutreachDashboard() {
       els.outreachError.textContent = "";
     }
 
-    setOutreachDatabaseStatus(true, "Database connected");
-
     renderOutreachDashboard();
 
     // Only refresh Acceptance Insights while its drawer is actually open.
@@ -6828,8 +6541,6 @@ async function loadOutreachDashboard() {
       els.outreachError.textContent =
         error.message || String(error);
     }
-
-    setOutreachDatabaseStatus(false, "Database unavailable");
 
   } finally {
     state.outreachDashboardLoading = false;
@@ -6866,7 +6577,7 @@ async function loadOutreachProfiles() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load Outreach Profiles."
+        "Không thể load Outreach Profiles."
       );
     }
 
@@ -6921,7 +6632,7 @@ async function loadOutreachRateLimits() {
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not load Rate Limits."
+        "Không thể load Rate Limits."
       );
     }
 
@@ -7017,7 +6728,7 @@ async function createOutreachConnectJob(
 
   if (!urls.length) {
     window.alert(
-      "Enter at least one LinkedIn profile URL."
+      "Hãy nhập ít nhất một LinkedIn profile URL."
     );
 
     return;
@@ -7064,7 +6775,7 @@ async function createOutreachConnectJob(
       throw new Error(
         result.detail ||
         result.error ||
-        "Could not create the Outreach Connect Job."
+        "Không thể tạo Outreach Connect job."
       );
     }
 
@@ -7088,8 +6799,8 @@ async function createOutreachConnectJob(
 
 
 
-    // Reload directly from the database.
-    // Do not wait for the polling interval.
+    // Load lại ngay từ DB.
+    // Không cần chờ poll 3 giây.
     await loadOutreachDashboard();
 
 
@@ -7324,8 +7035,8 @@ function updateStats() {
 
   els.lastUpdated.textContent =
     latestDate
-      ? `Latest Connect: ${formatAge(latestDate)}`
-      : "No connected profiles yet";
+      ? `Connect gần nhất: ${formatAge(latestDate)}`
+      : "Chưa có profile đã gửi";
 }
 
 function renderGlobalError() {
@@ -7337,7 +7048,7 @@ function renderGlobalError() {
   }
 
   els.globalError.innerHTML = `
-    <strong>Some data sources could not be read.</strong><br />
+    <strong>Một số nguồn dữ liệu chưa đọc được.</strong><br />
     ${entries
       .map(
         ([name, message]) =>
@@ -7646,11 +7357,11 @@ function renderActiveProcess() {
     els.activeProcessBadge.className =
       "pill pill-red";
     els.activeProcessBadge.textContent =
-      "Worker not registered";
+      "Worker chưa đăng ký";
 
     els.activeProcessContent.innerHTML = `
       <div class="empty-process">
-        No worker data in linkedin_worker_health.
+        Chưa có dữ liệu worker trong linkedin_worker_health.
       </div>
     `;
 
@@ -7682,7 +7393,7 @@ function renderActiveProcess() {
               )}
             </h3>
             <p class="process-url">
-              No source is currently processing.
+              Không có source đang được xử lý.
             </p>
           </div>
 
@@ -7692,8 +7403,8 @@ function renderActiveProcess() {
         <p class="process-step">
           ${
             workerStatus === "idle"
-              ? "Worker is waiting for a new URL."
-              : "Worker has no current_source_id."
+              ? "Worker đang chờ URL mới."
+              : "Worker chưa gắn current_source_id."
           }
         </p>
 
@@ -7737,8 +7448,8 @@ function renderActiveProcess() {
       <p class="process-step">
         ${
           normaliseStatus(source.job_status) === "processing"
-            ? "Worker is scanning profiles and updating snapshots."
-            : "Synchronizing source status."
+            ? "Worker đang scan profile và cập nhật snapshot."
+            : "Đang đồng bộ trạng thái source."
         }
       </p>
 
@@ -7754,7 +7465,7 @@ function renderActiveProcess() {
           ${escapeHtml(
             source.assigned_account_id ||
             worker.current_account_id ||
-            "Account not assigned"
+            "Chưa assign account"
           )}
         </span>
 
@@ -7784,7 +7495,7 @@ function renderOverviewAccounts() {
   if (!state.accounts.length) {
     els.overviewAccountList.innerHTML = `
       <div class="empty-process">
-        Could not read linkedin_scanner_accounts.
+        Chưa đọc được linkedin_scanner_accounts.
       </div>
     `;
     return;
@@ -7802,7 +7513,7 @@ function renderOverviewAccounts() {
                 ? `Source #${escapeHtml(account.current_source_id)}`
                 : account.last_error
                   ? escapeHtml(account.last_error)
-                  : "No current source"
+                  : "Không có source hiện tại"
             }
           </span>
         </div>
@@ -7826,8 +7537,8 @@ function renderTimeline() {
       title: `Worker ${statusLabel(state.worker.status)}`,
       description:
         state.worker.current_source_id
-          ? `Processing source #${state.worker.current_source_id}`
-          : "No current source",
+          ? `Đang xử lý source #${state.worker.current_source_id}`
+          : "Không có source hiện tại",
       time: formatAge(state.worker.last_heartbeat_at)
     });
   }
@@ -7847,8 +7558,8 @@ function renderTimeline() {
             : "✓",
         title:
           normaliseStatus(source.job_status) === "failed"
-            ? "Source scan failed"
-            : "Snapshot completed",
+            ? "Source scan thất bại"
+            : "Snapshot đã hoàn thành",
         description:
           source.name ||
           source.linkedin_url ||
@@ -7860,7 +7571,7 @@ function renderTimeline() {
   if (!entries.length) {
     els.activityTimeline.innerHTML = `
       <div class="empty-process">
-        No activity to display.
+        Chưa có hoạt động để hiển thị.
       </div>
     `;
     return;
@@ -7891,7 +7602,7 @@ function renderAccounts() {
     els.accountsGrid.innerHTML = `
       <div class="panel">
         <div class="empty-process">
-          No account data, or the anon key does not have table access.
+          Không có dữ liệu account hoặc anon key chưa có quyền đọc bảng.
         </div>
       </div>
     `;
@@ -8077,7 +7788,7 @@ function renderHealth() {
       detail:
         worker
           ? `${statusLabel(worker.status)} · ${formatAge(worker.last_heartbeat_at)}`
-          : "No worker record",
+          : "Không có worker record",
       healthy: workerOnline
     },
     {
@@ -8091,7 +7802,7 @@ function renderHealth() {
     },
     {
       name: "Lark delivery",
-      detail: `${unsentLark} unsent results`,
+      detail: `${unsentLark} kết quả chưa gửi`,
       healthy: unsentLark === 0
     }
   ];
@@ -8161,7 +7872,7 @@ function renderHealth() {
 
 function openDrawer(profile) {
   els.drawerName.textContent =
-    profile.name || "Unnamed profile";
+    profile.name || "Chưa có tên";
 
   const linkedInBlock = profile.linkedin_url
     ? `
@@ -8171,11 +7882,11 @@ function openDrawer(profile) {
         target="_blank"
         rel="noreferrer"
       >
-        Open LinkedIn profile
+        Mở LinkedIn profile
       </a>
     `
     : `
-      <p>No LinkedIn URL.</p>
+      <p>Không có LinkedIn URL.</p>
     `;
 
   const postCaptions = getPostCaptions(profile);
@@ -8200,13 +7911,13 @@ function openDrawer(profile) {
     `
     : `
       <p class="detail-empty">
-        No posts in the last 30 days.
+        Không có bài viết trong 30 ngày gần nhất.
       </p>
     `;
 
   els.drawerContent.innerHTML = `
     <section class="detail-section">
-      <h3>Key information</h3>
+      <h3>Thông tin chính</h3>
 
       <dl class="detail-grid">
         <dt>Headline</dt>
@@ -8244,7 +7955,7 @@ function openDrawer(profile) {
       <p class="detail-pre">
         ${escapeHtml(
           profile.about_text ||
-          "No About data."
+          "Không có dữ liệu About."
         )}
       </p>
     </section>
@@ -8267,7 +7978,7 @@ function openDrawer(profile) {
       <p class="detail-pre">
         ${escapeHtml(
           profile.experience_raw_text ||
-          "No Experience data."
+          "Không có dữ liệu Experience."
         )}
       </p>
     </section>
@@ -8306,38 +8017,38 @@ function switchTab(tabName) {
   const pageCopy = {
     overview: {
       eyebrow: "Workspace",
-      title: "Overview",
-      subtitle: "Monitor system status, queues, workers, and recent activity."
+      title: "Tổng quan",
+      subtitle: "Theo dõi trạng thái scanner, queue, worker và hoạt động gần nhất."
     },
     profiles: {
       eyebrow: "Scanner",
       title: "Profiles",
-      subtitle: "LinkedIn profile snapshots collected and stored in the database."
+      subtitle: "Snapshot profile LinkedIn đã được thu thập và lưu trong database."
     },
     queue: {
       eyebrow: "Scanner",
       title: "Processing Queue",
-      subtitle: "Monitor waiting URLs, active work, and scan history."
+      subtitle: "Theo dõi URL đang chờ, đang xử lý và lịch sử scan."
     },
     accounts: {
       eyebrow: "Infrastructure",
       title: "Accounts",
-      subtitle: "Status of the LinkedIn browser profiles serving the scanner."
+      subtitle: "Trạng thái các LinkedIn browser profiles đang phục vụ scanner."
     },
     youtube: {
       eyebrow: "Research",
       title: "YouTube Research",
-      subtitle: "Create research jobs and track channel results in real time."
+      subtitle: "Khởi tạo research job và theo dõi kết quả channel theo thời gian thực."
     },
     outreach: {
       eyebrow: "Outreach",
       title: "Connect & Messaging",
-      subtitle: "Connect profiles, check acceptance, and prepare recipients for messaging."
+      subtitle: "Connect profiles, kiểm tra acceptance và chuẩn bị recipient cho message workflow."
     },
     health: {
       eyebrow: "System",
       title: "Health",
-      subtitle: "Check worker heartbeats, service health, and issues requiring attention."
+      subtitle: "Kiểm tra worker heartbeat, service health và các vấn đề cần xử lý."
     }
   };
 
@@ -8378,6 +8089,10 @@ document
           LAST_TAB_STORAGE_KEY,
           tabName
         );
+      }
+
+      if (tabName === "youtube") {
+        loadYoutubeResearch();
       }
 
       if (button.dataset.tab === "profiles") {
@@ -9076,38 +8791,6 @@ document.addEventListener(
       )
     ) {
       closeRateLimitDrawer();
-      return;
-    }
-
-    if (
-      els.outreachAcceptanceHistoryModal &&
-      !els.outreachAcceptanceHistoryModal.hidden
-    ) {
-      closeAcceptanceHistoryModal();
-      return;
-    }
-
-    if (
-      els.outreachAcceptanceWeekModal &&
-      !els.outreachAcceptanceWeekModal.hidden
-    ) {
-      closeAcceptanceWeekModal();
-      return;
-    }
-
-    if (
-      els.outreachAcceptedWeekModal &&
-      !els.outreachAcceptedWeekModal.hidden
-    ) {
-      closeAcceptedPoolWeekModal();
-      return;
-    }
-
-    if (
-      els.messageBatchWeekModal &&
-      !els.messageBatchWeekModal.hidden
-    ) {
-      closeMessageBatchWeekModal();
     }
   }
 );
@@ -9115,7 +8798,7 @@ document.addEventListener(
 
 els.refreshButton?.addEventListener(
   "click",
-  loadOutreachDashboard
+  loadDashboard
 );
 
 els.searchInput?.addEventListener(
@@ -9157,18 +8840,6 @@ els.outreachUrlInput?.addEventListener(
 document.addEventListener(
   "click",
   (event) => {
-    const messageBatchWeekButton = event.target.closest("[data-message-batch-week-option]");
-
-    if (messageBatchWeekButton) {
-      state.messageBatchWeekKey =
-        messageBatchWeekButton.dataset.messageBatchWeekOption || null;
-      state.messageBatchPage = 1;
-      state.messageBatchSourceFilter = "all";
-      closeMessageBatchWeekModal();
-      renderMessagePreparation();
-      return;
-    }
-
     const button =
       event.target.closest(
         "[data-outreach-process-tab]"
@@ -9189,112 +8860,6 @@ els.outreachHistoryPrevPage?.addEventListener("click",()=>{state.outreachHistory
 els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistoryPage+=1;renderOutreachHistory(state.outreachRecentJobs)});
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
-
-els.outreachAcceptanceHistoryButton?.addEventListener("click", () => {
-  const currentKey = getWeekInfo(new Date())?.key;
-
-  if (state.outreachAcceptanceWeekKey !== currentKey) {
-    state.outreachAcceptanceWeekKey = currentKey;
-    state.outreachAcceptancePage = 1;
-    renderOutreachAcceptanceJobs(state.outreachRecentJobs);
-    return;
-  }
-
-  openAcceptanceWeekModal();
-});
-
-els.outreachAcceptanceWeekModalClose?.addEventListener(
-  "click",
-  closeAcceptanceWeekModal
-);
-
-els.outreachAcceptanceWeekModalBackdrop?.addEventListener(
-  "click",
-  closeAcceptanceWeekModal
-);
-
-els.outreachAcceptanceWeekModalList?.addEventListener("click", (event) => {
-  const option = event.target.closest("[data-acceptance-week-option]");
-
-  if (!option) {
-    return;
-  }
-
-  state.outreachAcceptanceWeekKey = option.dataset.acceptanceWeekOption || null;
-  state.outreachAcceptancePage = 1;
-  closeAcceptanceWeekModal();
-  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
-});
-
-els.outreachAcceptedHistoryButton?.addEventListener("click", () => {
-  const currentKey = getWeekInfo(new Date())?.key;
-
-  if (state.outreachAcceptedPoolWeekKey !== currentKey) {
-    state.outreachAcceptedPoolWeekKey = currentKey;
-    state.outreachAcceptedPoolPage = 1;
-    renderOutreachAcceptedPool();
-    return;
-  }
-
-  openAcceptedPoolWeekModal();
-});
-
-els.outreachAcceptedWeekModalClose?.addEventListener(
-  "click",
-  closeAcceptedPoolWeekModal
-);
-
-els.outreachAcceptedWeekModalBackdrop?.addEventListener(
-  "click",
-  closeAcceptedPoolWeekModal
-);
-
-els.outreachAcceptedWeekModalList?.addEventListener("click", (event) => {
-  const option = event.target.closest("[data-accepted-week-option]");
-
-  if (!option) {
-    return;
-  }
-
-  state.outreachAcceptedPoolWeekKey =
-    option.dataset.acceptedWeekOption || null;
-  state.outreachAcceptedPoolPage = 1;
-  closeAcceptedPoolWeekModal();
-  renderOutreachAcceptedPool();
-});
-
-els.messageBatchHistoryButton?.addEventListener("click", () => {
-  const currentKey = getWeekInfo(new Date())?.key;
-
-  if (state.messageBatchWeekKey !== currentKey) {
-    state.messageBatchWeekKey = currentKey;
-    state.messageBatchPage = 1;
-    renderMessagePreparation();
-    return;
-  }
-
-  openMessageBatchWeekModal();
-});
-
-els.messageBatchWeekModalClose?.addEventListener(
-  "click",
-  closeMessageBatchWeekModal
-);
-
-els.messageBatchWeekModalBackdrop?.addEventListener(
-  "click",
-  closeMessageBatchWeekModal
-);
-
-els.outreachAcceptanceHistoryModalClose?.addEventListener(
-  "click",
-  closeAcceptanceHistoryModal
-);
-
-els.outreachAcceptanceHistoryModalBackdrop?.addEventListener(
-  "click",
-  closeAcceptanceHistoryModal
-);
 
 els.outreachAcceptanceDeleteSelectedButton?.addEventListener(
   "click",
@@ -9364,6 +8929,36 @@ document.addEventListener(
     renderOutreachAcceptedPool();
   }
 );
+
+els.outreachAcceptedAccountFilter?.addEventListener(
+  "change",
+  () => {
+    state.outreachAcceptedAccountFilter =
+      els.outreachAcceptedAccountFilter.value ||
+      "all";
+
+    state.outreachAcceptedPoolPage =
+      1;
+
+    renderOutreachAcceptedPool();
+  }
+);
+
+
+els.outreachAcceptedSendBatchFilter?.addEventListener(
+  "change",
+  () => {
+    state.outreachAcceptedSendBatchFilter =
+      els.outreachAcceptedSendBatchFilter.value ||
+      "all";
+
+    state.outreachAcceptedPoolPage =
+      1;
+
+    renderOutreachAcceptedPool();
+  }
+);
+
 
 els.outreachAcceptedPrevPage?.addEventListener(
   "click",
@@ -9569,7 +9164,10 @@ if (initialUiSettings.rememberLastSection) {
   );
 
   if (
-    savedTab === "outreach"
+    savedTab &&
+    document.querySelector(
+      `.tab-button[data-tab="${savedTab}"]`
+    )
   ) {
     switchTab(savedTab);
   }
@@ -9581,9 +9179,14 @@ renderOutreachDashboard();
 
 renderOutreachSubmittingState();
 
+setupYoutubeRealtime();
+
 loadOutreachDashboard();
 
 startOutreachPolling();
+
+loadDashboard();
+
 
 document.addEventListener(
   "DOMContentLoaded",
