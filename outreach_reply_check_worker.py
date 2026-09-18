@@ -59,7 +59,7 @@ UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__convo-list",
     ".msg-conversations-container__conversations-list-container",
 )
-FUZZY_MATCH_THRESHOLD = 0.70
+FUZZY_MATCH_THRESHOLD = 0.90
 
 
 def _is_visible(locator: Locator, *, timeout_ms: int = 500) -> bool:
