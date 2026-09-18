@@ -78,6 +78,14 @@ THREAD_STAR_SELECTORS = (
     'button[aria-label="Star"]',
     'button:has(svg[data-test-icon*="star"])',
 )
+THREAD_OVERFLOW_SELECTORS = (
+    "button.msg-thread-actions__control.artdeco-dropdown__trigger",
+    (
+        "button.msg-thread-actions__control:has("
+        'span.visually-hidden:has-text("Open the options list in your conversation")'
+        ")"
+    ),
+)
 
 
 def _is_visible(locator: Locator, *, timeout_ms: int = 500) -> bool:
@@ -901,6 +909,30 @@ def _visible_exact_text(page: Page, text_value: str) -> Locator | None:
 
 def _find_overflow_beside_star(page: Page) -> Locator:
     """Find the active-thread overflow button immediately before Star."""
+
+    # Current LinkedIn DOM exposes the active-thread menu directly as:
+    # button.msg-thread-actions__control.artdeco-dropdown__trigger
+    # Its hidden accessible text starts with "Open the options list in your
+    # conversation ...". Prefer that stable semantic evidence over position.
+    for selector in THREAD_OVERFLOW_SELECTORS:
+        try:
+            candidates = page.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+                if not _is_visible(candidate):
+                    continue
+                logger.info(
+                    (
+                        "THREAD MENU DOM EVIDENCE | strategy=direct-control | "
+                        "selector=%s | aria_expanded=%s | hidden_text=%s"
+                    ),
+                    selector,
+                    candidate.get_attribute("aria-expanded"),
+                    " ".join(candidate.inner_text().split()),
+                )
+                return candidate
+        except Exception:
+            continue
 
     for selector in THREAD_STAR_SELECTORS:
         try:
