@@ -148,11 +148,22 @@ def open_unread(page: Page) -> None:
         ),
     ]
 
-    unread_button = page.locator(
-        'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]'
+    # LinkedIn renders the filter pills inside the conversations title row.
+    # Resolve that parent container first, then resolve the button within it.
+    title_row = page.locator(
+        "div.msg-conversations-container__title-row"
     ).first
 
     try:
+        title_row.wait_for(
+            state="visible",
+            timeout=30_000,
+        )
+
+        unread_button = title_row.locator(
+            'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]'
+        ).first
+
         unread_button.wait_for(
             state="visible",
             timeout=30_000,
