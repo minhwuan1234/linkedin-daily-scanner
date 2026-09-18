@@ -840,6 +840,35 @@ def _read_message_timestamp(group: Locator | None) -> str:
     return date_value
 
 
+def _message_event_dom_key(body: Locator) -> str:
+    """Return one stable key for nested selectors from the same message event."""
+
+    try:
+        return str(
+            body.evaluate(
+                """
+                element => {
+                    const eventNode =
+                        element.closest('.msg-s-event-listitem') || element;
+                    window.__outreachReplyEventKeys ||= new WeakMap();
+                    window.__outreachReplyEventKeyCounter ||= 0;
+                    if (!window.__outreachReplyEventKeys.has(eventNode)) {
+                        window.__outreachReplyEventKeyCounter += 1;
+                        window.__outreachReplyEventKeys.set(
+                            eventNode,
+                            `reply-event-${window.__outreachReplyEventKeyCounter}`
+                        );
+                    }
+                    return window.__outreachReplyEventKeys.get(eventNode);
+                }
+                """
+            )
+            or ""
+        ).strip()
+    except Exception:
+        return ""
+
+
 def load_full_conversation(page: Page, unread_name: str) -> int:
     """Scroll the active thread upward until older messages stop loading."""
 
@@ -946,6 +975,7 @@ def read_incoming_reply_messages(
     expected_author = _normalize_name(unread_name)
     normalized_sent_text = " ".join(str(sent_message_text or "").split())
     events: list[dict] = []
+    seen_dom_event_keys: set[str] = set()
 
     logger.info(
         "MESSAGE DOM EVIDENCE | unread_name=%s | selectors=%s | candidates=%s",
@@ -966,6 +996,21 @@ def read_incoming_reply_messages(
 
         if not text_value:
             continue
+
+        dom_event_key = _message_event_dom_key(body)
+        dom_message_key = (
+            f"{dom_event_key}|{' '.join(text_value.casefold().split())}"
+            if dom_event_key
+            else ""
+        )
+        if dom_message_key and dom_message_key in seen_dom_event_keys:
+            logger.debug(
+                "Skipping duplicate nested message selector | dom_event_key=%s",
+                dom_event_key,
+            )
+            continue
+        if dom_message_key:
+            seen_dom_event_keys.add(dom_message_key)
 
         group = _message_group_for_body(body)
         author = _read_message_author(group)
@@ -996,7 +1041,7 @@ def read_incoming_reply_messages(
 
         events.append(
             {
-                "index": index,
+                "index": len(events),
                 "author": author,
                 "text": text_value,
                 "timestamp": _read_message_timestamp(group),
@@ -1584,10 +1629,7 @@ def run_once(account_id: str) -> None:
         print(f"Matched sent profiles: {len(matched_profiles)}")
         print(f"Matched conversations processed: {processed_count}")
         print("Reply contents and evidence were written to the worker log.")
-        print("The browser will stay open. Press Ctrl+C to stop.")
-
-        while True:
-            time.sleep(60)
+        print("Reply-check worker finished. Closing the browser.")
     except KeyboardInterrupt:
         logger.info("Reply-check worker stopped.")
     finally:

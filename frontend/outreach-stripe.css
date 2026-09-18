@@ -1805,6 +1805,11 @@ td strong {
   gap: 14px;
 }
 
+.outreach-replies-panel > .outreach-list-pagination {
+  margin-top: 8px;
+  border-top: 1px solid var(--stripe-border);
+}
+
 .outreach-reply-account-tabs {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));

@@ -13,8 +13,8 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-2" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-2" />
+  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-4" />
+    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-4" />
 </head>
 
 <body>
@@ -1614,18 +1614,18 @@
           aria-label="Outreach accounts"
         ></div>
 
-        <div id="outreachReplyContactToolbar" class="outreach-reply-contact-toolbar" hidden>
-          <label>
-            <span>Conversation</span>
-            <select id="outreachReplyContactSelect" aria-label="Choose one reply conversation"></select>
-          </label>
-        </div>
-
         <div id="outreachReplyError" class="outreach-error" hidden></div>
         <div id="outreachReplyEmpty" class="state">
           No verified replies have been captured yet.
         </div>
         <div id="outreachReplyList" class="outreach-reply-list" hidden></div>
+        <div id="outreachReplyPagination" class="outreach-list-pagination" hidden>
+          <span id="outreachReplyPageMeta" class="panel-meta">Page 1 / 1</span>
+          <div class="outreach-list-pagination-actions">
+            <button id="outreachReplyPrevPage" type="button" class="secondary-button">Previous</button>
+            <button id="outreachReplyNextPage" type="button" class="secondary-button">Next</button>
+          </div>
+        </div>
       </article>
     </section>
 
@@ -2128,6 +2128,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260918-outreach-replies-2"></script>
+  <script src="./app.js?v=20260918-outreach-replies-4"></script>
 </body>
 </html>

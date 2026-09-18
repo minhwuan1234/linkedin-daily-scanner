@@ -566,11 +566,17 @@ const els = {
   outreachReplyAccountTabs:
     document.querySelector("#outreachReplyAccountTabs"),
 
-  outreachReplyContactToolbar:
-    document.querySelector("#outreachReplyContactToolbar"),
+  outreachReplyPagination:
+    document.querySelector("#outreachReplyPagination"),
 
-  outreachReplyContactSelect:
-    document.querySelector("#outreachReplyContactSelect"),
+  outreachReplyPageMeta:
+    document.querySelector("#outreachReplyPageMeta"),
+
+  outreachReplyPrevPage:
+    document.querySelector("#outreachReplyPrevPage"),
+
+  outreachReplyNextPage:
+    document.querySelector("#outreachReplyNextPage"),
 
   outreachReplyError:
     document.querySelector("#outreachReplyError"),
@@ -680,7 +686,7 @@ const state = {
   outreachReplies: [],
   outreachReplyAccounts: [],
   outreachReplySelectedAccountId: null,
-  outreachReplySelectedContactByAccount: {},
+  outreachReplyPageByAccount: {},
   outreachReplyExpandedIds: new Set(),
   outreachRepliesLoading: false,
   tableErrors: {},
@@ -8410,6 +8416,9 @@ function renderOutreachReplies() {
     els.outreachReplyEmpty.hidden = false;
     els.outreachReplyEmpty.textContent = "Loading verified replies...";
     els.outreachReplyList.hidden = true;
+    if (els.outreachReplyPagination) {
+      els.outreachReplyPagination.hidden = true;
+    }
     return;
   }
 
@@ -8426,39 +8435,42 @@ function renderOutreachReplies() {
         ? "No verified replies have been captured for this account yet."
         : "No verified replies have been captured yet.";
     els.outreachReplyList.hidden = true;
-    if (els.outreachReplyContactToolbar) {
-      els.outreachReplyContactToolbar.hidden = true;
+    if (els.outreachReplyPagination) {
+      els.outreachReplyPagination.hidden = true;
     }
     return;
   }
 
-  const contactOptions = accountReplies.map((reply) => ({
-    key: String(reply.id || reply.linkedin_url || reply.user_name || "").trim(),
-    reply
-  }));
-  const selectedContactKey =
-    state.outreachReplySelectedContactByAccount[selectedAccountId];
-  const activeContact =
-    contactOptions.find((item) => item.key === selectedContactKey) ||
-    contactOptions[0];
-  state.outreachReplySelectedContactByAccount[selectedAccountId] =
-    activeContact.key;
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(accountReplies.length / pageSize));
+  const requestedPage = Number(
+    state.outreachReplyPageByAccount[selectedAccountId] || 1
+  );
+  const currentPage = Math.min(
+    pageCount,
+    Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1)
+  );
+  state.outreachReplyPageByAccount[selectedAccountId] = currentPage;
+  const pageStart = (currentPage - 1) * pageSize;
+  const visibleReplies = accountReplies.slice(pageStart, pageStart + pageSize);
 
-  if (els.outreachReplyContactSelect) {
-    els.outreachReplyContactSelect.replaceChildren();
-    contactOptions.forEach((item) => {
-      const option = document.createElement("option");
-      option.value = item.key;
-      option.textContent = String(item.reply.user_name || "Unknown user");
-      option.selected = item.key === activeContact.key;
-      els.outreachReplyContactSelect.appendChild(option);
-    });
+  if (els.outreachReplyPageMeta) {
+    const firstItem = pageStart + 1;
+    const lastItem = Math.min(pageStart + pageSize, accountReplies.length);
+    els.outreachReplyPageMeta.textContent =
+      `Page ${currentPage} / ${pageCount} · ${firstItem}-${lastItem} of ${accountReplies.length}`;
   }
-  if (els.outreachReplyContactToolbar) {
-    els.outreachReplyContactToolbar.hidden = false;
+  if (els.outreachReplyPrevPage) {
+    els.outreachReplyPrevPage.disabled = currentPage <= 1;
+  }
+  if (els.outreachReplyNextPage) {
+    els.outreachReplyNextPage.disabled = currentPage >= pageCount;
+  }
+  if (els.outreachReplyPagination) {
+    els.outreachReplyPagination.hidden = false;
   }
 
-  const reply = activeContact.reply;
+  visibleReplies.forEach((reply) => {
   const card = document.createElement("article");
   card.className = "outreach-reply-card";
 
@@ -8502,10 +8514,64 @@ function renderOutreachReplies() {
     safeUrl = "";
   }
 
-  const conversationMessages = Array.isArray(reply.conversation_messages)
+  const rawConversationMessages = Array.isArray(reply.conversation_messages)
     ? reply.conversation_messages
     : [];
-  const replyId = String(reply.id || activeContact.key);
+  const conversationMessages = rawConversationMessages.reduce(
+    (messages, rawMessage) => {
+      const message = rawMessage && typeof rawMessage === "object"
+        ? { ...rawMessage }
+        : {};
+      const normalizedText = String(message.text || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .toLocaleLowerCase();
+      const previous = messages[messages.length - 1];
+      const previousText = previous
+        ? String(previous.text || "")
+            .replace(/\s+/g, " ")
+            .trim()
+            .toLocaleLowerCase()
+        : "";
+      const previousTimestamp = String(previous?.timestamp || "").trim();
+      const currentTimestamp = String(message.timestamp || "").trim();
+      const timestampsOverlap =
+        !previousTimestamp ||
+        !currentTimestamp ||
+        previousTimestamp === currentTimestamp ||
+        previousTimestamp.includes(currentTimestamp) ||
+        currentTimestamp.includes(previousTimestamp);
+      const isNestedDuplicate = Boolean(
+        previous &&
+        normalizedText &&
+        normalizedText === previousText &&
+        Boolean(message.is_own_message) ===
+          Boolean(previous.is_own_message) &&
+        Boolean(message.is_incoming) ===
+          Boolean(previous.is_incoming) &&
+        timestampsOverlap
+      );
+
+      if (isNestedDuplicate) {
+        if (
+          currentTimestamp.length > previousTimestamp.length
+        ) {
+          previous.timestamp = currentTimestamp;
+        }
+        if (!previous.author && message.author) {
+          previous.author = message.author;
+        }
+        return messages;
+      }
+
+      messages.push(message);
+      return messages;
+    },
+    []
+  );
+  const replyId = String(
+    reply.id || reply.linkedin_url || reply.user_name || "unknown-reply"
+  );
   const conversationExpanded = state.outreachReplyExpandedIds.has(replyId);
   const conversationHtml = conversationMessages.length
     ? conversationMessages.map((message) => `
@@ -8563,6 +8629,7 @@ function renderOutreachReplies() {
     });
 
   els.outreachReplyList.appendChild(card);
+  });
 
   els.outreachReplyEmpty.hidden = true;
   els.outreachReplyList.hidden = false;
@@ -8582,7 +8649,7 @@ async function loadOutreachReplies() {
 
   try {
     const response = await fetch(
-      "/api/outreach/replies?limit=50",
+      "/api/outreach/replies?limit=100",
       {
         method: "GET",
         headers: { "Accept": "application/json" },
@@ -8724,18 +8791,25 @@ document
     });
   });
 
-els.outreachReplyContactSelect?.addEventListener(
-  "change",
-  () => {
-    const accountId = state.outreachReplySelectedAccountId;
-    if (!accountId) {
-      return;
-    }
-    state.outreachReplySelectedContactByAccount[accountId] =
-      els.outreachReplyContactSelect.value;
-    renderOutreachReplies();
+els.outreachReplyPrevPage?.addEventListener("click", () => {
+  const accountId = state.outreachReplySelectedAccountId;
+  if (!accountId) {
+    return;
   }
-);
+  const currentPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
+  state.outreachReplyPageByAccount[accountId] = Math.max(1, currentPage - 1);
+  renderOutreachReplies();
+});
+
+els.outreachReplyNextPage?.addEventListener("click", () => {
+  const accountId = state.outreachReplySelectedAccountId;
+  if (!accountId) {
+    return;
+  }
+  const currentPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
+  state.outreachReplyPageByAccount[accountId] = currentPage + 1;
+  renderOutreachReplies();
+});
 
 els.killProcessButton?.addEventListener(
   "click",
