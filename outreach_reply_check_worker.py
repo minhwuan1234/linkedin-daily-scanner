@@ -648,6 +648,14 @@ def _scroll_unread_list_to_start(surface: Page | Frame) -> None:
 
 
 def _click_conversation_name(name_locator: Locator) -> bool:
+    # The visible participant-name div itself owns the LinkedIn row click.
+    # Click that exact matched-name node first instead of guessing an ancestor.
+    if _click_locator(name_locator):
+        logger.info(
+            "CONVERSATION CLICK EVIDENCE | strategy=matched-name-node"
+        )
+        return True
+
     ancestor_selectors = (
         'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]',
         (
@@ -668,6 +676,10 @@ def _click_conversation_name(name_locator: Locator) -> bool:
                 continue
             candidate = candidate.first
             if _is_visible(candidate) and _click_locator(candidate):
+                logger.info(
+                    "CONVERSATION CLICK EVIDENCE | strategy=ancestor | selector=%s",
+                    selector,
+                )
                 return True
         except Exception:
             continue
