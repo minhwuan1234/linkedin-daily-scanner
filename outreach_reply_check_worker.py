@@ -59,6 +59,7 @@ UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__convo-list",
     ".msg-conversations-container__conversations-list-container",
 )
+FUZZY_MATCH_THRESHOLD = 0.90
 
 
 def _is_visible(locator: Locator, *, timeout_ms: int = 500) -> bool:
@@ -470,6 +471,46 @@ def log_sent_name_matches(
             reverse=True,
         )[:3]
 
+        best_profile = ranked_profiles[0] if ranked_profiles else None
+        best_similarity = (
+            SequenceMatcher(
+                None,
+                normalized_unread_name,
+                str(best_profile.get("normalized_name") or ""),
+            ).ratio()
+            if best_profile is not None
+            else 0.0
+        )
+
+        if (
+            best_profile is not None
+            and best_similarity > FUZZY_MATCH_THRESHOLD
+        ):
+            matched_count += 1
+            logger.warning(
+                (
+                    "REPLY MATCH | reason=fuzzy_similarity_above_threshold | "
+                    "threshold=>%.2f | similarity=%.3f | "
+                    "unread_name=%s | unread_normalized=%s | "
+                    "db_target_id=%s | db_prospect_id=%s | "
+                    "db_account_id=%s | db_status=%s | "
+                    "db_completed_at=%s | db_linkedin_url=%s | "
+                    "db_derived_name=%s"
+                ),
+                FUZZY_MATCH_THRESHOLD,
+                best_similarity,
+                unread_name,
+                normalized_unread_name,
+                best_profile.get("id"),
+                best_profile.get("prospect_id"),
+                best_profile.get("assigned_account_id"),
+                best_profile.get("status"),
+                best_profile.get("completed_at"),
+                best_profile.get("linkedin_url"),
+                best_profile.get("normalized_name"),
+            )
+            continue
+
         nearest_evidence = [
             {
                 "target_id": profile.get("id"),
@@ -494,12 +535,15 @@ def log_sent_name_matches(
         logger.warning(
             (
                 "NO REPLY MATCH | "
-                "reason=no_exact_normalized_name_in_sent_database_rows | "
+                "reason=no_exact_match_and_best_similarity_not_above_threshold | "
                 "unread_name=%s | unread_normalized=%s | "
+                "required_similarity=>%.2f | best_similarity=%.3f | "
                 "db_sent_row_count=%s | nearest_db_evidence=%s"
             ),
             unread_name,
             normalized_unread_name,
+            FUZZY_MATCH_THRESHOLD,
+            best_similarity,
             len(sent_profiles),
             nearest_evidence,
         )
