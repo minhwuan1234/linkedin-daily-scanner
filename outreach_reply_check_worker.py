@@ -1050,6 +1050,47 @@ def read_incoming_reply_messages(
             }
         )
 
+    deduplicated_events: list[dict] = []
+    for event in events:
+        previous = (
+            deduplicated_events[-1]
+            if deduplicated_events
+            else None
+        )
+        event_text = " ".join(
+            str(event.get("text") or "").casefold().split()
+        )
+        previous_text = " ".join(
+            str((previous or {}).get("text") or "").casefold().split()
+        )
+        same_nested_message = bool(
+            previous
+            and event_text
+            and event_text == previous_text
+            and bool(event.get("is_own_message"))
+            == bool(previous.get("is_own_message"))
+        )
+
+        if same_nested_message:
+            current_timestamp = str(event.get("timestamp") or "").strip()
+            previous_timestamp = str(
+                previous.get("timestamp") or ""
+            ).strip()
+            if len(current_timestamp) > len(previous_timestamp):
+                previous["timestamp"] = current_timestamp
+            if not previous.get("author") and event.get("author"):
+                previous["author"] = event.get("author")
+            previous["is_incoming"] = bool(
+                previous.get("is_incoming") or event.get("is_incoming")
+            )
+            continue
+
+        copied_event = dict(event)
+        copied_event["index"] = len(deduplicated_events)
+        deduplicated_events.append(copied_event)
+
+    events = deduplicated_events
+
     last_sent_index = -1
     for event in events:
         if event["is_own_message"]:

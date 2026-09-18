@@ -8485,7 +8485,7 @@ function renderOutreachReplies() {
 
   if (rawReplyTime) {
     const hasDateEvidence =
-      /\d{4}-\d{2}-\d{2}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i
+      /\d{4}-\d{2}-\d{2}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|yesterday)\b/i
         .test(rawReplyTime);
     if (hasDateEvidence) {
       replyTime = rawReplyTime;
@@ -8535,21 +8535,12 @@ function renderOutreachReplies() {
         : "";
       const previousTimestamp = String(previous?.timestamp || "").trim();
       const currentTimestamp = String(message.timestamp || "").trim();
-      const timestampsOverlap =
-        !previousTimestamp ||
-        !currentTimestamp ||
-        previousTimestamp === currentTimestamp ||
-        previousTimestamp.includes(currentTimestamp) ||
-        currentTimestamp.includes(previousTimestamp);
       const isNestedDuplicate = Boolean(
         previous &&
         normalizedText &&
         normalizedText === previousText &&
         Boolean(message.is_own_message) ===
-          Boolean(previous.is_own_message) &&
-        Boolean(message.is_incoming) ===
-          Boolean(previous.is_incoming) &&
-        timestampsOverlap
+          Boolean(previous.is_own_message)
       );
 
       if (isNestedDuplicate) {
@@ -8561,6 +8552,9 @@ function renderOutreachReplies() {
         if (!previous.author && message.author) {
           previous.author = message.author;
         }
+        previous.is_incoming = Boolean(
+          previous.is_incoming || message.is_incoming
+        );
         return messages;
       }
 
@@ -8577,7 +8571,7 @@ function renderOutreachReplies() {
     ? conversationMessages.map((message) => `
         <article class="outreach-conversation-message ${message.is_own_message ? "is-own" : "is-incoming"}">
           <div class="outreach-conversation-message-meta">
-            <strong>${escapeHtml(message.author || (message.is_own_message ? accountName : userName))}</strong>
+            <strong>${escapeHtml(message.is_own_message ? accountName : userName)}</strong>
             <span>${escapeHtml(message.timestamp || "")}</span>
           </div>
           <p>${escapeHtml(message.text || "")}</p>
