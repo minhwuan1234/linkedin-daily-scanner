@@ -150,16 +150,13 @@ def open_unread(page: Page) -> None:
 
     try:
         unread_button = page.locator(
-            "button"
-        ).filter(
-            has_text="Unread"
+            'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]'
         ).first
 
         unread_button.wait_for(
-            state="visible",
+            state="attached",
             timeout=30_000,
         )
-        unread_button.scroll_into_view_if_needed()
 
         if (
             unread_button.get_attribute("aria-pressed") == "true"
@@ -167,8 +164,22 @@ def open_unread(page: Page) -> None:
         ):
             logger.info("Unread filter is already selected")
         else:
-            unread_button.click()
-            logger.info("Clicked Unread")
+            unread_button.evaluate("element => element.click()")
+            logger.info("Clicked Unread with native DOM click")
+
+            page.wait_for_function(
+                """
+                selector => {
+                    const element = document.querySelector(selector);
+                    return Boolean(element) && (
+                        element.getAttribute('aria-pressed') === 'true' ||
+                        element.getAttribute('aria-checked') === 'true'
+                    );
+                }
+                """,
+                'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]',
+                timeout=30_000,
+            )
     except Exception:
         _click_first_visible(
             page,
