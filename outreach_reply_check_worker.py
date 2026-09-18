@@ -928,8 +928,13 @@ def _visible_exact_text(page: Page, text_value: str) -> Locator | None:
     return None
 
 
-def _find_overflow_beside_star(page: Page) -> Locator:
-    """Find the active-thread overflow button immediately before Star."""
+def _find_overflow_beside_star(
+    page: Page,
+    unread_name: str,
+) -> Locator:
+    """Find the thread menu whose accessible label names this profile."""
+
+    normalized_target = _normalize_name(unread_name)
 
     # Current LinkedIn DOM exposes the active-thread menu directly as:
     # button.msg-thread-actions__control.artdeco-dropdown__trigger
@@ -942,14 +947,31 @@ def _find_overflow_beside_star(page: Page) -> Locator:
                 candidate = candidates.nth(index)
                 if not _is_visible(candidate):
                     continue
+
+                hidden_text = " ".join(candidate.inner_text().split())
+                normalized_hidden_text = _normalize_name(hidden_text)
+                if normalized_target not in normalized_hidden_text:
+                    logger.info(
+                        (
+                            "THREAD MENU SKIPPED | target=%s | "
+                            "reason=accessible_name_does_not_match | "
+                            "candidate_text=%s"
+                        ),
+                        unread_name,
+                        hidden_text,
+                    )
+                    continue
+
                 logger.info(
                     (
                         "THREAD MENU DOM EVIDENCE | strategy=direct-control | "
-                        "selector=%s | aria_expanded=%s | hidden_text=%s"
+                        "target=%s | selector=%s | aria_expanded=%s | "
+                        "hidden_text=%s"
                     ),
+                    unread_name,
                     selector,
                     candidate.get_attribute("aria-expanded"),
-                    " ".join(candidate.inner_text().split()),
+                    hidden_text,
                 )
                 return candidate
         except Exception:
@@ -967,14 +989,22 @@ def _find_overflow_beside_star(page: Page) -> Locator:
                     "xpath=preceding-sibling::button[1]"
                 )
                 if previous.count() > 0 and _is_visible(previous.first):
+                    hidden_text = " ".join(
+                        previous.first.inner_text().split()
+                    )
+                    if normalized_target not in _normalize_name(hidden_text):
+                        continue
                     logger.info(
                         (
                             "THREAD MENU DOM EVIDENCE | strategy=button-before-star | "
-                            "star_selector=%s | overflow_aria=%s | overflow_title=%s"
+                            "target=%s | star_selector=%s | overflow_aria=%s | "
+                            "overflow_title=%s | hidden_text=%s"
                         ),
+                        unread_name,
                         selector,
                         previous.first.get_attribute("aria-label"),
                         previous.first.get_attribute("title"),
+                        hidden_text,
                     )
                     return previous.first
 
@@ -995,27 +1025,37 @@ def _find_overflow_beside_star(page: Page) -> Locator:
                         ).casefold()
                     except Exception:
                         continue
-                    if icon_count > 0 or "more" in aria_label:
+                    hidden_text = " ".join(button.inner_text().split())
+                    target_matches = (
+                        normalized_target in _normalize_name(hidden_text)
+                    )
+                    if target_matches and (
+                        icon_count > 0 or "more" in aria_label
+                    ):
                         logger.info(
                             (
                                 "THREAD MENU DOM EVIDENCE | "
                                 "strategy=star-parent-overflow | "
-                                "star_selector=%s | overflow_aria=%s"
+                                "target=%s | star_selector=%s | "
+                                "overflow_aria=%s | hidden_text=%s"
                             ),
+                            unread_name,
                             selector,
                             aria_label,
+                            hidden_text,
                         )
                         return button
         except Exception:
             continue
 
     raise RuntimeError(
-        "Active-thread overflow button beside Star was not found."
+        "Active-thread overflow button was not found for "
+        f"{unread_name!r}."
     )
 
 
-def _open_thread_overflow_menu(page: Page) -> None:
-    overflow = _find_overflow_beside_star(page)
+def _open_thread_overflow_menu(page: Page, unread_name: str) -> None:
+    overflow = _find_overflow_beside_star(page, unread_name)
     if not _click_locator(overflow):
         raise RuntimeError("Could not click thread overflow beside Star.")
 
@@ -1036,7 +1076,7 @@ def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
     """Restore unread state and verify menu changes to Mark as read."""
 
     page.wait_for_timeout(BEFORE_THREAD_MENU_MS)
-    _open_thread_overflow_menu(page)
+    _open_thread_overflow_menu(page, unread_name)
 
     mark_unread = _visible_exact_text(page, "Mark as unread")
     if mark_unread is not None:
@@ -1062,7 +1102,7 @@ def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
     verified = False
     for _ in range(5):
         page.wait_for_timeout(THREAD_MENU_SETTLE_MS)
-        _open_thread_overflow_menu(page)
+        _open_thread_overflow_menu(page, unread_name)
         if _visible_exact_text(page, "Mark as read") is not None:
             verified = True
             page.keyboard.press("Escape")
