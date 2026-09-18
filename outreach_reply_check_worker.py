@@ -64,6 +64,11 @@ UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__conversations-list-container",
 )
 FUZZY_MATCH_THRESHOLD = 0.70
+CONVERSATION_SETTLE_MS = 2_500
+BEFORE_THREAD_MENU_MS = 1_200
+THREAD_MENU_SETTLE_MS = 700
+MARK_UNREAD_SETTLE_MS = 2_000
+BETWEEN_CONVERSATIONS_MS = 1_500
 MESSAGE_BODY_SELECTORS = (
     ".msg-s-event-listitem__body",
     ".msg-s-message-group__message-bubble",
@@ -706,10 +711,14 @@ def open_matched_conversation(page: Page, unread_name: str) -> None:
                 raise RuntimeError(
                     f"Conversation row click failed for {unread_name!r}."
                 )
-            page.wait_for_timeout(1_000)
+            page.wait_for_timeout(CONVERSATION_SETTLE_MS)
             logger.info(
-                "Opened matched conversation | unread_name=%s | url=%s",
+                (
+                    "Opened matched conversation | unread_name=%s | "
+                    "settle_ms=%s | url=%s"
+                ),
                 unread_name,
+                CONVERSATION_SETTLE_MS,
                 page.url,
             )
             return
@@ -1010,6 +1019,8 @@ def _open_thread_overflow_menu(page: Page) -> None:
     if not _click_locator(overflow):
         raise RuntimeError("Could not click thread overflow beside Star.")
 
+    page.wait_for_timeout(THREAD_MENU_SETTLE_MS)
+
     for _ in range(30):
         if (
             _visible_exact_text(page, "Mark as unread") is not None
@@ -1024,13 +1035,19 @@ def _open_thread_overflow_menu(page: Page) -> None:
 def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
     """Restore unread state and verify menu changes to Mark as read."""
 
+    page.wait_for_timeout(BEFORE_THREAD_MENU_MS)
     _open_thread_overflow_menu(page)
 
     mark_unread = _visible_exact_text(page, "Mark as unread")
     if mark_unread is not None:
         if not _click_locator(mark_unread):
             raise RuntimeError("Could not click exact Mark as unread item.")
-        page.wait_for_timeout(600)
+        logger.info(
+            "Clicked Mark as unread | unread_name=%s | settle_ms=%s",
+            unread_name,
+            MARK_UNREAD_SETTLE_MS,
+        )
+        page.wait_for_timeout(MARK_UNREAD_SETTLE_MS)
     else:
         already_unread = _visible_exact_text(page, "Mark as read")
         if already_unread is not None:
@@ -1044,7 +1061,7 @@ def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
 
     verified = False
     for _ in range(5):
-        page.wait_for_timeout(500)
+        page.wait_for_timeout(THREAD_MENU_SETTLE_MS)
         _open_thread_overflow_menu(page)
         if _visible_exact_text(page, "Mark as read") is not None:
             verified = True
@@ -1135,6 +1152,13 @@ def process_matched_conversations(
                         unread_name,
                         exc,
                     )
+
+                page.wait_for_timeout(BETWEEN_CONVERSATIONS_MS)
+                logger.info(
+                    "Conversation cycle settled | unread_name=%s | wait_ms=%s",
+                    unread_name,
+                    BETWEEN_CONVERSATIONS_MS,
+                )
 
     return processed_count
 
