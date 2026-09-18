@@ -58,6 +58,11 @@ from app.outreach_session_status import (
     queue_outreach_session_checks,
 )
 
+from app.outreach_reply_store import (
+    OutreachReplyStoreError,
+    list_recent_outreach_replies,
+)
+
 
 
 # =========================================================
@@ -1837,6 +1842,52 @@ async def get_outreach_acceptance_insights_api(
         content={
             "ok": True,
             "insights": insights,
+        },
+    )
+
+
+# =========================================================
+# OUTREACH REPLIES API
+# =========================================================
+
+
+@app.get("/api/outreach/replies")
+async def list_outreach_replies_api(
+    limit: int = 5,
+) -> JSONResponse:
+    """Read the newest reply for each of the latest Outreach contacts."""
+
+    try:
+        replies = list_recent_outreach_replies(
+            limit=limit,
+        )
+    except OutreachReplyStoreError as exc:
+        logger.exception("Could not load Outreach replies")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach replies",
+                "detail": str(exc),
+            },
+        )
+    except Exception as exc:
+        logger.exception("Unexpected Outreach replies error")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected error while loading Outreach replies",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "count": len(replies),
+            "replies": replies,
         },
     )
 

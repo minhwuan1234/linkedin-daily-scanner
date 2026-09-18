@@ -557,6 +557,21 @@ const els = {
   messageSendConfirmButton:
     document.querySelector("#messageSendConfirmButton"),
 
+  outreachReplyTabCount:
+    document.querySelector("#outreachReplyTabCount"),
+
+  outreachReplyCount:
+    document.querySelector("#outreachReplyCount"),
+
+  outreachReplyError:
+    document.querySelector("#outreachReplyError"),
+
+  outreachReplyEmpty:
+    document.querySelector("#outreachReplyEmpty"),
+
+  outreachReplyList:
+    document.querySelector("#outreachReplyList"),
+
   pageEyebrow:
     document.querySelector("#pageEyebrow"),
 
@@ -653,6 +668,8 @@ const state = {
   messagePrepareConfirmMode: null,
   messageBatchQueueSubmittingIds: new Set(),
   messageSendSelectedBatchId: null,
+  outreachReplies: [],
+  outreachRepliesLoading: false,
   tableErrors: {},
   commandPending: false
 };
@@ -8286,6 +8303,141 @@ function closeDrawer() {
   document.body.style.overflow = "";
 }
 
+function renderOutreachReplies() {
+  const replies = Array.isArray(state.outreachReplies)
+    ? state.outreachReplies.slice(0, 5)
+    : [];
+
+  if (els.outreachReplyTabCount) {
+    els.outreachReplyTabCount.textContent = String(replies.length);
+  }
+
+  if (els.outreachReplyCount) {
+    els.outreachReplyCount.textContent = state.outreachRepliesLoading
+      ? "Loading"
+      : `${replies.length} ${replies.length === 1 ? "person" : "people"}`;
+  }
+
+  if (!els.outreachReplyList || !els.outreachReplyEmpty) {
+    return;
+  }
+
+  els.outreachReplyList.replaceChildren();
+
+  if (state.outreachRepliesLoading) {
+    els.outreachReplyEmpty.hidden = false;
+    els.outreachReplyEmpty.textContent = "Loading verified replies...";
+    els.outreachReplyList.hidden = true;
+    return;
+  }
+
+  if (!replies.length) {
+    els.outreachReplyEmpty.hidden = false;
+    els.outreachReplyEmpty.textContent =
+      "No verified replies have been captured yet.";
+    els.outreachReplyList.hidden = true;
+    return;
+  }
+
+  replies.forEach((reply) => {
+    const card = document.createElement("article");
+    card.className = "outreach-reply-card";
+
+    const userName = String(reply.user_name || "Unknown LinkedIn user").trim();
+    const sentTargetId = String(reply.sent_target_id || "—").trim();
+    const linkedInUrl = String(reply.linkedin_url || "").trim();
+    const messageText = String(reply.message_text || "").trim();
+    const accountId = String(reply.assigned_account_id || "—").trim();
+    const capturedAt = reply.captured_at
+      ? formatDate(reply.captured_at)
+      : "Capture time unavailable";
+
+    let safeUrl = "";
+    try {
+      const parsedUrl = new URL(linkedInUrl);
+      if (parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:") {
+        safeUrl = parsedUrl.href;
+      }
+    } catch (error) {
+      safeUrl = "";
+    }
+
+    card.innerHTML = `
+      <div class="outreach-reply-main">
+        <div class="outreach-reply-title-row">
+          <h3>${escapeHtml(userName)}</h3>
+          <span class="outreach-reply-sent-id">Sent ID ${escapeHtml(sentTargetId)}</span>
+        </div>
+        <div class="outreach-reply-meta">
+          ${safeUrl
+            ? `<a class="outreach-reply-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkedInUrl)}</a>`
+            : `<span>${escapeHtml(linkedInUrl || "LinkedIn URL unavailable")}</span>`}
+          <span>${escapeHtml(accountId)}</span>
+          <span>${escapeHtml(capturedAt)}</span>
+        </div>
+        <p class="outreach-reply-message">${escapeHtml(messageText || "No message content captured.")}</p>
+      </div>
+      <div class="outreach-reply-actions">
+        <button
+          class="secondary-button outreach-reply-button"
+          type="button"
+          disabled
+          title="Reply sending will be implemented in a later step"
+        >Reply · Coming soon</button>
+      </div>
+    `;
+
+    els.outreachReplyList.appendChild(card);
+  });
+
+  els.outreachReplyEmpty.hidden = true;
+  els.outreachReplyList.hidden = false;
+}
+
+async function loadOutreachReplies() {
+  if (state.outreachRepliesLoading) {
+    return;
+  }
+
+  state.outreachRepliesLoading = true;
+  if (els.outreachReplyError) {
+    els.outreachReplyError.hidden = true;
+    els.outreachReplyError.textContent = "";
+  }
+  renderOutreachReplies();
+
+  try {
+    const response = await fetch(
+      "/api/outreach/replies?limit=5",
+      {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      }
+    );
+    const result = await response.json();
+
+    if (!response.ok || !result.ok) {
+      throw new Error(
+        result.detail || result.error || "Could not load Outreach replies."
+      );
+    }
+
+    state.outreachReplies = Array.isArray(result.replies)
+      ? result.replies.slice(0, 5)
+      : [];
+  } catch (error) {
+    state.outreachReplies = [];
+    if (els.outreachReplyError) {
+      els.outreachReplyError.textContent = error.message || String(error);
+      els.outreachReplyError.hidden = false;
+    }
+  } finally {
+    state.outreachRepliesLoading = false;
+    renderOutreachReplies();
+  }
+}
+
 function switchTab(tabName) {
   document
     .querySelectorAll(".tab-button")
@@ -8333,6 +8485,11 @@ function switchTab(tabName) {
       eyebrow: "Outreach",
       title: "Connect & Messaging",
       subtitle: "Connect profiles, check acceptance, and prepare recipients for messaging."
+    },
+    replies: {
+      eyebrow: "Outreach",
+      title: "Message Replies",
+      subtitle: "Review verified LinkedIn replies captured by the Reply Check Worker."
     },
     health: {
       eyebrow: "System",
@@ -8382,6 +8539,10 @@ document
 
       if (button.dataset.tab === "profiles") {
         void loadOutreachProfiles();
+      }
+
+      if (button.dataset.tab === "replies") {
+        void loadOutreachReplies();
       }
     });
   });
@@ -9115,7 +9276,14 @@ document.addEventListener(
 
 els.refreshButton?.addEventListener(
   "click",
-  loadOutreachDashboard
+  () => {
+    void loadOutreachDashboard();
+
+    const repliesPanel = document.querySelector("#tab-replies");
+    if (repliesPanel && !repliesPanel.hidden) {
+      void loadOutreachReplies();
+    }
+  }
 );
 
 els.searchInput?.addEventListener(
@@ -9569,9 +9737,14 @@ if (initialUiSettings.rememberLastSection) {
   );
 
   if (
-    savedTab === "outreach"
+    savedTab === "outreach" ||
+    savedTab === "replies"
   ) {
     switchTab(savedTab);
+
+    if (savedTab === "replies") {
+      void loadOutreachReplies();
+    }
   }
 }
 

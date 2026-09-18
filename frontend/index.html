@@ -13,8 +13,8 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260916-outreach-week-index-2" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260916-stripe-rebuild-6" />
+  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-1" />
+    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-1" />
 </head>
 
 <body>
@@ -35,6 +35,12 @@
           <button class="tab-button is-active" type="button" data-tab="outreach">
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg></span>
             <span class="sidebar-nav-text">Connect & Messaging</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="replies">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9A2.5 2.5 0 0 1 17.5 17H10l-5 4v-4.8A2.5 2.5 0 0 1 4 14.5z"/><path d="M8 8h8M8 12h5"/></svg></span>
+            <span class="sidebar-nav-text">Replies</span>
+            <span id="outreachReplyTabCount" class="tab-count">0</span>
           </button>
 
 
@@ -1587,6 +1593,28 @@
   </section>
 </section>
 
+    <!-- OUTREACH REPLIES -->
+    <section id="tab-replies" class="tab-panel" hidden>
+      <article class="panel outreach-replies-panel">
+        <div class="panel-header outreach-replies-header">
+          <div>
+            <p class="panel-kicker">Reply check worker</p>
+            <h2>Latest Replies</h2>
+            <p class="panel-meta">
+              Latest verified replies captured by the dedicated LinkedIn reply worker.
+            </p>
+          </div>
+          <span id="outreachReplyCount" class="pill pill-neutral">0 people</span>
+        </div>
+
+        <div id="outreachReplyError" class="outreach-error" hidden></div>
+        <div id="outreachReplyEmpty" class="state">
+          No verified replies have been captured yet.
+        </div>
+        <div id="outreachReplyList" class="outreach-reply-list" hidden></div>
+      </article>
+    </section>
+
     <!-- HEALTH -->
     <section id="tab-health" class="tab-panel" hidden>
       <section class="health-grid">
@@ -2086,6 +2114,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260916-outreach-week-history-modal-4"></script>
+  <script src="./app.js?v=20260918-outreach-replies-1"></script>
 </body>
 </html>

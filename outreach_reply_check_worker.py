@@ -31,6 +31,7 @@ from playwright.sync_api import Frame, Locator, Page
 
 from app.outreach_account_pool import OutreachAccountPool
 from app.outreach_message_executor import get_outreach_supabase_client
+from app.outreach_reply_store import save_outreach_reply
 
 
 DEFAULT_ACCOUNT_ID = "outreach_account_02"
@@ -1123,6 +1124,8 @@ def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
 def process_matched_conversations(
     page: Page,
     matched_profiles: list[dict],
+    *,
+    client,
 ) -> int:
     """Read matched replies and always attempt to restore unread state."""
 
@@ -1169,6 +1172,49 @@ def process_matched_conversations(
                         match.get("match_reason"),
                         float(match.get("similarity") or 0.0),
                     )
+
+                    try:
+                        stored_reply = save_outreach_reply(
+                            sent_target_id=str(sent_profile.get("id") or ""),
+                            prospect_id=str(
+                                sent_profile.get("prospect_id") or ""
+                            ),
+                            assigned_account_id=str(
+                                sent_profile.get("assigned_account_id") or ""
+                            ),
+                            user_name=unread_name,
+                            linkedin_url=str(
+                                sent_profile.get("linkedin_url") or ""
+                            ),
+                            message_text=str(reply.get("text") or ""),
+                            linkedin_message_time=str(
+                                reply.get("timestamp") or ""
+                            ),
+                            match_reason=str(match.get("match_reason") or ""),
+                            match_similarity=float(
+                                match.get("similarity") or 0.0
+                            ),
+                            client=client,
+                        )
+                        logger.info(
+                            (
+                                "REPLY STORED | reply_id=%s | "
+                                "sent_target_id=%s | user_name=%s"
+                            ),
+                            stored_reply.get("id"),
+                            sent_profile.get("id"),
+                            unread_name,
+                        )
+                    except Exception as exc:
+                        logger.exception(
+                            (
+                                "REPLY STORE FAILED | sent_target_id=%s | "
+                                "user_name=%s | error=%s"
+                            ),
+                            sent_profile.get("id"),
+                            unread_name,
+                            exc,
+                        )
 
             processed_count += 1
 
@@ -1400,6 +1446,7 @@ def run_once(account_id: str) -> None:
         processed_count = process_matched_conversations(
             page,
             matched_profiles,
+            client=client,
         )
 
         print("")
