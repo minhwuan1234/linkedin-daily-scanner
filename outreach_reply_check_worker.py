@@ -1,13 +1,14 @@
-"""Open LinkedIn Messaging > Unread for the reply-check worker.
+"""Scan LinkedIn Messaging > Unread for replies to sent outreach messages.
 
-Phase 1 only:
+Flow:
     1. Open the selected Outreach LinkedIn profile.
-    2. Open LinkedIn Messaging.
-    3. Click Unread.
+    2. Open LinkedIn Messaging and select Unread.
+    3. Read sender-name nodes only, without opening conversations.
+    4. Compare those names with successfully sent targets for the account.
+    5. Log exact matches without writing back to Supabase.
 
-This worker deliberately does not read or write Supabase yet.  It also does
-not inspect conversations or send messages.  Keep other workers from using
-the same persistent browser profile while this worker is running.
+Keep other workers from using the same persistent browser profile while this
+worker is running.
 """
 
 from __future__ import annotations
@@ -15,12 +16,16 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+import re
 import time
+import unicodedata
 from collections.abc import Callable
+from urllib.parse import unquote, urlparse
 
 from playwright.sync_api import Frame, Locator, Page
 
 from app.outreach_account_pool import OutreachAccountPool
+from app.outreach_message_executor import get_outreach_supabase_client
 
 
 DEFAULT_ACCOUNT_ID = "outreach_account_02"
@@ -34,6 +39,24 @@ UNREAD_SELECTOR = (
 )
 UNREAD_CONTAINER_SELECTOR = (
     "div.msg-conversations-container__title-row"
+)
+UNREAD_NAME_SELECTORS = (
+    ".msg-conversation-listitem__participant-names",
+    ".msg-conversation-card__participant-names",
+    ".msg-conversation-listitem__participant-name",
+    (
+        ".msg-conversations-container__conversations-list "
+        '[data-anonymize="person-name"]'
+    ),
+    (
+        ".msg-conversations-container__convo-list "
+        '[data-anonymize="person-name"]'
+    ),
+)
+UNREAD_LIST_SELECTORS = (
+    ".msg-conversations-container__conversations-list",
+    ".msg-conversations-container__convo-list",
+    ".msg-conversations-container__conversations-list-container",
 )
 
 
@@ -158,6 +181,255 @@ def _log_unread_diagnostics(page: Page) -> None:
                 )
             except Exception:
                 continue
+
+
+def _normalize_name(value: object) -> str:
+    """Normalize accents, punctuation and whitespace for exact matching."""
+
+    decomposed = unicodedata.normalize(
+        "NFKD",
+        str(value or "").strip(),
+    )
+    ascii_text = "".join(
+        character
+        for character in decomposed
+        if not unicodedata.combining(character)
+    )
+    words = re.findall(r"[a-z0-9]+", ascii_text.casefold())
+    return " ".join(words)
+
+
+def _profile_name_from_linkedin_url(linkedin_url: object) -> str:
+    """Derive a conservative full-name candidate from a public /in/ slug."""
+
+    cleaned_url = str(linkedin_url or "").strip()
+    if not cleaned_url:
+        return ""
+
+    try:
+        path_parts = [
+            part
+            for part in urlparse(cleaned_url).path.split("/")
+            if part
+        ]
+    except Exception:
+        return ""
+
+    if len(path_parts) < 2 or path_parts[0].casefold() != "in":
+        return ""
+
+    slug = unquote(path_parts[1]).strip().strip("-")
+
+    # LinkedIn commonly appends a long numeric/hex identity token to a
+    # readable profile slug. Remove only tokens that clearly look generated.
+    slug = re.sub(
+        r"(?:-[0-9]+)?-(?=[0-9a-z]*[0-9])[0-9a-z]{7,}$",
+        "",
+        slug,
+        flags=re.IGNORECASE,
+    )
+
+    return _normalize_name(slug.replace("-", " "))
+
+
+def load_sent_message_profiles(
+    *,
+    account_id: str,
+    client=None,
+) -> list[dict]:
+    """Load only successfully sent targets for the active LinkedIn account."""
+
+    active_client = client or get_outreach_supabase_client()
+    response = (
+        active_client.table("outreach_message_targets")
+        .select(
+            "id,prospect_id,assigned_account_id,linkedin_url,status,completed_at"
+        )
+        .eq("status", "sent")
+        .eq("assigned_account_id", str(account_id).strip())
+        .execute()
+    )
+
+    sent_profiles: list[dict] = []
+
+    for raw_row in list(response.data or []):
+        row = dict(raw_row)
+        normalized_name = _profile_name_from_linkedin_url(
+            row.get("linkedin_url")
+        )
+        if not normalized_name:
+            continue
+        row["normalized_name"] = normalized_name
+        sent_profiles.append(row)
+
+    logger.info(
+        "Loaded sent message profiles | account=%s | count=%s",
+        account_id,
+        len(sent_profiles),
+    )
+    return sent_profiles
+
+
+def _read_visible_unread_names(surface: Page | Frame) -> list[str]:
+    """Read name nodes only; never read message previews or open a thread."""
+
+    names: list[str] = []
+
+    for selector in UNREAD_NAME_SELECTORS:
+        try:
+            candidates = surface.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+                if not _is_visible(candidate):
+                    continue
+                name = " ".join(candidate.inner_text().split())
+                if name and name not in names:
+                    names.append(name)
+        except Exception:
+            continue
+
+    return names
+
+
+def _scroll_unread_list(surface: Page | Frame) -> dict:
+    """Scroll only the conversation list so lazy-loaded unread names appear."""
+
+    return surface.evaluate(
+        """
+        ({listSelectors, nameSelectors}) => {
+            let container = null;
+
+            for (const selector of listSelectors) {
+                const candidate = document.querySelector(selector);
+                if (candidate && candidate.scrollHeight > candidate.clientHeight) {
+                    container = candidate;
+                    break;
+                }
+            }
+
+            if (!container) {
+                const nameNode = document.querySelector(nameSelectors.join(','));
+                let candidate = nameNode ? nameNode.parentElement : null;
+
+                while (candidate) {
+                    const style = window.getComputedStyle(candidate);
+                    const canScroll =
+                        (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+                        candidate.scrollHeight > candidate.clientHeight;
+                    if (canScroll) {
+                        container = candidate;
+                        break;
+                    }
+                    candidate = candidate.parentElement;
+                }
+            }
+
+            if (!container) {
+                return {found: false, atBottom: true, top: 0};
+            }
+
+            const before = container.scrollTop;
+            container.scrollTop = Math.min(
+                container.scrollTop + Math.max(container.clientHeight * 0.8, 240),
+                container.scrollHeight
+            );
+            container.dispatchEvent(new Event('scroll', {bubbles: true}));
+
+            const maximum = Math.max(
+                0,
+                container.scrollHeight - container.clientHeight
+            );
+
+            return {
+                found: true,
+                atBottom: container.scrollTop >= maximum - 2,
+                top: container.scrollTop,
+                moved: container.scrollTop !== before
+            };
+        }
+        """,
+        {
+            "listSelectors": list(UNREAD_LIST_SELECTORS),
+            "nameSelectors": list(UNREAD_NAME_SELECTORS),
+        },
+    )
+
+
+def scan_unread_names(page: Page) -> list[str]:
+    """Collect all currently listed Unread sender names without opening them."""
+
+    surface = _find_unread_surface(page)
+    if surface is None:
+        _log_unread_diagnostics(page)
+        raise RuntimeError("Unread filter surface disappeared before scanning.")
+
+    names: list[str] = []
+    bottom_passes = 0
+
+    for _ in range(40):
+        before_count = len(names)
+
+        for name in _read_visible_unread_names(surface):
+            if name not in names:
+                names.append(name)
+
+        scroll_state = _scroll_unread_list(surface)
+        at_bottom = bool(scroll_state.get("atBottom"))
+
+        if at_bottom and len(names) == before_count:
+            bottom_passes += 1
+        else:
+            bottom_passes = 0
+
+        if bottom_passes >= 2:
+            break
+
+        page.wait_for_timeout(500)
+
+    logger.info(
+        "Unread names scanned | count=%s | names=%s",
+        len(names),
+        names,
+    )
+    return names
+
+
+def log_sent_name_matches(
+    *,
+    unread_names: list[str],
+    sent_profiles: list[dict],
+) -> int:
+    """Log exact normalized full-name matches against sent targets."""
+
+    sent_by_name: dict[str, list[dict]] = {}
+    for sent_profile in sent_profiles:
+        normalized_name = str(
+            sent_profile.get("normalized_name") or ""
+        ).strip()
+        if normalized_name:
+            sent_by_name.setdefault(normalized_name, []).append(sent_profile)
+
+    matched_count = 0
+
+    for unread_name in unread_names:
+        normalized_unread_name = _normalize_name(unread_name)
+        matches = sent_by_name.get(normalized_unread_name, [])
+        if not matches:
+            continue
+
+        matched_count += 1
+        logger.warning(
+            "REPLY MATCH | unread_name=%s | sent_target_ids=%s",
+            unread_name,
+            [str(match.get("id") or "") for match in matches],
+        )
+
+    logger.info(
+        "Reply-check summary | unread_names=%s | matched_sent_names=%s",
+        len(unread_names),
+        matched_count,
+    )
+    return matched_count
 
 
 def _click_first_visible(
@@ -327,11 +599,12 @@ def open_unread(page: Page) -> None:
 
 
 def run_once(account_id: str) -> None:
-    """Run the phase-one navigation for one Outreach account."""
+    """Open Unread and report names that match successfully sent targets."""
 
     pool = OutreachAccountPool()
     account = pool.get_account(account_id)
     browser = account.create_browser_manager()
+    client = get_outreach_supabase_client()
 
     logger.info(
         "Starting reply-check worker | account=%s | profile=%s",
@@ -344,10 +617,21 @@ def run_once(account_id: str) -> None:
         page = browser.open_linkedin_url(LINKEDIN_HOME_URL)
         page = open_messaging(page)
         open_unread(page)
+        sent_profiles = load_sent_message_profiles(
+            account_id=account.account_id,
+            client=client,
+        )
+        unread_names = scan_unread_names(page)
+        matched_count = log_sent_name_matches(
+            unread_names=unread_names,
+            sent_profiles=sent_profiles,
+        )
 
         print("")
-        print("Reply-check worker phase 1 completed.")
-        print("LinkedIn Messaging > Unread is open.")
+        print("Reply-check scan completed.")
+        print(f"Unread names: {len(unread_names)}")
+        print(f"Matched sent profiles: {matched_count}")
+        print("Matching names were written to the worker log.")
         print("The browser will stay open. Press Ctrl+C to stop.")
 
         while True:
