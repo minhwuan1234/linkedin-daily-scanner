@@ -20,6 +20,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Callable
+from difflib import SequenceMatcher
 from urllib.parse import unquote, urlparse
 
 from playwright.sync_api import Frame, Locator, Page
@@ -251,21 +252,29 @@ def load_sent_message_profiles(
     )
 
     sent_profiles: list[dict] = []
+    derivable_name_count = 0
 
     for raw_row in list(response.data or []):
         row = dict(raw_row)
         normalized_name = _profile_name_from_linkedin_url(
             row.get("linkedin_url")
         )
-        if not normalized_name:
-            continue
         row["normalized_name"] = normalized_name
         sent_profiles.append(row)
 
+        if normalized_name:
+            derivable_name_count += 1
+
     logger.info(
-        "Loaded sent message profiles | account=%s | count=%s",
+        (
+            "DB SENT QUERY EVIDENCE | table=outreach_message_targets | "
+            "filters=status:sent,assigned_account_id:%s | rows=%s | "
+            "names_derived_from_linkedin_url=%s | names_not_derivable=%s"
+        ),
         account_id,
         len(sent_profiles),
+        derivable_name_count,
+        len(sent_profiles) - derivable_name_count,
     )
     return sent_profiles
 
@@ -399,7 +408,7 @@ def log_sent_name_matches(
     unread_names: list[str],
     sent_profiles: list[dict],
 ) -> int:
-    """Log exact normalized full-name matches against sent targets."""
+    """Log exact decisions with evidence from sent database records."""
 
     sent_by_name: dict[str, list[dict]] = {}
     for sent_profile in sent_profiles:
@@ -414,14 +423,85 @@ def log_sent_name_matches(
     for unread_name in unread_names:
         normalized_unread_name = _normalize_name(unread_name)
         matches = sent_by_name.get(normalized_unread_name, [])
-        if not matches:
+
+        logger.info(
+            "UNREAD NAME EVIDENCE | raw_name=%s | normalized_name=%s",
+            unread_name,
+            normalized_unread_name,
+        )
+
+        if matches:
+            matched_count += 1
+
+            for match in matches:
+                logger.warning(
+                    (
+                        "REPLY MATCH | reason=exact_normalized_name | "
+                        "unread_name=%s | unread_normalized=%s | "
+                        "db_target_id=%s | db_prospect_id=%s | "
+                        "db_account_id=%s | db_status=%s | "
+                        "db_completed_at=%s | db_linkedin_url=%s | "
+                        "db_derived_name=%s"
+                    ),
+                    unread_name,
+                    normalized_unread_name,
+                    match.get("id"),
+                    match.get("prospect_id"),
+                    match.get("assigned_account_id"),
+                    match.get("status"),
+                    match.get("completed_at"),
+                    match.get("linkedin_url"),
+                    match.get("normalized_name"),
+                )
             continue
 
-        matched_count += 1
+        comparable_profiles = [
+            profile
+            for profile in sent_profiles
+            if str(profile.get("normalized_name") or "").strip()
+        ]
+        ranked_profiles = sorted(
+            comparable_profiles,
+            key=lambda profile: SequenceMatcher(
+                None,
+                normalized_unread_name,
+                str(profile.get("normalized_name") or ""),
+            ).ratio(),
+            reverse=True,
+        )[:3]
+
+        nearest_evidence = [
+            {
+                "target_id": profile.get("id"),
+                "prospect_id": profile.get("prospect_id"),
+                "account_id": profile.get("assigned_account_id"),
+                "status": profile.get("status"),
+                "completed_at": profile.get("completed_at"),
+                "linkedin_url": profile.get("linkedin_url"),
+                "derived_name": profile.get("normalized_name"),
+                "similarity": round(
+                    SequenceMatcher(
+                        None,
+                        normalized_unread_name,
+                        str(profile.get("normalized_name") or ""),
+                    ).ratio(),
+                    3,
+                ),
+            }
+            for profile in ranked_profiles
+        ]
+
         logger.warning(
-            "REPLY MATCH | unread_name=%s | sent_target_ids=%s",
+            (
+                "NO REPLY MATCH | "
+                "reason=no_exact_normalized_name_in_sent_database_rows | "
+                "unread_name=%s | unread_normalized=%s | "
+                "db_sent_row_count=%s | nearest_db_evidence=%s"
+            ),
             unread_name,
-            [str(match.get("id") or "") for match in matches],
+            normalized_unread_name,
+            len(sent_profiles),
+            nearest_evidence,
         )
 
     logger.info(
