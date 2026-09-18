@@ -1,9 +1,9 @@
-"""Open LinkedIn Messaging > Connections for the reply-check worker.
+"""Open LinkedIn Messaging > Unread for the reply-check worker.
 
 Phase 1 only:
     1. Open the selected Outreach LinkedIn profile.
     2. Open LinkedIn Messaging.
-    3. Click Connections.
+    3. Click Unread.
 
 This worker deliberately does not read or write Supabase yet.  It also does
 not inspect conversations or send messages.  Keep other workers from using
@@ -86,7 +86,7 @@ def open_messaging(page: Page) -> None:
         )
     except RuntimeError:
         # LinkedIn can hide the global nav at narrower widths.  The direct
-        # route is only a navigation fallback; Connections is still clicked
+        # route is only a navigation fallback; Unread is still clicked
         # as a UI control in the next step.
         logger.info(
             "Messaging nav item was not visible; opening its LinkedIn route."
@@ -108,43 +108,43 @@ def open_messaging(page: Page) -> None:
     page.wait_for_timeout(1_000)
 
 
-def open_connections(page: Page) -> None:
-    """Click Connections inside LinkedIn Messaging."""
+def open_unread(page: Page) -> None:
+    """Click Unread inside LinkedIn Messaging."""
 
     candidates = [
         lambda active_page: active_page.locator(
-            'button[data-test-messaging-inbox-filters__filter-pill="CONNECTIONS"]'
+            'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]'
         ),
         lambda active_page: active_page.locator(
-            'button:has-text("Connections")'
+            'button:has-text("Unread")'
         ),
         lambda active_page: active_page.locator(
-            'a:has-text("Connections")'
+            'a:has-text("Unread")'
         ),
         lambda active_page: active_page.locator(
-            '[role="button"]:has-text("Connections")'
+            '[role="button"]:has-text("Unread")'
         ),
         lambda active_page: active_page.get_by_text(
-            re.compile(r"^\s*Connections\s*$", re.IGNORECASE)
+            re.compile(r"^\s*Unread\s*$", re.IGNORECASE)
         ),
         lambda active_page: active_page.get_by_role(
-            "button", name="Connections", exact=True
+            "button", name="Unread", exact=True
         ),
         lambda active_page: active_page.get_by_role(
-            "link", name="Connections", exact=True
+            "link", name="Unread", exact=True
         ),
         lambda active_page: active_page.locator(
-            '[aria-label="Connections"]'
+            '[aria-label="Unread"]'
         ),
         lambda active_page: active_page.get_by_text(
-            "Connections", exact=True
+            "Unread", exact=True
         ),
     ]
 
     _click_first_visible(
         page,
         candidates,
-        description="Connections",
+        description="Unread",
         timeout_ms=30_000,
     )
     page.wait_for_timeout(1_000)
@@ -167,11 +167,11 @@ def run_once(account_id: str) -> None:
         browser.start()
         page = browser.open_linkedin_url(LINKEDIN_HOME_URL)
         open_messaging(page)
-        open_connections(page)
+        open_unread(page)
 
         print("")
         print("Reply-check worker phase 1 completed.")
-        print("LinkedIn Messaging > Connections is open.")
+        print("LinkedIn Messaging > Unread is open.")
         print("The browser will stay open. Press Ctrl+C to stop.")
 
         while True:
@@ -185,7 +185,7 @@ def run_once(account_id: str) -> None:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Open LinkedIn Messaging > Connections for reply checking."
+            "Open LinkedIn Messaging > Unread for reply checking."
         )
     )
     parser.add_argument(
