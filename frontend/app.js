@@ -587,6 +587,27 @@ const els = {
   outreachReplyList:
     document.querySelector("#outreachReplyList"),
 
+  outreachReplySendModal:
+    document.querySelector("#outreachReplySendModal"),
+
+  outreachReplySendMeta:
+    document.querySelector("#outreachReplySendMeta"),
+
+  outreachReplySendInput:
+    document.querySelector("#outreachReplySendInput"),
+
+  outreachReplySendError:
+    document.querySelector("#outreachReplySendError"),
+
+  outreachReplySendCloseButton:
+    document.querySelector("#outreachReplySendCloseButton"),
+
+  outreachReplySendCancelButton:
+    document.querySelector("#outreachReplySendCancelButton"),
+
+  outreachReplySendSaveButton:
+    document.querySelector("#outreachReplySendSaveButton"),
+
   pageEyebrow:
     document.querySelector("#pageEyebrow"),
 
@@ -689,6 +710,8 @@ const state = {
   outreachReplyPageByAccount: {},
   outreachReplyExpandedIds: new Set(),
   outreachRepliesLoading: false,
+  outreachReplySendSelectedId: null,
+  outreachReplySendSubmitting: false,
   tableErrors: {},
   commandPending: false
 };
@@ -8322,6 +8345,104 @@ function closeDrawer() {
   document.body.style.overflow = "";
 }
 
+function closeOutreachReplySendModal() {
+  if (!els.outreachReplySendModal || state.outreachReplySendSubmitting) {
+    return;
+  }
+  els.outreachReplySendModal.hidden = true;
+  state.outreachReplySendSelectedId = null;
+  document.body.style.overflow = "";
+}
+
+function openOutreachReplySendModal(reply) {
+  if (!els.outreachReplySendModal || !els.outreachReplySendInput) {
+    return;
+  }
+  const replyId = String(reply?.id || "").trim();
+  if (!replyId) {
+    return;
+  }
+  state.outreachReplySendSelectedId = replyId;
+  els.outreachReplySendInput.value = String(
+    reply?.send_job?.message_text || ""
+  );
+  if (els.outreachReplySendMeta) {
+    const accountId = String(reply.assigned_account_id || "").trim();
+    const account = state.outreachReplyAccounts.find(
+      (item) => String(item.account_id || "").trim() === accountId
+    );
+    const accountName = String(
+      account?.display_name || accountId || "Outreach account"
+    );
+    els.outreachReplySendMeta.textContent =
+      `${reply.user_name || "LinkedIn user"} · ${accountName}`;
+  }
+  if (els.outreachReplySendError) {
+    els.outreachReplySendError.hidden = true;
+    els.outreachReplySendError.textContent = "";
+  }
+  els.outreachReplySendModal.hidden = false;
+  document.body.style.overflow = "hidden";
+  window.setTimeout(() => els.outreachReplySendInput?.focus(), 0);
+}
+
+async function sendCustomizedOutreachReply() {
+  const replyId = state.outreachReplySendSelectedId;
+  const messageText = String(els.outreachReplySendInput?.value || "").trim();
+  if (!replyId || !messageText || state.outreachReplySendSubmitting) {
+    if (!messageText && els.outreachReplySendError) {
+      els.outreachReplySendError.textContent = "Enter a message before saving.";
+      els.outreachReplySendError.hidden = false;
+    }
+    return;
+  }
+
+  state.outreachReplySendSubmitting = true;
+  if (els.outreachReplySendSaveButton) {
+    els.outreachReplySendSaveButton.disabled = true;
+    els.outreachReplySendSaveButton.textContent = "Sending...";
+  }
+
+  try {
+    const response = await fetch(
+      `/api/outreach/replies/${encodeURIComponent(replyId)}/send`,
+      {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ message_text: messageText })
+      }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.error || "Could not queue the reply message.");
+    }
+
+    const reply = state.outreachReplies.find(
+      (item) => String(item.id || "") === replyId
+    );
+    if (reply) {
+      reply.send_job = result.job;
+    }
+    state.outreachReplySendSubmitting = false;
+    closeOutreachReplySendModal();
+    renderOutreachReplies();
+  } catch (error) {
+    if (els.outreachReplySendError) {
+      els.outreachReplySendError.textContent = error.message || String(error);
+      els.outreachReplySendError.hidden = false;
+    }
+  } finally {
+    state.outreachReplySendSubmitting = false;
+    if (els.outreachReplySendSaveButton) {
+      els.outreachReplySendSaveButton.disabled = false;
+      els.outreachReplySendSaveButton.textContent = "Send";
+    }
+  }
+}
+
 function renderOutreachReplies() {
   const replies = Array.isArray(state.outreachReplies)
     ? state.outreachReplies
@@ -8578,6 +8699,16 @@ function renderOutreachReplies() {
         </article>
       `).join("")
     : `<p class="panel-meta">Run the updated Reply Check Worker once to capture the full conversation.</p>`;
+  const sendJob = reply.send_job && typeof reply.send_job === "object"
+    ? reply.send_job
+    : null;
+  const sendStatus = String(sendJob?.status || "not prepared").toLowerCase();
+  const sendLocked = sendStatus === "queued" || sendStatus === "processing";
+  const prepareLabel = sendStatus === "sent"
+    ? "Send another reply"
+    : sendJob
+      ? "Edit and send"
+      : "Send reply";
 
   card.innerHTML = `
       <div class="outreach-reply-main">
@@ -8602,12 +8733,15 @@ function renderOutreachReplies() {
         </div>
       </div>
       <div class="outreach-reply-actions">
+        <span class="pill pill-neutral outreach-reply-send-status">${escapeHtml(sendStatus)}</span>
         <button
           class="secondary-button outreach-reply-button"
           type="button"
-          disabled
-          title="Reply sending will be implemented in a later step"
-        >Reply · Coming soon</button>
+          ${sendLocked ? "disabled" : ""}
+        >${escapeHtml(prepareLabel)}</button>
+        ${sendStatus === "failed" && sendJob?.last_error
+          ? `<small class="outreach-reply-send-error">${escapeHtml(sendJob.last_error)}</small>`
+          : ""}
       </div>
     `;
 
@@ -8621,6 +8755,10 @@ function renderOutreachReplies() {
       }
       renderOutreachReplies();
     });
+
+  card
+    .querySelector(".outreach-reply-button")
+    ?.addEventListener("click", () => openOutreachReplySendModal(reply));
 
   els.outreachReplyList.appendChild(card);
   });
@@ -8804,6 +8942,27 @@ els.outreachReplyNextPage?.addEventListener("click", () => {
   state.outreachReplyPageByAccount[accountId] = currentPage + 1;
   renderOutreachReplies();
 });
+
+els.outreachReplySendCloseButton?.addEventListener(
+  "click",
+  closeOutreachReplySendModal
+);
+
+els.outreachReplySendCancelButton?.addEventListener(
+  "click",
+  closeOutreachReplySendModal
+);
+
+document
+  .querySelectorAll("[data-outreach-reply-send-close]")
+  .forEach((element) => {
+    element.addEventListener("click", closeOutreachReplySendModal);
+  });
+
+els.outreachReplySendSaveButton?.addEventListener(
+  "click",
+  () => void sendCustomizedOutreachReply()
+);
 
 els.killProcessButton?.addEventListener(
   "click",

@@ -13,8 +13,8 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-5" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-5" />
+  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-7" />
+    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-7" />
 </head>
 
 <body>
@@ -2041,6 +2041,47 @@
     </section>
   </div>
 
+  <!-- OUTREACH REPLY PREPARE MODAL -->
+  <div id="outreachReplySendModal" class="message-send-modal" hidden>
+    <div class="message-send-modal-backdrop" data-outreach-reply-send-close></div>
+    <section
+      class="message-send-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="outreachReplySendTitle"
+    >
+      <div class="message-send-dialog-header">
+        <div>
+          <p class="panel-kicker">Send one customized reply</p>
+          <h2 id="outreachReplySendTitle">Send Reply Message</h2>
+          <p id="outreachReplySendMeta" class="panel-meta">—</p>
+        </div>
+        <button
+          id="outreachReplySendCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close reply preparation"
+        >×</button>
+      </div>
+      <div class="message-send-dialog-body">
+        <label class="message-template-field" for="outreachReplySendInput">
+          <span>Exact message to send</span>
+          <textarea
+            id="outreachReplySendInput"
+            rows="8"
+            placeholder="Write a customized reply for this person..."
+          ></textarea>
+          <small>The worker sends this text exactly as written. No template replacement is applied.</small>
+        </label>
+        <div id="outreachReplySendError" class="outreach-error" hidden></div>
+      </div>
+      <div class="message-send-dialog-footer">
+        <button id="outreachReplySendCancelButton" class="secondary-button" type="button">Cancel</button>
+        <button id="outreachReplySendSaveButton" class="primary-button" type="button">Send</button>
+      </div>
+    </section>
+  </div>
+
   <div
     id="outreachDeleteJobsModal"
     class="message-prepare-confirm-modal"
@@ -2128,6 +2169,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260918-outreach-replies-5"></script>
+  <script src="./app.js?v=20260918-outreach-replies-7"></script>
 </body>
 </html>
