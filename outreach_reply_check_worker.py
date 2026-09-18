@@ -59,7 +59,7 @@ UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__convo-list",
     ".msg-conversations-container__conversations-list-container",
 )
-FUZZY_MATCH_THRESHOLD = 0.90
+FUZZY_MATCH_THRESHOLD = 0.70
 
 
 def _is_visible(locator: Locator, *, timeout_ms: int = 500) -> bool:
@@ -484,13 +484,13 @@ def log_sent_name_matches(
 
         if (
             best_profile is not None
-            and best_similarity > FUZZY_MATCH_THRESHOLD
+            and best_similarity >= FUZZY_MATCH_THRESHOLD
         ):
             matched_count += 1
             logger.warning(
                 (
                     "REPLY MATCH | reason=fuzzy_similarity_above_threshold | "
-                    "threshold=>%.2f | similarity=%.3f | "
+                    "threshold=>=%.2f | similarity=%.3f | "
                     "unread_name=%s | unread_normalized=%s | "
                     "db_target_id=%s | db_prospect_id=%s | "
                     "db_account_id=%s | db_status=%s | "
@@ -535,9 +535,9 @@ def log_sent_name_matches(
         logger.warning(
             (
                 "NO REPLY MATCH | "
-                "reason=no_exact_match_and_best_similarity_not_above_threshold | "
+                "reason=no_exact_match_and_best_similarity_below_threshold | "
                 "unread_name=%s | unread_normalized=%s | "
-                "required_similarity=>%.2f | best_similarity=%.3f | "
+                "required_similarity=>=%.2f | best_similarity=%.3f | "
                 "db_sent_row_count=%s | nearest_db_evidence=%s"
             ),
             unread_name,
