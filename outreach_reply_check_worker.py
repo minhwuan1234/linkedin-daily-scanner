@@ -79,6 +79,12 @@ MESSAGE_AUTHOR_SELECTORS = (
     ".msg-s-message-group__name",
     '[data-anonymize="person-name"]',
 )
+MESSAGE_SCROLL_CONTAINER_SELECTORS = (
+    ".msg-s-message-list-container",
+    ".msg-s-message-list",
+    ".msg-thread__messages",
+    ".msg-s-message-list-content",
+)
 THREAD_STAR_SELECTORS = (
     'button[aria-label*="Star conversation"]',
     'button[aria-label="Star"]',
@@ -788,6 +794,23 @@ def _read_message_timestamp(group: Locator | None) -> str:
     if group is None:
         return ""
 
+    date_value = ""
+    date_xpath = (
+        'xpath=preceding::*['
+        'contains(@class,"msg-s-message-list__time-heading") or '
+        'contains(@class,"msg-s-message-list__date-heading") or '
+        'contains(@class,"msg-s-message-list__time-divider")'
+        '][1]'
+    )
+    try:
+        date_heading = group.locator(date_xpath)
+        if date_heading.count() > 0:
+            date_value = " ".join(
+                date_heading.first.inner_text().split()
+            )
+    except Exception:
+        date_value = ""
+
     selectors = (
         "time",
         ".msg-s-message-group__timestamp",
@@ -798,13 +821,113 @@ def _read_message_timestamp(group: Locator | None) -> str:
         try:
             candidates = group.locator(selector)
             for index in range(candidates.count()):
-                value = " ".join(candidates.nth(index).inner_text().split())
-                if value:
-                    return value
+                candidate = candidates.nth(index)
+                for attribute in ("datetime", "title", "aria-label"):
+                    attribute_value = str(
+                        candidate.get_attribute(attribute) or ""
+                    ).strip()
+                    if attribute_value:
+                        return attribute_value
+
+                time_value = " ".join(candidate.inner_text().split())
+                if time_value:
+                    if date_value:
+                        return f"{date_value} · {time_value}"
+                    return time_value
         except Exception:
             continue
 
-    return ""
+    return date_value
+
+
+def load_full_conversation(page: Page, unread_name: str) -> int:
+    """Scroll the active thread upward until older messages stop loading."""
+
+    surface = _find_unread_surface(page) or page
+    scroll_container: Locator | None = None
+
+    for selector in MESSAGE_SCROLL_CONTAINER_SELECTORS:
+        try:
+            candidates = surface.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+                if _is_visible(candidate):
+                    scroll_container = candidate
+                    logger.info(
+                        "CONVERSATION SCROLL EVIDENCE | unread_name=%s | selector=%s",
+                        unread_name,
+                        selector,
+                    )
+                    break
+        except Exception:
+            continue
+        if scroll_container is not None:
+            break
+
+    if scroll_container is None:
+        logger.warning(
+            "Conversation scroll container was not found | unread_name=%s",
+            unread_name,
+        )
+        return 0
+
+    stable_passes = 0
+    previous_height = -1
+    scroll_count = 0
+
+    for _ in range(12):
+        try:
+            state_before = scroll_container.evaluate(
+                """
+                element => {
+                    const result = {
+                        height: element.scrollHeight,
+                        top: element.scrollTop
+                    };
+                    element.scrollTo({top: 0, behavior: 'auto'});
+                    element.dispatchEvent(new Event('scroll', {bubbles: true}));
+                    return result;
+                }
+                """
+            )
+        except Exception:
+            break
+
+        scroll_count += 1
+        page.wait_for_timeout(1_200)
+
+        try:
+            current_height = int(
+                scroll_container.evaluate("element => element.scrollHeight")
+                or 0
+            )
+        except Exception:
+            current_height = 0
+
+        if current_height == previous_height and int(
+            state_before.get("top") or 0
+        ) == 0:
+            stable_passes += 1
+        else:
+            stable_passes = 0
+
+        logger.info(
+            (
+                "CONVERSATION SCROLL | unread_name=%s | pass=%s | "
+                "height_before=%s | height_after=%s | stable_passes=%s"
+            ),
+            unread_name,
+            scroll_count,
+            state_before.get("height"),
+            current_height,
+            stable_passes,
+        )
+
+        previous_height = current_height
+        if stable_passes >= 2:
+            break
+
+    return scroll_count
 
 
 def read_incoming_reply_messages(
@@ -812,7 +935,7 @@ def read_incoming_reply_messages(
     *,
     unread_name: str,
     sent_message_text: str,
-) -> list[dict]:
+) -> tuple[list[dict], list[dict]]:
     """Read incoming bubble text only from the active matched thread."""
 
     surface = _find_unread_surface(page)
@@ -908,7 +1031,7 @@ def read_incoming_reply_messages(
         last_sent_index,
         len(replies),
     )
-    return replies
+    return replies, events
 
 
 def _visible_exact_text(page: Page, text_value: str) -> Locator | None:
@@ -1140,7 +1263,9 @@ def process_matched_conversations(
             open_matched_conversation(page, unread_name)
             conversation_opened = True
 
-            replies = read_incoming_reply_messages(
+            load_full_conversation(page, unread_name)
+
+            replies, conversation_events = read_incoming_reply_messages(
                 page,
                 unread_name=unread_name,
                 sent_message_text=str(sent_profile.get("message_text") or ""),
@@ -1173,48 +1298,52 @@ def process_matched_conversations(
                         float(match.get("similarity") or 0.0),
                     )
 
-                    try:
-                        stored_reply = save_outreach_reply(
-                            sent_target_id=str(sent_profile.get("id") or ""),
-                            prospect_id=str(
-                                sent_profile.get("prospect_id") or ""
-                            ),
-                            assigned_account_id=str(
-                                sent_profile.get("assigned_account_id") or ""
-                            ),
-                            user_name=unread_name,
-                            linkedin_url=str(
-                                sent_profile.get("linkedin_url") or ""
-                            ),
-                            message_text=str(reply.get("text") or ""),
-                            linkedin_message_time=str(
-                                reply.get("timestamp") or ""
-                            ),
-                            match_reason=str(match.get("match_reason") or ""),
-                            match_similarity=float(
-                                match.get("similarity") or 0.0
-                            ),
-                            client=client,
-                        )
-                        logger.info(
-                            (
-                                "REPLY STORED | reply_id=%s | "
-                                "sent_target_id=%s | user_name=%s"
-                            ),
-                            stored_reply.get("id"),
-                            sent_profile.get("id"),
-                            unread_name,
-                        )
-                    except Exception as exc:
-                        logger.exception(
-                            (
-                                "REPLY STORE FAILED | sent_target_id=%s | "
-                                "user_name=%s | error=%s"
-                            ),
-                            sent_profile.get("id"),
-                            unread_name,
-                            exc,
-                        )
+                latest_reply = replies[-1]
+                try:
+                    stored_reply = save_outreach_reply(
+                        sent_target_id=str(sent_profile.get("id") or ""),
+                        prospect_id=str(
+                            sent_profile.get("prospect_id") or ""
+                        ),
+                        assigned_account_id=str(
+                            sent_profile.get("assigned_account_id") or ""
+                        ),
+                        user_name=unread_name,
+                        linkedin_url=str(
+                            sent_profile.get("linkedin_url") or ""
+                        ),
+                        message_text=str(latest_reply.get("text") or ""),
+                        linkedin_message_time=str(
+                            latest_reply.get("timestamp") or ""
+                        ),
+                        conversation_messages=conversation_events,
+                        match_reason=str(match.get("match_reason") or ""),
+                        match_similarity=float(
+                            match.get("similarity") or 0.0
+                        ),
+                        client=client,
+                    )
+                    logger.info(
+                        (
+                            "REPLY UPSERTED | reply_id=%s | "
+                            "sent_target_id=%s | user_name=%s | "
+                            "conversation_messages=%d"
+                        ),
+                        stored_reply.get("id"),
+                        sent_profile.get("id"),
+                        unread_name,
+                        len(conversation_events),
+                    )
+                except Exception as exc:
+                    logger.exception(
+                        (
+                            "REPLY STORE FAILED | sent_target_id=%s | "
+                            "user_name=%s | error=%s"
+                        ),
+                        sent_profile.get("id"),
+                        unread_name,
+                        exc,
+                    )
 
             processed_count += 1
 

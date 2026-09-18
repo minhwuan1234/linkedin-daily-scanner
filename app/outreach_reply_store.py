@@ -5,6 +5,10 @@ from datetime import datetime, timezone
 
 from supabase import Client
 
+from app.outreach_account_pool import (
+    DEFAULT_OUTREACH_ACCOUNT_IDS,
+    OUTREACH_ACCOUNT_DISPLAY_NAMES,
+)
 from app.outreach_dashboard_store import get_outreach_client
 
 
@@ -48,6 +52,7 @@ def save_outreach_reply(
     linkedin_url: str,
     message_text: str,
     linkedin_message_time: str = "",
+    conversation_messages: list[dict] | None = None,
     match_reason: str = "",
     match_similarity: float = 0.0,
     client: Client | None = None,
@@ -79,13 +84,41 @@ def save_outreach_reply(
     existing_response = (
         active_client.table(REPLY_TABLE)
         .select("*")
-        .eq("message_fingerprint", fingerprint)
+        .eq("sent_target_id", cleaned_target_id)
+        .order("captured_at", desc=True)
         .limit(1)
         .execute()
     )
     existing_rows = list(existing_response.data or [])
     if existing_rows:
-        return dict(existing_rows[0])
+        existing = dict(existing_rows[0])
+        updates = {
+            "prospect_id": _safe_text(prospect_id) or None,
+            "assigned_account_id": _safe_text(assigned_account_id),
+            "user_name": cleaned_name,
+            "linkedin_url": cleaned_url,
+            "message_text": cleaned_message,
+            "linkedin_message_time": cleaned_message_time or None,
+            "conversation_messages": list(conversation_messages or []),
+            "match_reason": _safe_text(match_reason) or None,
+            "match_similarity": max(
+                0.0,
+                min(1.0, float(match_similarity or 0.0)),
+            ),
+            "message_fingerprint": fingerprint,
+            "captured_at": _utc_now(),
+        }
+        update_response = (
+            active_client.table(REPLY_TABLE)
+            .update(updates)
+            .eq("id", existing.get("id"))
+            .execute()
+        )
+        updated_rows = list(update_response.data or [])
+        if updated_rows:
+            return dict(updated_rows[0])
+        existing.update(updates)
+        return existing
 
     payload = {
         "sent_target_id": cleaned_target_id,
@@ -95,6 +128,7 @@ def save_outreach_reply(
         "linkedin_url": cleaned_url,
         "message_text": cleaned_message,
         "linkedin_message_time": cleaned_message_time or None,
+        "conversation_messages": list(conversation_messages or []),
         "match_reason": _safe_text(match_reason) or None,
         "match_similarity": max(0.0, min(1.0, float(match_similarity or 0.0))),
         "message_fingerprint": fingerprint,
@@ -108,12 +142,12 @@ def save_outreach_reply(
 
 def list_recent_outreach_replies(
     *,
-    limit: int = 5,
+    limit: int = 50,
     client: Client | None = None,
 ) -> list[dict]:
     """Return the newest reply for each of up to ``limit`` people."""
 
-    safe_limit = max(1, min(int(limit or 5), 25))
+    safe_limit = max(1, min(int(limit or 50), 100))
     active_client = client or get_outreach_client()
     response = (
         active_client.table(REPLY_TABLE)
@@ -121,7 +155,7 @@ def list_recent_outreach_replies(
             (
                 "id,sent_target_id,prospect_id,assigned_account_id,"
                 "user_name,linkedin_url,message_text,linkedin_message_time,"
-                "match_reason,match_similarity,captured_at"
+                "conversation_messages,match_reason,match_similarity,captured_at"
             )
         )
         .order("captured_at", desc=True)
@@ -134,11 +168,16 @@ def list_recent_outreach_replies(
 
     for raw_row in list(response.data or []):
         row = dict(raw_row)
-        identity = _safe_text(row.get("linkedin_url")).casefold()
-        if not identity:
+        account_identity = _safe_text(
+            row.get("assigned_account_id")
+        ).casefold()
+        person_identity = _safe_text(row.get("linkedin_url")).casefold()
+        if person_identity:
+            identity = "|".join((account_identity, person_identity))
+        else:
             identity = "|".join(
                 (
-                    _safe_text(row.get("assigned_account_id")).casefold(),
+                    account_identity,
                     _safe_text(row.get("user_name")).casefold(),
                 )
             )
@@ -153,3 +192,22 @@ def list_recent_outreach_replies(
             break
 
     return replies
+
+
+def list_outreach_reply_accounts(
+    *,
+    client: Client | None = None,
+) -> list[dict]:
+    """Return up to five Outreach accounts with their display names."""
+
+    del client
+    return [
+        {
+            "account_id": account_id,
+            "display_name": OUTREACH_ACCOUNT_DISPLAY_NAMES.get(
+                account_id,
+                account_id,
+            ),
+        }
+        for account_id in DEFAULT_OUTREACH_ACCOUNT_IDS[:5]
+    ]

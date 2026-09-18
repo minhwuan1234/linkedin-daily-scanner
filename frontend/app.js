@@ -563,6 +563,15 @@ const els = {
   outreachReplyCount:
     document.querySelector("#outreachReplyCount"),
 
+  outreachReplyAccountTabs:
+    document.querySelector("#outreachReplyAccountTabs"),
+
+  outreachReplyContactToolbar:
+    document.querySelector("#outreachReplyContactToolbar"),
+
+  outreachReplyContactSelect:
+    document.querySelector("#outreachReplyContactSelect"),
+
   outreachReplyError:
     document.querySelector("#outreachReplyError"),
 
@@ -669,6 +678,10 @@ const state = {
   messageBatchQueueSubmittingIds: new Set(),
   messageSendSelectedBatchId: null,
   outreachReplies: [],
+  outreachReplyAccounts: [],
+  outreachReplySelectedAccountId: null,
+  outreachReplySelectedContactByAccount: {},
+  outreachReplyExpandedIds: new Set(),
   outreachRepliesLoading: false,
   tableErrors: {},
   commandPending: false
@@ -8305,8 +8318,44 @@ function closeDrawer() {
 
 function renderOutreachReplies() {
   const replies = Array.isArray(state.outreachReplies)
-    ? state.outreachReplies.slice(0, 5)
+    ? state.outreachReplies
     : [];
+
+  const configuredAccounts = Array.isArray(state.outreachReplyAccounts)
+    ? state.outreachReplyAccounts.slice(0, 5)
+    : [];
+
+  const accountMap = new Map(
+    configuredAccounts.map((account) => [
+      String(account.account_id || "").trim(),
+      String(account.display_name || account.account_id || "Outreach account").trim()
+    ])
+  );
+
+  replies.forEach((reply) => {
+    const accountId = String(reply.assigned_account_id || "").trim();
+    if (accountId && !accountMap.has(accountId) && accountMap.size < 5) {
+      accountMap.set(accountId, accountId);
+    }
+  });
+
+  const accounts = Array.from(accountMap.entries()).map(
+    ([accountId, displayName]) => ({ accountId, displayName })
+  );
+
+  if (
+    !state.outreachReplySelectedAccountId ||
+    !accountMap.has(state.outreachReplySelectedAccountId)
+  ) {
+    const accountWithReply = accounts.find((account) =>
+      replies.some(
+        (reply) =>
+          String(reply.assigned_account_id || "").trim() === account.accountId
+      )
+    );
+    state.outreachReplySelectedAccountId =
+      accountWithReply?.accountId || accounts[0]?.accountId || null;
+  }
 
   if (els.outreachReplyTabCount) {
     els.outreachReplyTabCount.textContent = String(replies.length);
@@ -8316,6 +8365,39 @@ function renderOutreachReplies() {
     els.outreachReplyCount.textContent = state.outreachRepliesLoading
       ? "Loading"
       : `${replies.length} ${replies.length === 1 ? "person" : "people"}`;
+  }
+
+  if (els.outreachReplyAccountTabs) {
+    els.outreachReplyAccountTabs.replaceChildren();
+    accounts.forEach((account) => {
+      const accountReplyCount = replies.filter(
+        (reply) =>
+          String(reply.assigned_account_id || "").trim() === account.accountId
+      ).length;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "outreach-reply-account-tab";
+      button.classList.toggle(
+        "is-active",
+        account.accountId === state.outreachReplySelectedAccountId
+      );
+      button.setAttribute("role", "tab");
+      button.setAttribute(
+        "aria-selected",
+        account.accountId === state.outreachReplySelectedAccountId
+          ? "true"
+          : "false"
+      );
+      button.innerHTML = `
+        <strong>${escapeHtml(account.displayName)}</strong>
+        <span>${accountReplyCount}</span>
+      `;
+      button.addEventListener("click", () => {
+        state.outreachReplySelectedAccountId = account.accountId;
+        renderOutreachReplies();
+      });
+      els.outreachReplyAccountTabs.appendChild(button);
+    });
   }
 
   if (!els.outreachReplyList || !els.outreachReplyEmpty) {
@@ -8331,51 +8413,133 @@ function renderOutreachReplies() {
     return;
   }
 
-  if (!replies.length) {
+  const selectedAccountId = state.outreachReplySelectedAccountId;
+  const accountReplies = replies.filter(
+    (reply) =>
+      String(reply.assigned_account_id || "").trim() === selectedAccountId
+  );
+
+  if (!accountReplies.length) {
     els.outreachReplyEmpty.hidden = false;
     els.outreachReplyEmpty.textContent =
-      "No verified replies have been captured yet.";
+      accounts.length
+        ? "No verified replies have been captured for this account yet."
+        : "No verified replies have been captured yet.";
     els.outreachReplyList.hidden = true;
+    if (els.outreachReplyContactToolbar) {
+      els.outreachReplyContactToolbar.hidden = true;
+    }
     return;
   }
 
-  replies.forEach((reply) => {
-    const card = document.createElement("article");
-    card.className = "outreach-reply-card";
+  const contactOptions = accountReplies.map((reply) => ({
+    key: String(reply.id || reply.linkedin_url || reply.user_name || "").trim(),
+    reply
+  }));
+  const selectedContactKey =
+    state.outreachReplySelectedContactByAccount[selectedAccountId];
+  const activeContact =
+    contactOptions.find((item) => item.key === selectedContactKey) ||
+    contactOptions[0];
+  state.outreachReplySelectedContactByAccount[selectedAccountId] =
+    activeContact.key;
 
-    const userName = String(reply.user_name || "Unknown LinkedIn user").trim();
-    const sentTargetId = String(reply.sent_target_id || "—").trim();
-    const linkedInUrl = String(reply.linkedin_url || "").trim();
-    const messageText = String(reply.message_text || "").trim();
-    const accountId = String(reply.assigned_account_id || "—").trim();
-    const capturedAt = reply.captured_at
-      ? formatDate(reply.captured_at)
-      : "Capture time unavailable";
+  if (els.outreachReplyContactSelect) {
+    els.outreachReplyContactSelect.replaceChildren();
+    contactOptions.forEach((item) => {
+      const option = document.createElement("option");
+      option.value = item.key;
+      option.textContent = String(item.reply.user_name || "Unknown user");
+      option.selected = item.key === activeContact.key;
+      els.outreachReplyContactSelect.appendChild(option);
+    });
+  }
+  if (els.outreachReplyContactToolbar) {
+    els.outreachReplyContactToolbar.hidden = false;
+  }
 
-    let safeUrl = "";
-    try {
-      const parsedUrl = new URL(linkedInUrl);
-      if (parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:") {
-        safeUrl = parsedUrl.href;
-      }
-    } catch (error) {
-      safeUrl = "";
+  const reply = activeContact.reply;
+  const card = document.createElement("article");
+  card.className = "outreach-reply-card";
+
+  const userName = String(reply.user_name || "Unknown LinkedIn user").trim();
+  const linkedInUrl = String(reply.linkedin_url || "").trim();
+  const messageText = String(reply.message_text || "").trim();
+  const accountName = accountMap.get(selectedAccountId) || selectedAccountId;
+  const rawReplyTime = String(reply.linkedin_message_time || "").trim();
+  let replyTime = reply.captured_at
+    ? formatDate(reply.captured_at)
+    : "Reply time unavailable";
+
+  if (rawReplyTime) {
+    const hasDateEvidence =
+      /\d{4}-\d{2}-\d{2}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\b/i
+        .test(rawReplyTime);
+    if (hasDateEvidence) {
+      replyTime = rawReplyTime;
+    } else if (reply.captured_at) {
+      const capturedDate = new Date(reply.captured_at);
+      const datePart = Number.isNaN(capturedDate.getTime())
+        ? ""
+        : capturedDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric"
+          });
+      replyTime = datePart ? `${datePart} · ${rawReplyTime}` : rawReplyTime;
+    } else {
+      replyTime = rawReplyTime;
     }
+  }
 
-    card.innerHTML = `
+  let safeUrl = "";
+  try {
+    const parsedUrl = new URL(linkedInUrl);
+    if (parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:") {
+      safeUrl = parsedUrl.href;
+    }
+  } catch (error) {
+    safeUrl = "";
+  }
+
+  const conversationMessages = Array.isArray(reply.conversation_messages)
+    ? reply.conversation_messages
+    : [];
+  const replyId = String(reply.id || activeContact.key);
+  const conversationExpanded = state.outreachReplyExpandedIds.has(replyId);
+  const conversationHtml = conversationMessages.length
+    ? conversationMessages.map((message) => `
+        <article class="outreach-conversation-message ${message.is_own_message ? "is-own" : "is-incoming"}">
+          <div class="outreach-conversation-message-meta">
+            <strong>${escapeHtml(message.author || (message.is_own_message ? accountName : userName))}</strong>
+            <span>${escapeHtml(message.timestamp || "")}</span>
+          </div>
+          <p>${escapeHtml(message.text || "")}</p>
+        </article>
+      `).join("")
+    : `<p class="panel-meta">Run the updated Reply Check Worker once to capture the full conversation.</p>`;
+
+  card.innerHTML = `
       <div class="outreach-reply-main">
         <div class="outreach-reply-title-row">
           <h3>${escapeHtml(userName)}</h3>
-          <span class="outreach-reply-sent-id">Sent ID ${escapeHtml(sentTargetId)}</span>
+          <span class="outreach-reply-account-name">${escapeHtml(accountName)}</span>
         </div>
         <div class="outreach-reply-meta">
           ${safeUrl
             ? `<a class="outreach-reply-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkedInUrl)}</a>`
             : `<span>${escapeHtml(linkedInUrl || "LinkedIn URL unavailable")}</span>`}
-          <span>${escapeHtml(accountId)}</span>
-          <span>${escapeHtml(capturedAt)}</span>
+          <span class="outreach-reply-time">Replied ${escapeHtml(replyTime)}</span>
         </div>
         <p class="outreach-reply-message">${escapeHtml(messageText || "No message content captured.")}</p>
+        <div class="outreach-reply-card-controls">
+          <button class="secondary-button outreach-conversation-toggle" type="button">
+            ${conversationExpanded ? "Hide full conversation" : "Show full conversation"}
+          </button>
+        </div>
+        <div class="outreach-full-conversation" ${conversationExpanded ? "" : "hidden"} tabindex="0">
+          ${conversationHtml}
+        </div>
       </div>
       <div class="outreach-reply-actions">
         <button
@@ -8387,8 +8551,18 @@ function renderOutreachReplies() {
       </div>
     `;
 
-    els.outreachReplyList.appendChild(card);
-  });
+  card
+    .querySelector(".outreach-conversation-toggle")
+    ?.addEventListener("click", () => {
+      if (state.outreachReplyExpandedIds.has(replyId)) {
+        state.outreachReplyExpandedIds.delete(replyId);
+      } else {
+        state.outreachReplyExpandedIds.add(replyId);
+      }
+      renderOutreachReplies();
+    });
+
+  els.outreachReplyList.appendChild(card);
 
   els.outreachReplyEmpty.hidden = true;
   els.outreachReplyList.hidden = false;
@@ -8408,7 +8582,7 @@ async function loadOutreachReplies() {
 
   try {
     const response = await fetch(
-      "/api/outreach/replies?limit=5",
+      "/api/outreach/replies?limit=50",
       {
         method: "GET",
         headers: { "Accept": "application/json" },
@@ -8424,7 +8598,10 @@ async function loadOutreachReplies() {
     }
 
     state.outreachReplies = Array.isArray(result.replies)
-      ? result.replies.slice(0, 5)
+      ? result.replies
+      : [];
+    state.outreachReplyAccounts = Array.isArray(result.accounts)
+      ? result.accounts.slice(0, 5)
       : [];
   } catch (error) {
     state.outreachReplies = [];
@@ -8546,6 +8723,19 @@ document
       }
     });
   });
+
+els.outreachReplyContactSelect?.addEventListener(
+  "change",
+  () => {
+    const accountId = state.outreachReplySelectedAccountId;
+    if (!accountId) {
+      return;
+    }
+    state.outreachReplySelectedContactByAccount[accountId] =
+      els.outreachReplyContactSelect.value;
+    renderOutreachReplies();
+  }
+);
 
 els.killProcessButton?.addEventListener(
   "click",
