@@ -13,6 +13,8 @@ from app.outreach_dashboard_store import get_outreach_client
 
 
 REPLY_TABLE = "outreach_reply_messages"
+MESSAGE_TARGET_TABLE = "outreach_message_targets"
+MESSAGE_BATCH_TABLE = "outreach_message_batches"
 
 
 class OutreachReplyStoreError(RuntimeError):
@@ -190,6 +192,48 @@ def list_recent_outreach_replies(
 
         if len(replies) >= safe_limit:
             break
+
+    target_ids = [
+        _safe_text(reply.get("sent_target_id"))
+        for reply in replies
+        if _safe_text(reply.get("sent_target_id"))
+    ]
+    target_to_batch: dict[str, str] = {}
+    batch_codes: dict[str, str] = {}
+
+    if target_ids:
+        target_response = (
+            active_client.table(MESSAGE_TARGET_TABLE)
+            .select("id,batch_id")
+            .in_("id", target_ids)
+            .execute()
+        )
+        for target in list(target_response.data or []):
+            target_id = _safe_text(target.get("id"))
+            batch_id = _safe_text(target.get("batch_id"))
+            if target_id and batch_id:
+                target_to_batch[target_id] = batch_id
+
+        unique_batch_ids = list(dict.fromkeys(target_to_batch.values()))
+        if unique_batch_ids:
+            batch_response = (
+                active_client.table(MESSAGE_BATCH_TABLE)
+                .select("id,batch_code")
+                .in_("id", unique_batch_ids)
+                .execute()
+            )
+            for batch in list(batch_response.data or []):
+                batch_id = _safe_text(batch.get("id"))
+                batch_code = _safe_text(batch.get("batch_code"))
+                if batch_id and batch_code:
+                    batch_codes[batch_id] = batch_code
+
+    for reply in replies:
+        batch_id = target_to_batch.get(
+            _safe_text(reply.get("sent_target_id")),
+            "",
+        )
+        reply["message_batch_code"] = batch_codes.get(batch_id) or None
 
     return replies
 

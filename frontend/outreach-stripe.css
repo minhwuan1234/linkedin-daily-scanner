@@ -1953,6 +1953,21 @@ td strong {
   font-weight: 700;
 }
 
+.outreach-reply-message-batch {
+  display: inline-flex;
+  min-height: 28px;
+  padding: 4px 10px;
+  align-items: center;
+  border: 1px solid rgba(99, 91, 255, 0.44);
+  border-radius: 999px;
+  color: #b9b4ff;
+  background: rgba(99, 91, 255, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
 .outreach-reply-meta {
   margin-top: 9px;
   color: var(--stripe-text-muted);

@@ -8598,6 +8598,7 @@ function renderOutreachReplies() {
   const userName = String(reply.user_name || "Unknown LinkedIn user").trim();
   const linkedInUrl = String(reply.linkedin_url || "").trim();
   const messageText = String(reply.message_text || "").trim();
+  const messageBatchCode = String(reply.message_batch_code || "").trim();
   const accountName = accountMap.get(selectedAccountId) || selectedAccountId;
   const rawReplyTime = String(reply.linkedin_message_time || "").trim();
   let replyTime = reply.captured_at
@@ -8714,6 +8715,9 @@ function renderOutreachReplies() {
       <div class="outreach-reply-main">
         <div class="outreach-reply-title-row">
           <h3>${escapeHtml(userName)}</h3>
+          ${messageBatchCode
+            ? `<span class="outreach-reply-message-batch">${escapeHtml(messageBatchCode)}</span>`
+            : ""}
           <span class="outreach-reply-account-name">${escapeHtml(accountName)}</span>
         </div>
         <div class="outreach-reply-meta">
