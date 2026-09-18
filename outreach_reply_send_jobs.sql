@@ -28,6 +28,14 @@ create index if not exists outreach_reply_send_jobs_queue_idx
 
 alter table public.outreach_reply_send_jobs enable row level security;
 
+do $$
+begin
+  alter publication supabase_realtime
+    add table public.outreach_reply_send_jobs;
+exception
+  when duplicate_object then null;
+end $$;
+
 comment on table public.outreach_reply_send_jobs is
   'Prepared and queued one-to-one LinkedIn replies sent by the dedicated reply worker.';
 
