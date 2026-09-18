@@ -60,8 +60,8 @@ def _click_first_visible(
     )
 
 
-def open_messaging(page: Page) -> None:
-    """Open Messaging from LinkedIn navigation."""
+def open_messaging(page: Page) -> Page:
+    """Open Messaging and return the page that owns the messaging UI."""
 
     candidates = [
         lambda active_page: active_page.get_by_role(
@@ -96,8 +96,14 @@ def open_messaging(page: Page) -> None:
             wait_until="domcontentloaded",
         )
 
-    if "/messaging" not in (page.url or "").lower():
-        page.wait_for_timeout(1_000)
+    for _ in range(30):
+        for candidate_page in page.context.pages:
+            if "/messaging" in (candidate_page.url or "").lower():
+                candidate_page.bring_to_front()
+                candidate_page.wait_for_timeout(500)
+                return candidate_page
+
+        page.wait_for_timeout(500)
 
     if "/messaging" not in (page.url or "").lower():
         page.goto(
@@ -106,6 +112,7 @@ def open_messaging(page: Page) -> None:
         )
 
     page.wait_for_timeout(1_000)
+    return page
 
 
 def open_unread(page: Page) -> None:
@@ -141,12 +148,33 @@ def open_unread(page: Page) -> None:
         ),
     ]
 
-    _click_first_visible(
-        page,
-        candidates,
-        description="Unread",
-        timeout_ms=30_000,
-    )
+    unread_button = page.locator(
+        'button[data-test-messaging-inbox-filters__filter-pill="UNREAD"]'
+    ).first
+
+    try:
+        unread_button.wait_for(
+            state="visible",
+            timeout=30_000,
+        )
+        unread_button.scroll_into_view_if_needed()
+
+        if (
+            unread_button.get_attribute("aria-pressed") == "true"
+            or unread_button.get_attribute("aria-checked") == "true"
+        ):
+            logger.info("Unread filter is already selected")
+        else:
+            unread_button.click()
+            logger.info("Clicked Unread")
+    except Exception:
+        _click_first_visible(
+            page,
+            candidates,
+            description="Unread",
+            timeout_ms=30_000,
+        )
+
     page.wait_for_timeout(1_000)
 
 
@@ -166,7 +194,7 @@ def run_once(account_id: str) -> None:
     try:
         browser.start()
         page = browser.open_linkedin_url(LINKEDIN_HOME_URL)
-        open_messaging(page)
+        page = open_messaging(page)
         open_unread(page)
 
         print("")
