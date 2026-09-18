@@ -3,9 +3,13 @@
 Flow:
     1. Open the selected Outreach LinkedIn profile.
     2. Open LinkedIn Messaging and select Unread.
-    3. Read sender-name nodes only, without opening conversations.
-    4. Compare those names with successfully sent targets for the account.
-    5. Log exact matches without writing back to Supabase.
+    3. Compare unread sender names with successfully sent targets.
+    4. Open only the conversations verified by that comparison.
+    5. Log the incoming reply text with its database evidence.
+    6. Use the active-thread menu beside Star to restore Mark as unread.
+
+This worker is read-only with respect to Supabase. Opening a conversation
+changes LinkedIn UI state, so it restores the unread state before continuing.
 
 Keep other workers from using the same persistent browser profile while this
 worker is running.
@@ -60,6 +64,20 @@ UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__conversations-list-container",
 )
 FUZZY_MATCH_THRESHOLD = 0.70
+MESSAGE_BODY_SELECTORS = (
+    ".msg-s-event-listitem__body",
+    ".msg-s-message-group__message-bubble",
+    ".msg-s-event-listitem__message-bubble",
+)
+MESSAGE_AUTHOR_SELECTORS = (
+    ".msg-s-message-group__name",
+    '[data-anonymize="person-name"]',
+)
+THREAD_STAR_SELECTORS = (
+    'button[aria-label*="Star conversation"]',
+    'button[aria-label="Star"]',
+    'button:has(svg[data-test-icon*="star"])',
+)
 
 
 def _is_visible(locator: Locator, *, timeout_ms: int = 500) -> bool:
@@ -245,10 +263,14 @@ def load_sent_message_profiles(
     response = (
         active_client.table("outreach_message_targets")
         .select(
-            "id,prospect_id,assigned_account_id,linkedin_url,status,completed_at"
+            (
+                "id,prospect_id,assigned_account_id,linkedin_url,status,"
+                "message_text,completed_at"
+            )
         )
         .eq("status", "sent")
         .eq("assigned_account_id", str(account_id).strip())
+        .order("completed_at", desc=True)
         .execute()
     )
 
@@ -408,7 +430,7 @@ def log_sent_name_matches(
     *,
     unread_names: list[str],
     sent_profiles: list[dict],
-) -> int:
+) -> list[dict]:
     """Log exact decisions with evidence from sent database records."""
 
     sent_by_name: dict[str, list[dict]] = {}
@@ -419,7 +441,7 @@ def log_sent_name_matches(
         if normalized_name:
             sent_by_name.setdefault(normalized_name, []).append(sent_profile)
 
-    matched_count = 0
+    matched_profiles: list[dict] = []
 
     for unread_name in unread_names:
         normalized_unread_name = _normalize_name(unread_name)
@@ -432,7 +454,16 @@ def log_sent_name_matches(
         )
 
         if matches:
-            matched_count += 1
+            best_match = matches[0]
+            matched_profiles.append(
+                {
+                    "unread_name": unread_name,
+                    "normalized_unread_name": normalized_unread_name,
+                    "match_reason": "exact_normalized_name",
+                    "similarity": 1.0,
+                    "sent_profile": best_match,
+                }
+            )
 
             for match in matches:
                 logger.warning(
@@ -486,7 +517,15 @@ def log_sent_name_matches(
             best_profile is not None
             and best_similarity >= FUZZY_MATCH_THRESHOLD
         ):
-            matched_count += 1
+            matched_profiles.append(
+                {
+                    "unread_name": unread_name,
+                    "normalized_unread_name": normalized_unread_name,
+                    "match_reason": "fuzzy_similarity_at_or_above_threshold",
+                    "similarity": best_similarity,
+                    "sent_profile": best_profile,
+                }
+            )
             logger.warning(
                 (
                     "REPLY MATCH | reason=fuzzy_similarity_above_threshold | "
@@ -551,9 +590,509 @@ def log_sent_name_matches(
     logger.info(
         "Reply-check summary | unread_names=%s | matched_sent_names=%s",
         len(unread_names),
-        matched_count,
+        len(matched_profiles),
     )
-    return matched_count
+    return matched_profiles
+
+
+def _find_visible_unread_name(
+    surface: Page | Frame,
+    unread_name: str,
+) -> Locator | None:
+    expected_name = _normalize_name(unread_name)
+
+    for selector in UNREAD_NAME_SELECTORS:
+        try:
+            candidates = surface.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+                if not _is_visible(candidate):
+                    continue
+                actual_name = _normalize_name(candidate.inner_text())
+                if actual_name == expected_name:
+                    return candidate
+        except Exception:
+            continue
+
+    return None
+
+
+def _scroll_unread_list_to_start(surface: Page | Frame) -> None:
+    try:
+        surface.evaluate(
+            """
+            selectors => {
+                for (const selector of selectors) {
+                    const candidate = document.querySelector(selector);
+                    if (candidate) {
+                        candidate.scrollTop = 0;
+                        candidate.dispatchEvent(
+                            new Event('scroll', {bubbles: true})
+                        );
+                    }
+                }
+            }
+            """,
+            list(UNREAD_LIST_SELECTORS),
+        )
+    except Exception:
+        pass
+
+
+def _click_conversation_name(name_locator: Locator) -> bool:
+    ancestor_selectors = (
+        'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]',
+        (
+            'xpath=ancestor::li['
+            'contains(@class,"msg-conversation-listitem")][1]'
+        ),
+        (
+            'xpath=ancestor::*['
+            'contains(@class,"msg-conversation-card")][1]'
+        ),
+        'xpath=ancestor::*[@role="button"][1]',
+    )
+
+    for selector in ancestor_selectors:
+        try:
+            candidate = name_locator.locator(selector)
+            if candidate.count() <= 0:
+                continue
+            candidate = candidate.first
+            if _is_visible(candidate) and _click_locator(candidate):
+                return True
+        except Exception:
+            continue
+
+    return _click_locator(name_locator)
+
+
+def open_matched_conversation(page: Page, unread_name: str) -> None:
+    """Open one matched Unread row by exact normalized visible name."""
+
+    surface = _find_unread_surface(page)
+    if surface is None:
+        raise RuntimeError("Unread surface was not found before row click.")
+
+    _scroll_unread_list_to_start(surface)
+    page.wait_for_timeout(400)
+
+    bottom_passes = 0
+
+    for _ in range(45):
+        name_locator = _find_visible_unread_name(surface, unread_name)
+        if name_locator is not None:
+            if not _click_conversation_name(name_locator):
+                raise RuntimeError(
+                    f"Conversation row click failed for {unread_name!r}."
+                )
+            page.wait_for_timeout(1_000)
+            logger.info(
+                "Opened matched conversation | unread_name=%s | url=%s",
+                unread_name,
+                page.url,
+            )
+            return
+
+        scroll_state = _scroll_unread_list(surface)
+        if bool(scroll_state.get("atBottom")):
+            bottom_passes += 1
+        else:
+            bottom_passes = 0
+
+        if bottom_passes >= 2:
+            break
+
+        page.wait_for_timeout(400)
+
+    raise RuntimeError(
+        f"Matched conversation row was not found for {unread_name!r}."
+    )
+
+
+def _message_group_for_body(body: Locator) -> Locator | None:
+    selectors = (
+        (
+            'xpath=ancestor::*['
+            'contains(@class,"msg-s-message-group")][1]'
+        ),
+        (
+            'xpath=ancestor::*['
+            'contains(@class,"msg-s-event-listitem")][1]'
+        ),
+        'xpath=ancestor::li[1]',
+    )
+
+    for selector in selectors:
+        try:
+            group = body.locator(selector)
+            if group.count() > 0:
+                return group.first
+        except Exception:
+            continue
+
+    return None
+
+
+def _read_message_author(group: Locator | None) -> str:
+    if group is None:
+        return ""
+
+    for selector in MESSAGE_AUTHOR_SELECTORS:
+        try:
+            candidates = group.locator(selector)
+            for index in range(candidates.count()):
+                candidate = candidates.nth(index)
+                if not _is_visible(candidate):
+                    continue
+                value = " ".join(candidate.inner_text().split())
+                if value:
+                    return value
+        except Exception:
+            continue
+
+    return ""
+
+
+def _read_message_timestamp(group: Locator | None) -> str:
+    if group is None:
+        return ""
+
+    selectors = (
+        "time",
+        ".msg-s-message-group__timestamp",
+        ".msg-s-event-listitem__timestamp",
+    )
+
+    for selector in selectors:
+        try:
+            candidates = group.locator(selector)
+            for index in range(candidates.count()):
+                value = " ".join(candidates.nth(index).inner_text().split())
+                if value:
+                    return value
+        except Exception:
+            continue
+
+    return ""
+
+
+def read_incoming_reply_messages(
+    page: Page,
+    *,
+    unread_name: str,
+    sent_message_text: str,
+) -> list[dict]:
+    """Read incoming bubble text only from the active matched thread."""
+
+    surface = _find_unread_surface(page)
+    if surface is None:
+        surface = page
+
+    body_locator = surface.locator(", ".join(MESSAGE_BODY_SELECTORS))
+    expected_author = _normalize_name(unread_name)
+    normalized_sent_text = " ".join(str(sent_message_text or "").split())
+    events: list[dict] = []
+
+    logger.info(
+        "MESSAGE DOM EVIDENCE | unread_name=%s | selectors=%s | candidates=%s",
+        unread_name,
+        MESSAGE_BODY_SELECTORS,
+        body_locator.count(),
+    )
+
+    for index in range(body_locator.count()):
+        body = body_locator.nth(index)
+
+        try:
+            if not _is_visible(body):
+                continue
+            text_value = " ".join(body.inner_text().split())
+        except Exception:
+            continue
+
+        if not text_value:
+            continue
+
+        group = _message_group_for_body(body)
+        author = _read_message_author(group)
+        normalized_author = _normalize_name(author)
+
+        class_evidence = ""
+        if group is not None:
+            try:
+                class_evidence = str(
+                    group.get_attribute("class") or ""
+                ).casefold()
+            except Exception:
+                class_evidence = ""
+
+        is_own_message = (
+            "--is-me" in class_evidence
+            or "from-me" in class_evidence
+            or (
+                normalized_sent_text
+                and text_value == normalized_sent_text
+            )
+        )
+        is_incoming = (
+            bool(normalized_author)
+            and normalized_author == expected_author
+            and not is_own_message
+        )
+
+        events.append(
+            {
+                "index": index,
+                "author": author,
+                "text": text_value,
+                "timestamp": _read_message_timestamp(group),
+                "is_own_message": is_own_message,
+                "is_incoming": is_incoming,
+            }
+        )
+
+    last_sent_index = -1
+    for event in events:
+        if event["is_own_message"]:
+            last_sent_index = max(last_sent_index, int(event["index"]))
+
+    replies = [
+        event
+        for event in events
+        if event["is_incoming"] and int(event["index"]) > last_sent_index
+    ]
+
+    if not replies:
+        incoming_events = [event for event in events if event["is_incoming"]]
+        if incoming_events:
+            replies = [incoming_events[-1]]
+
+    logger.info(
+        (
+            "MESSAGE READ EVIDENCE | unread_name=%s | bubbles=%s | "
+            "last_sent_index=%s | incoming_replies=%s"
+        ),
+        unread_name,
+        len(events),
+        last_sent_index,
+        len(replies),
+    )
+    return replies
+
+
+def _visible_exact_text(page: Page, text_value: str) -> Locator | None:
+    candidates = (
+        page.get_by_role("menuitem", name=text_value, exact=True),
+        page.get_by_text(text_value, exact=True),
+    )
+
+    for locator in candidates:
+        try:
+            for index in range(locator.count()):
+                candidate = locator.nth(index)
+                if _is_visible(candidate):
+                    return candidate
+        except Exception:
+            continue
+
+    return None
+
+
+def _find_overflow_beside_star(page: Page) -> Locator:
+    """Find the active-thread overflow button immediately before Star."""
+
+    for selector in THREAD_STAR_SELECTORS:
+        try:
+            stars = page.locator(selector)
+            for index in range(stars.count()):
+                star = stars.nth(index)
+                if not _is_visible(star):
+                    continue
+
+                previous = star.locator(
+                    "xpath=preceding-sibling::button[1]"
+                )
+                if previous.count() > 0 and _is_visible(previous.first):
+                    logger.info(
+                        (
+                            "THREAD MENU DOM EVIDENCE | strategy=button-before-star | "
+                            "star_selector=%s | overflow_aria=%s | overflow_title=%s"
+                        ),
+                        selector,
+                        previous.first.get_attribute("aria-label"),
+                        previous.first.get_attribute("title"),
+                    )
+                    return previous.first
+
+                parent_buttons = star.locator("xpath=parent::*").locator(
+                    ":scope > button"
+                )
+                for button_index in range(parent_buttons.count()):
+                    button = parent_buttons.nth(button_index)
+                    if not _is_visible(button):
+                        continue
+                    try:
+                        icon_count = button.locator(
+                            'svg[data-test-icon*="overflow"], '
+                            'svg[data-test-icon*="ellipsis"]'
+                        ).count()
+                        aria_label = str(
+                            button.get_attribute("aria-label") or ""
+                        ).casefold()
+                    except Exception:
+                        continue
+                    if icon_count > 0 or "more" in aria_label:
+                        logger.info(
+                            (
+                                "THREAD MENU DOM EVIDENCE | "
+                                "strategy=star-parent-overflow | "
+                                "star_selector=%s | overflow_aria=%s"
+                            ),
+                            selector,
+                            aria_label,
+                        )
+                        return button
+        except Exception:
+            continue
+
+    raise RuntimeError(
+        "Active-thread overflow button beside Star was not found."
+    )
+
+
+def _open_thread_overflow_menu(page: Page) -> None:
+    overflow = _find_overflow_beside_star(page)
+    if not _click_locator(overflow):
+        raise RuntimeError("Could not click thread overflow beside Star.")
+
+    for _ in range(30):
+        if (
+            _visible_exact_text(page, "Mark as unread") is not None
+            or _visible_exact_text(page, "Mark as read") is not None
+        ):
+            return
+        page.wait_for_timeout(100)
+
+    raise RuntimeError("Thread overflow menu did not become visible.")
+
+
+def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
+    """Restore unread state and verify menu changes to Mark as read."""
+
+    _open_thread_overflow_menu(page)
+
+    mark_unread = _visible_exact_text(page, "Mark as unread")
+    if mark_unread is not None:
+        if not _click_locator(mark_unread):
+            raise RuntimeError("Could not click exact Mark as unread item.")
+        page.wait_for_timeout(600)
+    else:
+        already_unread = _visible_exact_text(page, "Mark as read")
+        if already_unread is not None:
+            page.keyboard.press("Escape")
+            logger.info(
+                "Conversation was already unread | unread_name=%s",
+                unread_name,
+            )
+            return
+        raise RuntimeError("Neither Mark as unread nor Mark as read was found.")
+
+    verified = False
+    for _ in range(5):
+        page.wait_for_timeout(500)
+        _open_thread_overflow_menu(page)
+        if _visible_exact_text(page, "Mark as read") is not None:
+            verified = True
+            page.keyboard.press("Escape")
+            break
+        page.keyboard.press("Escape")
+
+    if not verified:
+        raise RuntimeError(
+            "Mark as unread click was not verified by Mark as read state."
+        )
+
+    logger.info(
+        "MARKED AS UNREAD | unread_name=%s | verification=Mark as read visible",
+        unread_name,
+    )
+
+
+def process_matched_conversations(
+    page: Page,
+    matched_profiles: list[dict],
+) -> int:
+    """Read matched replies and always attempt to restore unread state."""
+
+    processed_count = 0
+
+    for match in matched_profiles:
+        unread_name = str(match.get("unread_name") or "").strip()
+        sent_profile = dict(match.get("sent_profile") or {})
+        conversation_opened = False
+
+        try:
+            open_matched_conversation(page, unread_name)
+            conversation_opened = True
+
+            replies = read_incoming_reply_messages(
+                page,
+                unread_name=unread_name,
+                sent_message_text=str(sent_profile.get("message_text") or ""),
+            )
+
+            if not replies:
+                logger.warning(
+                    (
+                        "NO INCOMING MESSAGE BODY FOUND | unread_name=%s | "
+                        "db_target_id=%s"
+                    ),
+                    unread_name,
+                    sent_profile.get("id"),
+                )
+            else:
+                for reply in replies:
+                    logger.warning(
+                        (
+                            "REPLY MESSAGE CONTENT | sender=%s | message=%s | "
+                            "message_time=%s | db_target_id=%s | "
+                            "db_prospect_id=%s | match_reason=%s | "
+                            "similarity=%.3f"
+                        ),
+                        unread_name,
+                        reply.get("text"),
+                        reply.get("timestamp"),
+                        sent_profile.get("id"),
+                        sent_profile.get("prospect_id"),
+                        match.get("match_reason"),
+                        float(match.get("similarity") or 0.0),
+                    )
+
+            processed_count += 1
+
+        except Exception as exc:
+            logger.exception(
+                "Matched conversation processing failed | unread_name=%s | error=%s",
+                unread_name,
+                exc,
+            )
+
+        finally:
+            if conversation_opened:
+                try:
+                    mark_active_thread_as_unread(page, unread_name)
+                except Exception as exc:
+                    logger.exception(
+                        (
+                            "Could not restore unread state | "
+                            "unread_name=%s | error=%s"
+                        ),
+                        unread_name,
+                        exc,
+                    )
+
+    return processed_count
 
 
 def _click_first_visible(
@@ -723,7 +1262,7 @@ def open_unread(page: Page) -> None:
 
 
 def run_once(account_id: str) -> None:
-    """Open Unread and report names that match successfully sent targets."""
+    """Read replies from matched sent targets, then restore unread state."""
 
     pool = OutreachAccountPool()
     account = pool.get_account(account_id)
@@ -746,16 +1285,21 @@ def run_once(account_id: str) -> None:
             client=client,
         )
         unread_names = scan_unread_names(page)
-        matched_count = log_sent_name_matches(
+        matched_profiles = log_sent_name_matches(
             unread_names=unread_names,
             sent_profiles=sent_profiles,
+        )
+        processed_count = process_matched_conversations(
+            page,
+            matched_profiles,
         )
 
         print("")
         print("Reply-check scan completed.")
         print(f"Unread names: {len(unread_names)}")
-        print(f"Matched sent profiles: {matched_count}")
-        print("Matching names were written to the worker log.")
+        print(f"Matched sent profiles: {len(matched_profiles)}")
+        print(f"Matched conversations processed: {processed_count}")
+        print("Reply contents and evidence were written to the worker log.")
         print("The browser will stay open. Press Ctrl+C to stop.")
 
         while True:
