@@ -10179,17 +10179,14 @@ loadOutreachDashboard();
 
 startOutreachPolling();
 
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
-    setOutreachProcessTab(
-      state.outreachProcessTab || "connect"
-    );
-  },
-  {
-    once: true
-  }
-);
+// The presentation-only login may load this script after DOMContentLoaded.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => {
+    setOutreachProcessTab(state.outreachProcessTab || "connect");
+  }, { once: true });
+} else {
+  setOutreachProcessTab(state.outreachProcessTab || "connect");
+}
 
 
 document.addEventListener(

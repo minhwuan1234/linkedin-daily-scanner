@@ -15,9 +15,41 @@
 
   <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-8" />
     <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./login.css?v=20260922" />
 </head>
 
-<body>
+<body class="login-mode">
+  <main class="login-screen" id="loginScreen">
+    <div class="login-shell">
+      <section class="login-story" aria-labelledby="workflowTitle">
+        <div class="login-brand"><img src="./ops-mark.svg" alt="" width="32" height="34" /><span>LinkedIn Ops</span><span class="login-brand-tag">Your outreach workspace</span></div>
+        <div class="login-story-heading"><span class="login-eyebrow">A LITTLE STRUCTURE. MORE CONNECTIONS.</span><h2 id="workflowTitle">Good conversations<br />start with a connection.</h2><p>One place for every step of your outreach.</p></div>
+        <div class="login-workflow" aria-label="Workflow: Connect, check acceptance, prepare recipients, send messages, and manage replies">
+          <svg class="login-connections" viewBox="0 0 440 405" preserveAspectRatio="none" fill="none" aria-hidden="true"><path d="M108 76V83Q108 88 124 88H316V95M316 156V163Q316 168 300 168H108V175M108 236V243Q108 248 124 248H316V255M316 316V323Q316 328 300 328H108V335"/><circle cx="220" cy="88" r="3"/><circle cx="220" cy="168" r="3"/><circle cx="220" cy="248" r="3"/><circle cx="220" cy="328" r="3"/></svg>
+          <div class="login-node login-node-connect"><span class="login-node-icon peach">↗</span><div><strong>Connect</strong><span>Reach the right people</span></div><small>01</small></div>
+          <div class="login-node login-node-accept"><span class="login-node-icon mint">✓</span><div><strong>Acceptance</strong><span>See who connected</span></div><small>02</small></div>
+          <div class="login-node login-node-recipients"><span class="login-node-icon lavender">☷</span><div><strong>Recipients</strong><span>Prepare your audience</span></div><small>03</small></div>
+          <div class="login-node login-node-message"><span class="login-node-icon sky">↗</span><div><strong>Messages</strong><span>Start a conversation</span></div><small>04</small></div>
+          <div class="login-node login-node-reply"><span class="login-node-icon yellow">↩</span><div><strong>Replies</strong><span>Keep it going</span></div><small>05</small></div>
+        </div>
+        <div class="login-story-footer"><span class="login-mini-mark">in</span><span>Less busywork. More meaningful outreach.</span><button id="loginMotionToggle" type="button" aria-label="Pause diagram animation" aria-pressed="false">Ⅱ</button></div>
+      </section>
+      <section class="login-form-panel" aria-labelledby="loginTitle">
+        <div class="login-form-content">
+          <img class="login-logo" src="./ops-mark.svg" alt="LinkedIn Ops" width="44" height="46" />
+          <h1 id="loginTitle">Welcome back.</h1><p class="login-subtitle">A little focus for your next big connection.</p>
+          <form id="loginForm" novalidate>
+            <label for="loginEmail">Email</label><input id="loginEmail" name="email" type="text" inputmode="email" autocomplete="off" placeholder="you@company.com" />
+            <label for="loginPassword">Password</label><div class="login-password"><input id="loginPassword" name="password" type="password" autocomplete="off" placeholder="Enter your password" /><button type="button" id="loginPasswordToggle" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+            <button class="login-submit" type="submit">Continue <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="login-form-note">Your outreach, all in one place.</p>
+        </div>
+        <span class="login-panel-footer">LinkedIn Ops <span aria-hidden="true">·</span> Make every connection count.</span>
+      </section>
+    </div>
+  </main>
+  <div id="loginWorkspace" hidden inert>
   <div class="app-layout">
     <aside class="app-sidebar">
       <div class="sidebar-brand">
@@ -2167,8 +2199,7 @@
     <div id="drawerContent" class="drawer-content"></div>
   </aside>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js?v=20260918-outreach-replies-8"></script>
+  </div>
+  <script src="./login.js?v=20260922"></script>
 </body>
 </html>
