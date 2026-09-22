@@ -13,11 +13,43 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260916-outreach-week-index-1" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260916-stripe-rebuild-4" />
+  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-8" />
+    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./login.css?v=20260922" />
 </head>
 
-<body>
+<body class="login-mode">
+  <main class="login-screen" id="loginScreen">
+    <div class="login-shell">
+      <section class="login-story" aria-labelledby="workflowTitle">
+        <div class="login-brand"><img src="./ops-mark.svg" alt="" width="32" height="34" /><span>LinkedIn Ops</span><span class="login-brand-tag">Your outreach workspace</span></div>
+        <div class="login-story-heading"><span class="login-eyebrow">A LITTLE STRUCTURE. MORE CONNECTIONS.</span><h2 id="workflowTitle">Good conversations<br />start with a connection.</h2><p>One place for every step of your outreach.</p></div>
+        <div class="login-workflow" aria-label="Workflow: Connect, check acceptance, prepare recipients, send messages, and manage replies">
+          <svg class="login-connections" viewBox="0 0 440 405" preserveAspectRatio="none" fill="none" aria-hidden="true"><path d="M108 76V83Q108 88 124 88H316V95M316 156V163Q316 168 300 168H108V175M108 236V243Q108 248 124 248H316V255M316 316V323Q316 328 300 328H108V335"/><circle cx="220" cy="88" r="3"/><circle cx="220" cy="168" r="3"/><circle cx="220" cy="248" r="3"/><circle cx="220" cy="328" r="3"/></svg>
+          <div class="login-node login-node-connect"><span class="login-node-icon peach">↗</span><div><strong>Connect</strong><span>Reach the right people</span></div><small>01</small></div>
+          <div class="login-node login-node-accept"><span class="login-node-icon mint">✓</span><div><strong>Acceptance</strong><span>See who connected</span></div><small>02</small></div>
+          <div class="login-node login-node-recipients"><span class="login-node-icon lavender">☷</span><div><strong>Recipients</strong><span>Prepare your audience</span></div><small>03</small></div>
+          <div class="login-node login-node-message"><span class="login-node-icon sky">↗</span><div><strong>Messages</strong><span>Start a conversation</span></div><small>04</small></div>
+          <div class="login-node login-node-reply"><span class="login-node-icon yellow">↩</span><div><strong>Replies</strong><span>Keep it going</span></div><small>05</small></div>
+        </div>
+        <div class="login-story-footer"><span class="login-mini-mark">in</span><span>Less busywork. More meaningful outreach.</span><button id="loginMotionToggle" type="button" aria-label="Pause diagram animation" aria-pressed="false">Ⅱ</button></div>
+      </section>
+      <section class="login-form-panel" aria-labelledby="loginTitle">
+        <div class="login-form-content">
+          <img class="login-logo" src="./ops-mark.svg" alt="LinkedIn Ops" width="44" height="46" />
+          <h1 id="loginTitle">Welcome back.</h1><p class="login-subtitle">A little focus for your next big connection.</p>
+          <form id="loginForm" novalidate>
+            <label for="loginEmail">Email</label><input id="loginEmail" name="email" type="text" inputmode="email" autocomplete="off" placeholder="you@company.com" />
+            <label for="loginPassword">Password</label><div class="login-password"><input id="loginPassword" name="password" type="password" autocomplete="off" placeholder="Enter your password" /><button type="button" id="loginPasswordToggle" aria-label="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+            <button class="login-submit" type="submit">Continue <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="login-form-note">Your outreach, all in one place.</p>
+        </div>
+        <span class="login-panel-footer">LinkedIn Ops <span aria-hidden="true">·</span> Make every connection count.</span>
+      </section>
+    </div>
+  </main>
+  <div id="loginWorkspace" hidden inert>
   <div class="app-layout">
     <aside class="app-sidebar">
       <div class="sidebar-brand">
@@ -35,6 +67,12 @@
           <button class="tab-button is-active" type="button" data-tab="outreach">
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg></span>
             <span class="sidebar-nav-text">Connect & Messaging</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="replies">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9A2.5 2.5 0 0 1 17.5 17H10l-5 4v-4.8A2.5 2.5 0 0 1 4 14.5z"/><path d="M8 8h8M8 12h5"/></svg></span>
+            <span class="sidebar-nav-text">Replies</span>
+            <span id="outreachReplyTabCount" class="tab-count">0</span>
           </button>
 
 
@@ -1587,6 +1625,42 @@
   </section>
 </section>
 
+    <!-- OUTREACH REPLIES -->
+    <section id="tab-replies" class="tab-panel" hidden>
+      <article class="panel outreach-replies-panel">
+        <div class="panel-header outreach-replies-header">
+          <div>
+            <p class="panel-kicker">Reply check worker</p>
+            <h2>Latest Replies</h2>
+            <p class="panel-meta">
+              Latest verified replies captured by the dedicated LinkedIn reply worker.
+            </p>
+          </div>
+          <span id="outreachReplyCount" class="pill pill-neutral">0 people</span>
+        </div>
+
+        <div
+          id="outreachReplyAccountTabs"
+          class="outreach-reply-account-tabs"
+          role="tablist"
+          aria-label="Outreach accounts"
+        ></div>
+
+        <div id="outreachReplyError" class="outreach-error" hidden></div>
+        <div id="outreachReplyEmpty" class="state">
+          No verified replies have been captured yet.
+        </div>
+        <div id="outreachReplyList" class="outreach-reply-list" hidden></div>
+        <div id="outreachReplyPagination" class="outreach-list-pagination" hidden>
+          <span id="outreachReplyPageMeta" class="panel-meta">Page 1 / 1</span>
+          <div class="outreach-list-pagination-actions">
+            <button id="outreachReplyPrevPage" type="button" class="secondary-button">Previous</button>
+            <button id="outreachReplyNextPage" type="button" class="secondary-button">Next</button>
+          </div>
+        </div>
+      </article>
+    </section>
+
     <!-- HEALTH -->
     <section id="tab-health" class="tab-panel" hidden>
       <section class="health-grid">
@@ -1999,6 +2073,47 @@
     </section>
   </div>
 
+  <!-- OUTREACH REPLY PREPARE MODAL -->
+  <div id="outreachReplySendModal" class="message-send-modal" hidden>
+    <div class="message-send-modal-backdrop" data-outreach-reply-send-close></div>
+    <section
+      class="message-send-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="outreachReplySendTitle"
+    >
+      <div class="message-send-dialog-header">
+        <div>
+          <p class="panel-kicker">Send one customized reply</p>
+          <h2 id="outreachReplySendTitle">Send Reply Message</h2>
+          <p id="outreachReplySendMeta" class="panel-meta">—</p>
+        </div>
+        <button
+          id="outreachReplySendCloseButton"
+          class="close-button"
+          type="button"
+          aria-label="Close reply preparation"
+        >×</button>
+      </div>
+      <div class="message-send-dialog-body">
+        <label class="message-template-field" for="outreachReplySendInput">
+          <span>Exact message to send</span>
+          <textarea
+            id="outreachReplySendInput"
+            rows="8"
+            placeholder="Write a customized reply for this person..."
+          ></textarea>
+          <small>The worker sends this text exactly as written. No template replacement is applied.</small>
+        </label>
+        <div id="outreachReplySendError" class="outreach-error" hidden></div>
+      </div>
+      <div class="message-send-dialog-footer">
+        <button id="outreachReplySendCancelButton" class="secondary-button" type="button">Cancel</button>
+        <button id="outreachReplySendSaveButton" class="primary-button" type="button">Send</button>
+      </div>
+    </section>
+  </div>
+
   <div
     id="outreachDeleteJobsModal"
     class="message-prepare-confirm-modal"
@@ -2084,8 +2199,7 @@
     <div id="drawerContent" class="drawer-content"></div>
   </aside>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="./config.js"></script>
-  <script src="./app.js?v=20260916-outreach-week-history-modal-2"></script>
+  </div>
+  <script src="./login.js?v=20260922"></script>
 </body>
 </html>
