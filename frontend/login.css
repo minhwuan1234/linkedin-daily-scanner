@@ -1,16 +1,16 @@
 body.login-mode { margin: 0; background: #f6f5f4; color: #37352f; color-scheme: light; }
-.login-screen { min-height: 100svh; display: grid; place-items: center; padding: 48px 32px; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+.login-screen { min-height: 100svh; height: 100svh; display: grid; place-items: center; padding: 24px 32px; overflow: hidden; font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; -webkit-font-smoothing: antialiased; }
 .login-screen, .login-screen * { box-sizing: border-box; }
 .login-screen[hidden], #loginWorkspace[hidden] { display: none !important; }
-.login-shell { width: min(1120px, 100%); min-height: 700px; display: grid; grid-template-columns: 1fr 1fr; background: #fff; padding: 14px; border: 1px solid #e9e8e5; border-radius: 24px; box-shadow: 0 12px 48px #37352f09, 0 2px 8px #37352f04; }
+.login-shell { width: min(1440px, calc(100vw - 48px)); height: min(calc(100svh - 48px), 900px); min-height: 0; display: grid; grid-template-columns: 1fr 1fr; background: #fff; padding: 14px; border: 1px solid #e9e8e5; border-radius: 24px; box-shadow: 0 12px 48px #37352f09, 0 2px 8px #37352f04; }
 .login-story { position: relative; display: flex; flex-direction: column; overflow: hidden; padding: 30px; background: #f7f8fa; border: 1px solid #eceef0; border-radius: 16px; }
 .login-brand { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 600; letter-spacing: -.3px; }
 .login-brand-tag { margin-left: auto; font-size: 10px; font-weight: 400; color: #747771; letter-spacing: 0; }
-.login-story-heading { margin-top: 48px; }
+.login-story-heading { margin-top: clamp(24px, 5vh, 48px); }
 .login-eyebrow { font-size: 10px; letter-spacing: 1.3px; font-weight: 600; color: #747771; }
 .login-story h2 { margin: 14px 0 12px; color: #262520; font-family: inherit; font-size: 30px; line-height: 1.22; font-weight: 600; letter-spacing: -1px; }
 .login-story-heading p { margin: 0; font-size: 13px; color: #747771; line-height: 1.6; }
-.login-workflow { position: relative; width: 100%; height: 350px; margin: 18px auto 0; background-image: radial-gradient(#dce0e4 .75px, transparent .75px); background-size: 16px 16px; }
+.login-workflow { position: relative; width: 100%; height: clamp(250px, 43vh, 405px); margin: 18px auto 0; background-image: radial-gradient(#dce0e4 .75px, transparent .75px); background-size: 16px 16px; }
 .login-connections { position: absolute; width: 100%; height: 100%; inset: 0; overflow: visible; }
 .login-connections path { stroke: #b8c8d7; stroke-width: 1.4; stroke-dasharray: 4 4; }
 .login-connections circle { fill: #0a66c2; stroke: #f7f8fa; stroke-width: 2; }
@@ -24,13 +24,12 @@ body.login-mode { margin: 0; background: #f6f5f4; color: #37352f; color-scheme: 
 .login-node-icon.lavender { background: #e6e0f5; color: #391c57; }
 .login-node-icon.sky { background: #dcecfa; color: #005bab; }
 .login-node-icon.yellow { background: #fef7d6; color: #793400; }
-.login-node-connect { top: 15px; left: 0; }
-.login-node-accept { top: 95px; right: 0; }
-.login-node-recipients { top: 175px; left: 0; }
-.login-node-message { top: 255px; right: 0; }
-.login-node-reply { top: 335px; left: 0; }
-.login-workflow { height: 405px; }
-.login-connections { height: 405px; }
+.login-node-connect { top: 0; left: 0; }
+.login-node-accept { top: 25%; right: 0; }
+.login-node-recipients { top: 50%; left: 0; }
+.login-node-message { top: 75%; right: 0; }
+.login-node-reply { top: calc(100% - 64px); left: 0; }
+.login-connections { height: 100%; }
 .login-node { animation: login-node-float 6s ease-in-out infinite; }
 .login-node-accept { animation-delay: -.9s; }
 .login-node-recipients { animation-delay: -1.8s; }
