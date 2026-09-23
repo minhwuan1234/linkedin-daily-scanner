@@ -369,7 +369,7 @@
 }
 .topbar-icon-button:hover .topbar-icon-tooltip,
 .topbar-icon-button:focus-visible .topbar-icon-tooltip { opacity: 1; transform: translateY(0); }
-.topbar-icon-badge { position: absolute; right: -4px; top: -4px; display: grid; min-width: 16px; height: 16px; place-items: center; padding: 0 3px; border: 1px solid #fff; border-radius: 999px; background: #0a66c2; color: #fff; font-size: 8px; line-height: 1; }
+.topbar-icon-badge { position: absolute; right: -4px; top: -4px; display: grid; min-width: 18px; height: 18px; place-items: center; padding: 0 4px; border: 1px solid #fff; border-radius: 999px; background: #292824; color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
 
 .sidebar-navigation .tab-count {
   border: 0 !important;

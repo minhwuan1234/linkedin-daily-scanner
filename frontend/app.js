@@ -2650,7 +2650,7 @@ function renderRateLimitSidebarSummary(
 
   if (exhausted > 0) {
     els.rateLimitSidebarBadge.textContent =
-      `${exhausted} cap`;
+      `${exhausted}`;
 
     els.rateLimitDrawerButton.classList.add(
       "is-critical"
@@ -2661,7 +2661,7 @@ function renderRateLimitSidebarSummary(
 
   if (nearCap > 0) {
     els.rateLimitSidebarBadge.textContent =
-      `${nearCap} near`;
+      `${nearCap}`;
 
     els.rateLimitDrawerButton.classList.add(
       "is-warning"
@@ -2671,7 +2671,7 @@ function renderRateLimitSidebarSummary(
   }
 
   els.rateLimitSidebarBadge.textContent =
-    `${rows.length} ok`;
+    `${rows.length}`;
 }
 
 
