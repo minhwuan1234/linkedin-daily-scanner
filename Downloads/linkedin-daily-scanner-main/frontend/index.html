@@ -13,9 +13,12 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="./styles.css?v=20260918-outreach-replies-8" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
-  <link rel="stylesheet" href="./login.css?v=20260922" />
+  <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-fixed-panels-1" />
+  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-weeks-10" />
+  <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
 <body class="login-mode">
@@ -23,16 +26,19 @@
     <div class="login-shell">
       <section class="login-story" aria-labelledby="workflowTitle">
         <div class="login-brand"><img src="./ops-mark.svg" alt="" width="32" height="34" /><span>LinkedIn Ops</span><span class="login-brand-tag">Your outreach workspace</span></div>
-        <div class="login-story-heading"><span class="login-eyebrow">A LITTLE STRUCTURE. MORE CONNECTIONS.</span><h2 id="workflowTitle">Good conversations<br />start with a connection.</h2><p>One place for every step of your outreach.</p></div>
+        <div class="login-story-heading"><span class="login-eyebrow">A LITTLE STRUCTURE. MORE CONNECTIONS.</span><h2 id="workflowTitle">Good conversations start with a connection.</h2><p>One place for every step of your outreach.</p></div>
         <div class="login-workflow" aria-label="Workflow: Connect, check acceptance, prepare recipients, send messages, and manage replies">
-          <svg class="login-connections" viewBox="0 0 440 405" preserveAspectRatio="none" fill="none" aria-hidden="true"><path d="M108 76V83Q108 88 124 88H316V95M316 156V163Q316 168 300 168H108V175M108 236V243Q108 248 124 248H316V255M316 316V323Q316 328 300 328H108V335"/><circle cx="220" cy="88" r="3"/><circle cx="220" cy="168" r="3"/><circle cx="220" cy="248" r="3"/><circle cx="220" cy="328" r="3"/></svg>
+          <svg class="login-connections" viewBox="0 0 100 100" preserveAspectRatio="none" fill="none" aria-hidden="true">
+            <path class="login-flow-base" pathLength="100" vector-effect="non-scaling-stroke" d="M44 8H53Q55 8 55 10V27Q55 29 57 29H56M56 29H47Q45 29 45 31V48Q45 50 43 50H44M44 50H53Q55 50 55 52V69Q55 71 57 71H56M56 71H47Q45 71 45 73V90Q45 92 43 92H44"/>
+            <path class="login-flow-highlight" pathLength="100" vector-effect="non-scaling-stroke" d="M44 8H53Q55 8 55 10V27Q55 29 57 29H56M56 29H47Q45 29 45 31V48Q45 50 43 50H44M44 50H53Q55 50 55 52V69Q55 71 57 71H56M56 71H47Q45 71 45 73V90Q45 92 43 92H44"/>
+            <circle vector-effect="non-scaling-stroke" cx="55" cy="29" r="0.35"/><circle vector-effect="non-scaling-stroke" cx="45" cy="50" r="0.35"/><circle vector-effect="non-scaling-stroke" cx="55" cy="71" r="0.35"/>
+          </svg>
           <div class="login-node login-node-connect"><span class="login-node-icon peach">↗</span><div><strong>Connect</strong><span>Reach the right people</span></div><small>01</small></div>
           <div class="login-node login-node-accept"><span class="login-node-icon mint">✓</span><div><strong>Acceptance</strong><span>See who connected</span></div><small>02</small></div>
           <div class="login-node login-node-recipients"><span class="login-node-icon lavender">☷</span><div><strong>Recipients</strong><span>Prepare your audience</span></div><small>03</small></div>
           <div class="login-node login-node-message"><span class="login-node-icon sky">↗</span><div><strong>Messages</strong><span>Start a conversation</span></div><small>04</small></div>
           <div class="login-node login-node-reply"><span class="login-node-icon yellow">↩</span><div><strong>Replies</strong><span>Keep it going</span></div><small>05</small></div>
         </div>
-        <div class="login-story-footer"><span class="login-mini-mark">in</span><span>Less busywork. More meaningful outreach.</span><button id="loginMotionToggle" type="button" aria-label="Pause diagram animation" aria-pressed="false">Ⅱ</button></div>
       </section>
       <section class="login-form-panel" aria-labelledby="loginTitle">
         <div class="login-form-content">
@@ -55,18 +61,40 @@
       <div class="sidebar-brand">
         <div class="brand-mark" aria-hidden="true">in</div>
         <div class="sidebar-brand-copy">
+          <span>Workspace</span>
           <strong>LinkedIn Ops</strong>
-          <span>Operations Console</span>
         </div>
+        <svg class="sidebar-brand-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 8 3-3 3 3M7 12l3 3 3-3"/></svg>
       </div>
+
+      <label class="sidebar-search" for="sidebarNavSearch">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg>
+        <input id="sidebarNavSearch" type="search" placeholder="Search" autocomplete="off" />
+        <kbd>⌘K</kbd>
+      </label>
 
       <nav class="tab-navigation sidebar-navigation" aria-label="Dashboard sections">
         <div class="sidebar-nav-group">
           <p class="sidebar-nav-label">Outreach</p>
 
-          <button class="tab-button is-active" type="button" data-tab="outreach">
+          <button class="tab-button is-active" type="button" data-tab="outreach" data-outreach-process-tab="connect">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg></span>
+            <span class="sidebar-nav-text">Connect</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="acceptance">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg></span>
+            <span class="sidebar-nav-text">Acceptance</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="recipients">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg></span>
+            <span class="sidebar-nav-text">Recipients</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="messages">
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg></span>
-            <span class="sidebar-nav-text">Connect & Messaging</span>
+            <span class="sidebar-nav-text">Messages</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="replies">
@@ -80,11 +108,6 @@
 
         <div class="sidebar-nav-group sidebar-nav-group-bottom">
           <p class="sidebar-nav-label">System</p>
-
-          <button class="tab-button" type="button" data-tab="health">
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span>
-            <span class="sidebar-nav-text">Health</span>
-          </button>
 
           <button
             id="sessionStatusButton"
@@ -112,8 +135,12 @@
       </nav>
 
       <div class="sidebar-footer">
-        <span class="status-dot"></span>
-        <span>Outreach operations</span>
+        <span class="sidebar-footer-avatar" aria-hidden="true">O</span>
+        <span class="sidebar-footer-copy">
+          <strong>Outreach Ops</strong>
+          <span><i class="status-dot"></i>System online</span>
+        </span>
+        <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M8 3v14"/></svg>
       </div>
     </aside>
 
@@ -474,20 +501,16 @@
 
     <main class="app-shell">
       <header class="topbar">
+        <div class="topbar-inner">
         <div class="page-heading">
-          <p id="pageEyebrow" class="eyebrow">Outreach</p>
-          <h1 id="pageTitle">Connect &amp; Messaging</h1>
-          <p id="pageSubtitle" class="subtitle">
+          <p id="pageEyebrow" class="eyebrow" hidden>Outreach</p>
+          <h1 id="pageTitle">Connect</h1>
+          <p id="pageSubtitle" class="subtitle" hidden>
             Manage Connect, acceptance, and messaging in one workspace.
           </p>
         </div>
 
         <div class="header-actions">
-          <div id="systemBadge" class="system-badge is-neutral">
-            <span class="status-dot"></span>
-            <span id="systemBadgeText">Checking system status</span>
-          </div>
-
           <button
             id="killProcessButton"
             class="control-button control-button-danger"
@@ -510,13 +533,26 @@
             <span id="stopScanButtonText">Stop scan</span>
           </button>
 
-          <button id="refreshButton" class="primary-button" type="button">
-            <span class="button-icon">↻</span>
-            <span>Refresh</span>
+          <button id="acceptanceInsightsDrawerButton" class="topbar-icon-button" type="button" aria-label="Acceptance Insights" aria-controls="acceptanceInsightsDrawer" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-7"/></svg>
+            <span class="topbar-icon-tooltip">Acceptance Insights</span>
           </button>
+
+          <button id="rateLimitDrawerButton" class="topbar-icon-button outreach-rate-limit-button" type="button" aria-label="Rate Limits" aria-controls="rateLimitDrawer" aria-expanded="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="8" cy="7" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="11" cy="17" r="1.5"/></svg>
+            <span id="rateLimitSidebarBadge" class="topbar-icon-badge">—</span>
+            <span class="topbar-icon-tooltip">Rate Limits</span>
+          </button>
+
+          <button id="logoutButton" class="topbar-icon-button" type="button" aria-label="Log out">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10"/><path d="m13 8 4 4-4 4M8 12h9"/></svg>
+            <span class="topbar-icon-tooltip">Log out</span>
+          </button>
+        </div>
         </div>
       </header>
 
+    <div class="app-main-scroll" id="appMainScroll">
     <section id="globalError" class="global-error" hidden></section>
 
     <!-- OVERVIEW -->
@@ -893,96 +929,17 @@
 <section id="tab-outreach" class="tab-panel">
     <span id="outreachDashboardUpdatedAt" hidden>—</span>
 
-  <div class="outreach-workflow-nav-row">
-  <div
-    class="segmented-filter outreach-workflow-tabs"
-    role="tablist"
-    aria-label="Connect and messaging workflow"
-  >
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
-      <span class="workflow-step-number">1</span>
-      <span class="workflow-step-label">Connect</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
-      <span class="workflow-step-number">2</span>
-      <span class="workflow-step-label">Acceptance</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
-      <span class="workflow-step-number">3</span>
-      <span class="workflow-step-label">Recipients</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
-      <span class="workflow-step-number">4</span>
-      <span class="workflow-step-label">Messages</span>
-    </button>
-  </div>
-
-    <div class="outreach-workflow-actions">
-      <button
-        id="acceptanceInsightsDrawerButton"
-        class="outreach-rate-limit-button outreach-insights-button"
-        type="button"
-        aria-controls="acceptanceInsightsDrawer"
-        aria-expanded="false"
-      >
-        <span>Acceptance Insights</span>
-      </button>
-
-      <button
-        id="rateLimitDrawerButton"
-        class="outreach-rate-limit-button"
-        type="button"
-        aria-controls="rateLimitDrawer"
-        aria-expanded="false"
-      >
-        <span>Rate Limits</span>
-
-        <span
-          id="rateLimitSidebarBadge"
-          class="tab-count"
-        >
-          —
-        </span>
-      </button>
-    </div>
-  </div>
-
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <article class="panel outreach-connect-workspace">
-  <div class="outreach-connect-workspace-header">
-    <div>
-      <p class="panel-kicker">Connect workflow</p>
-      <h2>Connect Profiles</h2>
-      <p class="panel-meta">
-        Paste profile URLs, start a Connect Job, and follow the current execution in one place.
-      </p>
-    </div>
-
-    <div class="outreach-connect-workspace-header-meta">
-      <span id="outreachJobCode" class="panel-meta">
-        No job yet
-      </span>
-
-      <span id="outreachJobBadge" class="pill pill-neutral">
-        Idle
-      </span>
-
-      <strong id="outreachJobStatus" class="outreach-current-status">
-        Pending
-      </strong>
-    </div>
-  </div>
-
   <div class="outreach-connect-workspace-body">
 
     <section class="outreach-connect-input-section">
+      <div class="connect-column-heading"><h2>New connect run</h2><p>Start with a list of LinkedIn profiles.</p></div>
       <form
         id="outreachConnectForm"
         class="outreach-connect-form outreach-connect-form-inline"
       >
+        <label class="connect-name-field" for="outreachDisplayName"><span>Run name <small>Optional</small></span><input id="outreachDisplayName" type="text" maxlength="80" placeholder="e.g. Prospecting Q3" autocomplete="off" /><small>Leave blank to use the generated ID.</small></label>
         <label class="outreach-url-field outreach-url-field-smart">
           <span>LinkedIn Profile URLs</span>
 
@@ -1020,49 +977,8 @@
       <p id="outreachError" class="outreach-error" hidden></p>
     </section>
 
-    <section class="outreach-connect-execution-section">
-      <div class="outreach-connect-section-heading">
-        <div>
-          <p class="panel-kicker">Current execution</p>
-          <h3>Current Connect Job</h3>
-        </div>
-      </div>
-
-      <div
-        id="outreachJobEmpty"
-        class="outreach-job-empty outreach-job-empty-smart"
-      >
-        No Connect Job yet.
-      </div>
-
-      <div
-        id="outreachJobResult"
-        class="outreach-job-result outreach-job-result-smart"
-        hidden
-      >
-        <div class="outreach-progress-block outreach-progress-block-smart">
-          <div class="outreach-progress-header">
-            <div>
-              <span>Progress</span>
-              <strong id="outreachProgressText">0 / 0</strong>
-            </div>
-
-            <strong
-              id="outreachProgressPercent"
-              class="outreach-progress-percent-smart"
-            >
-              0%
-            </strong>
-          </div>
-
-          <div class="outreach-progress-track">
-            <div
-              id="outreachProgressBar"
-              class="outreach-progress-bar"
-            ></div>
-          </div>
-        </div>
-
+    <section id="outreachConnectExecutionSection" class="outreach-connect-execution-section" aria-label="Connect batch statistics" hidden>
+      <div id="outreachJobResult" class="outreach-job-result outreach-job-result-smart">
         <div class="outreach-stat-grid-equal">
           <div class="outreach-stat outreach-stat-equal">
             <span>Input</span>
@@ -1099,39 +1015,14 @@
             <strong id="outreachInvalidCount">0</strong>
           </div>
         </div>
-
-        <div class="outreach-job-meta-grid outreach-job-meta-grid-smart">
-          <div>
-            <span>Created</span>
-            <strong id="outreachCreatedAt">—</strong>
-          </div>
-
-          <div>
-            <span>Started</span>
-            <strong id="outreachStartedAt">—</strong>
-          </div>
-
-          <div>
-            <span>Completed</span>
-            <strong id="outreachCompletedAt">—</strong>
-          </div>
-        </div>
-
-        <div class="outreach-job-message-row">
-          <p id="outreachJobMessage" class="panel-meta"></p>
-          <p id="outreachLastError" class="outreach-error" hidden></p>
-        </div>
-
-        <div class="outreach-targets-section">
-          <div class="outreach-current-targets-toggle">
-            <span>Profiles</span>
-            <strong id="outreachCurrentTargetCount">0 profiles</strong>
-          </div>
-        </div>
       </div>
     </section>
 
   </div>
+  <aside class="connect-history-panel" aria-labelledby="connectHistoryTitle">
+    <div class="connect-history-heading"><div><h2 id="connectHistoryTitle">Connect history</h2><p>Runs grouped by week</p></div><span id="connectHistoryCount">0 runs</span></div>
+    <div id="connectHistoryWeeks" class="connect-history-weeks"></div>
+  </aside>
 </article>
 
   </section>
@@ -1661,67 +1552,15 @@
       </article>
     </section>
 
-    <!-- HEALTH -->
-    <section id="tab-health" class="tab-panel" hidden>
-      <section class="health-grid">
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">System health</p>
-              <h2>System status</h2>
-            </div>
+    </div>
+    <nav id="outreachWorkflowNavigation" class="outreach-workflow-tabs" aria-label="Outreach workflow">
+      <button type="button" class="outreach-workflow-tab is-active" data-outreach-process-tab="connect" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg><span class="workflow-step-label">Connect</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="acceptance"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg><span class="workflow-step-label">Acceptance</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="recipients"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg><span class="workflow-step-label">Recipients</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="messages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg><span class="workflow-step-label">Messages</span></button>
+      <button type="button" class="outreach-workflow-tab outreach-reply-tab" data-tab="replies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg><span class="workflow-step-label">Replies</span></button>
+    </nav>
 
-            <span id="healthOverallBadge" class="pill pill-neutral">
-              Checking
-            </span>
-          </div>
-
-          <div id="healthServiceList" class="health-service-list"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Worker details</p>
-              <h2>Mac Worker</h2>
-            </div>
-          </div>
-
-          <dl id="workerDetailGrid" class="health-detail-grid"></dl>
-        </article>
-      </section>
-
-      <article class="panel health-metrics-panel">
-        <div class="panel-header">
-          <div>
-            <p class="panel-kicker">Queue health</p>
-          <h2>Health metrics</h2>
-          </div>
-        </div>
-
-        <div class="health-metric-grid">
-          <div class="health-metric">
-            <span>Worker heartbeat</span>
-            <strong id="healthHeartbeatAge">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Stale jobs</span>
-            <strong id="healthStaleJobs">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Unsent Lark results</span>
-            <strong id="healthUnsentLark">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Needs login</span>
-            <strong id="healthNeedsLogin">—</strong>
-          </div>
-        </div>
-      </article>
-    </section>
     </main>
   </div>
 
@@ -2200,6 +2039,9 @@
   </aside>
 
   </div>
-  <script src="./login.js?v=20260922"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./config.js"></script>
+  <script src="./app.js?v=20260923-connect-weeks-5"></script>
+  <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>
