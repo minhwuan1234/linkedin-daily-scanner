@@ -6713,6 +6713,22 @@ function connectWeekStart(value) {
   return localDay;
 }
 
+function connectWeekTitle(start) {
+  const month = new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "long"
+  }).format(start);
+  const firstOfMonth = new Date(Date.UTC(
+    start.getUTCFullYear(),
+    start.getUTCMonth(),
+    1
+  ));
+  const mondayOffset = (firstOfMonth.getUTCDay() + 6) % 7;
+  const weekNumber = Math.floor(
+    (start.getUTCDate() + mondayOffset - 1) / 7
+  ) + 1;
+  return `Week ${weekNumber} of ${month}`;
+}
+
 function renderConnectHistory(jobs) {
   const container = els.connectHistoryWeeks;
   if (!container) return;
@@ -6755,7 +6771,7 @@ function renderConnectHistory(jobs) {
     if (start) {
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 6);
-      title.textContent = key === thisWeekKey ? "This week" : "Previous week";
+      title.textContent = connectWeekTitle(start);
       dateRange.textContent = `${shortDate(start)} – ${shortDate(end)}, ${end.getUTCFullYear()}`;
     } else {
       title.textContent = "Date unknown";
