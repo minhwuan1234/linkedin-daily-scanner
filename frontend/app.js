@@ -7,6 +7,9 @@ console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
 const config = window.APP_CONFIG || {};
 
 const els = {
+  sidebarCollapseButton:
+    document.querySelector("#sidebarCollapseButton"),
+
   sidebarNavSearch: document.querySelector("#sidebarNavSearch"),
   refreshButton: document.querySelector("#refreshButton"),
   logoutButton: document.querySelector("#logoutButton"),
@@ -10143,6 +10146,36 @@ document.addEventListener(
 );
 
 const initialUiSettings = loadUiSettings();
+
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "linkedin-ops.sidebar-collapsed";
+const appLayout = document.querySelector(".app-layout");
+
+function setSidebarCollapsed(collapsed, {persist = true} = {}) {
+  if (!appLayout) return;
+
+  appLayout.classList.toggle("is-sidebar-collapsed", collapsed);
+  els.sidebarCollapseButton?.setAttribute("aria-expanded", String(!collapsed));
+  els.sidebarCollapseButton?.setAttribute(
+    "aria-label",
+    collapsed ? "Expand sidebar" : "Collapse sidebar"
+  );
+  if (els.sidebarCollapseButton) {
+    els.sidebarCollapseButton.title = collapsed ? "Expand sidebar" : "Collapse sidebar";
+  }
+
+  if (persist) {
+    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(collapsed));
+  }
+}
+
+setSidebarCollapsed(
+  localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === "true",
+  {persist: false}
+);
+
+els.sidebarCollapseButton?.addEventListener("click", () => {
+  setSidebarCollapsed(!appLayout?.classList.contains("is-sidebar-collapsed"));
+});
 
 function filterSidebarNavigation() {
   const query = (els.sidebarNavSearch?.value || "")

@@ -14,11 +14,11 @@
   />
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
-  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-acceptance-cleanup-1" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260923-fixed-panels-1" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-sidebar-checkbox-1" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-sidebar-checkbox-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
-  <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-acceptance-cleanup-1" />
+  <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-checkbox-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -141,7 +141,9 @@
           <strong>Outreach Ops</strong>
           <span><i class="status-dot"></i>System online</span>
         </span>
-        <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M8 3v14"/></svg>
+        <button id="sidebarCollapseButton" class="sidebar-footer-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
+          <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M8 3v14"/></svg>
+        </button>
       </div>
     </aside>
 
@@ -1972,7 +1974,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-acceptance-cleanup-1"></script>
+  <script src="./app.js?v=20260923-sidebar-checkbox-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>
