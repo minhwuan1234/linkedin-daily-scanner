@@ -1089,11 +1089,19 @@
 
             <td data-label="Accepted" class="acceptance-accepted-cell"><strong data-acceptance-accepted>—</strong></td>
             <td data-label="Outcomes">
-              <div class="acceptance-outcomes-track" role="img" aria-label="Acceptance outcomes">
-                <span class="acceptance-outcome-accepted" data-acceptance-accepted-bar></span>
-                <span class="acceptance-outcome-pending" data-acceptance-pending-bar></span>
-                <span class="acceptance-outcome-unknown" data-acceptance-unknown-bar></span>
-                <span class="acceptance-outcome-failed" data-acceptance-failed-bar></span>
+              <div class="acceptance-outcomes" tabindex="0">
+                <div class="acceptance-outcomes-track" role="img" aria-label="Acceptance outcomes">
+                  <span class="acceptance-outcome-accepted" data-acceptance-accepted-bar></span>
+                  <span class="acceptance-outcome-pending" data-acceptance-pending-bar></span>
+                  <span class="acceptance-outcome-unknown" data-acceptance-unknown-bar></span>
+                  <span class="acceptance-outcome-failed" data-acceptance-failed-bar></span>
+                </div>
+                <div class="acceptance-outcomes-tags" role="status" aria-live="polite">
+                  <span class="acceptance-outcome-tag acceptance-outcome-tag-accepted" data-acceptance-accepted-tag>Accepted 0</span>
+                  <span class="acceptance-outcome-tag acceptance-outcome-tag-pending" data-acceptance-pending-tag>Pending 0</span>
+                  <span class="acceptance-outcome-tag acceptance-outcome-tag-unknown" data-acceptance-unknown-tag>Unknown 0</span>
+                  <span class="acceptance-outcome-tag acceptance-outcome-tag-failed" data-acceptance-failed-tag>Failed 0</span>
+                </div>
               </div>
             </td>
             <td data-label="Last checked" data-acceptance-last-checked>Never</td>

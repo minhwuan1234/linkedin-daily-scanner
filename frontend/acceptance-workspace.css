@@ -274,6 +274,71 @@
   background: #e9e9e7;
 }
 
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes {
+  position: relative;
+  min-width: 120px;
+  outline: 0;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes-tags {
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 0;
+  z-index: 10;
+  display: flex;
+  max-width: min(330px, 42vw);
+  padding: 5px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #e5e5e1;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(27, 27, 24, .14);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition: opacity 140ms ease, transform 140ms ease;
+  white-space: nowrap;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes:hover .acceptance-outcomes-tags,
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes:focus-visible .acceptance-outcomes-tags {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcome-tag {
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcome-tag-accepted {
+  background: #e8f5ed;
+  color: #18794e;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcome-tag-pending {
+  background: #fff3d9;
+  color: #936500;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcome-tag-unknown,
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcome-tag-failed {
+  background: #fdeaea;
+  color: #b43a3a;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-grid-wrap.is-page-entering {
+  animation: acceptance-page-enter 220ms ease both;
+}
+
+@keyframes acceptance-page-enter {
+  from { opacity: .35; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 #tab-outreach [data-outreach-process-panel="acceptance"] .outreach-delete-job-checkbox {
   width: 28px !important;
   min-width: 28px !important;
@@ -413,5 +478,21 @@
   #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-results-toolbar > .outreach-delete-selected-button {
     padding-inline: 7px !important;
     font-size: 10px !important;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes-tags {
+    max-width: calc(100vw - 52px);
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes-tags {
+    transition: none;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-grid-wrap.is-page-entering {
+    animation: none;
   }
 }

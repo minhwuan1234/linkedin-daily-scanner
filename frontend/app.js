@@ -3879,6 +3879,12 @@ function renderOutreachAcceptanceJobs(
   els.outreachAcceptanceEmpty.hidden = true;
   els.outreachAcceptanceTableWrap.hidden = false;
   els.outreachAcceptanceBody.replaceChildren();
+  els.outreachAcceptanceTableWrap.classList.remove("is-page-entering");
+  void els.outreachAcceptanceTableWrap.offsetWidth;
+  els.outreachAcceptanceTableWrap.classList.add("is-page-entering");
+  window.setTimeout(() => {
+    els.outreachAcceptanceTableWrap?.classList.remove("is-page-entering");
+  }, 240);
 
   pageRows.forEach((job) => {
     const acceptance =
@@ -3954,6 +3960,13 @@ function renderOutreachAcceptanceJobs(
           ? `Accepted ${outcomeCounts.accepted}, pending ${outcomeCounts.pending}, unknown ${outcomeCounts.unknown}, failed ${outcomeCounts.failed}`
           : "Not checked"
       );
+
+      Object.entries(outcomeCounts).forEach(([status, count]) => {
+        const tag = fragment.querySelector(`[data-acceptance-${status}-tag]`);
+        if (tag) {
+          tag.textContent = `${status[0].toUpperCase()}${status.slice(1)} ${count}`;
+        }
+      });
     }
 
     const lastCheckedAt =
