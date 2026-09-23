@@ -224,10 +224,19 @@
 #acceptanceInsightsDrawer .acceptance-insights-table-wrap {
   max-width: 100%;
   overflow-x: auto;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
 }
 
 #acceptanceInsightsDrawer .acceptance-insights-table {
   min-width: 440px;
+  background: #fff;
+  color: var(--insights-text);
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table thead {
+  background: #f7f7f5 !important;
 }
 
 #acceptanceInsightsDrawer .acceptance-insights-table th,
@@ -238,12 +247,25 @@
 #acceptanceInsightsDrawer .acceptance-insights-table th {
   height: 32px !important;
   padding: 5px 12px !important;
+  background: #f7f7f5 !important;
   color: var(--insights-muted) !important;
+  font-size: 10px !important;
+  font-weight: 600 !important;
 }
 
 #acceptanceInsightsDrawer .acceptance-insights-table td,
 #acceptanceInsightsDrawer .acceptance-insights-table td strong {
   color: var(--insights-text) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table td {
+  padding: 12px !important;
+  background: #fff !important;
+  font-size: 12px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table tbody tr:hover td {
+  background: #f7f7f5 !important;
 }
 
 #acceptanceInsightsDrawer .outreach-job-empty {
