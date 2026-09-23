@@ -8788,6 +8788,36 @@ els.stopScanButton?.addEventListener(
   }
 );
 
+function syncOutreachWorkflowPill() {
+  const navigation = document.querySelector(
+    "#tab-outreach .outreach-workflow-tabs"
+  );
+  const active = navigation?.querySelector(
+    ".outreach-workflow-tab.is-active"
+  );
+
+  if (!navigation?.offsetWidth || !active) return;
+
+  navigation.style.setProperty(
+    "--workflow-pill-left",
+    `${active.offsetLeft}px`
+  );
+  navigation.style.setProperty(
+    "--workflow-pill-width",
+    `${active.offsetWidth}px`
+  );
+}
+
+const outreachWorkflowNav = document.querySelector(
+  "#tab-outreach .outreach-workflow-tabs"
+);
+
+if (outreachWorkflowNav && "ResizeObserver" in window) {
+  new ResizeObserver(syncOutreachWorkflowPill).observe(outreachWorkflowNav);
+}
+
+window.addEventListener("resize", syncOutreachWorkflowPill);
+
 function setOutreachProcessTab(
   tabName
 ) {
@@ -8840,6 +8870,8 @@ function setOutreachProcessTab(
         panel.dataset.outreachProcessPanel !==
         cleaned;
     });
+
+  requestAnimationFrame(syncOutreachWorkflowPill);
 
   if (cleaned === "recipients") {
     void Promise.all([
