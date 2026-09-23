@@ -15,8 +15,8 @@
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260923-topbar-controls-2" />
-  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-bottom-nav-4" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-fullwidth-topbar-1" />
+  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -500,6 +500,7 @@
 
     <main class="app-shell">
       <header class="topbar">
+        <div class="topbar-inner">
         <div class="page-heading">
           <p id="pageEyebrow" class="eyebrow" hidden>Outreach</p>
           <h1 id="pageTitle">Connect</h1>
@@ -509,11 +510,6 @@
         </div>
 
         <div class="header-actions">
-          <div id="systemBadge" class="system-badge is-neutral">
-            <span class="status-dot"></span>
-            <span id="systemBadgeText">Checking system status</span>
-          </div>
-
           <button
             id="killProcessButton"
             class="control-button control-button-danger"
@@ -536,11 +532,6 @@
             <span id="stopScanButtonText">Stop scan</span>
           </button>
 
-          <button id="refreshButton" class="primary-button" type="button">
-            <span class="button-icon">↻</span>
-            <span>Refresh</span>
-          </button>
-
           <button id="acceptanceInsightsDrawerButton" class="topbar-icon-button" type="button" aria-label="Acceptance Insights" aria-controls="acceptanceInsightsDrawer" aria-expanded="false">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5M4 19h16"/><path d="m7 15 4-4 3 2 5-7"/></svg>
             <span class="topbar-icon-tooltip">Acceptance Insights</span>
@@ -556,6 +547,7 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10"/><path d="m13 8 4 4-4 4M8 12h9"/></svg>
             <span class="topbar-icon-tooltip">Log out</span>
           </button>
+        </div>
         </div>
       </header>
 
@@ -934,40 +926,6 @@
 <!-- OUTREACH -->
 <section id="tab-outreach" class="tab-panel">
     <span id="outreachDashboardUpdatedAt" hidden>—</span>
-
-  <div class="outreach-workflow-nav-row">
-  <div
-    class="segmented-filter outreach-workflow-tabs"
-    role="tablist"
-    aria-label="Connect and messaging workflow"
-  >
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg>
-      <span class="workflow-step-label">Connect</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg>
-      <span class="workflow-step-label">Acceptance</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg>
-      <span class="workflow-step-label">Recipients</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg>
-      <span class="workflow-step-label">Messages</span>
-    </button>
-
-    <button type="button" class="outreach-accepted-filter outreach-workflow-tab outreach-reply-tab" data-tab="replies" role="tab" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg>
-      <span class="workflow-step-label">Replies</span>
-    </button>
-  </div>
-
-  </div>
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <article class="panel outreach-connect-workspace">
@@ -1646,15 +1604,6 @@
 
     <!-- OUTREACH REPLIES -->
     <section id="tab-replies" class="tab-panel" hidden>
-      <div class="outreach-workflow-nav-row outreach-replies-workflow-nav-row">
-        <div class="segmented-filter outreach-workflow-tabs" role="tablist" aria-label="Outreach workflow navigation">
-          <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="connect" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg><span class="workflow-step-label">Connect</span></button>
-          <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg><span class="workflow-step-label">Acceptance</span></button>
-          <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="recipients" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg><span class="workflow-step-label">Recipients</span></button>
-          <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="messages" role="tab" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg><span class="workflow-step-label">Messages</span></button>
-          <button type="button" class="outreach-accepted-filter outreach-workflow-tab outreach-reply-tab is-active" data-tab="replies" role="tab" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg><span class="workflow-step-label">Replies</span></button>
-        </div>
-      </div>
       <article class="panel outreach-replies-panel">
         <div class="panel-header outreach-replies-header">
           <div>
@@ -1688,6 +1637,14 @@
         </div>
       </article>
     </section>
+
+    <nav id="outreachWorkflowNavigation" class="outreach-workflow-tabs" aria-label="Outreach workflow">
+      <button type="button" class="outreach-workflow-tab is-active" data-outreach-process-tab="connect" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg><span class="workflow-step-label">Connect</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="acceptance"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg><span class="workflow-step-label">Acceptance</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="recipients"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg><span class="workflow-step-label">Recipients</span></button>
+      <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="messages"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg><span class="workflow-step-label">Messages</span></button>
+      <button type="button" class="outreach-workflow-tab outreach-reply-tab" data-tab="replies"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg><span class="workflow-step-label">Replies</span></button>
+    </nav>
 
     </main>
   </div>
@@ -2169,7 +2126,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-topbar-controls-1"></script>
+  <script src="./app.js?v=20260923-shared-nav-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

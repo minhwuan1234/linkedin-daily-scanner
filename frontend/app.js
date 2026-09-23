@@ -7238,8 +7238,10 @@ function setupYoutubeRealtime() {
 
 
 async function loadDashboard() {
-  els.refreshButton.disabled = true;
-  els.refreshButton.querySelector(".button-icon").textContent = "…";
+  if (els.refreshButton) {
+    els.refreshButton.disabled = true;
+    els.refreshButton.querySelector(".button-icon").textContent = "…";
+  }
   els.globalError.hidden = true;
   state.tableErrors = {};
 
@@ -7329,8 +7331,10 @@ async function loadDashboard() {
   state.accounts = accounts || [];
   state.worker = workers?.[0] || null;
 
-  els.refreshButton.disabled = false;
-  els.refreshButton.querySelector(".button-icon").textContent = "↻";
+  if (els.refreshButton) {
+    els.refreshButton.disabled = false;
+    els.refreshButton.querySelector(".button-icon").textContent = "↻";
+  }
 
   renderAll();
   await loadYoutubeResearch();
@@ -8634,8 +8638,24 @@ function switchTab(tabName) {
   document.querySelectorAll(".outreach-reply-tab").forEach((button) => {
     const active = tabName === "replies";
     button.classList.toggle("is-active", active);
-    button.setAttribute("aria-selected", active ? "true" : "false");
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
+
+  document.querySelectorAll("#outreachWorkflowNavigation [data-outreach-process-tab]")
+    .forEach((button) => {
+      const active = tabName === "outreach" &&
+        button.dataset.outreachProcessTab === state.outreachProcessTab;
+      button.classList.toggle("is-active", active);
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+
+  const workflowNavigation = document.querySelector("#outreachWorkflowNavigation");
+  if (workflowNavigation) {
+    workflowNavigation.hidden = tabName !== "outreach" && tabName !== "replies";
+    requestAnimationFrame(syncOutreachWorkflowPill);
+  }
 
   document
     .querySelectorAll(".tab-panel")
@@ -8888,8 +8908,9 @@ function setOutreachProcessTab(
         cleaned;
 
       if (button.classList.contains("outreach-workflow-tab")) {
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", active ? "true" : "false");
+        button.classList.toggle("is-active", active && outreachVisible);
+        if (active && outreachVisible) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
       } else if (button.dataset.tab === "outreach") {
         button.classList.toggle("is-active", active && outreachVisible);
         if (active && outreachVisible) {
