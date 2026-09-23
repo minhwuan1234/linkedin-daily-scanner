@@ -199,6 +199,8 @@ def _normalize_job(
             )
         ),
 
+        "display_name": _safe_text(row.get("display_name")),
+
         "job_type": _safe_text(
             row.get(
                 "job_type"
@@ -293,24 +295,9 @@ def _normalize_job(
 # =========================================================
 
 
-JOB_SELECT_FIELDS = (
-    "id,"
-    "job_code,"
-    "job_type,"
-    "status,"
-    "input_count,"
-    "target_count,"
-    "duplicate_count,"
-    "invalid_count,"
-    "processed_count,"
-    "success_count,"
-    "failed_count,"
-    "last_error,"
-    "created_at,"
-    "started_at,"
-    "completed_at,"
-    "updated_at"
-)
+# Selecting all job columns keeps older databases readable until the optional
+# display_name migration is applied; normalization below exposes only UI fields.
+JOB_SELECT_FIELDS = "*"
 
 
 # =========================================================

@@ -58,6 +58,19 @@ from app.outreach_session_status import (
     queue_outreach_session_checks,
 )
 
+from app.outreach_reply_store import (
+    OutreachReplyStoreError,
+    list_outreach_reply_accounts,
+    list_recent_outreach_replies,
+)
+from app.outreach_reply_send_store import (
+    OutreachReplySendStoreError,
+    list_reply_send_jobs,
+    prepare_and_queue_reply_send,
+    prepare_reply_send,
+    queue_prepared_reply_send,
+)
+
 
 
 # =========================================================
@@ -598,9 +611,18 @@ async def create_outreach_connect_job(
     # 3. CREATE CONNECT JOB
     # -----------------------------------------------------
 
+    display_name = body.get("display_name", "")
+    if not isinstance(display_name, str) or len(display_name.strip()) > 80:
+        return JSONResponse(status_code=400, content={
+            "ok": False,
+            "error": "display_name must be text of at most 80 characters",
+        })
+    display_name = display_name.strip()
+
     try:
         result = create_connect_job(
-            cleaned_urls
+            cleaned_urls,
+            display_name=display_name,
         )
 
     except OutreachJobStoreError as exc:
@@ -671,6 +693,7 @@ async def create_outreach_connect_job(
             "job": {
                 "job_id": result.job_id,
                 "job_code": result.job_code,
+                "display_name": display_name,
                 "input_count": (
                     result.input_count
                 ),
@@ -1839,6 +1862,157 @@ async def get_outreach_acceptance_insights_api(
             "insights": insights,
         },
     )
+
+
+# =========================================================
+# OUTREACH REPLIES API
+# =========================================================
+
+
+@app.get("/api/outreach/replies")
+async def list_outreach_replies_api(
+    limit: int = 50,
+) -> JSONResponse:
+    """Read the newest reply for each of the latest Outreach contacts."""
+
+    try:
+        replies = list_recent_outreach_replies(
+            limit=limit,
+        )
+        accounts = list_outreach_reply_accounts()
+        send_jobs = list_reply_send_jobs(
+            [str(reply.get("id") or "") for reply in replies]
+        )
+        for reply in replies:
+            reply["send_job"] = send_jobs.get(str(reply.get("id") or ""))
+    except OutreachReplyStoreError as exc:
+        logger.exception("Could not load Outreach replies")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Could not load Outreach replies",
+                "detail": str(exc),
+            },
+        )
+    except Exception as exc:
+        logger.exception("Unexpected Outreach replies error")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "error": "Unexpected error while loading Outreach replies",
+                "detail": str(exc),
+            },
+        )
+
+    return JSONResponse(
+        status_code=200,
+        content={
+            "ok": True,
+            "count": len(replies),
+            "replies": replies,
+            "accounts": accounts,
+        },
+    )
+
+
+@app.put("/api/outreach/replies/{reply_id}/prepare-send")
+async def prepare_outreach_reply_send_api(
+    reply_id: str,
+    request: Request,
+) -> JSONResponse:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+
+    message_text = str(
+        (payload if isinstance(payload, dict) else {}).get("message_text") or ""
+    ).strip()
+    if not message_text:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "message_text is required"},
+        )
+
+    try:
+        job = prepare_reply_send(
+            reply_id=reply_id,
+            message_text=message_text,
+        )
+    except OutreachReplySendStoreError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": str(exc)},
+        )
+    except Exception as exc:
+        logger.exception("Could not prepare Outreach reply send")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
+
+    return JSONResponse(content={"ok": True, "job": job})
+
+
+@app.post("/api/outreach/replies/{reply_id}/queue-send")
+async def queue_outreach_reply_send_api(reply_id: str) -> JSONResponse:
+    try:
+        job = queue_prepared_reply_send(reply_id=reply_id)
+    except OutreachReplySendStoreError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": str(exc)},
+        )
+    except Exception as exc:
+        logger.exception("Could not queue Outreach reply send")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
+
+    return JSONResponse(content={"ok": True, "job": job})
+
+
+@app.post("/api/outreach/replies/{reply_id}/send")
+async def send_outreach_reply_api(
+    reply_id: str,
+    request: Request,
+) -> JSONResponse:
+    """Save one customized reply and immediately queue it for its account worker."""
+
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    message_text = str(
+        (payload if isinstance(payload, dict) else {}).get("message_text") or ""
+    ).strip()
+    if not message_text:
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "error": "message_text is required"},
+        )
+
+    try:
+        job = prepare_and_queue_reply_send(
+            reply_id=reply_id,
+            message_text=message_text,
+        )
+    except OutreachReplySendStoreError as exc:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": str(exc)},
+        )
+    except Exception as exc:
+        logger.exception("Could not queue customized Outreach reply")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
+
+    return JSONResponse(content={"ok": True, "job": job})
 
 
 # =========================================================

@@ -7,7 +7,9 @@ console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
 const config = window.APP_CONFIG || {};
 
 const els = {
+  sidebarNavSearch: document.querySelector("#sidebarNavSearch"),
   refreshButton: document.querySelector("#refreshButton"),
+  logoutButton: document.querySelector("#logoutButton"),
   killProcessButton: document.querySelector("#killProcessButton"),
   stopScanButton: document.querySelector("#stopScanButton"),
   stopScanButtonText: document.querySelector("#stopScanButtonText"),
@@ -65,14 +67,6 @@ const els = {
   queueTableBody: document.querySelector("#queueTableBody"),
   accountsGrid: document.querySelector("#accountsGrid"),
 
-  healthOverallBadge: document.querySelector("#healthOverallBadge"),
-  healthServiceList: document.querySelector("#healthServiceList"),
-  workerDetailGrid: document.querySelector("#workerDetailGrid"),
-  healthHeartbeatAge: document.querySelector("#healthHeartbeatAge"),
-  healthStaleJobs: document.querySelector("#healthStaleJobs"),
-  healthUnsentLark: document.querySelector("#healthUnsentLark"),
-  healthNeedsLogin: document.querySelector("#healthNeedsLogin"),
-  
   youtubeTabCount: document.querySelector("#youtubeTabCount"),
   youtubeResearchForm: document.querySelector("#youtubeResearchForm"),
   youtubeKeywordInput: document.querySelector("#youtubeKeywordInput"),
@@ -102,6 +96,15 @@ const els = {
   outreachUrlInput:
     document.querySelector("#outreachUrlInput"),
 
+  outreachDisplayName:
+    document.querySelector("#outreachDisplayName"),
+
+  connectHistoryWeeks:
+    document.querySelector("#connectHistoryWeeks"),
+
+  connectHistoryCount:
+    document.querySelector("#connectHistoryCount"),
+
   outreachStartButton:
     document.querySelector("#outreachStartButton"),
 
@@ -111,14 +114,8 @@ const els = {
   outreachDetectedCount:
     document.querySelector("#outreachDetectedCount"),
 
-  outreachJobBadge:
-    document.querySelector("#outreachJobBadge"),
-
-  outreachJobCode:
-    document.querySelector("#outreachJobCode"),
-
-  outreachJobEmpty:
-    document.querySelector("#outreachJobEmpty"),
+  outreachConnectExecutionSection:
+    document.querySelector("#outreachConnectExecutionSection"),
 
   outreachJobResult:
     document.querySelector("#outreachJobResult"),
@@ -152,9 +149,6 @@ const els = {
 
   outreachProgressPercent:
     document.querySelector("#outreachProgressPercent"),
-
-  outreachJobStatus:
-    document.querySelector("#outreachJobStatus"),
 
   outreachCreatedAt:
     document.querySelector("#outreachCreatedAt"),
@@ -657,6 +651,8 @@ const state = {
   outreachScheduler: null,
   outreachAccounts: [],
   outreachRecentJobs: [],
+  selectedConnectHistoryJobId: null,
+  expandedConnectWeekKey: null,
   acceptanceInsights: null,
   acceptanceInsightsLoading: false,
   acceptanceInsightsError: null,
@@ -1669,47 +1665,20 @@ function getOutreachPillClass(status) {
 
 
 function renderOutreachJob(job) {
-  if (!els.outreachJobEmpty) {
+  if (!els.outreachJobResult) {
     return;
+  }
+
+  if (els.outreachConnectExecutionSection) {
+    els.outreachConnectExecutionSection.hidden = !job;
   }
 
   if (!job) {
-    els.outreachJobEmpty.hidden = false;
-
-    if (els.outreachJobResult) {
-      els.outreachJobResult.hidden = true;
-    }
-
-    if (els.outreachJobCode) {
-      els.outreachJobCode.textContent =
-        "No job yet";
-    }
-
-    if (els.outreachJobBadge) {
-      els.outreachJobBadge.textContent =
-        "Idle";
-
-      els.outreachJobBadge.className =
-        "pill pill-neutral";
-    }
-
-    if (els.outreachCurrentTargetCount) {
-      els.outreachCurrentTargetCount.textContent =
-        "0 profiles";
-    }
-
+    els.outreachJobResult.hidden = true;
     return;
   }
 
-  els.outreachJobEmpty.hidden = true;
-
-  if (els.outreachJobResult) {
-    els.outreachJobResult.hidden = false;
-  }
-
-  const status = String(
-    job.status || "pending"
-  ).toLowerCase();
+  els.outreachJobResult.hidden = false;
 
   const targetCount =
     Number(job.target_count || 0);
@@ -1731,19 +1700,6 @@ function renderOutreachJob(job) {
     100,
     progressPercent
   );
-
-  if (els.outreachJobCode) {
-    els.outreachJobCode.textContent =
-      job.job_code || "—";
-  }
-
-  if (els.outreachJobBadge) {
-    els.outreachJobBadge.textContent =
-      statusLabel(status);
-
-    els.outreachJobBadge.className =
-      `pill ${getOutreachPillClass(status)}`;
-  }
 
   if (els.outreachInputCount) {
     els.outreachInputCount.textContent =
@@ -1778,11 +1734,6 @@ function renderOutreachJob(job) {
   if (els.outreachInvalidCount) {
     els.outreachInvalidCount.textContent =
       String(job.invalid_count ?? 0);
-  }
-
-  if (els.outreachJobStatus) {
-    els.outreachJobStatus.textContent =
-      statusLabel(status);
   }
 
   if (els.outreachProgressText) {
@@ -6746,6 +6697,137 @@ async function prepareAllMessageRecipients(
 
 
 // ---------------------------------------------------------
+// CONNECT HISTORY — GROUPED BY LOCAL CALENDAR WEEK
+// ---------------------------------------------------------
+
+function connectWeekStart(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(date);
+  const number = (type) => Number(parts.find((part) => part.type === type)?.value);
+  const localDay = new Date(Date.UTC(number("year"), number("month") - 1, number("day")));
+  localDay.setUTCDate(localDay.getUTCDate() - (localDay.getUTCDay() + 6) % 7);
+  return localDay;
+}
+
+function renderConnectHistory(jobs) {
+  const container = els.connectHistoryWeeks;
+  if (!container) return;
+  const rows = Array.isArray(jobs) ? jobs : [];
+  if (els.connectHistoryCount) {
+    els.connectHistoryCount.textContent = `${rows.length} ${rows.length === 1 ? "run" : "runs"}`;
+  }
+  container.replaceChildren();
+
+  const weeks = new Map();
+  rows.forEach((job) => {
+    const start = connectWeekStart(job.created_at);
+    const key = start ? start.toISOString().slice(0, 10) : "unknown";
+    if (!weeks.has(key)) weeks.set(key, { start, jobs: [] });
+    weeks.get(key).jobs.push(job);
+  });
+  const thisWeekKey = connectWeekStart(new Date())?.toISOString().slice(0, 10);
+  if (thisWeekKey && !weeks.has(thisWeekKey)) {
+    weeks.set(thisWeekKey, {
+      start: connectWeekStart(new Date()), jobs: []
+    });
+  }
+  if (state.expandedConnectWeekKey === null) {
+    state.expandedConnectWeekKey = thisWeekKey || "unknown";
+  }
+  const shortDate = (date) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric"
+  }).format(date);
+
+  Array.from(weeks.entries()).sort(([a], [b]) => b.localeCompare(a)).forEach(([key, { start, jobs: weekJobs }]) => {
+    const section = document.createElement("section");
+    section.className = "connect-history-week";
+    const heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "connect-history-week-toggle";
+    const headingCopy = document.createElement("span");
+    headingCopy.className = "connect-history-week-copy";
+    const title = document.createElement("strong");
+    const dateRange = document.createElement("span");
+    if (start) {
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 6);
+      title.textContent = key === thisWeekKey ? "This week" : "Previous week";
+      dateRange.textContent = `${shortDate(start)} – ${shortDate(end)}, ${end.getUTCFullYear()}`;
+    } else {
+      title.textContent = "Date unknown";
+      dateRange.textContent = "";
+    }
+    headingCopy.append(title, dateRange);
+    const list = document.createElement("div");
+    list.className = "connect-history-list";
+    const expanded = state.expandedConnectWeekKey === key;
+    section.classList.toggle("is-expanded", expanded);
+    section.classList.toggle("is-current", key === thisWeekKey);
+    heading.setAttribute("aria-expanded", String(expanded));
+    list.hidden = !expanded;
+    const count = document.createElement("span");
+    count.className = "connect-history-week-count";
+    count.textContent = `${weekJobs.length} ${weekJobs.length === 1 ? "run" : "runs"}`;
+    const chevron = document.createElement("span");
+    chevron.className = "connect-history-week-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = expanded ? "⌄" : "›";
+    heading.append(headingCopy, count, chevron);
+    heading.addEventListener("click", () => {
+      state.expandedConnectWeekKey = expanded ? "" : key;
+      renderConnectHistory(state.outreachRecentJobs);
+    });
+    if (!weekJobs.length) {
+      const empty = document.createElement("p");
+      empty.className = "connect-history-empty";
+      empty.textContent = "No Connect runs this week yet.";
+      list.append(empty);
+    }
+    weekJobs.forEach((job) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "connect-history-run";
+      button.classList.toggle("is-selected", state.selectedConnectHistoryJobId === job.id);
+      button.setAttribute("aria-pressed", String(state.selectedConnectHistoryJobId === job.id));
+      const name = document.createElement("span");
+      name.className = "connect-history-run-name";
+      name.textContent = job.display_name || job.job_code || "Unnamed run";
+      const status = document.createElement("span");
+      status.className = "connect-history-run-status";
+      status.textContent = statusLabel(job.status || "pending");
+      status.classList.toggle("is-completed", String(job.status || "").toLowerCase() === "completed");
+      const meta = document.createElement("span");
+      meta.className = "connect-history-run-meta";
+      const created = document.createElement("span");
+      created.textContent = formatDate(job.created_at);
+      const profiles = document.createElement("span");
+      profiles.textContent = `${Number(job.target_count || 0)} profiles`;
+      const processed = document.createElement("span");
+      processed.textContent = `${Number(job.processed_count || 0)} processed`;
+      const success = document.createElement("span");
+      success.textContent = `${Number(job.success_count || 0)} success`;
+      const failed = document.createElement("span");
+      failed.textContent = `${Number(job.failed_count || 0)} failed`;
+      meta.append(created, profiles, processed, success, failed);
+      button.append(name, status, meta);
+      button.addEventListener("click", () => {
+        state.selectedConnectHistoryJobId = state.selectedConnectHistoryJobId === job.id
+          ? null : job.id;
+        renderConnectHistory(state.outreachRecentJobs);
+        renderOutreachJob(state.selectedConnectHistoryJobId ? job : null);
+      });
+      list.append(button);
+    });
+    section.append(heading, list);
+    container.append(section);
+  });
+}
+
+// ---------------------------------------------------------
 // FULL DASHBOARD RENDER
 // ---------------------------------------------------------
 
@@ -6754,7 +6836,9 @@ function renderOutreachDashboard() {
   populateAcceptanceInsightsJobFilter();
 
   renderOutreachJob(
-    state.outreachCurrentJob
+    state.outreachRecentJobs.find(
+      (job) => job.id === state.selectedConnectHistoryJobId
+    ) || null
   );
 
   renderOutreachScheduler(
@@ -6768,6 +6852,8 @@ function renderOutreachDashboard() {
   renderOutreachHistory(
     state.outreachRecentJobs
   );
+
+  renderConnectHistory(state.outreachRecentJobs);
 
   renderOutreachAcceptanceJobs(
     state.outreachRecentJobs
@@ -6856,6 +6942,10 @@ async function loadOutreachDashboard() {
       )
         ? dashboard.recent_jobs
         : [];
+
+    if (state.selectedConnectHistoryJobId && !state.outreachRecentJobs.some(
+      (job) => job.id === state.selectedConnectHistoryJobId
+    )) state.selectedConnectHistoryJobId = null;
 
     if (els.outreachError) {
       els.outreachError.hidden = true;
@@ -7106,7 +7196,8 @@ async function createOutreachConnectJob(
         },
 
         body: JSON.stringify({
-          urls
+          urls,
+          display_name: els.outreachDisplayName?.value.trim() || ""
         })
       }
     );
@@ -7131,6 +7222,8 @@ async function createOutreachConnectJob(
     state.outreachCurrentJob =
       result.job || null;
 
+    state.selectedConnectHistoryJobId = null;
+
 
     renderOutreachJob(
       state.outreachCurrentJob
@@ -7140,6 +7233,10 @@ async function createOutreachConnectJob(
     if (els.outreachUrlInput) {
       els.outreachUrlInput.value =
         "";
+    }
+
+    if (els.outreachDisplayName) {
+      els.outreachDisplayName.value = "";
     }
 
 
@@ -7244,8 +7341,10 @@ function setupYoutubeRealtime() {
 
 
 async function loadDashboard() {
-  els.refreshButton.disabled = true;
-  els.refreshButton.querySelector(".button-icon").textContent = "…";
+  if (els.refreshButton) {
+    els.refreshButton.disabled = true;
+    els.refreshButton.querySelector(".button-icon").textContent = "…";
+  }
   els.globalError.hidden = true;
   state.tableErrors = {};
 
@@ -7335,8 +7434,10 @@ async function loadDashboard() {
   state.accounts = accounts || [];
   state.worker = workers?.[0] || null;
 
-  els.refreshButton.disabled = false;
-  els.refreshButton.querySelector(".button-icon").textContent = "↻";
+  if (els.refreshButton) {
+    els.refreshButton.disabled = false;
+    els.refreshButton.querySelector(".button-icon").textContent = "↻";
+  }
 
   renderAll();
   await loadYoutubeResearch();
@@ -7348,7 +7449,6 @@ function renderAll() {
   applyQueueFilters();
   renderOverview();
   renderAccounts();
-  renderHealth();
   renderGlobalError();
   updateWorkerControlButtons();
 }
@@ -8024,200 +8124,6 @@ function renderAccounts() {
     .join("");
 }
 
-function renderHealth() {
-  const worker = state.worker;
-  const heartbeatAgeSeconds = worker?.last_heartbeat_at
-    ? Math.max(
-        0,
-        Math.floor(
-          (Date.now() - new Date(worker.last_heartbeat_at).getTime()) /
-          1000
-        )
-      )
-    : null;
-
-  const workerOnline =
-    heartbeatAgeSeconds !== null &&
-    heartbeatAgeSeconds <= 90 &&
-    !["offline", "stopping"].includes(
-      normaliseStatus(worker?.status)
-    );
-
-  const needsLoginCount = state.accounts.filter(
-    (account) =>
-      normaliseStatus(account.status) === "needs_login"
-  ).length;
-
-  const staleJobs = state.sources.filter((source) => {
-    if (normaliseStatus(source.job_status) !== "processing") {
-      return false;
-    }
-
-    const heartbeat =
-      source.processing_heartbeat_at ||
-      source.processing_started_at;
-
-    if (!heartbeat) return true;
-
-    return (
-      Date.now() - new Date(heartbeat).getTime() >
-      20 * 60 * 1000
-    );
-  }).length;
-
-  const unsentLark = state.sources.filter(
-    (source) =>
-      source.lark_chat_id &&
-      source.last_scanned_at &&
-      !source.lark_result_sent_at
-  ).length;
-
-  let overall = "HEALTHY";
-
-  if (
-    !workerOnline ||
-    state.tableErrors.sources ||
-    state.tableErrors.worker
-  ) {
-    overall = "UNHEALTHY";
-  } else if (
-    needsLoginCount > 0 ||
-    staleJobs > 0 ||
-    unsentLark > 0 ||
-    countByStatus("failed") > 0
-  ) {
-    overall = "DEGRADED";
-  }
-
-  const overallClass =
-    overall === "HEALTHY"
-      ? "pill-green"
-      : overall === "DEGRADED"
-        ? "pill-amber"
-        : "pill-red";
-
-  els.healthOverallBadge.className =
-    `pill ${overallClass}`;
-  els.healthOverallBadge.textContent = overall;
-
-  els.systemBadge.className =
-    `system-badge ${
-      overall === "HEALTHY"
-        ? "is-healthy"
-        : overall === "DEGRADED"
-          ? "is-degraded"
-          : "is-unhealthy"
-    }`;
-
-  els.systemBadgeText.textContent =
-    overall === "HEALTHY"
-      ? "System healthy"
-      : overall === "DEGRADED"
-        ? "System degraded"
-        : "System unhealthy";
-
-  const services = [
-    {
-      name: "Supabase profiles",
-      detail:
-        state.tableErrors.profiles ||
-        `${state.profiles.length} profiles`,
-      healthy: !state.tableErrors.profiles
-    },
-    {
-      name: "Supabase queue",
-      detail:
-        state.tableErrors.sources ||
-        `${state.sources.length} sources`,
-      healthy: !state.tableErrors.sources
-    },
-    {
-      name: "Mac Worker",
-      detail:
-        worker
-          ? `${statusLabel(worker.status)} · ${formatAge(worker.last_heartbeat_at)}`
-          : "No worker record",
-      healthy: workerOnline
-    },
-    {
-      name: "LinkedIn accounts",
-      detail:
-        state.tableErrors.accounts ||
-        `${state.accounts.length} accounts · ${needsLoginCount} needs login`,
-      healthy:
-        !state.tableErrors.accounts &&
-        needsLoginCount === 0
-    },
-    {
-      name: "Lark delivery",
-      detail: `${unsentLark} unsent results`,
-      healthy: unsentLark === 0
-    }
-  ];
-
-  els.healthServiceList.innerHTML = services
-    .map((service) => `
-      <div class="health-service-row">
-        <div class="health-service-copy">
-          <strong>${escapeHtml(service.name)}</strong>
-          <span>${escapeHtml(service.detail)}</span>
-        </div>
-
-        <span class="status-badge ${
-          service.healthy
-            ? "status-available"
-            : "status-error"
-        }">
-          ${service.healthy ? "Healthy" : "Issue"}
-        </span>
-      </div>
-    `)
-    .join("");
-
-  els.workerDetailGrid.innerHTML = `
-    <dt>Worker ID</dt>
-    <dd>${escapeHtml(worker?.worker_id || "—")}</dd>
-
-    <dt>Status</dt>
-    <dd>${escapeHtml(statusLabel(worker?.status))}</dd>
-
-    <dt>Version</dt>
-    <dd>${escapeHtml(worker?.worker_version || "—")}</dd>
-
-    <dt>Hostname</dt>
-    <dd>${escapeHtml(worker?.hostname || "—")}</dd>
-
-    <dt>Current account</dt>
-    <dd>${escapeHtml(worker?.current_account_id || "—")}</dd>
-
-    <dt>Current source</dt>
-    <dd>${escapeHtml(worker?.current_source_id || "—")}</dd>
-
-    <dt>Last heartbeat</dt>
-    <dd>${escapeHtml(formatDate(worker?.last_heartbeat_at))}</dd>
-
-    <dt>Last success</dt>
-    <dd>${escapeHtml(formatDate(worker?.last_success_at))}</dd>
-
-    <dt>Last error</dt>
-    <dd>${escapeHtml(worker?.last_error || "—")}</dd>
-  `;
-
-  els.healthHeartbeatAge.textContent =
-    heartbeatAgeSeconds === null
-      ? "—"
-      : formatAge(worker.last_heartbeat_at);
-
-  els.healthStaleJobs.textContent =
-    staleJobs.toLocaleString("vi-VN");
-
-  els.healthUnsentLark.textContent =
-    unsentLark.toLocaleString("vi-VN");
-
-  els.healthNeedsLogin.textContent =
-    needsLoginCount.toLocaleString("vi-VN");
-}
-
 function openDrawer(profile) {
   els.drawerName.textContent =
     profile.name || "Unnamed profile";
@@ -8822,11 +8728,37 @@ function switchTab(tabName) {
   document
     .querySelectorAll(".tab-button")
     .forEach((button) => {
-      button.classList.toggle(
-        "is-active",
-        button.dataset.tab === tabName
-      );
+      const active = button.dataset.tab === tabName &&
+          (tabName !== "outreach" ||
+            button.dataset.outreachProcessTab === state.outreachProcessTab);
+      button.classList.toggle("is-active", active);
+      if (button.dataset.tab) {
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      }
     });
+
+  document.querySelectorAll(".outreach-reply-tab").forEach((button) => {
+    const active = tabName === "replies";
+    button.classList.toggle("is-active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+
+  document.querySelectorAll("#outreachWorkflowNavigation [data-outreach-process-tab]")
+    .forEach((button) => {
+      const active = tabName === "outreach" &&
+        button.dataset.outreachProcessTab === state.outreachProcessTab;
+      button.classList.toggle("is-active", active);
+      if (active) button.setAttribute("aria-current", "page");
+      else button.removeAttribute("aria-current");
+    });
+
+  const workflowNavigation = document.querySelector("#outreachWorkflowNavigation");
+  if (workflowNavigation) {
+    workflowNavigation.hidden = tabName !== "outreach" && tabName !== "replies";
+    requestAnimationFrame(syncOutreachWorkflowPill);
+  }
 
   document
     .querySelectorAll(".tab-panel")
@@ -8834,6 +8766,9 @@ function switchTab(tabName) {
       panel.hidden =
         panel.id !== `tab-${tabName}`;
     });
+
+  const mainScroll = document.querySelector("#appMainScroll");
+  if (mainScroll) mainScroll.scrollTop = 0;
 
   const pageCopy = {
     overview: {
@@ -8863,18 +8798,23 @@ function switchTab(tabName) {
     },
     outreach: {
       eyebrow: "Outreach",
-      title: "Connect & Messaging",
-      subtitle: "Connect profiles, check acceptance, and prepare recipients for messaging."
+      title: {
+        connect: "Connect",
+        acceptance: "Acceptance",
+        recipients: "Recipients",
+        messages: "Messages"
+      }[state.outreachProcessTab] || "Connect",
+      subtitle: {
+        connect: "Send connection requests to LinkedIn profiles.",
+        acceptance: "Check which connections were accepted.",
+        recipients: "Prepare the people you want to message.",
+        messages: "Create and follow up on your messages."
+      }[state.outreachProcessTab] || "Send connection requests to LinkedIn profiles."
     },
     replies: {
       eyebrow: "Outreach",
       title: "Message Replies",
       subtitle: "Review verified LinkedIn replies captured by the Reply Check Worker."
-    },
-    health: {
-      eyebrow: "System",
-      title: "Health",
-      subtitle: "Check worker heartbeats, service health, and issues requiring attention."
     }
   };
 
@@ -8907,6 +8847,10 @@ document
       }
 
       switchTab(tabName);
+
+      if (button.dataset.outreachProcessTab) {
+        setOutreachProcessTab(button.dataset.outreachProcessTab);
+      }
 
       const uiSettings = loadUiSettings();
 
@@ -8995,6 +8939,36 @@ els.stopScanButton?.addEventListener(
   }
 );
 
+function syncOutreachWorkflowPill() {
+  document.querySelectorAll(".outreach-workflow-tabs").forEach((navigation) => {
+    const active = navigation.querySelector(
+      ".outreach-workflow-tab.is-active"
+    );
+
+    if (!navigation.offsetWidth || !active) return;
+
+    navigation.style.setProperty(
+      "--workflow-pill-left",
+      `${active.offsetLeft}px`
+    );
+    navigation.style.setProperty(
+      "--workflow-pill-width",
+      `${active.offsetWidth}px`
+    );
+  });
+}
+
+const outreachWorkflowNavs = document.querySelectorAll(
+  ".outreach-workflow-tabs"
+);
+
+if (outreachWorkflowNavs.length && "ResizeObserver" in window) {
+  const workflowNavObserver = new ResizeObserver(syncOutreachWorkflowPill);
+  outreachWorkflowNavs.forEach((navigation) => workflowNavObserver.observe(navigation));
+}
+
+window.addEventListener("resize", syncOutreachWorkflowPill);
+
 function setOutreachProcessTab(
   tabName
 ) {
@@ -9018,6 +8992,18 @@ function setOutreachProcessTab(
   state.outreachProcessTab =
     cleaned;
 
+  const outreachVisible = !document.querySelector("#tab-outreach")?.hidden;
+  if (outreachVisible) {
+    const headings = {
+      connect: ["Connect", "Send connection requests to LinkedIn profiles."],
+      acceptance: ["Acceptance", "Check which connections were accepted."],
+      recipients: ["Recipients", "Prepare the people you want to message."],
+      messages: ["Messages", "Create and follow up on your messages."]
+    };
+    if (els.pageTitle) els.pageTitle.textContent = headings[cleaned][0];
+    if (els.pageSubtitle) els.pageSubtitle.textContent = headings[cleaned][1];
+  }
+
   document
     .querySelectorAll(
       "[data-outreach-process-tab]"
@@ -9027,15 +9013,18 @@ function setOutreachProcessTab(
         button.dataset.outreachProcessTab ===
         cleaned;
 
-      button.classList.toggle(
-        "is-active",
-        active
-      );
-
-      button.setAttribute(
-        "aria-selected",
-        active ? "true" : "false"
-      );
+      if (button.classList.contains("outreach-workflow-tab")) {
+        button.classList.toggle("is-active", active && outreachVisible);
+        if (active && outreachVisible) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      } else if (button.dataset.tab === "outreach") {
+        button.classList.toggle("is-active", active && outreachVisible);
+        if (active && outreachVisible) {
+          button.setAttribute("aria-current", "page");
+        } else {
+          button.removeAttribute("aria-current");
+        }
+      }
     });
 
   document
@@ -9047,6 +9036,11 @@ function setOutreachProcessTab(
         panel.dataset.outreachProcessPanel !==
         cleaned;
     });
+
+  const mainScroll = document.querySelector("#appMainScroll");
+  if (mainScroll) mainScroll.scrollTop = 0;
+
+  requestAnimationFrame(syncOutreachWorkflowPill);
 
   if (cleaned === "recipients") {
     void Promise.all([
@@ -9707,6 +9701,18 @@ els.refreshButton?.addEventListener(
   }
 );
 
+els.logoutButton?.addEventListener("click", () => {
+  const loginScreen = document.querySelector("#loginScreen");
+  const workspace = document.querySelector("#loginWorkspace");
+  if (!loginScreen || !workspace) return;
+
+  workspace.hidden = true;
+  workspace.inert = true;
+  loginScreen.hidden = false;
+  document.body.classList.add("login-mode");
+  window.dispatchEvent(new CustomEvent("linkedin-ops:logout"));
+});
+
 els.searchInput?.addEventListener(
   "input",
   applyProfileFilters
@@ -9758,6 +9764,15 @@ document.addEventListener(
       return;
     }
 
+    const replyButton = event.target.closest(".outreach-reply-tab");
+
+    if (replyButton) {
+      event.preventDefault();
+      switchTab("replies");
+      void loadOutreachReplies();
+      return;
+    }
+
     const button =
       event.target.closest(
         "[data-outreach-process-tab]"
@@ -9768,6 +9783,10 @@ document.addEventListener(
     }
 
     event.preventDefault();
+
+    if (document.querySelector("#tab-outreach")?.hidden) {
+      switchTab("outreach");
+    }
 
     setOutreachProcessTab(
       button.dataset.outreachProcessTab
@@ -10151,6 +10170,46 @@ document.addEventListener(
 );
 
 const initialUiSettings = loadUiSettings();
+
+function filterSidebarNavigation() {
+  const query = (els.sidebarNavSearch?.value || "")
+    .trim()
+    .toLocaleLowerCase();
+
+  document
+    .querySelectorAll(".sidebar-nav-group")
+    .forEach((group) => {
+      const buttons = [...group.querySelectorAll(".tab-button")];
+      let visibleCount = 0;
+
+      buttons.forEach((button) => {
+        const matches = !query || button.textContent
+          .toLocaleLowerCase()
+          .includes(query);
+
+        button.classList.toggle("is-search-hidden", !matches);
+        visibleCount += Number(matches);
+      });
+
+      group.classList.toggle("is-search-empty", visibleCount === 0);
+    });
+}
+
+els.sidebarNavSearch?.addEventListener("input", filterSidebarNavigation);
+
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    els.sidebarNavSearch?.focus();
+    els.sidebarNavSearch?.select();
+  }
+
+  if (event.key === "Escape" && document.activeElement === els.sidebarNavSearch) {
+    els.sidebarNavSearch.value = "";
+    filterSidebarNavigation();
+    els.sidebarNavSearch.blur();
+  }
+});
 
 if (initialUiSettings.rememberLastSection) {
   const savedTab = localStorage.getItem(

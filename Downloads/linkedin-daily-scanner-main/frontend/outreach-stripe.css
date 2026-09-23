@@ -1268,10 +1268,12 @@ td strong {
 }
 
 .message-batch-title-line {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, auto);
   align-items: center;
   justify-content: flex-start;
   gap: 9px;
+  min-height: 30px;
 }
 
 .message-batch-title-line strong {
@@ -1289,6 +1291,10 @@ td strong {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  align-self: center;
+  justify-self: start;
+  min-height: 26px;
+  padding-inline: 10px;
   line-height: 1.2;
   text-align: center;
 }
@@ -1301,6 +1307,69 @@ td strong {
 }
 
 /* Drawers and modals */
+
+/* The shared snapshot drawer must sit above the sticky page header and own
+   its scroll area. Safari otherwise lets the page layer clip the drawer. */
+.drawer-backdrop {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 149 !important;
+}
+
+.detail-drawer {
+  position: fixed !important;
+  inset: 0 0 0 auto !important;
+  z-index: 150 !important;
+  display: flex !important;
+  width: min(680px, 92vw) !important;
+  height: 100dvh !important;
+  max-height: 100dvh !important;
+  min-height: 0 !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  border-left: 1px solid var(--stripe-border) !important;
+  background: var(--stripe-sidebar) !important;
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.34) !important;
+}
+
+.detail-drawer .drawer-header {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+  padding: 24px !important;
+  border-bottom: 1px solid var(--stripe-border) !important;
+  background: rgba(10, 20, 37, 0.96) !important;
+  backdrop-filter: blur(18px);
+}
+
+.detail-drawer .drawer-content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: scroll !important;
+  overscroll-behavior: contain;
+  padding: 24px !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+/* Message-row controls should size to their labels, never stretch to the row. */
+#tab-outreach .message-batch-source-id,
+#tab-outreach .message-batch-actions > .message-batch-detail-button,
+#tab-outreach .message-batch-actions > .message-batch-send-button {
+  width: fit-content !important;
+  max-width: 100%;
+  flex: 0 0 auto !important;
+}
+
+#tab-outreach .message-batch-source-id {
+  justify-self: start;
+}
+
+#tab-outreach .message-batch-actions {
+  justify-content: flex-end;
+}
 
 .acceptance-insights-drawer,
 .rate-limit-drawer {
@@ -1716,6 +1785,341 @@ td strong {
 
   .acceptance-insights-filter-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   REPLY CHECK WORKER
+   ========================================================= */
+
+.outreach-replies-panel {
+  min-height: 420px;
+}
+
+.outreach-replies-header {
+  align-items: flex-start;
+}
+
+.outreach-reply-list {
+  display: grid;
+  gap: 14px;
+}
+
+.outreach-replies-panel > .outreach-list-pagination {
+  margin-top: 8px;
+  border-top: 1px solid var(--stripe-border);
+}
+
+.outreach-reply-account-tabs {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.outreach-reply-account-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 48px;
+  padding: 9px 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid var(--stripe-border);
+  border-radius: 12px;
+  color: var(--stripe-text-secondary);
+  background: rgba(7, 16, 31, 0.44);
+  cursor: pointer;
+}
+
+.outreach-reply-account-tab strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outreach-reply-account-tab span {
+  display: inline-flex;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 7px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--stripe-text-muted);
+  background: rgba(113, 133, 163, 0.12);
+  font-size: 11px;
+}
+
+.outreach-reply-account-tab.is-active {
+  border-color: var(--stripe-purple);
+  color: var(--stripe-text);
+  background: rgba(99, 91, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(99, 91, 255, 0.16);
+}
+
+.outreach-reply-account-tab.is-active span {
+  color: var(--stripe-mint);
+  background: rgba(108, 233, 199, 0.12);
+}
+
+.outreach-reply-contact-toolbar {
+  display: flex;
+  margin: 0 0 16px;
+  justify-content: flex-end;
+}
+
+.outreach-reply-contact-toolbar[hidden] {
+  display: none;
+}
+
+.outreach-reply-contact-toolbar label {
+  display: grid;
+  min-width: min(100%, 320px);
+  gap: 6px;
+  color: var(--stripe-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.outreach-reply-contact-toolbar select {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--stripe-border);
+  border-radius: 10px;
+  color: var(--stripe-text);
+  background: var(--stripe-sidebar);
+  text-transform: none;
+}
+
+.outreach-reply-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  border: 1px solid var(--stripe-border);
+  border-radius: 16px;
+  background: rgba(8, 21, 39, 0.72);
+}
+
+.outreach-reply-main {
+  min-width: 0;
+}
+
+.outreach-reply-title-row,
+.outreach-reply-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.outreach-reply-title-row h3 {
+  margin: 0;
+  color: var(--stripe-text);
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.outreach-reply-sent-id {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 5px 9px;
+  border: 1px solid rgba(100, 116, 255, 0.34);
+  border-radius: 999px;
+  color: var(--stripe-purple-soft);
+  background: rgba(92, 77, 255, 0.11);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.outreach-reply-account-name {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 5px 10px;
+  border: 1px solid rgba(108, 233, 199, 0.34);
+  border-radius: 999px;
+  color: var(--stripe-mint);
+  background: rgba(108, 233, 199, 0.1);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.outreach-reply-message-batch {
+  display: inline-flex;
+  min-height: 28px;
+  padding: 4px 10px;
+  align-items: center;
+  border: 1px solid rgba(99, 91, 255, 0.44);
+  border-radius: 999px;
+  color: #b9b4ff;
+  background: rgba(99, 91, 255, 0.12);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.outreach-reply-meta {
+  margin-top: 9px;
+  color: var(--stripe-text-muted);
+  font-size: 13px;
+}
+
+.outreach-reply-link {
+  color: var(--stripe-cyan);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.outreach-reply-link:hover,
+.outreach-reply-link:focus-visible {
+  text-decoration: underline;
+}
+
+.outreach-reply-message {
+  margin: 16px 0 0;
+  padding: 14px 16px;
+  border-left: 3px solid var(--stripe-purple);
+  border-radius: 4px 12px 12px 4px;
+  color: var(--stripe-text);
+  background: rgba(74, 85, 162, 0.13);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.outreach-reply-time {
+  color: var(--stripe-amber);
+}
+
+.outreach-reply-card-controls {
+  display: flex;
+  margin-top: 14px;
+}
+
+.outreach-conversation-toggle {
+  width: auto;
+  min-width: 0;
+}
+
+.outreach-full-conversation {
+  display: grid;
+  max-height: 360px;
+  margin-top: 14px;
+  padding: 14px;
+  gap: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--stripe-border);
+  border-radius: 14px;
+  background: rgba(5, 11, 22, 0.72);
+  scrollbar-color: var(--stripe-border-strong) transparent;
+}
+
+.outreach-full-conversation[hidden] {
+  display: none;
+}
+
+.outreach-conversation-message {
+  width: min(86%, 760px);
+  padding: 11px 13px;
+  border: 1px solid var(--stripe-border);
+  border-radius: 12px 12px 12px 4px;
+  background: var(--stripe-surface);
+}
+
+.outreach-conversation-message.is-own {
+  justify-self: end;
+  border-color: rgba(99, 91, 255, 0.4);
+  border-radius: 12px 12px 4px 12px;
+  background: rgba(99, 91, 255, 0.14);
+}
+
+.outreach-conversation-message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--stripe-text-muted);
+  font-size: 11px;
+}
+
+.outreach-conversation-message-meta strong {
+  color: var(--stripe-text-secondary);
+}
+
+.outreach-conversation-message p {
+  margin: 6px 0 0;
+  color: var(--stripe-text);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.outreach-reply-actions {
+  display: flex;
+  min-width: 170px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.outreach-reply-button {
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.outreach-reply-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.outreach-reply-queue-button {
+  width: auto;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.outreach-reply-send-status {
+  text-transform: capitalize;
+}
+
+.outreach-reply-send-error {
+  max-width: 220px;
+  color: var(--stripe-danger);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .outreach-reply-account-tabs {
+    display: flex;
+    padding-bottom: 4px;
+    overflow-x: auto;
+  }
+
+  .outreach-reply-account-tab {
+    min-width: 150px;
+  }
+
+  .outreach-reply-card {
+    grid-template-columns: 1fr;
+  }
+
+  .outreach-reply-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
   }
 }
 

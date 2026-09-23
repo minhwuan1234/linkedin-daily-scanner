@@ -32,7 +32,7 @@ DEFAULT_OUTREACH_ACCOUNT_IDS = (
 #
 OUTREACH_ACCOUNT_DISPLAY_NAMES = {
     "outreach_account_01": "Minh Anh",
-    "outreach_account_02": "Hân",
+    "outreach_account_02": "Trang Liu",
     "outreach_account_03": "Minh Ánh",
     "outreach_account_04": "Linh Giang",
     "outreach_account_05": "Huyền Linh",

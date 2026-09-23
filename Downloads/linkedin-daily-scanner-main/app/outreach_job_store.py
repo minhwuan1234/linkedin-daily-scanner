@@ -319,6 +319,7 @@ def _find_existing_prospect(
 def create_connect_job(
     urls: Iterable[str],
     *,
+    display_name: str = "",
     client: Client | None = None,
 ) -> OutreachJobCreateResult:
     """
@@ -365,26 +366,26 @@ def create_connect_job(
     # CREATE JOB
     # -----------------------------------------------------
 
+    job_data = {
+        "job_type": "connect",
+        "job_code": job_code,
+        "status": "creating",
+        "input_count": input_count,
+        "target_count": 0,
+        "duplicate_count": 0,
+        "invalid_count": 0,
+        "processed_count": 0,
+        "success_count": 0,
+        "failed_count": 0,
+    }
+    if display_name:
+        job_data["display_name"] = display_name
+
     job_response = (
         active_client.table(
             JOB_TABLE
         )
-        .insert(
-            {
-                "job_type": "connect",
-                "job_code": job_code,
-                "status": "creating",
-
-                "input_count": input_count,
-                "target_count": 0,
-                "duplicate_count": 0,
-                "invalid_count": 0,
-
-                "processed_count": 0,
-                "success_count": 0,
-                "failed_count": 0,
-            }
-        )
+        .insert(job_data)
         .execute()
     )
 
