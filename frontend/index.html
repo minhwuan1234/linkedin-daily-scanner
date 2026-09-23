@@ -14,7 +14,7 @@
   />
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
-  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-acceptance-header-1" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-acceptance-grid-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260923-fixed-panels-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
@@ -990,13 +990,21 @@
     hidden
   >
     <article class="panel outreach-history-panel outreach-primary-panel">
-      <section class="week-browser" aria-labelledby="acceptanceWeekBrowserTitle">
-        <div class="week-browser-heading">
+      <section class="week-browser acceptance-dashboard-browser" aria-labelledby="acceptanceWeekBrowserTitle">
+        <div class="acceptance-dashboard-heading">
           <div>
-            <span class="week-browser-label">History</span>
-            <h3 id="acceptanceWeekBrowserTitle">Choose a week</h3>
-            <p>Current week is shown first. Open history only when you need an older week.</p>
+            <h3 id="acceptanceWeekBrowserTitle">Acceptance overview</h3>
+            <p>Connect jobs and invitation outcomes</p>
           </div>
+          <div id="outreachAcceptancePeriodFilters" class="acceptance-period-switch" role="group" aria-label="Acceptance time range">
+            <button type="button" data-acceptance-period="week" aria-pressed="true">Week</button>
+            <button type="button" data-acceptance-period="month" aria-pressed="false">Month</button>
+          </div>
+        </div>
+        <div class="acceptance-dashboard-scope">
+          <strong id="outreachAcceptanceScopeLabel">This week</strong>
+          <div class="acceptance-dashboard-scope-actions">
+            <span id="outreachAcceptanceScopeCount">0 Connect jobs</span>
           <button
             id="outreachAcceptanceHistoryButton"
             class="secondary-button week-history-button"
@@ -1005,8 +1013,8 @@
           >
             Explore previous weeks
           </button>
+          </div>
         </div>
-        <div id="outreachAcceptanceWeekList" class="outreach-week-list" aria-label="Acceptance weeks"></div>
       </section>
 
       <div class="history-results">
@@ -1026,8 +1034,18 @@
         Select a week to view its Connect Jobs.
       </div>
 
-      <div id="outreachAcceptanceTableWrap" class="table-wrap" hidden>
+      <div id="outreachAcceptanceTableWrap" class="table-wrap acceptance-grid-wrap" hidden>
         <table class="outreach-acceptance-table">
+          <colgroup>
+            <col class="acceptance-col-job" />
+            <col class="acceptance-col-connect" />
+            <col class="acceptance-col-profiles" />
+            <col class="acceptance-col-status" />
+            <col class="acceptance-col-accepted" />
+            <col class="acceptance-col-outcomes" />
+            <col class="acceptance-col-checked" />
+            <col class="acceptance-col-actions" />
+          </colgroup>
           <thead>
             <tr>
               <th>Job</th>
@@ -1035,11 +1053,9 @@
               <th>Profiles</th>
               <th>Acceptance</th>
               <th>Accepted</th>
-              <th>Pending</th>
-              <th>Unknown</th>
-              <th>Failed</th>
+              <th>Outcomes</th>
               <th>Last checked at</th>
-              <th></th>
+              <th>Actions</th>
             </tr>
           </thead>
 
@@ -1048,41 +1064,42 @@
 
         <template id="outreachAcceptanceRowTemplate">
           <tr>
-            <td>
-              <strong data-acceptance-job-code>—</strong>
-              <span class="outreach-table-subtext" data-acceptance-created>—</span>
+            <td data-label="Job">
+              <div class="acceptance-job-cell">
+                <label class="outreach-delete-job-checkbox" title="Select this Connect Job for permanent deletion">
+                  <input type="checkbox" data-acceptance-delete-select aria-label="Select Connect Job for deletion" />
+                  <span aria-hidden="true"></span>
+                </label>
+                <div class="acceptance-job-name">
+                  <strong data-acceptance-job-code>—</strong>
+                  <span class="outreach-table-subtext" data-acceptance-created>—</span>
+                </div>
+              </div>
             </td>
 
-            <td>
+            <td data-label="Connect">
               <span class="pill pill-neutral" data-acceptance-connect-status>—</span>
             </td>
 
-            <td data-acceptance-profile-count>0</td>
+            <td data-label="Profiles" data-acceptance-profile-count>0</td>
 
-            <td>
+            <td data-label="Acceptance">
               <span class="pill pill-neutral" data-acceptance-status>Not checked</span>
             </td>
 
-            <td data-acceptance-accepted>—</td>
-            <td data-acceptance-pending>—</td>
-            <td data-acceptance-unknown>—</td>
-            <td data-acceptance-failed>—</td>
-            <td data-acceptance-last-checked>Never</td>
+            <td data-label="Accepted" class="acceptance-accepted-cell"><strong data-acceptance-accepted>—</strong></td>
+            <td data-label="Outcomes">
+              <div class="acceptance-outcomes-track" role="img" aria-label="Acceptance outcomes">
+                <span class="acceptance-outcome-accepted" data-acceptance-accepted-bar></span>
+                <span class="acceptance-outcome-pending" data-acceptance-pending-bar></span>
+                <span class="acceptance-outcome-unknown" data-acceptance-unknown-bar></span>
+                <span class="acceptance-outcome-failed" data-acceptance-failed-bar></span>
+              </div>
+            </td>
+            <td data-label="Last checked" data-acceptance-last-checked>Never</td>
 
-            <td class="outreach-table-action-cell">
+            <td data-label="Actions" class="outreach-table-action-cell">
               <div class="outreach-acceptance-row-actions">
-                <label
-                  class="outreach-delete-job-checkbox"
-                  title="Select this Connect Job for permanent deletion"
-                >
-                  <input
-                    type="checkbox"
-                    data-acceptance-delete-select
-                    aria-label="Select Connect Job for deletion"
-                  />
-                  <span aria-hidden="true"></span>
-                </label>
-
                 <button
                   type="button"
                   class="secondary-button outreach-acceptance-history-button"
@@ -1983,7 +2000,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-acceptance-header-1"></script>
+  <script src="./app.js?v=20260923-acceptance-grid-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

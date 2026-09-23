@@ -348,8 +348,11 @@ const els = {
   outreachAcceptancePeriodFilters:
     document.querySelector("#outreachAcceptancePeriodFilters"),
 
-  outreachAcceptanceWeekList:
-    document.querySelector("#outreachAcceptanceWeekList"),
+  outreachAcceptanceScopeLabel:
+    document.querySelector("#outreachAcceptanceScopeLabel"),
+
+  outreachAcceptanceScopeCount:
+    document.querySelector("#outreachAcceptanceScopeCount"),
 
   outreachAcceptanceHistoryButton:
     document.querySelector("#outreachAcceptanceHistoryButton"),
@@ -3668,6 +3671,16 @@ function getAcceptancePeriodLabel() {
 function getAcceptancePeriodRows(jobs) {
   const rows = Array.isArray(jobs) ? jobs : [];
 
+  if (state.outreachAcceptancePeriod === "month") {
+    const now = new Date();
+    return rows.filter((job) => {
+      const created = new Date(job?.created_at);
+      return !Number.isNaN(created.getTime()) &&
+        created.getFullYear() === now.getFullYear() &&
+        created.getMonth() === now.getMonth();
+    });
+  }
+
   if (!state.outreachAcceptanceWeekKey) {
     return [];
   }
@@ -3801,21 +3814,36 @@ function getAcceptanceWeekSelection(jobs) {
 
 
 function renderAcceptanceWeekList(jobs) {
-  const wrap = els.outreachAcceptanceWeekList;
+  const selection = getAcceptanceWeekSelection(jobs);
+  const isMonth = state.outreachAcceptancePeriod === "month";
+  const rows = getAcceptancePeriodRows(jobs);
 
-  if (!wrap) {
-    return;
+  if (els.outreachAcceptanceScopeLabel) {
+    els.outreachAcceptanceScopeLabel.textContent = isMonth
+      ? new Intl.DateTimeFormat("en-US", {month: "long", year: "numeric"}).format(new Date())
+      : selection.selected.label;
   }
 
-  const selection = getAcceptanceWeekSelection(jobs);
-  wrap.replaceChildren(renderAcceptanceWeekCard(selection.selected));
+  if (els.outreachAcceptanceScopeCount) {
+    els.outreachAcceptanceScopeCount.textContent =
+      `${rows.length} Connect ${rows.length === 1 ? "job" : "jobs"}`;
+  }
+
+  els.outreachAcceptancePeriodFilters
+    ?.querySelectorAll("[data-acceptance-period]")
+    .forEach((button) => {
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.acceptancePeriod === state.outreachAcceptancePeriod)
+      );
+    });
 
   const hasPreviousWeeks = selection.groups.some(
     (group) => group.key !== selection.current?.key
   );
 
   if (els.outreachAcceptanceHistoryButton) {
-    els.outreachAcceptanceHistoryButton.hidden = !hasPreviousWeeks;
+    els.outreachAcceptanceHistoryButton.hidden = isMonth || !hasPreviousWeeks;
     els.outreachAcceptanceHistoryButton.textContent =
       selection.selected.key === selection.current?.key
         ? "Explore previous weeks"
@@ -3887,6 +3915,10 @@ function renderOutreachAcceptanceJobs(
 
   if (!rows.length) {
     els.outreachAcceptanceEmpty.hidden = false;
+    els.outreachAcceptanceEmpty.textContent =
+      state.outreachAcceptancePeriod === "month"
+        ? "No Connect Jobs this month."
+        : "No Connect Jobs in this week.";
     els.outreachAcceptanceTableWrap.hidden = true;
     els.outreachAcceptanceBody.replaceChildren();
 
@@ -3978,39 +4010,32 @@ function renderOutreachAcceptanceJobs(
       Number(job.target_count || 0)
     );
 
-    setText(
-      "[data-acceptance-accepted]",
-      acceptance
-        ? getAcceptanceAcceptedCount(acceptance)
-        : "—"
-    );
+    const outcomeCounts = {
+      accepted: acceptance ? Math.max(0, Number(getAcceptanceAcceptedCount(acceptance)) || 0) : 0,
+      pending: acceptance ? Math.max(0, Number(acceptance.still_pending_count) || 0) : 0,
+      unknown: acceptance ? Math.max(0, Number(acceptance.declined_or_unknown_count) || 0) : 0,
+      failed: acceptance ? Math.max(0, Number(acceptance.failed_count) || 0) : 0
+    };
 
-    setText(
-      "[data-acceptance-pending]",
-      acceptance
-        ? Number(
-            acceptance.still_pending_count || 0
-          )
-        : "—"
-    );
+    setText("[data-acceptance-accepted]", acceptance ? outcomeCounts.accepted : "—");
 
-    setText(
-      "[data-acceptance-unknown]",
-      acceptance
-        ? Number(
-            acceptance.declined_or_unknown_count || 0
-          )
-        : "—"
-    );
-
-    setText(
-      "[data-acceptance-failed]",
-      acceptance
-        ? Number(
-            acceptance.failed_count || 0
-          )
-        : "—"
-    );
+    const outcomesTrack = fragment.querySelector(".acceptance-outcomes-track");
+    if (outcomesTrack) {
+      const measuredTotal = Object.values(outcomeCounts).reduce((sum, value) => sum + value, 0);
+      const denominator = Math.max(1, Number(job.target_count || 0), measuredTotal);
+      Object.entries(outcomeCounts).forEach(([status, count]) => {
+        const bar = fragment.querySelector(`[data-acceptance-${status}-bar]`);
+        if (bar) {
+          bar.style.width = `${Math.min(100, (count / denominator) * 100)}%`;
+        }
+      });
+      outcomesTrack.setAttribute(
+        "aria-label",
+        acceptance
+          ? `Accepted ${outcomeCounts.accepted}, pending ${outcomeCounts.pending}, unknown ${outcomeCounts.unknown}, failed ${outcomeCounts.failed}`
+          : "Not checked"
+      );
+    }
 
     const lastCheckedAt =
       getLatestAcceptanceCheckedAt(
@@ -4133,7 +4158,7 @@ function renderOutreachAcceptanceJobs(
         "false"
       );
 
-      historyButton.textContent = "View history";
+      historyButton.textContent = "History";
 
       historyButton.addEventListener(
         "click",
@@ -4177,7 +4202,7 @@ function renderOutreachAcceptanceJobs(
             ? "Queued"
             : acceptanceStatus === "running"
               ? "Checking..."
-              : "Check Acceptance";
+              : "Check again";
 
       button.addEventListener(
         "click",
@@ -9827,6 +9852,17 @@ els.outreachAcceptanceHistoryButton?.addEventListener("click", () => {
   }
 
   openAcceptanceWeekModal();
+});
+
+els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-acceptance-period]");
+  if (!button || !["week", "month"].includes(button.dataset.acceptancePeriod)) {
+    return;
+  }
+
+  state.outreachAcceptancePeriod = button.dataset.acceptancePeriod;
+  state.outreachAcceptancePage = 1;
+  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
 
 els.outreachAcceptanceWeekModalClose?.addEventListener(
