@@ -11,6 +11,13 @@
     toggle.setAttribute('aria-pressed', String(show));
   });
   let entered = false;
+  window.addEventListener('linkedin-ops:logout', () => {
+    entered = false;
+    form.reset();
+    password.type = 'password';
+    toggle.setAttribute('aria-label', 'Show password');
+    toggle.setAttribute('aria-pressed', 'false');
+  });
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (entered) return;

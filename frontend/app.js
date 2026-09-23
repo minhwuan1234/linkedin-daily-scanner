@@ -9,6 +9,7 @@ const config = window.APP_CONFIG || {};
 const els = {
   sidebarNavSearch: document.querySelector("#sidebarNavSearch"),
   refreshButton: document.querySelector("#refreshButton"),
+  logoutButton: document.querySelector("#logoutButton"),
   killProcessButton: document.querySelector("#killProcessButton"),
   stopScanButton: document.querySelector("#stopScanButton"),
   stopScanButtonText: document.querySelector("#stopScanButtonText"),
@@ -8813,31 +8814,31 @@ els.stopScanButton?.addEventListener(
 );
 
 function syncOutreachWorkflowPill() {
-  const navigation = document.querySelector(
-    "#tab-outreach .outreach-workflow-tabs"
-  );
-  const active = navigation?.querySelector(
-    ".outreach-workflow-tab.is-active"
-  );
+  document.querySelectorAll(".outreach-workflow-tabs").forEach((navigation) => {
+    const active = navigation.querySelector(
+      ".outreach-workflow-tab.is-active"
+    );
 
-  if (!navigation?.offsetWidth || !active) return;
+    if (!navigation.offsetWidth || !active) return;
 
-  navigation.style.setProperty(
-    "--workflow-pill-left",
-    `${active.offsetLeft}px`
-  );
-  navigation.style.setProperty(
-    "--workflow-pill-width",
-    `${active.offsetWidth}px`
-  );
+    navigation.style.setProperty(
+      "--workflow-pill-left",
+      `${active.offsetLeft}px`
+    );
+    navigation.style.setProperty(
+      "--workflow-pill-width",
+      `${active.offsetWidth}px`
+    );
+  });
 }
 
-const outreachWorkflowNav = document.querySelector(
-  "#tab-outreach .outreach-workflow-tabs"
+const outreachWorkflowNavs = document.querySelectorAll(
+  ".outreach-workflow-tabs"
 );
 
-if (outreachWorkflowNav && "ResizeObserver" in window) {
-  new ResizeObserver(syncOutreachWorkflowPill).observe(outreachWorkflowNav);
+if (outreachWorkflowNavs.length && "ResizeObserver" in window) {
+  const workflowNavObserver = new ResizeObserver(syncOutreachWorkflowPill);
+  outreachWorkflowNavs.forEach((navigation) => workflowNavObserver.observe(navigation));
 }
 
 window.addEventListener("resize", syncOutreachWorkflowPill);
@@ -9569,6 +9570,18 @@ els.refreshButton?.addEventListener(
     }
   }
 );
+
+els.logoutButton?.addEventListener("click", () => {
+  const loginScreen = document.querySelector("#loginScreen");
+  const workspace = document.querySelector("#loginWorkspace");
+  if (!loginScreen || !workspace) return;
+
+  workspace.hidden = true;
+  workspace.inert = true;
+  loginScreen.hidden = false;
+  document.body.classList.add("login-mode");
+  window.dispatchEvent(new CustomEvent("linkedin-ops:logout"));
+});
 
 els.searchInput?.addEventListener(
   "input",
