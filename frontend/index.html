@@ -14,11 +14,11 @@
   />
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
-  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-sidebar-checkbox-1" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260923-sidebar-checkbox-1" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-sidebar-responsive-red-1" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
-  <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-checkbox-1" />
+  <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -142,7 +142,10 @@
           <span><i class="status-dot"></i>System online</span>
         </span>
         <button id="sidebarCollapseButton" class="sidebar-footer-toggle" type="button" aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
-          <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M8 3v14"/></svg>
+          <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true">
+            <path class="sidebar-toggle-close-icon" d="M5 5l10 10M15 5 5 15" />
+            <path class="sidebar-toggle-open-icon" d="m8 5 5 5-5 5" />
+          </svg>
         </button>
       </div>
     </aside>

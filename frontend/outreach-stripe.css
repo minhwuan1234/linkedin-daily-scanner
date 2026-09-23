@@ -2285,8 +2285,8 @@ body,
 
 .accepted-select-control input:checked,
 .outreach-delete-job-checkbox input:checked + span {
-  border-color: var(--stripe-purple) !important;
-  background: var(--stripe-purple) !important;
+  border-color: #d92d20 !important;
+  background: #d92d20 !important;
 }
 
 .accepted-select-control input:checked::after,
@@ -2303,8 +2303,8 @@ body,
 
 .outreach-delete-job-checkbox input:checked + span,
 .accepted-select-control input:checked + span {
-  border-color: #0a66c2 !important;
-  background: #0a66c2 !important;
+  border-color: #d92d20 !important;
+  background: #d92d20 !important;
 }
 
 .outreach-delete-job-checkbox input:checked + span::after,
@@ -2314,6 +2314,9 @@ body,
   width: 100%;
   height: 100%;
   place-items: center;
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
   color: #fff !important;
   font-size: 11px !important;
   font-weight: 800 !important;
@@ -2585,13 +2588,13 @@ body,
 
 /* Final viewport and history-popup corrections. */
 .app-sidebar {
-  width: 208px !important;
+  width: var(--sidebar-width) !important;
 }
 
 .app-shell {
-  width: calc(100% - 208px) !important;
+  width: calc(100% - var(--sidebar-width)) !important;
   max-width: none !important;
-  margin-left: 208px !important;
+  margin-left: var(--sidebar-width) !important;
 }
 
 .topbar {
