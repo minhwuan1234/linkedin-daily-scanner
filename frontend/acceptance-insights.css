@@ -248,6 +248,8 @@
 }
 
 #acceptanceInsightsDrawer .acceptance-insights-table th {
+  height: 32px !important;
+  padding: 5px 12px !important;
   color: var(--insights-muted) !important;
 }
 
