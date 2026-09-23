@@ -6148,9 +6148,9 @@ a.outreach-profile-link:hover {
   justify-content: space-between;
 }
 
-body.reduce-motion *,
-body.reduce-motion *::before,
-body.reduce-motion *::after {
+body.reduce-motion #loginWorkspace *,
+body.reduce-motion #loginWorkspace *::before,
+body.reduce-motion #loginWorkspace *::after {
   scroll-behavior: auto !important;
   animation-duration: 0.001ms !important;
   animation-iteration-count: 1 !important;
