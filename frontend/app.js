@@ -6738,8 +6738,8 @@ function renderConnectHistory(jobs) {
   if (state.expandedConnectWeekKey === null) {
     state.expandedConnectWeekKey = thisWeekKey || "unknown";
   }
-  const dateLabel = (date) => new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC", month: "short", day: "numeric", year: "numeric"
+  const shortDate = (date) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric"
   }).format(date);
 
   Array.from(weeks.entries()).sort(([a], [b]) => b.localeCompare(a)).forEach(([key, { start, jobs: weekJobs }]) => {
@@ -6748,16 +6748,25 @@ function renderConnectHistory(jobs) {
     const heading = document.createElement("button");
     heading.type = "button";
     heading.className = "connect-history-week-toggle";
+    const headingCopy = document.createElement("span");
+    headingCopy.className = "connect-history-week-copy";
+    const title = document.createElement("strong");
+    const dateRange = document.createElement("span");
     if (start) {
       const end = new Date(start);
       end.setUTCDate(end.getUTCDate() + 6);
-      heading.textContent = `${key === thisWeekKey ? "This week" : "Week"} · ${dateLabel(start)} – ${dateLabel(end)}`;
+      title.textContent = key === thisWeekKey ? "This week" : "Previous week";
+      dateRange.textContent = `${shortDate(start)} – ${shortDate(end)}, ${end.getUTCFullYear()}`;
     } else {
-      heading.textContent = "Date unknown";
+      title.textContent = "Date unknown";
+      dateRange.textContent = "";
     }
+    headingCopy.append(title, dateRange);
     const list = document.createElement("div");
     list.className = "connect-history-list";
     const expanded = state.expandedConnectWeekKey === key;
+    section.classList.toggle("is-expanded", expanded);
+    section.classList.toggle("is-current", key === thisWeekKey);
     heading.setAttribute("aria-expanded", String(expanded));
     list.hidden = !expanded;
     const count = document.createElement("span");
@@ -6767,7 +6776,7 @@ function renderConnectHistory(jobs) {
     chevron.className = "connect-history-week-chevron";
     chevron.setAttribute("aria-hidden", "true");
     chevron.textContent = expanded ? "⌄" : "›";
-    heading.append(count, chevron);
+    heading.append(headingCopy, count, chevron);
     heading.addEventListener("click", () => {
       state.expandedConnectWeekKey = expanded ? "" : key;
       renderConnectHistory(state.outreachRecentJobs);
@@ -6790,6 +6799,7 @@ function renderConnectHistory(jobs) {
       const status = document.createElement("span");
       status.className = "connect-history-run-status";
       status.textContent = statusLabel(job.status || "pending");
+      status.classList.toggle("is-completed", String(job.status || "").toLowerCase() === "completed");
       const meta = document.createElement("span");
       meta.className = "connect-history-run-meta";
       const created = document.createElement("span");
@@ -8757,6 +8767,9 @@ function switchTab(tabName) {
         panel.id !== `tab-${tabName}`;
     });
 
+  const mainScroll = document.querySelector("#appMainScroll");
+  if (mainScroll) mainScroll.scrollTop = 0;
+
   const pageCopy = {
     overview: {
       eyebrow: "Workspace",
@@ -9023,6 +9036,9 @@ function setOutreachProcessTab(
         panel.dataset.outreachProcessPanel !==
         cleaned;
     });
+
+  const mainScroll = document.querySelector("#appMainScroll");
+  if (mainScroll) mainScroll.scrollTop = 0;
 
   requestAnimationFrame(syncOutreachWorkflowPill);
 

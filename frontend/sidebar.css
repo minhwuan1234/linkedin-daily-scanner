@@ -423,3 +423,112 @@
     margin-left: 0 !important;
   }
 }
+
+/* The shell owns the viewport; only the area beneath the topbar scrolls. */
+body:not(.login-mode),
+#loginWorkspace:not([hidden]),
+#loginWorkspace:not([hidden]) .app-layout {
+  height: 100dvh;
+  overflow: hidden;
+}
+
+.app-shell {
+  position: fixed;
+  inset: 0 0 0 var(--sidebar-width);
+  display: flex;
+  width: auto !important;
+  height: 100dvh;
+  min-height: 0;
+  flex-direction: column;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.app-shell > .topbar {
+  position: relative !important;
+  top: auto !important;
+  z-index: 30;
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 72px;
+  margin: 0 !important;
+}
+
+.app-main-scroll {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 24px var(--main-gutter) 92px;
+  overflow-x: clip;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 860px) {
+  .app-sidebar {
+    position: fixed !important;
+    inset: 0 0 auto !important;
+    display: flex;
+    width: 100% !important;
+    height: 56px !important;
+    flex-direction: row;
+    align-items: center;
+    padding: 6px 8px !important;
+    overflow: hidden;
+    border-right: 0 !important;
+    border-bottom: 1px solid #e5e5e2 !important;
+  }
+
+  .app-sidebar .sidebar-brand,
+  .app-sidebar .sidebar-search,
+  .app-sidebar .sidebar-footer,
+  .app-sidebar .sidebar-nav-label { display: none !important; }
+
+  .app-sidebar .sidebar-navigation.tab-navigation {
+    display: flex !important;
+    width: 100%;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    justify-content: center;
+    gap: 3px !important;
+    margin: 0 !important;
+    overflow: hidden;
+  }
+
+  .app-sidebar .sidebar-nav-group,
+  .app-sidebar .sidebar-nav-group-bottom { display: contents !important; }
+
+  .app-sidebar .sidebar-navigation .tab-button {
+    position: relative;
+    display: grid !important;
+    width: 42px !important;
+    min-width: 0 !important;
+    height: 42px;
+    min-height: 42px !important;
+    flex: 0 1 42px;
+    grid-template-columns: 1fr;
+    place-items: center;
+    padding: 0 !important;
+  }
+
+  .app-sidebar .sidebar-nav-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .app-sidebar .tab-count { display: none !important; }
+
+  .app-shell {
+    inset: 56px 0 0;
+    width: 100% !important;
+    height: calc(100dvh - 56px);
+  }
+
+  .app-main-scroll { padding: 16px var(--main-gutter) 88px; }
+}
