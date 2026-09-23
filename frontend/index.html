@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
   <link rel="stylesheet" href="./sidebar.css?v=20260923-fixed-panels-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
-  <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-weeks-3" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-weeks-5" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -977,35 +977,8 @@
       <p id="outreachError" class="outreach-error" hidden></p>
     </section>
 
-    <section id="outreachConnectExecutionSection" class="outreach-connect-execution-section" aria-label="Connect progress" hidden>
-      <div
-        id="outreachJobResult"
-        class="outreach-job-result outreach-job-result-smart"
-        hidden
-      >
-        <div class="outreach-progress-block outreach-progress-block-smart">
-          <div class="outreach-progress-header">
-            <div>
-              <span>Progress</span>
-              <strong id="outreachProgressText">0 / 0</strong>
-            </div>
-
-            <strong
-              id="outreachProgressPercent"
-              class="outreach-progress-percent-smart"
-            >
-              0%
-            </strong>
-          </div>
-
-          <div class="outreach-progress-track">
-            <div
-              id="outreachProgressBar"
-              class="outreach-progress-bar"
-            ></div>
-          </div>
-        </div>
-
+    <section id="outreachConnectExecutionSection" class="outreach-connect-execution-section" aria-label="Connect batch statistics" hidden>
+      <div id="outreachJobResult" class="outreach-job-result outreach-job-result-smart">
         <div class="outreach-stat-grid-equal">
           <div class="outreach-stat outreach-stat-equal">
             <span>Input</span>
@@ -1040,35 +1013,6 @@
           <div class="outreach-stat outreach-stat-equal">
             <span>Invalid</span>
             <strong id="outreachInvalidCount">0</strong>
-          </div>
-        </div>
-
-        <div class="outreach-job-meta-grid outreach-job-meta-grid-smart">
-          <div>
-            <span>Created</span>
-            <strong id="outreachCreatedAt">—</strong>
-          </div>
-
-          <div>
-            <span>Started</span>
-            <strong id="outreachStartedAt">—</strong>
-          </div>
-
-          <div>
-            <span>Completed</span>
-            <strong id="outreachCompletedAt">—</strong>
-          </div>
-        </div>
-
-        <div class="outreach-job-message-row">
-          <p id="outreachJobMessage" class="panel-meta"></p>
-          <p id="outreachLastError" class="outreach-error" hidden></p>
-        </div>
-
-        <div class="outreach-targets-section">
-          <div class="outreach-current-targets-toggle">
-            <span>Profiles</span>
-            <strong id="outreachCurrentTargetCount">0 profiles</strong>
           </div>
         </div>
       </div>
@@ -2097,7 +2041,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-connect-weeks-4"></script>
+  <script src="./app.js?v=20260923-connect-weeks-5"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

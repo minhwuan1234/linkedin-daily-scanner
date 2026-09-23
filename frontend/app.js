@@ -6818,7 +6818,7 @@ function renderConnectHistory(jobs) {
         state.selectedConnectHistoryJobId = state.selectedConnectHistoryJobId === job.id
           ? null : job.id;
         renderConnectHistory(state.outreachRecentJobs);
-        renderOutreachJob(state.selectedConnectHistoryJobId ? job : state.outreachCurrentJob);
+        renderOutreachJob(state.selectedConnectHistoryJobId ? job : null);
       });
       list.append(button);
     });
@@ -6838,7 +6838,7 @@ function renderOutreachDashboard() {
   renderOutreachJob(
     state.outreachRecentJobs.find(
       (job) => job.id === state.selectedConnectHistoryJobId
-    ) || state.outreachCurrentJob
+    ) || null
   );
 
   renderOutreachScheduler(
