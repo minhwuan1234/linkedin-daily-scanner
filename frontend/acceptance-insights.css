@@ -221,18 +221,6 @@
   background: #fff !important;
 }
 
-#acceptanceInsightsDrawer .acceptance-insights-section-heading {
-  margin: 0;
-  padding: 15px 16px;
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--insights-border) !important;
-}
-
-#acceptanceInsightsDrawer .acceptance-insights-section-heading h3 {
-  color: var(--insights-text);
-  font-size: 13px;
-}
-
 #acceptanceInsightsDrawer .acceptance-insights-table-wrap {
   max-width: 100%;
   overflow-x: auto;

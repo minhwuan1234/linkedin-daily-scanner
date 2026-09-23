@@ -255,9 +255,6 @@ const els = {
   acceptanceInsightsOverallRate:
     document.querySelector("#acceptanceInsightsOverallRate"),
 
-  acceptanceInsightsUpdatedAt:
-    document.querySelector("#acceptanceInsightsUpdatedAt"),
-
   acceptanceInsightsEmpty:
     document.querySelector("#acceptanceInsightsEmpty"),
 
@@ -2297,15 +2294,6 @@ function renderAcceptanceInsights() {
         : formatAcceptancePercent(
             summary.overall_rate
           );
-  }
-
-  if (els.acceptanceInsightsUpdatedAt) {
-    els.acceptanceInsightsUpdatedAt.textContent =
-      insights?.generated_at
-        ? `Updated ${formatDate(
-            insights.generated_at
-          )}`
-        : "—";
   }
 
   const hasRows =
