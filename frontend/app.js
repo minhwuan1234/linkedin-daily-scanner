@@ -7,6 +7,7 @@ console.info("[Outreach UI] connect-job-delete-multiselect-2 loaded");
 const config = window.APP_CONFIG || {};
 
 const els = {
+  sidebarNavSearch: document.querySelector("#sidebarNavSearch"),
   refreshButton: document.querySelector("#refreshButton"),
   killProcessButton: document.querySelector("#killProcessButton"),
   stopScanButton: document.querySelector("#stopScanButton"),
@@ -65,14 +66,6 @@ const els = {
   queueTableBody: document.querySelector("#queueTableBody"),
   accountsGrid: document.querySelector("#accountsGrid"),
 
-  healthOverallBadge: document.querySelector("#healthOverallBadge"),
-  healthServiceList: document.querySelector("#healthServiceList"),
-  workerDetailGrid: document.querySelector("#workerDetailGrid"),
-  healthHeartbeatAge: document.querySelector("#healthHeartbeatAge"),
-  healthStaleJobs: document.querySelector("#healthStaleJobs"),
-  healthUnsentLark: document.querySelector("#healthUnsentLark"),
-  healthNeedsLogin: document.querySelector("#healthNeedsLogin"),
-  
   youtubeTabCount: document.querySelector("#youtubeTabCount"),
   youtubeResearchForm: document.querySelector("#youtubeResearchForm"),
   youtubeKeywordInput: document.querySelector("#youtubeKeywordInput"),
@@ -7348,7 +7341,6 @@ function renderAll() {
   applyQueueFilters();
   renderOverview();
   renderAccounts();
-  renderHealth();
   renderGlobalError();
   updateWorkerControlButtons();
 }
@@ -8024,200 +8016,6 @@ function renderAccounts() {
     .join("");
 }
 
-function renderHealth() {
-  const worker = state.worker;
-  const heartbeatAgeSeconds = worker?.last_heartbeat_at
-    ? Math.max(
-        0,
-        Math.floor(
-          (Date.now() - new Date(worker.last_heartbeat_at).getTime()) /
-          1000
-        )
-      )
-    : null;
-
-  const workerOnline =
-    heartbeatAgeSeconds !== null &&
-    heartbeatAgeSeconds <= 90 &&
-    !["offline", "stopping"].includes(
-      normaliseStatus(worker?.status)
-    );
-
-  const needsLoginCount = state.accounts.filter(
-    (account) =>
-      normaliseStatus(account.status) === "needs_login"
-  ).length;
-
-  const staleJobs = state.sources.filter((source) => {
-    if (normaliseStatus(source.job_status) !== "processing") {
-      return false;
-    }
-
-    const heartbeat =
-      source.processing_heartbeat_at ||
-      source.processing_started_at;
-
-    if (!heartbeat) return true;
-
-    return (
-      Date.now() - new Date(heartbeat).getTime() >
-      20 * 60 * 1000
-    );
-  }).length;
-
-  const unsentLark = state.sources.filter(
-    (source) =>
-      source.lark_chat_id &&
-      source.last_scanned_at &&
-      !source.lark_result_sent_at
-  ).length;
-
-  let overall = "HEALTHY";
-
-  if (
-    !workerOnline ||
-    state.tableErrors.sources ||
-    state.tableErrors.worker
-  ) {
-    overall = "UNHEALTHY";
-  } else if (
-    needsLoginCount > 0 ||
-    staleJobs > 0 ||
-    unsentLark > 0 ||
-    countByStatus("failed") > 0
-  ) {
-    overall = "DEGRADED";
-  }
-
-  const overallClass =
-    overall === "HEALTHY"
-      ? "pill-green"
-      : overall === "DEGRADED"
-        ? "pill-amber"
-        : "pill-red";
-
-  els.healthOverallBadge.className =
-    `pill ${overallClass}`;
-  els.healthOverallBadge.textContent = overall;
-
-  els.systemBadge.className =
-    `system-badge ${
-      overall === "HEALTHY"
-        ? "is-healthy"
-        : overall === "DEGRADED"
-          ? "is-degraded"
-          : "is-unhealthy"
-    }`;
-
-  els.systemBadgeText.textContent =
-    overall === "HEALTHY"
-      ? "System healthy"
-      : overall === "DEGRADED"
-        ? "System degraded"
-        : "System unhealthy";
-
-  const services = [
-    {
-      name: "Supabase profiles",
-      detail:
-        state.tableErrors.profiles ||
-        `${state.profiles.length} profiles`,
-      healthy: !state.tableErrors.profiles
-    },
-    {
-      name: "Supabase queue",
-      detail:
-        state.tableErrors.sources ||
-        `${state.sources.length} sources`,
-      healthy: !state.tableErrors.sources
-    },
-    {
-      name: "Mac Worker",
-      detail:
-        worker
-          ? `${statusLabel(worker.status)} · ${formatAge(worker.last_heartbeat_at)}`
-          : "No worker record",
-      healthy: workerOnline
-    },
-    {
-      name: "LinkedIn accounts",
-      detail:
-        state.tableErrors.accounts ||
-        `${state.accounts.length} accounts · ${needsLoginCount} needs login`,
-      healthy:
-        !state.tableErrors.accounts &&
-        needsLoginCount === 0
-    },
-    {
-      name: "Lark delivery",
-      detail: `${unsentLark} unsent results`,
-      healthy: unsentLark === 0
-    }
-  ];
-
-  els.healthServiceList.innerHTML = services
-    .map((service) => `
-      <div class="health-service-row">
-        <div class="health-service-copy">
-          <strong>${escapeHtml(service.name)}</strong>
-          <span>${escapeHtml(service.detail)}</span>
-        </div>
-
-        <span class="status-badge ${
-          service.healthy
-            ? "status-available"
-            : "status-error"
-        }">
-          ${service.healthy ? "Healthy" : "Issue"}
-        </span>
-      </div>
-    `)
-    .join("");
-
-  els.workerDetailGrid.innerHTML = `
-    <dt>Worker ID</dt>
-    <dd>${escapeHtml(worker?.worker_id || "—")}</dd>
-
-    <dt>Status</dt>
-    <dd>${escapeHtml(statusLabel(worker?.status))}</dd>
-
-    <dt>Version</dt>
-    <dd>${escapeHtml(worker?.worker_version || "—")}</dd>
-
-    <dt>Hostname</dt>
-    <dd>${escapeHtml(worker?.hostname || "—")}</dd>
-
-    <dt>Current account</dt>
-    <dd>${escapeHtml(worker?.current_account_id || "—")}</dd>
-
-    <dt>Current source</dt>
-    <dd>${escapeHtml(worker?.current_source_id || "—")}</dd>
-
-    <dt>Last heartbeat</dt>
-    <dd>${escapeHtml(formatDate(worker?.last_heartbeat_at))}</dd>
-
-    <dt>Last success</dt>
-    <dd>${escapeHtml(formatDate(worker?.last_success_at))}</dd>
-
-    <dt>Last error</dt>
-    <dd>${escapeHtml(worker?.last_error || "—")}</dd>
-  `;
-
-  els.healthHeartbeatAge.textContent =
-    heartbeatAgeSeconds === null
-      ? "—"
-      : formatAge(worker.last_heartbeat_at);
-
-  els.healthStaleJobs.textContent =
-    staleJobs.toLocaleString("vi-VN");
-
-  els.healthUnsentLark.textContent =
-    unsentLark.toLocaleString("vi-VN");
-
-  els.healthNeedsLogin.textContent =
-    needsLoginCount.toLocaleString("vi-VN");
-}
-
 function openDrawer(profile) {
   els.drawerName.textContent =
     profile.name || "Unnamed profile";
@@ -8870,11 +8668,6 @@ function switchTab(tabName) {
       eyebrow: "Outreach",
       title: "Message Replies",
       subtitle: "Review verified LinkedIn replies captured by the Reply Check Worker."
-    },
-    health: {
-      eyebrow: "System",
-      title: "Health",
-      subtitle: "Check worker heartbeats, service health, and issues requiring attention."
     }
   };
 
@@ -10151,6 +9944,46 @@ document.addEventListener(
 );
 
 const initialUiSettings = loadUiSettings();
+
+function filterSidebarNavigation() {
+  const query = (els.sidebarNavSearch?.value || "")
+    .trim()
+    .toLocaleLowerCase();
+
+  document
+    .querySelectorAll(".sidebar-nav-group")
+    .forEach((group) => {
+      const buttons = [...group.querySelectorAll(".tab-button")];
+      let visibleCount = 0;
+
+      buttons.forEach((button) => {
+        const matches = !query || button.textContent
+          .toLocaleLowerCase()
+          .includes(query);
+
+        button.classList.toggle("is-search-hidden", !matches);
+        visibleCount += Number(matches);
+      });
+
+      group.classList.toggle("is-search-empty", visibleCount === 0);
+    });
+}
+
+els.sidebarNavSearch?.addEventListener("input", filterSidebarNavigation);
+
+document.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    els.sidebarNavSearch?.focus();
+    els.sidebarNavSearch?.select();
+  }
+
+  if (event.key === "Escape" && document.activeElement === els.sidebarNavSearch) {
+    els.sidebarNavSearch.value = "";
+    filterSidebarNavigation();
+    els.sidebarNavSearch.blur();
+  }
+});
 
 if (initialUiSettings.rememberLastSection) {
   const savedTab = localStorage.getItem(

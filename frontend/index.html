@@ -14,7 +14,8 @@
   />
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
-    <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-notion-sidebar-5" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -58,10 +59,17 @@
       <div class="sidebar-brand">
         <div class="brand-mark" aria-hidden="true">in</div>
         <div class="sidebar-brand-copy">
+          <span>Workspace</span>
           <strong>LinkedIn Ops</strong>
-          <span>Operations Console</span>
         </div>
+        <svg class="sidebar-brand-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m7 8 3-3 3 3M7 12l3 3 3-3"/></svg>
       </div>
+
+      <label class="sidebar-search" for="sidebarNavSearch">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5"/><path d="m13 13 4 4"/></svg>
+        <input id="sidebarNavSearch" type="search" placeholder="Search" autocomplete="off" />
+        <kbd>⌘K</kbd>
+      </label>
 
       <nav class="tab-navigation sidebar-navigation" aria-label="Dashboard sections">
         <div class="sidebar-nav-group">
@@ -83,11 +91,6 @@
 
         <div class="sidebar-nav-group sidebar-nav-group-bottom">
           <p class="sidebar-nav-label">System</p>
-
-          <button class="tab-button" type="button" data-tab="health">
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg></span>
-            <span class="sidebar-nav-text">Health</span>
-          </button>
 
           <button
             id="sessionStatusButton"
@@ -115,8 +118,12 @@
       </nav>
 
       <div class="sidebar-footer">
-        <span class="status-dot"></span>
-        <span>Outreach operations</span>
+        <span class="sidebar-footer-avatar" aria-hidden="true">O</span>
+        <span class="sidebar-footer-copy">
+          <strong>Outreach Ops</strong>
+          <span><i class="status-dot"></i>System online</span>
+        </span>
+        <svg class="sidebar-footer-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="12" height="14" rx="2"/><path d="M8 3v14"/></svg>
       </div>
     </aside>
 
@@ -1664,67 +1671,6 @@
       </article>
     </section>
 
-    <!-- HEALTH -->
-    <section id="tab-health" class="tab-panel" hidden>
-      <section class="health-grid">
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">System health</p>
-              <h2>System status</h2>
-            </div>
-
-            <span id="healthOverallBadge" class="pill pill-neutral">
-              Checking
-            </span>
-          </div>
-
-          <div id="healthServiceList" class="health-service-list"></div>
-        </article>
-
-        <article class="panel">
-          <div class="panel-header">
-            <div>
-              <p class="panel-kicker">Worker details</p>
-              <h2>Mac Worker</h2>
-            </div>
-          </div>
-
-          <dl id="workerDetailGrid" class="health-detail-grid"></dl>
-        </article>
-      </section>
-
-      <article class="panel health-metrics-panel">
-        <div class="panel-header">
-          <div>
-            <p class="panel-kicker">Queue health</p>
-          <h2>Health metrics</h2>
-          </div>
-        </div>
-
-        <div class="health-metric-grid">
-          <div class="health-metric">
-            <span>Worker heartbeat</span>
-            <strong id="healthHeartbeatAge">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Stale jobs</span>
-            <strong id="healthStaleJobs">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Unsent Lark results</span>
-            <strong id="healthUnsentLark">—</strong>
-          </div>
-
-          <div class="health-metric">
-            <span>Needs login</span>
-            <strong id="healthNeedsLogin">—</strong>
-          </div>
-        </div>
-      </article>
-    </section>
     </main>
   </div>
 
@@ -2205,7 +2151,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260918-outreach-replies-8"></script>
+  <script src="./app.js?v=20260923-notion-sidebar-5"></script>
   <script src="./login.js?v=20260923-entry-2"></script>
 </body>
 </html>
