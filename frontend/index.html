@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
   <link rel="stylesheet" href="./sidebar.css?v=20260923-fullwidth-topbar-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-weeks-2" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -929,37 +930,15 @@
 
   <section class="outreach-process-panel is-active" data-outreach-process-panel="connect">
     <article class="panel outreach-connect-workspace">
-  <div class="outreach-connect-workspace-header">
-    <div>
-      <p class="panel-kicker">Connect workflow</p>
-      <h2>Connect Profiles</h2>
-      <p class="panel-meta">
-        Paste profile URLs, start a Connect Job, and follow the current execution in one place.
-      </p>
-    </div>
-
-    <div class="outreach-connect-workspace-header-meta">
-      <span id="outreachJobCode" class="panel-meta">
-        No job yet
-      </span>
-
-      <span id="outreachJobBadge" class="pill pill-neutral">
-        Idle
-      </span>
-
-      <strong id="outreachJobStatus" class="outreach-current-status">
-        Pending
-      </strong>
-    </div>
-  </div>
-
   <div class="outreach-connect-workspace-body">
 
     <section class="outreach-connect-input-section">
+      <div class="connect-column-heading"><h2>New connect run</h2><p>Start with a list of LinkedIn profiles.</p></div>
       <form
         id="outreachConnectForm"
         class="outreach-connect-form outreach-connect-form-inline"
       >
+        <label class="connect-name-field" for="outreachDisplayName"><span>Run name <small>Optional</small></span><input id="outreachDisplayName" type="text" maxlength="80" placeholder="e.g. Prospecting Q3" autocomplete="off" /><small>Leave blank to use the generated ID.</small></label>
         <label class="outreach-url-field outreach-url-field-smart">
           <span>LinkedIn Profile URLs</span>
 
@@ -997,21 +976,7 @@
       <p id="outreachError" class="outreach-error" hidden></p>
     </section>
 
-    <section class="outreach-connect-execution-section">
-      <div class="outreach-connect-section-heading">
-        <div>
-          <p class="panel-kicker">Current execution</p>
-          <h3>Current Connect Job</h3>
-        </div>
-      </div>
-
-      <div
-        id="outreachJobEmpty"
-        class="outreach-job-empty outreach-job-empty-smart"
-      >
-        No Connect Job yet.
-      </div>
-
+    <section id="outreachConnectExecutionSection" class="outreach-connect-execution-section" aria-label="Connect progress" hidden>
       <div
         id="outreachJobResult"
         class="outreach-job-result outreach-job-result-smart"
@@ -1109,6 +1074,10 @@
     </section>
 
   </div>
+  <aside class="connect-history-panel" aria-labelledby="connectHistoryTitle">
+    <div class="connect-history-heading"><div><h2 id="connectHistoryTitle">Connect history</h2><p>Runs grouped by week</p></div><span id="connectHistoryCount">0 runs</span></div>
+    <div id="connectHistoryWeeks" class="connect-history-weeks"></div>
+  </aside>
 </article>
 
   </section>
@@ -2126,7 +2095,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-shared-nav-1"></script>
+  <script src="./app.js?v=20260923-connect-weeks-2"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

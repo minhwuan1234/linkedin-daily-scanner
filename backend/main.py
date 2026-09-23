@@ -611,9 +611,18 @@ async def create_outreach_connect_job(
     # 3. CREATE CONNECT JOB
     # -----------------------------------------------------
 
+    display_name = body.get("display_name", "")
+    if not isinstance(display_name, str) or len(display_name.strip()) > 80:
+        return JSONResponse(status_code=400, content={
+            "ok": False,
+            "error": "display_name must be text of at most 80 characters",
+        })
+    display_name = display_name.strip()
+
     try:
         result = create_connect_job(
-            cleaned_urls
+            cleaned_urls,
+            display_name=display_name,
         )
 
     except OutreachJobStoreError as exc:
@@ -684,6 +693,7 @@ async def create_outreach_connect_job(
             "job": {
                 "job_id": result.job_id,
                 "job_code": result.job_code,
+                "display_name": display_name,
                 "input_count": (
                     result.input_count
                 ),

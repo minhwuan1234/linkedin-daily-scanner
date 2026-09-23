@@ -96,6 +96,15 @@ const els = {
   outreachUrlInput:
     document.querySelector("#outreachUrlInput"),
 
+  outreachDisplayName:
+    document.querySelector("#outreachDisplayName"),
+
+  connectHistoryWeeks:
+    document.querySelector("#connectHistoryWeeks"),
+
+  connectHistoryCount:
+    document.querySelector("#connectHistoryCount"),
+
   outreachStartButton:
     document.querySelector("#outreachStartButton"),
 
@@ -105,14 +114,8 @@ const els = {
   outreachDetectedCount:
     document.querySelector("#outreachDetectedCount"),
 
-  outreachJobBadge:
-    document.querySelector("#outreachJobBadge"),
-
-  outreachJobCode:
-    document.querySelector("#outreachJobCode"),
-
-  outreachJobEmpty:
-    document.querySelector("#outreachJobEmpty"),
+  outreachConnectExecutionSection:
+    document.querySelector("#outreachConnectExecutionSection"),
 
   outreachJobResult:
     document.querySelector("#outreachJobResult"),
@@ -146,9 +149,6 @@ const els = {
 
   outreachProgressPercent:
     document.querySelector("#outreachProgressPercent"),
-
-  outreachJobStatus:
-    document.querySelector("#outreachJobStatus"),
 
   outreachCreatedAt:
     document.querySelector("#outreachCreatedAt"),
@@ -651,6 +651,8 @@ const state = {
   outreachScheduler: null,
   outreachAccounts: [],
   outreachRecentJobs: [],
+  selectedConnectHistoryJobId: null,
+  expandedConnectWeekKey: null,
   acceptanceInsights: null,
   acceptanceInsightsLoading: false,
   acceptanceInsightsError: null,
@@ -1663,47 +1665,20 @@ function getOutreachPillClass(status) {
 
 
 function renderOutreachJob(job) {
-  if (!els.outreachJobEmpty) {
+  if (!els.outreachJobResult) {
     return;
+  }
+
+  if (els.outreachConnectExecutionSection) {
+    els.outreachConnectExecutionSection.hidden = !job;
   }
 
   if (!job) {
-    els.outreachJobEmpty.hidden = false;
-
-    if (els.outreachJobResult) {
-      els.outreachJobResult.hidden = true;
-    }
-
-    if (els.outreachJobCode) {
-      els.outreachJobCode.textContent =
-        "No job yet";
-    }
-
-    if (els.outreachJobBadge) {
-      els.outreachJobBadge.textContent =
-        "Idle";
-
-      els.outreachJobBadge.className =
-        "pill pill-neutral";
-    }
-
-    if (els.outreachCurrentTargetCount) {
-      els.outreachCurrentTargetCount.textContent =
-        "0 profiles";
-    }
-
+    els.outreachJobResult.hidden = true;
     return;
   }
 
-  els.outreachJobEmpty.hidden = true;
-
-  if (els.outreachJobResult) {
-    els.outreachJobResult.hidden = false;
-  }
-
-  const status = String(
-    job.status || "pending"
-  ).toLowerCase();
+  els.outreachJobResult.hidden = false;
 
   const targetCount =
     Number(job.target_count || 0);
@@ -1725,19 +1700,6 @@ function renderOutreachJob(job) {
     100,
     progressPercent
   );
-
-  if (els.outreachJobCode) {
-    els.outreachJobCode.textContent =
-      job.job_code || "—";
-  }
-
-  if (els.outreachJobBadge) {
-    els.outreachJobBadge.textContent =
-      statusLabel(status);
-
-    els.outreachJobBadge.className =
-      `pill ${getOutreachPillClass(status)}`;
-  }
 
   if (els.outreachInputCount) {
     els.outreachInputCount.textContent =
@@ -1772,11 +1734,6 @@ function renderOutreachJob(job) {
   if (els.outreachInvalidCount) {
     els.outreachInvalidCount.textContent =
       String(job.invalid_count ?? 0);
-  }
-
-  if (els.outreachJobStatus) {
-    els.outreachJobStatus.textContent =
-      statusLabel(status);
   }
 
   if (els.outreachProgressText) {
@@ -6740,6 +6697,127 @@ async function prepareAllMessageRecipients(
 
 
 // ---------------------------------------------------------
+// CONNECT HISTORY — GROUPED BY LOCAL CALENDAR WEEK
+// ---------------------------------------------------------
+
+function connectWeekStart(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(date);
+  const number = (type) => Number(parts.find((part) => part.type === type)?.value);
+  const localDay = new Date(Date.UTC(number("year"), number("month") - 1, number("day")));
+  localDay.setUTCDate(localDay.getUTCDate() - (localDay.getUTCDay() + 6) % 7);
+  return localDay;
+}
+
+function renderConnectHistory(jobs) {
+  const container = els.connectHistoryWeeks;
+  if (!container) return;
+  const rows = Array.isArray(jobs) ? jobs : [];
+  if (els.connectHistoryCount) {
+    els.connectHistoryCount.textContent = `${rows.length} ${rows.length === 1 ? "run" : "runs"}`;
+  }
+  container.replaceChildren();
+
+  const weeks = new Map();
+  rows.forEach((job) => {
+    const start = connectWeekStart(job.created_at);
+    const key = start ? start.toISOString().slice(0, 10) : "unknown";
+    if (!weeks.has(key)) weeks.set(key, { start, jobs: [] });
+    weeks.get(key).jobs.push(job);
+  });
+  const thisWeekKey = connectWeekStart(new Date())?.toISOString().slice(0, 10);
+  if (thisWeekKey && !weeks.has(thisWeekKey)) {
+    weeks.set(thisWeekKey, {
+      start: connectWeekStart(new Date()), jobs: []
+    });
+  }
+  if (state.expandedConnectWeekKey === null) {
+    state.expandedConnectWeekKey = thisWeekKey || "unknown";
+  }
+  const dateLabel = (date) => new Intl.DateTimeFormat("en-US", {
+    timeZone: "UTC", month: "short", day: "numeric", year: "numeric"
+  }).format(date);
+
+  Array.from(weeks.entries()).sort(([a], [b]) => b.localeCompare(a)).forEach(([key, { start, jobs: weekJobs }]) => {
+    const section = document.createElement("section");
+    section.className = "connect-history-week";
+    const heading = document.createElement("button");
+    heading.type = "button";
+    heading.className = "connect-history-week-toggle";
+    if (start) {
+      const end = new Date(start);
+      end.setUTCDate(end.getUTCDate() + 6);
+      heading.textContent = `${key === thisWeekKey ? "This week" : "Week"} · ${dateLabel(start)} – ${dateLabel(end)}`;
+    } else {
+      heading.textContent = "Date unknown";
+    }
+    const list = document.createElement("div");
+    list.className = "connect-history-list";
+    const expanded = state.expandedConnectWeekKey === key;
+    heading.setAttribute("aria-expanded", String(expanded));
+    list.hidden = !expanded;
+    const count = document.createElement("span");
+    count.className = "connect-history-week-count";
+    count.textContent = `${weekJobs.length} ${weekJobs.length === 1 ? "run" : "runs"}`;
+    const chevron = document.createElement("span");
+    chevron.className = "connect-history-week-chevron";
+    chevron.setAttribute("aria-hidden", "true");
+    chevron.textContent = expanded ? "⌄" : "›";
+    heading.append(count, chevron);
+    heading.addEventListener("click", () => {
+      state.expandedConnectWeekKey = expanded ? "" : key;
+      renderConnectHistory(state.outreachRecentJobs);
+    });
+    if (!weekJobs.length) {
+      const empty = document.createElement("p");
+      empty.className = "connect-history-empty";
+      empty.textContent = "No Connect runs this week yet.";
+      list.append(empty);
+    }
+    weekJobs.forEach((job) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "connect-history-run";
+      button.classList.toggle("is-selected", state.selectedConnectHistoryJobId === job.id);
+      button.setAttribute("aria-pressed", String(state.selectedConnectHistoryJobId === job.id));
+      const name = document.createElement("span");
+      name.className = "connect-history-run-name";
+      name.textContent = job.display_name || job.job_code || "Unnamed run";
+      const status = document.createElement("span");
+      status.className = "connect-history-run-status";
+      status.textContent = statusLabel(job.status || "pending");
+      const meta = document.createElement("span");
+      meta.className = "connect-history-run-meta";
+      const created = document.createElement("span");
+      created.textContent = formatDate(job.created_at);
+      const profiles = document.createElement("span");
+      profiles.textContent = `${Number(job.target_count || 0)} profiles`;
+      const processed = document.createElement("span");
+      processed.textContent = `${Number(job.processed_count || 0)} processed`;
+      const success = document.createElement("span");
+      success.textContent = `${Number(job.success_count || 0)} success`;
+      const failed = document.createElement("span");
+      failed.textContent = `${Number(job.failed_count || 0)} failed`;
+      meta.append(created, profiles, processed, success, failed);
+      button.append(name, status, meta);
+      button.addEventListener("click", () => {
+        state.selectedConnectHistoryJobId = state.selectedConnectHistoryJobId === job.id
+          ? null : job.id;
+        renderConnectHistory(state.outreachRecentJobs);
+        renderOutreachJob(state.selectedConnectHistoryJobId ? job : state.outreachCurrentJob);
+      });
+      list.append(button);
+    });
+    section.append(heading, list);
+    container.append(section);
+  });
+}
+
+// ---------------------------------------------------------
 // FULL DASHBOARD RENDER
 // ---------------------------------------------------------
 
@@ -6748,7 +6826,9 @@ function renderOutreachDashboard() {
   populateAcceptanceInsightsJobFilter();
 
   renderOutreachJob(
-    state.outreachCurrentJob
+    state.outreachRecentJobs.find(
+      (job) => job.id === state.selectedConnectHistoryJobId
+    ) || state.outreachCurrentJob
   );
 
   renderOutreachScheduler(
@@ -6762,6 +6842,8 @@ function renderOutreachDashboard() {
   renderOutreachHistory(
     state.outreachRecentJobs
   );
+
+  renderConnectHistory(state.outreachRecentJobs);
 
   renderOutreachAcceptanceJobs(
     state.outreachRecentJobs
@@ -6850,6 +6932,10 @@ async function loadOutreachDashboard() {
       )
         ? dashboard.recent_jobs
         : [];
+
+    if (state.selectedConnectHistoryJobId && !state.outreachRecentJobs.some(
+      (job) => job.id === state.selectedConnectHistoryJobId
+    )) state.selectedConnectHistoryJobId = null;
 
     if (els.outreachError) {
       els.outreachError.hidden = true;
@@ -7100,7 +7186,8 @@ async function createOutreachConnectJob(
         },
 
         body: JSON.stringify({
-          urls
+          urls,
+          display_name: els.outreachDisplayName?.value.trim() || ""
         })
       }
     );
@@ -7125,6 +7212,8 @@ async function createOutreachConnectJob(
     state.outreachCurrentJob =
       result.job || null;
 
+    state.selectedConnectHistoryJobId = null;
+
 
     renderOutreachJob(
       state.outreachCurrentJob
@@ -7134,6 +7223,10 @@ async function createOutreachConnectJob(
     if (els.outreachUrlInput) {
       els.outreachUrlInput.value =
         "";
+    }
+
+    if (els.outreachDisplayName) {
+      els.outreachDisplayName.value = "";
     }
 
 
