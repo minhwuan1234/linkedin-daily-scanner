@@ -168,6 +168,9 @@
 }
 
 #appMainScroll.is-connect-workspace #tab-outreach {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
   padding-bottom: 0 !important;
 }
 
