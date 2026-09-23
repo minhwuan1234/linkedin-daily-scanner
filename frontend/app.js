@@ -8620,11 +8620,21 @@ function switchTab(tabName) {
   document
     .querySelectorAll(".tab-button")
     .forEach((button) => {
-      button.classList.toggle(
-        "is-active",
-        button.dataset.tab === tabName
-      );
+      const active = button.dataset.tab === tabName &&
+          (tabName !== "outreach" ||
+            button.dataset.outreachProcessTab === state.outreachProcessTab);
+      button.classList.toggle("is-active", active);
+      if (button.dataset.tab) {
+        if (active) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
+      }
     });
+
+  document.querySelectorAll(".outreach-reply-tab").forEach((button) => {
+    const active = tabName === "replies";
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", active ? "true" : "false");
+  });
 
   document
     .querySelectorAll(".tab-panel")
@@ -8661,8 +8671,18 @@ function switchTab(tabName) {
     },
     outreach: {
       eyebrow: "Outreach",
-      title: "Connect & Messaging",
-      subtitle: "Connect profiles, check acceptance, and prepare recipients for messaging."
+      title: {
+        connect: "Connect",
+        acceptance: "Acceptance",
+        recipients: "Recipients",
+        messages: "Messages"
+      }[state.outreachProcessTab] || "Connect",
+      subtitle: {
+        connect: "Send connection requests to LinkedIn profiles.",
+        acceptance: "Check which connections were accepted.",
+        recipients: "Prepare the people you want to message.",
+        messages: "Create and follow up on your messages."
+      }[state.outreachProcessTab] || "Send connection requests to LinkedIn profiles."
     },
     replies: {
       eyebrow: "Outreach",
@@ -8700,6 +8720,10 @@ document
       }
 
       switchTab(tabName);
+
+      if (button.dataset.outreachProcessTab) {
+        setOutreachProcessTab(button.dataset.outreachProcessTab);
+      }
 
       const uiSettings = loadUiSettings();
 
@@ -8841,6 +8865,18 @@ function setOutreachProcessTab(
   state.outreachProcessTab =
     cleaned;
 
+  const outreachVisible = !document.querySelector("#tab-outreach")?.hidden;
+  if (outreachVisible) {
+    const headings = {
+      connect: ["Connect", "Send connection requests to LinkedIn profiles."],
+      acceptance: ["Acceptance", "Check which connections were accepted."],
+      recipients: ["Recipients", "Prepare the people you want to message."],
+      messages: ["Messages", "Create and follow up on your messages."]
+    };
+    if (els.pageTitle) els.pageTitle.textContent = headings[cleaned][0];
+    if (els.pageSubtitle) els.pageSubtitle.textContent = headings[cleaned][1];
+  }
+
   document
     .querySelectorAll(
       "[data-outreach-process-tab]"
@@ -8850,15 +8886,17 @@ function setOutreachProcessTab(
         button.dataset.outreachProcessTab ===
         cleaned;
 
-      button.classList.toggle(
-        "is-active",
-        active
-      );
-
-      button.setAttribute(
-        "aria-selected",
-        active ? "true" : "false"
-      );
+      if (button.classList.contains("outreach-workflow-tab")) {
+        button.classList.toggle("is-active", active);
+        button.setAttribute("aria-selected", active ? "true" : "false");
+      } else if (button.dataset.tab === "outreach") {
+        button.classList.toggle("is-active", active && outreachVisible);
+        if (active && outreachVisible) {
+          button.setAttribute("aria-current", "page");
+        } else {
+          button.removeAttribute("aria-current");
+        }
+      }
     });
 
   document
@@ -9583,6 +9621,15 @@ document.addEventListener(
       return;
     }
 
+    const replyButton = event.target.closest(".outreach-reply-tab");
+
+    if (replyButton) {
+      event.preventDefault();
+      switchTab("replies");
+      void loadOutreachReplies();
+      return;
+    }
+
     const button =
       event.target.closest(
         "[data-outreach-process-tab]"
@@ -9593,6 +9640,10 @@ document.addEventListener(
     }
 
     event.preventDefault();
+
+    if (document.querySelector("#tab-outreach")?.hidden) {
+      switchTab("outreach");
+    }
 
     setOutreachProcessTab(
       button.dataset.outreachProcessTab

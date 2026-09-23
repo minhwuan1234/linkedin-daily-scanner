@@ -3,7 +3,13 @@
 }
 
 .app-sidebar {
+  position: fixed !important;
+  top: 0;
+  bottom: 0;
+  left: 0;
   width: var(--sidebar-width) !important;
+  height: 100vh;
+  overflow: hidden;
   padding: 14px 12px 12px !important;
   border-right: 1px solid #e5e5e2 !important;
   background: #f7f7f5 !important;
@@ -126,6 +132,8 @@
 }
 
 .sidebar-navigation.tab-navigation {
+  min-height: 0;
+  overflow: hidden;
   gap: 11px !important;
   margin: 12px 0 0 !important;
 }
@@ -168,6 +176,7 @@
   color: #6f6e69 !important;
   font-size: 13px;
   font-weight: 500;
+  transition: background-color 220ms ease, border-color 220ms ease, color 220ms ease, box-shadow 220ms ease;
 }
 
 .sidebar-navigation .tab-button:hover,
@@ -202,6 +211,18 @@
   width: 17px;
   height: 17px;
   stroke-width: 1.7;
+  transition: transform 220ms cubic-bezier(.22, 1, .36, 1);
+}
+
+.sidebar-navigation .tab-button.is-active .sidebar-nav-icon svg {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-navigation .tab-button,
+  .sidebar-nav-icon svg {
+    transition: none !important;
+  }
 }
 
 .sidebar-navigation .tab-count {

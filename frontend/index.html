@@ -15,8 +15,8 @@
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260923-notion-sidebar-6" />
-  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-bottom-nav-2" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260923-sidebar-workflow-1" />
+  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-bottom-nav-3" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
 </head>
 
@@ -76,9 +76,24 @@
         <div class="sidebar-nav-group">
           <p class="sidebar-nav-label">Outreach</p>
 
-          <button class="tab-button is-active" type="button" data-tab="outreach">
-            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 3-7.5 18-3.8-7.7L2 9.5 21 3ZM9.7 13.3 21 3"/></svg></span>
-            <span class="sidebar-nav-text">Connect & Messaging</span>
+          <button class="tab-button is-active" type="button" data-tab="outreach" data-outreach-process-tab="connect">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg></span>
+            <span class="sidebar-nav-text">Connect</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="acceptance">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg></span>
+            <span class="sidebar-nav-text">Acceptance</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="recipients">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg></span>
+            <span class="sidebar-nav-text">Recipients</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="outreach" data-outreach-process-tab="messages">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg></span>
+            <span class="sidebar-nav-text">Messages</span>
           </button>
 
           <button class="tab-button" type="button" data-tab="replies">
@@ -913,6 +928,11 @@
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab is-active" data-outreach-process-tab="connect" role="tab" aria-selected="true">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg>
       <span class="workflow-step-label">Connect</span>
+    </button>
+
+    <button type="button" class="outreach-accepted-filter outreach-workflow-tab outreach-reply-tab" data-tab="replies" role="tab" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H10l-5 4v-4.5A2.5 2.5 0 0 1 4 14V5.5Z"/><path d="M8 8h8M8 12h5"/></svg>
+      <span class="workflow-step-label">Replies</span>
     </button>
 
     <button type="button" class="outreach-accepted-filter outreach-workflow-tab" data-outreach-process-tab="acceptance" role="tab" aria-selected="false">
@@ -2152,7 +2172,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-bottom-nav-1"></script>
+  <script src="./app.js?v=20260923-sidebar-workflow-2"></script>
   <script src="./login.js?v=20260923-entry-2"></script>
 </body>
 </html>
