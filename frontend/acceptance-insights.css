@@ -1,0 +1,239 @@
+/* Acceptance Insights follows the light workspace, without changing other drawers. */
+#acceptanceInsightsDrawer {
+  --insights-text: #292927;
+  --insights-muted: #73736f;
+  --insights-border: #e6e6e2;
+  z-index: 1310;
+  visibility: hidden;
+  transition: visibility 0s linear 300ms;
+}
+
+#acceptanceInsightsDrawer.is-open {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-backdrop {
+  background: rgba(24, 28, 34, .38) !important;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  transition: opacity 300ms ease;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-panel {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  bottom: auto;
+  left: auto;
+  display: flex !important;
+  width: min(540px, calc(100vw - 48px)) !important;
+  height: auto !important;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100dvh - 48px) !important;
+  flex-direction: column;
+  overflow: hidden !important;
+  border: 1px solid var(--insights-border) !important;
+  border-radius: 18px;
+  background: #fff !important;
+  box-shadow: 0 24px 72px rgba(22, 27, 33, .22) !important;
+  color: var(--insights-text);
+  opacity: 0;
+  transform: translateX(calc(100% + 32px));
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1), opacity 250ms ease;
+}
+
+#acceptanceInsightsDrawer.is-open .acceptance-insights-drawer-panel {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-header {
+  position: relative !important;
+  top: auto;
+  flex: 0 0 auto;
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid var(--insights-border) !important;
+  background: #fff !important;
+  backdrop-filter: none;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-header > div {
+  min-width: 0;
+}
+
+#acceptanceInsightsDrawer .panel-kicker {
+  color: #0a66c2 !important;
+  font-size: 10px !important;
+  letter-spacing: .1em !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-header h2 {
+  margin: 0 0 5px;
+  color: var(--insights-text) !important;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+#acceptanceInsightsDrawer .panel-meta {
+  color: var(--insights-muted) !important;
+  line-height: 1.5;
+}
+
+#acceptanceInsightsDrawer .close-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid var(--insights-border) !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: #64645f !important;
+}
+
+#acceptanceInsightsDrawer .close-button:hover,
+#acceptanceInsightsDrawer .close-button:focus-visible {
+  border-color: #c5c5c0 !important;
+  background: #f6f6f4 !important;
+  color: var(--insights-text) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-drawer-body {
+  display: grid;
+  min-height: 0 !important;
+  padding: 20px 24px 24px !important;
+  gap: 18px;
+  align-content: start;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: #fff !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-filter-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-filter-field > span {
+  color: var(--insights-muted) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-filter-field select {
+  min-height: 36px;
+  border: 1px solid var(--insights-border) !important;
+  border-radius: 8px;
+  background: #fff !important;
+  color: var(--insights-text) !important;
+  font-size: 12px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-filter-field select:focus-visible {
+  outline: 2px solid #90bde9;
+  outline-offset: 1px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-summary-card {
+  min-height: 104px;
+  padding: 15px 16px;
+  border: 1px solid var(--insights-border) !important;
+  border-radius: 12px !important;
+  background: #fafaf9 !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-summary-card span,
+#acceptanceInsightsDrawer .acceptance-insights-summary-card small {
+  color: var(--insights-muted) !important;
+  font-size: 11px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-summary-card strong,
+#acceptanceInsightsDrawer .acceptance-insights-summary-card-best > strong {
+  color: var(--insights-text) !important;
+  font-size: 21px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-section {
+  padding: 0;
+  border: 1px solid var(--insights-border) !important;
+  border-radius: 12px;
+  background: #fff !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-section-heading {
+  margin: 0;
+  padding: 15px 16px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--insights-border) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-section-heading h3 {
+  color: var(--insights-text);
+  font-size: 13px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table {
+  min-width: 440px;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table th,
+#acceptanceInsightsDrawer .acceptance-insights-table td {
+  border-bottom-color: var(--insights-border) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table th {
+  color: var(--insights-muted) !important;
+}
+
+#acceptanceInsightsDrawer .acceptance-insights-table td,
+#acceptanceInsightsDrawer .acceptance-insights-table td strong {
+  color: var(--insights-text) !important;
+}
+
+#acceptanceInsightsDrawer .outreach-job-empty {
+  color: var(--insights-muted) !important;
+}
+
+@media (max-width: 600px) {
+  #acceptanceInsightsDrawer .acceptance-insights-drawer-panel {
+    top: 12px;
+    right: 12px;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 24px) !important;
+  }
+
+  #acceptanceInsightsDrawer .acceptance-insights-drawer-header,
+  #acceptanceInsightsDrawer .acceptance-insights-drawer-body {
+    padding-inline: 16px !important;
+  }
+
+  #acceptanceInsightsDrawer .acceptance-insights-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  #acceptanceInsightsDrawer .acceptance-insights-summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #acceptanceInsightsDrawer,
+  #acceptanceInsightsDrawer .acceptance-insights-drawer-backdrop,
+  #acceptanceInsightsDrawer .acceptance-insights-drawer-panel {
+    transition: none !important;
+  }
+}
