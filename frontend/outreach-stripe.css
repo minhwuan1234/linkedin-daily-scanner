@@ -2392,7 +2392,7 @@ body,
   line-height: 1;
 }
 
-/* Acceptance overview: one current-week card, older weeks behind one action. */
+/* Acceptance overview heading. */
 #acceptanceWeekBrowserTitle {
   max-width: 220px;
 }
@@ -2767,12 +2767,6 @@ body,
   font-size: 11px;
 }
 
-.acceptance-dashboard-scope .week-history-button {
-  min-height: 32px !important;
-  margin: 0;
-  padding-inline: 10px !important;
-}
-
 #outreachAcceptanceTableWrap.acceptance-grid-wrap {
   max-width: 100%;
   overflow-x: hidden;
@@ -2786,7 +2780,8 @@ body,
   border-radius: 0;
 }
 
-.outreach-acceptance-table .acceptance-col-job { width: 18%; }
+.outreach-acceptance-table .acceptance-col-select { width: 4%; }
+.outreach-acceptance-table .acceptance-col-job { width: 14%; }
 .outreach-acceptance-table .acceptance-col-connect { width: 10%; }
 .outreach-acceptance-table .acceptance-col-profiles { width: 7%; }
 .outreach-acceptance-table .acceptance-col-status { width: 11%; }
@@ -2807,13 +2802,6 @@ body,
 #outreachAcceptanceTableWrap .outreach-acceptance-table th:last-child,
 #outreachAcceptanceTableWrap .outreach-acceptance-table td:last-child {
   border-right: 0 !important;
-}
-
-.acceptance-job-cell {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
 }
 
 .acceptance-job-name {
@@ -2881,7 +2869,7 @@ body,
 
   #outreachAcceptanceTableWrap .outreach-acceptance-table tbody tr {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 40px minmax(0, 1fr);
     margin-bottom: 8px;
     border-bottom: 1px solid var(--stripe-border);
   }
@@ -2902,8 +2890,7 @@ body,
     text-transform: uppercase;
   }
 
-  #outreachAcceptanceTableWrap .outreach-acceptance-table td:first-child,
-  #outreachAcceptanceTableWrap .outreach-acceptance-table td:last-child {
+  #outreachAcceptanceTableWrap .outreach-acceptance-table td:nth-child(n+3) {
     grid-column: 1 / -1;
   }
 

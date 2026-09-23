@@ -354,20 +354,17 @@ const els = {
   outreachAcceptanceScopeCount:
     document.querySelector("#outreachAcceptanceScopeCount"),
 
-  outreachAcceptanceHistoryButton:
-    document.querySelector("#outreachAcceptanceHistoryButton"),
+  outreachAcceptanceWeekPicker:
+    document.querySelector("#outreachAcceptanceWeekPicker"),
 
-  outreachAcceptanceWeekModal:
-    document.querySelector("#outreachAcceptanceWeekModal"),
+  outreachAcceptanceWeekButton:
+    document.querySelector("#outreachAcceptanceWeekButton"),
 
-  outreachAcceptanceWeekModalBackdrop:
-    document.querySelector("#outreachAcceptanceWeekModalBackdrop"),
+  outreachAcceptanceWeekButtonLabel:
+    document.querySelector("#outreachAcceptanceWeekButtonLabel"),
 
-  outreachAcceptanceWeekModalClose:
-    document.querySelector("#outreachAcceptanceWeekModalClose"),
-
-  outreachAcceptanceWeekModalList:
-    document.querySelector("#outreachAcceptanceWeekModalList"),
+  outreachAcceptanceWeekMenu:
+    document.querySelector("#outreachAcceptanceWeekMenu"),
 
   outreachAcceptedHistoryButton:
     document.querySelector("#outreachAcceptedHistoryButton"),
@@ -3764,27 +3761,21 @@ function createEmptyAcceptanceWeekGroup(info) {
 }
 
 
-function renderAcceptanceWeekCard(group, {compact = false} = {}) {
+function renderAcceptanceWeekOption(group, selectedKey, currentKey) {
   const rate = getAcceptanceRate(group.accepted, group.totalProfiles);
-  const element = document.createElement(compact ? "button" : "article");
+  const element = document.createElement("button");
 
-  element.className = compact
-    ? "week-card week-history-option"
-    : "week-card week-current-card";
-
-  if (compact) {
-    element.type = "button";
-    element.dataset.acceptanceWeekOption = group.key;
-  }
+  element.type = "button";
+  element.className = "acceptance-week-option";
+  element.dataset.acceptanceWeekOption = group.key;
+  element.setAttribute("aria-pressed", String(group.key === selectedKey));
 
   element.innerHTML = `
-    <span class="week-card-label">${escapeHtml(group.label)}</span>
-    <strong>${group.accepted} accepted</strong>
-    <div class="week-card-metrics">
-      <span>Sent <b>${group.totalProfiles}</b></span>
-      <span>Acceptance rate <b>${rate}</b></span>
-      <span>${group.jobs.length} jobs</span>
-    </div>
+    <span class="acceptance-week-option-copy">
+      <strong>${escapeHtml(group.label)}${group.key === currentKey ? " · Current" : ""}</strong>
+      <small>${group.jobs.length} ${group.jobs.length === 1 ? "job" : "jobs"} · ${group.accepted} accepted · ${rate} rate</small>
+    </span>
+    <span class="acceptance-week-option-check" aria-hidden="true">✓</span>
   `;
 
   return element;
@@ -3794,21 +3785,20 @@ function renderAcceptanceWeekCard(group, {compact = false} = {}) {
 function getAcceptanceWeekSelection(jobs) {
   const groups = getAcceptanceWeekGroups(jobs);
   const current = getWeekInfo(new Date());
-  const selectedKey = state.outreachAcceptanceWeekKey || current?.key;
+  const requestedKey = state.outreachAcceptanceWeekKey || current?.key;
+  const selectedKey = requestedKey === current?.key || groups.some(
+    (group) => group.key === requestedKey
+  ) ? requestedKey : current?.key;
   const selectedGroup = groups.find((group) => group.key === selectedKey);
 
-  if (!state.outreachAcceptanceWeekKey) {
+  if (state.outreachAcceptanceWeekKey !== selectedKey) {
     state.outreachAcceptanceWeekKey = selectedKey;
   }
 
   return {
     groups,
     current,
-    selected: selectedGroup || createEmptyAcceptanceWeekGroup(
-      selectedKey === current?.key
-        ? current
-        : getWeekInfo(new Date(selectedGroup?.start || current?.start || Date.now()))
-    )
+    selected: selectedGroup || createEmptyAcceptanceWeekGroup(current)
   };
 }
 
@@ -3838,55 +3828,47 @@ function renderAcceptanceWeekList(jobs) {
       );
     });
 
-  const hasPreviousWeeks = selection.groups.some(
-    (group) => group.key !== selection.current?.key
-  );
+  if (els.outreachAcceptanceWeekPicker) {
+    els.outreachAcceptanceWeekPicker.hidden = isMonth;
+  }
+  if (els.outreachAcceptanceWeekButtonLabel) {
+    els.outreachAcceptanceWeekButtonLabel.textContent = selection.selected.label;
+  }
 
-  if (els.outreachAcceptanceHistoryButton) {
-    els.outreachAcceptanceHistoryButton.hidden = isMonth || !hasPreviousWeeks;
-    els.outreachAcceptanceHistoryButton.textContent =
-      selection.selected.key === selection.current?.key
-        ? "Explore previous weeks"
-        : "Back to current week";
+  if (els.outreachAcceptanceWeekMenu) {
+    const currentGroup = selection.groups.find(
+      (group) => group.key === selection.current?.key
+    ) || createEmptyAcceptanceWeekGroup(selection.current);
+    const options = [
+      currentGroup,
+      ...selection.groups.filter((group) => group.key !== selection.current?.key)
+    ];
+
+    els.outreachAcceptanceWeekMenu.replaceChildren(
+      ...options.map((group) => renderAcceptanceWeekOption(
+        group,
+        state.outreachAcceptanceWeekKey,
+        selection.current?.key
+      ))
+    );
+  }
+
+  if (isMonth) {
+    setAcceptanceWeekMenuOpen(false);
   }
 }
 
 
-function openAcceptanceWeekModal() {
-  const modal = els.outreachAcceptanceWeekModal;
-  const list = els.outreachAcceptanceWeekModalList;
-
-  if (!modal || !list) {
+function setAcceptanceWeekMenuOpen(open, {restoreFocus = false} = {}) {
+  if (!els.outreachAcceptanceWeekMenu || !els.outreachAcceptanceWeekButton) {
     return;
   }
 
-  const {groups, current} = getAcceptanceWeekSelection(state.outreachRecentJobs);
-  const previousGroups = groups.filter((group) => group.key !== current?.key);
-
-  list.replaceChildren();
-
-  if (!previousGroups.length) {
-    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
-  } else {
-    previousGroups.forEach((group) => {
-      const option = renderAcceptanceWeekCard(group, {compact: true});
-      option.classList.toggle("is-active", group.key === state.outreachAcceptanceWeekKey);
-      list.append(option);
-    });
+  els.outreachAcceptanceWeekMenu.hidden = !open;
+  els.outreachAcceptanceWeekButton.setAttribute("aria-expanded", String(open));
+  if (!open && restoreFocus) {
+    els.outreachAcceptanceWeekButton.focus();
   }
-
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
-}
-
-
-function closeAcceptanceWeekModal() {
-  if (!els.outreachAcceptanceWeekModal) {
-    return;
-  }
-
-  els.outreachAcceptanceWeekModal.hidden = true;
-  els.outreachAcceptanceWeekModal.setAttribute("aria-hidden", "true");
 }
 
 
@@ -9029,6 +9011,10 @@ function setOutreachProcessTab(
   state.outreachProcessTab =
     cleaned;
 
+  if (cleaned !== "acceptance") {
+    setAcceptanceWeekMenuOpen(false);
+  }
+
   const outreachVisible = !document.querySelector("#tab-outreach")?.hidden;
   if (outreachVisible) {
     const headings = {
@@ -9707,10 +9693,10 @@ document.addEventListener(
     }
 
     if (
-      els.outreachAcceptanceWeekModal &&
-      !els.outreachAcceptanceWeekModal.hidden
+      els.outreachAcceptanceWeekMenu &&
+      !els.outreachAcceptanceWeekMenu.hidden
     ) {
-      closeAcceptanceWeekModal();
+      setAcceptanceWeekMenuOpen(false, {restoreFocus: true});
       return;
     }
 
@@ -9841,17 +9827,21 @@ els.outreachHistoryNextPage?.addEventListener("click",()=>{state.outreachHistory
 els.outreachAcceptancePrevPage?.addEventListener("click",()=>{state.outreachAcceptancePage=Math.max(1,state.outreachAcceptancePage-1);renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcceptancePage+=1;renderOutreachAcceptanceJobs(state.outreachRecentJobs)});
 
-els.outreachAcceptanceHistoryButton?.addEventListener("click", () => {
-  const currentKey = getWeekInfo(new Date())?.key;
+els.outreachAcceptanceWeekButton?.addEventListener("click", () => {
+  setAcceptanceWeekMenuOpen(els.outreachAcceptanceWeekMenu?.hidden);
+});
 
-  if (state.outreachAcceptanceWeekKey !== currentKey) {
-    state.outreachAcceptanceWeekKey = currentKey;
-    state.outreachAcceptancePage = 1;
-    renderOutreachAcceptanceJobs(state.outreachRecentJobs);
-    return;
+els.outreachAcceptanceWeekButton?.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown") return;
+  event.preventDefault();
+  setAcceptanceWeekMenuOpen(true);
+  els.outreachAcceptanceWeekMenu?.querySelector("button")?.focus();
+});
+
+document.addEventListener("click", (event) => {
+  if (!els.outreachAcceptanceWeekPicker?.contains(event.target)) {
+    setAcceptanceWeekMenuOpen(false);
   }
-
-  openAcceptanceWeekModal();
 });
 
 els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
@@ -9865,17 +9855,7 @@ els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
   renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
 
-els.outreachAcceptanceWeekModalClose?.addEventListener(
-  "click",
-  closeAcceptanceWeekModal
-);
-
-els.outreachAcceptanceWeekModalBackdrop?.addEventListener(
-  "click",
-  closeAcceptanceWeekModal
-);
-
-els.outreachAcceptanceWeekModalList?.addEventListener("click", (event) => {
+els.outreachAcceptanceWeekMenu?.addEventListener("click", (event) => {
   const option = event.target.closest("[data-acceptance-week-option]");
 
   if (!option) {
@@ -9884,7 +9864,7 @@ els.outreachAcceptanceWeekModalList?.addEventListener("click", (event) => {
 
   state.outreachAcceptanceWeekKey = option.dataset.acceptanceWeekOption || null;
   state.outreachAcceptancePage = 1;
-  closeAcceptanceWeekModal();
+  setAcceptanceWeekMenuOpen(false, {restoreFocus: true});
   renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
 
