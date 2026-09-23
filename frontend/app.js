@@ -297,9 +297,6 @@ const els = {
   outreachHistoryNextPage:
     document.querySelector("#outreachHistoryNextPage"),
 
-  outreachAcceptanceJobCount:
-    document.querySelector("#outreachAcceptanceJobCount"),
-
   outreachAcceptanceEmpty:
     document.querySelector("#outreachAcceptanceEmpty"),
 
@@ -3877,13 +3874,6 @@ function renderOutreachAcceptanceJobs(
   renderAcceptancePeriodFilters();
 
   const rows = getAcceptancePeriodRows(jobs);
-  const selectedWeek = getAcceptanceWeekSelection(jobs).selected;
-
-  if (els.outreachAcceptanceJobCount) {
-    els.outreachAcceptanceJobCount.textContent =
-      `${selectedWeek?.label || "Select a week"} · ${rows.length} jobs`;
-  }
-
   updateAcceptanceDeleteSelectionUi();
 
   if (

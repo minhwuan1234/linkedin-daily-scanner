@@ -14,7 +14,7 @@
   />
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
-  <link rel="stylesheet" href="./outreach-stripe.css?v=20260918-outreach-replies-8" />
+  <link rel="stylesheet" href="./outreach-stripe.css?v=20260923-acceptance-header-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260923-fixed-panels-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
@@ -990,31 +990,6 @@
     hidden
   >
     <article class="panel outreach-history-panel outreach-primary-panel">
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">Connect jobs</p>
-          <h2>Recent Connect Jobs</h2>
-          <p class="panel-meta">
-            Completed Connect Jobs are checked here for invitation acceptance.
-          </p>
-        </div>
-
-        <div class="outreach-acceptance-header-actions">
-          <button
-            id="outreachAcceptanceDeleteSelectedButton"
-            class="secondary-button outreach-delete-selected-button"
-            type="button"
-            disabled
-          >
-            Delete selected
-          </button>
-
-          <span id="outreachAcceptanceJobCount" class="pill pill-neutral">
-            0 jobs
-          </span>
-        </div>
-      </div>
-
       <section class="week-browser" aria-labelledby="acceptanceWeekBrowserTitle">
         <div class="week-browser-heading">
           <div>
@@ -1035,6 +1010,17 @@
       </section>
 
       <div class="history-results">
+
+      <div class="acceptance-results-toolbar">
+        <button
+          id="outreachAcceptanceDeleteSelectedButton"
+          class="secondary-button outreach-delete-selected-button"
+          type="button"
+          disabled
+        >
+          Delete selected
+        </button>
+      </div>
 
       <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
         Select a week to view its Connect Jobs.
@@ -1997,7 +1983,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260923-campaign-name-1"></script>
+  <script src="./app.js?v=20260923-acceptance-header-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

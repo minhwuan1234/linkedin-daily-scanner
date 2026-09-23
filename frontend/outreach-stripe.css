@@ -920,6 +920,12 @@ textarea::placeholder {
   min-width: 0;
 }
 
+.acceptance-results-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
 .outreach-acceptance-header-actions,
 .message-batch-header-tools {
   display: flex !important;
