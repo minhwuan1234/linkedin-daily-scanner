@@ -337,15 +337,6 @@
   stroke-width: 1.8;
 }
 
-.sidebar-footer-toggle .sidebar-toggle-open-icon,
-.app-layout.is-sidebar-collapsed .sidebar-footer-toggle .sidebar-toggle-close-icon {
-  display: none;
-}
-
-.app-layout.is-sidebar-collapsed .sidebar-footer-toggle .sidebar-toggle-open-icon {
-  display: block;
-}
-
 .app-layout.is-sidebar-collapsed .app-sidebar {
   width: var(--sidebar-width) !important;
 }
