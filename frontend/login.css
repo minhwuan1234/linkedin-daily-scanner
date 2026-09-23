@@ -10,11 +10,12 @@ body.login-mode { margin: 0; background: #f6f5f4; color: #37352f; color-scheme: 
 .login-eyebrow { font-size: 10px; letter-spacing: 1.3px; font-weight: 600; color: #747771; }
 .login-story h2 { margin: 14px 0 12px; color: #262520; font-family: inherit; font-size: 30px; line-height: 1.22; font-weight: 600; letter-spacing: -1px; }
 .login-story-heading p { margin: 0; font-size: 13px; color: #747771; line-height: 1.6; }
-.login-workflow { position: relative; width: min(100%, 520px); height: clamp(300px, 56vh, 520px); margin: 12px auto 0; background-image: radial-gradient(#dce0e4 .75px, transparent .75px); background-size: 16px 16px; }
+.login-workflow { position: relative; width: min(100%, 520px); height: clamp(360px, 52vh, 480px); margin: 12px auto 0; background-image: radial-gradient(#dce0e4 .75px, transparent .75px); background-size: 16px 16px; }
 .login-connections { position: absolute; width: 100%; height: 100%; inset: 0; overflow: visible; }
-.login-connections path { stroke: #b8c8d7; stroke-width: 1.4; stroke-dasharray: 4 4; stroke-linecap: round; stroke-linejoin: round; }
-.login-connections circle { fill: #0a66c2; stroke: #f7f8fa; stroke-width: 2; }
-.login-node { position: absolute; display: flex; align-items: center; gap: 10px; background: #fff; border: 1px solid #e3e5e8; border-radius: 9px; padding: 12px; width: 40%; box-shadow: 0 3px 8px #26384a05; }
+.login-connections path { stroke: #b8c8d7; stroke-width: 1.4; stroke-dasharray: 5 6; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.login-connections .login-flow-highlight { stroke: #0a66c2; stroke-width: 1.8; stroke-dasharray: 2 42; opacity: .85; vector-effect: non-scaling-stroke; }
+.login-connections circle { fill: #0a66c2; stroke: #f7f8fa; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.login-node { position: absolute; display: flex; align-items: center; gap: 10px; height: 64px; background: #fff; border: 1px solid #e3e5e8; border-radius: 9px; padding: 10px 12px; width: 40%; box-shadow: 0 3px 8px #26384a05; }
 .login-node strong { display: block; font-size: 12px; font-weight: 600; color: #37352f; }
 .login-node div > span { display: block; font-size: 10px; margin-top: 4px; color: #787873; }
 .login-node small { margin-left: auto; align-self: flex-start; font-size: 9px; color: #aaa9a4; }
@@ -24,22 +25,18 @@ body.login-mode { margin: 0; background: #f6f5f4; color: #37352f; color-scheme: 
 .login-node-icon.lavender { background: #e6e0f5; color: #391c57; }
 .login-node-icon.sky { background: #dcecfa; color: #005bab; }
 .login-node-icon.yellow { background: #fef7d6; color: #793400; }
-.login-node-connect { top: 0; left: 0; }
-.login-node-accept { top: 24%; right: 0; }
-.login-node-recipients { top: 48%; left: 0; }
-.login-node-message { top: 72%; right: 0; }
-.login-node-reply { bottom: 0; left: 0; }
+.login-node-connect { top: 8%; left: 0; transform: translateY(-50%); }
+.login-node-accept { top: 29%; right: 0; transform: translateY(-50%); }
+.login-node-recipients { top: 50%; left: 0; transform: translateY(-50%); }
+.login-node-message { top: 71%; right: 0; transform: translateY(-50%); }
+.login-node-reply { top: 92%; left: 0; transform: translateY(-50%); }
 .login-connections { height: 100%; }
-.login-node { animation: login-node-float 6s ease-in-out infinite; }
-.login-node-accept { animation-delay: -.9s; }
-.login-node-recipients { animation-delay: -1.8s; }
-.login-node-message { animation-delay: -2.7s; }
-.login-node-reply { animation-delay: -3.6s; }
-.login-connections path { animation: login-flow 2s linear infinite; }
+.login-connections path { animation: login-flow 2.4s linear infinite; }
+.login-connections .login-flow-highlight { animation: login-flow-highlight 3.4s linear infinite; }
 .login-connections circle { animation: login-pulse 3s ease-in-out infinite; }
 .login-story.motion-paused * { animation-play-state: paused !important; }
-@keyframes login-node-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
 @keyframes login-flow { to { stroke-dashoffset: -16; } }
+@keyframes login-flow-highlight { to { stroke-dashoffset: -88; } }
 @keyframes login-pulse { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
 .login-story-footer { display: none; }
 .login-mini-mark { background: #0a66c2; color: white; font-weight: 700; border-radius: 3px; width: 18px; height: 18px; display: grid; place-items: center; font-size: 12px; }
