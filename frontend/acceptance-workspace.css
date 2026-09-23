@@ -1,0 +1,301 @@
+/* Acceptance uses the same light, full-bleed workspace language as Connect. */
+#appMainScroll:has(#tab-outreach:not([hidden]) [data-outreach-process-panel="acceptance"].is-active) {
+  padding: 0 !important;
+  background: #fff;
+}
+
+#tab-outreach:has([data-outreach-process-panel="acceptance"].is-active) {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] {
+  --stripe-border: #e8e8e5;
+  --stripe-border-strong: #dcdcd7;
+  --stripe-text: #37352f;
+  --stripe-text-secondary: #62615c;
+  --stripe-text-muted: #858580;
+  --stripe-surface: #f7f7f5;
+  --stripe-surface-hover: #efefed;
+  --stripe-green: #2e9b63;
+  min-height: 100%;
+  background: #fff;
+  color: #37352f;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-history-panel {
+  min-height: calc(100dvh - 72px);
+  padding: 28px 32px 110px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-browser {
+  margin: 0 0 16px;
+  background: transparent;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-heading h3 {
+  color: #252521;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-heading p {
+  color: #858580;
+  font-size: 13px;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-period-switch {
+  border-color: #e5e5e1;
+  background: #f1f1ef;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-period-switch button {
+  color: #77766f;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-period-switch button[aria-pressed="true"] {
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(27, 27, 24, .12);
+  color: #37352f;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-scope {
+  border-bottom-color: #e9e9e7;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-scope strong {
+  color: #37352f;
+  font-size: 14px;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-dashboard-scope-actions,
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-list-pagination,
+#tab-outreach [data-outreach-process-panel="acceptance"] .panel-meta {
+  color: #858580;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .secondary-button {
+  border: 1px solid #deded9 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  color: #55544f !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .secondary-button:hover:not(:disabled) {
+  border-color: #b6d2ed !important;
+  background: #f8fbfe !important;
+  color: #37352f !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .secondary-button:disabled {
+  border-color: #e6e6e2 !important;
+  color: #a09f9a !important;
+  opacity: 1;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-delete-selected-button:not(:disabled) {
+  border-color: #e7b7b7 !important;
+  color: #b43a3a !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .history-results {
+  min-width: 0;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-grid-wrap {
+  border: 1px solid #e5e5e1 !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table {
+  color: #37352f;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table th {
+  border-bottom-color: #e8e8e5 !important;
+  background: #f7f7f5;
+  color: #77766f !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table th,
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table td {
+  border-right-color: #e8e8e5 !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table td {
+  border-bottom-color: #e8e8e5 !important;
+  background: #fff;
+  color: #55544f;
+  font-size: 12px;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table tbody tr:hover td {
+  background: #fbfbfa;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table td strong,
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-job-name strong {
+  color: #37352f;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-accepted-cell strong {
+  color: #2e9b63;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-table-subtext {
+  color: #858580 !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-outcomes-track {
+  background: #e9e9e7;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-delete-job-checkbox {
+  border-color: #deded9 !important;
+  background: #fff !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-delete-job-checkbox span {
+  border-color: #c7c7c2 !important;
+  background: #fff !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .pill {
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: #f1f1ef !important;
+  color: #77766f !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .pill-green {
+  background: #e8f5ed !important;
+  color: #18794e !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .pill-amber {
+  background: #fff3d9 !important;
+  color: #936500 !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .pill-red {
+  background: #fdeaea !important;
+  color: #b43a3a !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .pill-purple {
+  background: #efedff !important;
+  color: #5145ae !important;
+}
+
+#tab-outreach #outreachAcceptanceEmpty {
+  min-height: 120px;
+  border: 1px dashed #dcdcd7 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #858580 !important;
+  font-size: 13px;
+}
+
+#outreachAcceptancePagination[hidden] {
+  display: none !important;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .outreach-list-pagination {
+  border-top: 1px solid #e9e9e7;
+}
+
+/* The week picker and job history are part of the same light workspace. */
+#outreachAcceptanceWeekModal,
+#outreachAcceptanceHistoryModal {
+  --stripe-border: #e8e8e5;
+  --stripe-border-strong: #dcdcd7;
+  --stripe-text: #37352f;
+  --stripe-text-secondary: #62615c;
+  --stripe-text-muted: #858580;
+  color: #37352f;
+}
+
+#outreachAcceptanceWeekModal .outreach-week-modal-dialog,
+#outreachAcceptanceHistoryModal .outreach-history-modal-dialog {
+  border-color: #e5e5e1;
+  background: #fff;
+  box-shadow: 0 18px 52px rgba(27, 27, 24, .18);
+}
+
+#outreachAcceptanceWeekModal .outreach-week-modal-header,
+#outreachAcceptanceHistoryModal .outreach-history-modal-header {
+  border-bottom-color: #e9e9e7;
+  background: #fff;
+}
+
+#outreachAcceptanceWeekModal .week-card {
+  border-color: #e5e5e1 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+#outreachAcceptanceWeekModal .week-card:hover,
+#outreachAcceptanceWeekModal .week-card.is-active {
+  border-color: #aaa9a3 !important;
+  background: #f7f7f5 !important;
+  box-shadow: none !important;
+}
+
+#outreachAcceptanceWeekModal .week-card::after {
+  display: none;
+}
+
+#outreachAcceptanceWeekModal .week-card-label,
+#outreachAcceptanceWeekModal .week-card small,
+#outreachAcceptanceWeekModal .week-card-metrics {
+  color: #858580 !important;
+}
+
+#outreachAcceptanceWeekModal .week-card strong,
+#outreachAcceptanceWeekModal .week-card-metrics b {
+  color: #37352f !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-summary,
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-item {
+  border-color: #e9e9e7;
+  background: #fbfbfa;
+}
+
+#outreachAcceptanceWeekModal .close-button,
+#outreachAcceptanceHistoryModal .close-button {
+  border-color: #deded9;
+  background: #fff;
+  color: #62615c;
+}
+
+@media (max-width: 1050px) {
+  #tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table tbody tr {
+    border-bottom-color: #e8e8e5;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .outreach-acceptance-table td::before {
+    color: #858580;
+  }
+}
+
+@media (max-width: 620px) {
+  #tab-outreach [data-outreach-process-panel="acceptance"] .outreach-history-panel {
+    padding: 24px 18px 110px !important;
+  }
+}

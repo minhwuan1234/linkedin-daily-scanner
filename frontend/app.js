@@ -9069,9 +9069,9 @@ function setOutreachProcessTab(
       "[data-outreach-process-panel]"
     )
     .forEach((panel) => {
-      panel.hidden =
-        panel.dataset.outreachProcessPanel !==
-        cleaned;
+      const active = panel.dataset.outreachProcessPanel === cleaned;
+      panel.hidden = !active;
+      panel.classList.toggle("is-active", active);
     });
 
   const mainScroll = document.querySelector("#appMainScroll");
