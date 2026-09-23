@@ -8768,7 +8768,13 @@ function switchTab(tabName) {
     });
 
   const mainScroll = document.querySelector("#appMainScroll");
-  if (mainScroll) mainScroll.scrollTop = 0;
+  if (mainScroll) {
+    mainScroll.scrollTop = 0;
+    mainScroll.classList.toggle(
+      "is-connect-workspace",
+      tabName === "outreach" && state.outreachProcessTab === "connect"
+    );
+  }
 
   const pageCopy = {
     overview: {
@@ -9038,7 +9044,13 @@ function setOutreachProcessTab(
     });
 
   const mainScroll = document.querySelector("#appMainScroll");
-  if (mainScroll) mainScroll.scrollTop = 0;
+  if (mainScroll) {
+    mainScroll.scrollTop = 0;
+    mainScroll.classList.toggle(
+      "is-connect-workspace",
+      outreachVisible && cleaned === "connect"
+    );
+  }
 
   requestAnimationFrame(syncOutreachWorkflowPill);
 
