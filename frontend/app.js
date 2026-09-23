@@ -345,15 +345,6 @@ const els = {
   outreachAcceptanceNextPage:
     document.querySelector("#outreachAcceptanceNextPage"),
 
-  outreachAcceptancePeriodFilters:
-    document.querySelector("#outreachAcceptancePeriodFilters"),
-
-  outreachAcceptanceScopeLabel:
-    document.querySelector("#outreachAcceptanceScopeLabel"),
-
-  outreachAcceptanceScopeCount:
-    document.querySelector("#outreachAcceptanceScopeCount"),
-
   outreachAcceptanceWeekPicker:
     document.querySelector("#outreachAcceptanceWeekPicker"),
 
@@ -658,7 +649,6 @@ const state = {
   outreachHistoryPageSize: 5,
   outreachAcceptancePage: 1,
   outreachAcceptancePageSize: 10,
-  outreachAcceptancePeriod: "week",
   messageBatchPage: 1,
   messageBatchPageSize: 8,
   messageBatchSourceFilter: "all",
@@ -3650,33 +3640,8 @@ function getIsoWeekNumber(date) {
 }
 
 
-function getAcceptancePeriodLabel() {
-  const now = new Date();
-
-  if (state.outreachAcceptancePeriod === "month") {
-    return `Month ${now.getMonth() + 1}/${now.getFullYear()}`;
-  }
-
-  if (state.outreachAcceptancePeriod === "all") {
-    return "All data";
-  }
-
-  return `Week ${getIsoWeekNumber(now)}/${now.getFullYear()}`;
-}
-
-
 function getAcceptancePeriodRows(jobs) {
   const rows = Array.isArray(jobs) ? jobs : [];
-
-  if (state.outreachAcceptancePeriod === "month") {
-    const now = new Date();
-    return rows.filter((job) => {
-      const created = new Date(job?.created_at);
-      return !Number.isNaN(created.getTime()) &&
-        created.getFullYear() === now.getFullYear() &&
-        created.getMonth() === now.getMonth();
-    });
-  }
 
   if (!state.outreachAcceptanceWeekKey) {
     return [];
@@ -3805,31 +3770,9 @@ function getAcceptanceWeekSelection(jobs) {
 
 function renderAcceptanceWeekList(jobs) {
   const selection = getAcceptanceWeekSelection(jobs);
-  const isMonth = state.outreachAcceptancePeriod === "month";
-  const rows = getAcceptancePeriodRows(jobs);
-
-  if (els.outreachAcceptanceScopeLabel) {
-    els.outreachAcceptanceScopeLabel.textContent = isMonth
-      ? new Intl.DateTimeFormat("en-US", {month: "long", year: "numeric"}).format(new Date())
-      : selection.selected.label;
-  }
-
-  if (els.outreachAcceptanceScopeCount) {
-    els.outreachAcceptanceScopeCount.textContent =
-      `${rows.length} Connect ${rows.length === 1 ? "job" : "jobs"}`;
-  }
-
-  els.outreachAcceptancePeriodFilters
-    ?.querySelectorAll("[data-acceptance-period]")
-    .forEach((button) => {
-      button.setAttribute(
-        "aria-pressed",
-        String(button.dataset.acceptancePeriod === state.outreachAcceptancePeriod)
-      );
-    });
 
   if (els.outreachAcceptanceWeekPicker) {
-    els.outreachAcceptanceWeekPicker.hidden = isMonth;
+    els.outreachAcceptanceWeekPicker.hidden = false;
   }
   if (els.outreachAcceptanceWeekButtonLabel) {
     els.outreachAcceptanceWeekButtonLabel.textContent = selection.selected.label;
@@ -3853,9 +3796,6 @@ function renderAcceptanceWeekList(jobs) {
     );
   }
 
-  if (isMonth) {
-    setAcceptanceWeekMenuOpen(false);
-  }
 }
 
 
@@ -3897,10 +3837,7 @@ function renderOutreachAcceptanceJobs(
 
   if (!rows.length) {
     els.outreachAcceptanceEmpty.hidden = false;
-    els.outreachAcceptanceEmpty.textContent =
-      state.outreachAcceptancePeriod === "month"
-        ? "No Connect Jobs this month."
-        : "No Connect Jobs in this week.";
+    els.outreachAcceptanceEmpty.textContent = "No Connect Jobs in this week.";
     els.outreachAcceptanceTableWrap.hidden = true;
     els.outreachAcceptanceBody.replaceChildren();
 
@@ -9842,17 +9779,6 @@ document.addEventListener("click", (event) => {
   if (!els.outreachAcceptanceWeekPicker?.contains(event.target)) {
     setAcceptanceWeekMenuOpen(false);
   }
-});
-
-els.outreachAcceptancePeriodFilters?.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-acceptance-period]");
-  if (!button || !["week", "month"].includes(button.dataset.acceptancePeriod)) {
-    return;
-  }
-
-  state.outreachAcceptancePeriod = button.dataset.acceptancePeriod;
-  state.outreachAcceptancePage = 1;
-  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
 
 els.outreachAcceptanceWeekMenu?.addEventListener("click", (event) => {

@@ -2687,7 +2687,7 @@ body,
   }
 }
 
-/* Acceptance dashboard: compact period controls and a grid that never exceeds its panel. */
+/* Acceptance dashboard heading and grid. */
 #tab-outreach .acceptance-dashboard-browser {
   display: block;
   min-width: 0;
@@ -2698,9 +2698,7 @@ body,
   background: transparent;
 }
 
-.acceptance-dashboard-heading,
-.acceptance-dashboard-scope,
-.acceptance-dashboard-scope-actions {
+.acceptance-dashboard-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2719,50 +2717,6 @@ body,
 
 .acceptance-dashboard-heading p {
   margin: 4px 0 0;
-  color: var(--stripe-text-muted);
-  font-size: 11px;
-}
-
-.acceptance-period-switch {
-  display: inline-grid;
-  flex: 0 0 auto;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 3px;
-  padding: 3px;
-  border: 1px solid var(--stripe-border);
-  border-radius: 9px;
-  background: var(--stripe-surface);
-}
-
-.acceptance-period-switch button {
-  min-width: 68px;
-  min-height: 32px;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--stripe-text-secondary);
-  cursor: pointer;
-}
-
-.acceptance-period-switch button[aria-pressed="true"] {
-  background: var(--stripe-surface-hover);
-  color: var(--stripe-text);
-  font-weight: 700;
-}
-
-.acceptance-dashboard-scope {
-  min-height: 44px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--stripe-border);
-}
-
-.acceptance-dashboard-scope strong {
-  color: var(--stripe-text);
-  font-size: 13px;
-}
-
-.acceptance-dashboard-scope-actions {
   color: var(--stripe-text-muted);
   font-size: 11px;
 }
@@ -2900,14 +2854,8 @@ body,
 }
 
 @media (max-width: 560px) {
-  .acceptance-dashboard-heading,
-  .acceptance-dashboard-scope {
+  .acceptance-dashboard-heading {
     align-items: flex-start;
-    flex-wrap: wrap;
-  }
-
-  .acceptance-dashboard-scope-actions {
-    width: 100%;
     flex-wrap: wrap;
   }
 }
