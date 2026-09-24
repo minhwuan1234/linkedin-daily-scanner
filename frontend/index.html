@@ -24,7 +24,7 @@
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
-  <link rel="stylesheet" href="./rate-limits.css?v=20260924-centered-rate-limits-1" />
+  <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
 </head>
 
 <body class="login-mode">
@@ -322,6 +322,11 @@
         </header>
 
         <div class="rate-limit-drawer-body">
+          <div class="rate-limit-total-capacity">
+            <span>Connects remaining</span>
+            <strong id="outreachTotalRemaining">500 / 500</strong>
+          </div>
+
           <div id="outreachAccountsList" class="rate-limit-accounts-list">
             <div class="outreach-job-empty">No account data available.</div>
           </div>
@@ -1685,7 +1690,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260924-rate-limit-alerts-1"></script>
+  <script src="./app.js?v=20260924-total-capacity-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

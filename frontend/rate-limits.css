@@ -102,6 +102,29 @@
   background: #fff !important;
 }
 
+#rateLimitDrawer .rate-limit-total-capacity {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--rate-border);
+}
+
+#rateLimitDrawer .rate-limit-total-capacity span {
+  color: var(--rate-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+#rateLimitDrawer .rate-limit-total-capacity strong {
+  color: var(--rate-text);
+  font-size: 17px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 #rateLimitDrawer .rate-limit-accounts-list {
   display: grid;
   gap: 0;

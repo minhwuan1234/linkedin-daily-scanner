@@ -195,6 +195,9 @@ const els = {
   outreachAccountsList:
     document.querySelector("#outreachAccountsList"),
 
+  outreachTotalRemaining:
+    document.querySelector("#outreachTotalRemaining"),
+
   rateLimitAccountCardTemplate:
     document.querySelector("#rateLimitAccountCardTemplate"),
 
@@ -2669,6 +2672,23 @@ function renderOutreachAccounts(
   renderRateLimitSidebarSummary(
     rows
   );
+
+  if (els.outreachTotalRemaining) {
+    const totalCapacity = 500;
+    const totalUsed = rows.reduce(
+      (sum, account) => sum + Math.max(
+        0,
+        Number(account.weekly_success_count || 0)
+      ),
+      0
+    );
+    const totalRemaining = Math.max(
+      0,
+      totalCapacity - totalUsed
+    );
+    els.outreachTotalRemaining.textContent =
+      `${totalRemaining} / ${totalCapacity}`;
+  }
 
   if (
     !els.outreachAccountsList ||
