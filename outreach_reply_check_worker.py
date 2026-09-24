@@ -36,6 +36,7 @@ from app.outreach_account_pool import (
 from app.outreach_message_executor import get_outreach_supabase_client
 from app.outreach_reply_schedule import run_reply_check_schedule
 from app.outreach_reply_store import save_outreach_reply
+from app.outreach_worker_heartbeat import worker_heartbeat
 
 
 DEFAULT_ACCOUNT_ID = "outreach_account_02"
@@ -1634,7 +1635,7 @@ def open_unread(page: Page) -> None:
     )
 
 
-def run_once(account_id: str) -> None:
+def _run_once(account_id: str) -> None:
     """Read replies from matched sent targets, then restore unread state."""
 
     pool = OutreachAccountPool()
@@ -1679,6 +1680,12 @@ def run_once(account_id: str) -> None:
         logger.info("Reply-check worker stopped.")
     finally:
         browser.stop()
+
+
+def run_once(account_id: str) -> None:
+    """Scan one account while publishing its live activity heartbeat."""
+    with worker_heartbeat("reply_check", account_id):
+        _run_once(account_id)
 
 
 def run_all_accounts() -> None:

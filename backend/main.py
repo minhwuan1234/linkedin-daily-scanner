@@ -70,6 +70,7 @@ from app.outreach_reply_send_store import (
     prepare_reply_send,
     queue_prepared_reply_send,
 )
+from app.outreach_worker_activity import get_outreach_worker_activity
 
 
 
@@ -2018,6 +2019,16 @@ async def send_outreach_reply_api(
 # =========================================================
 # OUTREACH DASHBOARD API
 # =========================================================
+
+
+@app.get("/api/outreach/worker-activity")
+async def get_outreach_worker_activity_api() -> JSONResponse:
+    try:
+        activity = get_outreach_worker_activity()
+    except Exception:
+        logger.exception("Could not load Outreach worker activity")
+        return JSONResponse(status_code=500, content={"ok": False, "error": "Could not load worker activity"})
+    return JSONResponse(content={"ok": True, "activity": activity})
 
 
 @app.get("/api/outreach/dashboard")

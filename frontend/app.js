@@ -13,6 +13,12 @@ const els = {
   sidebarNavSearch: document.querySelector("#sidebarNavSearch"),
   refreshButton: document.querySelector("#refreshButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  workerActivityButton: document.querySelector("#workerActivityButton"),
+  workerActivityPopover: document.querySelector("#workerActivityPopover"),
+  workerActivityClose: document.querySelector("#workerActivityClose"),
+  workerActivitySummary: document.querySelector("#workerActivitySummary"),
+  workerActivityList: document.querySelector("#workerActivityList"),
+  workerActivityNote: document.querySelector("#workerActivityNote"),
   killProcessButton: document.querySelector("#killProcessButton"),
   stopScanButton: document.querySelector("#stopScanButton"),
   stopScanButtonText: document.querySelector("#stopScanButtonText"),
@@ -596,6 +602,8 @@ const els = {
 };
 
 const state = {
+  workerActivity: null,
+  workerActivityLoading: false,
   sessionStatuses: [],
   sessionStatusLoading: false,
   sessionStatusRealtimeChannel: null,
@@ -6640,6 +6648,83 @@ function setOutreachDatabaseStatus(healthy, message) {
   els.systemBadgeText.textContent = message;
 }
 
+function renderWorkerActivity() {
+  const activity = state.workerActivity;
+  const button = els.workerActivityButton;
+  if (!button) return;
+
+  const count = Number(activity?.active_count || 0);
+  const complete = activity?.complete === true;
+  const mode = count > 0 ? "active" : complete ? "idle" : "unknown";
+  button.classList.toggle("is-active", mode === "active");
+  button.classList.toggle("is-idle", mode === "idle");
+  button.classList.toggle("is-unknown", mode === "unknown");
+  button.setAttribute("aria-label", count > 0
+    ? `Worker activity: ${count} running`
+    : complete ? "Worker activity: online, no active tasks" : "Worker activity: status unavailable");
+
+  if (els.workerActivitySummary) {
+    els.workerActivitySummary.textContent = count > 0
+      ? `${count} task${count === 1 ? "" : "s"} running`
+      : complete ? "Online · No active tasks" : "Status partially unavailable";
+  }
+  if (els.workerActivityList) {
+    const tasks = Array.isArray(activity?.tasks) ? activity.tasks : [];
+    els.workerActivityList.innerHTML = tasks.length
+      ? tasks.map((task) => {
+          const taskCount = task.count;
+          const status = taskCount === null ? "Unavailable" : taskCount > 0 ? `${taskCount} running` : "Idle";
+          const details = taskCount > 0 && Array.isArray(task.details)
+            ? ` · ${task.details.filter(Boolean).join(", ")}` : "";
+          return `<div class="worker-activity-row ${taskCount === null ? "is-unknown" : taskCount > 0 ? "is-active" : ""}"><span title="${escapeHtml(task.label + details)}">${escapeHtml(task.label + details)}</span><em>${escapeHtml(status)}</em></div>`;
+        }).join("")
+      : `<div class="worker-activity-row"><span>Checking worker status…</span></div>`;
+  }
+  if (els.workerActivityNote) {
+    els.workerActivityNote.hidden = complete;
+    els.workerActivityNote.textContent = "Some worker states could not be checked. Green is shown only when every source is available.";
+  }
+}
+
+async function loadWorkerActivity() {
+  if (state.workerActivityLoading) return;
+  state.workerActivityLoading = true;
+  try {
+    const response = await fetch("/api/outreach/worker-activity", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Worker status unavailable");
+    state.workerActivity = result.activity;
+  } catch (error) {
+    console.error("Worker activity error:", error);
+    state.workerActivity = null;
+  } finally {
+    state.workerActivityLoading = false;
+    renderWorkerActivity();
+  }
+}
+
+function closeWorkerActivity() {
+  if (!els.workerActivityPopover) return;
+  els.workerActivityPopover.hidden = true;
+  els.workerActivityButton?.setAttribute("aria-expanded", "false");
+}
+
+els.workerActivityButton?.addEventListener("click", () => {
+  const opening = els.workerActivityPopover?.hidden;
+  if (!els.workerActivityPopover) return;
+  els.workerActivityPopover.hidden = !opening;
+  els.workerActivityButton.setAttribute("aria-expanded", String(opening));
+  if (opening) void loadWorkerActivity();
+});
+els.workerActivityClose?.addEventListener("click", closeWorkerActivity);
+document.addEventListener("click", (event) => {
+  if (!els.workerActivityPopover?.hidden && !els.workerActivityPopover.contains(event.target)
+      && !els.workerActivityButton?.contains(event.target)) closeWorkerActivity();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.workerActivityPopover?.hidden) closeWorkerActivity();
+});
+
 
 
 async function loadOutreachDashboard() {
@@ -9845,6 +9930,12 @@ renderOutreachDashboard();
 renderOutreachSubmittingState();
 
 loadOutreachDashboard();
+
+renderWorkerActivity();
+void loadWorkerActivity();
+window.setInterval(() => {
+  if (!document.hidden) void loadWorkerActivity();
+}, 15000);
 
 startOutreachPolling();
 
