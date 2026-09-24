@@ -19,6 +19,7 @@
   <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
+  <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-light-recipients-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
 </head>
@@ -1313,44 +1314,34 @@
   </div>
 
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
-    <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel">
-      <div class="panel-toolbar outreach-pool-toolbar">
-        <div>
-          <p class="panel-kicker">Accepted connections</p>
-          <h2>Accepted Pool</h2>
-          <p id="outreachAcceptedPoolSummary" class="panel-meta">Current week · 0 accepted profiles · 0 ready · 0 prepared · 0 sent</p>
-        </div>
-        <span id="outreachAcceptedSelectedCount" class="pill pill-neutral">0 selected</span>
-      </div>
-
-      <section class="week-browser" aria-labelledby="recipientWeekBrowserTitle">
-        <div class="week-browser-heading">
-          <div>
-            <span class="week-browser-label">Accepted history</span>
-            <h3 id="recipientWeekBrowserTitle">Choose a week</h3>
-            <p>Current week is shown first. Open history only when you need an older week.</p>
+    <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel" aria-label="Accepted recipients">
+      <div class="recipient-dashboard-toolbar" aria-label="Recipient controls">
+        <section class="week-browser" aria-label="Accepted profile week">
+          <div id="outreachAcceptedWeekList" class="outreach-week-list" aria-label="Selected week"></div>
+          <div class="week-browser-heading">
+            <button
+              id="outreachAcceptedHistoryButton"
+              class="secondary-button week-history-button"
+              type="button"
+              hidden
+            >
+              Explore previous weeks
+            </button>
           </div>
-          <button
-            id="outreachAcceptedHistoryButton"
-            class="secondary-button week-history-button"
-            type="button"
-            hidden
-          >
-            Explore previous weeks
-          </button>
-        </div>
-        <div id="outreachAcceptedWeekList" class="outreach-week-list" aria-label="Accepted profile weeks"></div>
-      </section>
-
-      <div class="outreach-pool-controls">
-        <div class="outreach-recipient-filter-group">
-          <div id="outreachAcceptedPoolFilters" class="segmented-filter">
-            <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
-            <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
-            <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
-            <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
+        </section>
+        <div class="outreach-pool-controls">
+          <div class="outreach-recipient-filter-group">
+            <div id="outreachAcceptedPoolFilters" class="segmented-filter">
+              <button type="button" data-accepted-filter="all" class="outreach-accepted-filter is-active">All 0</button>
+              <button type="button" data-accepted-filter="ready" class="outreach-accepted-filter">Ready 0</button>
+              <button type="button" data-accepted-filter="prepared" class="outreach-accepted-filter">Prepared 0</button>
+              <button type="button" data-accepted-filter="sent" class="outreach-accepted-filter">Sent 0</button>
+            </div>
           </div>
-
+        </div>
+        <div class="message-preparation-actions">
+          <button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button>
+          <button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button>
         </div>
       </div>
       <div id="outreachAcceptedPoolEmpty" class="state">No accepted profiles found.</div>
@@ -1372,7 +1363,6 @@
       <div id="outreachAcceptedPagination" class="outreach-list-pagination" hidden><span id="outreachAcceptedPageMeta" class="panel-meta">Page 1 / 1</span><div class="outreach-list-pagination-actions"><button id="outreachAcceptedPrevPage" type="button" class="secondary-button">Previous</button><button id="outreachAcceptedNextPage" type="button" class="secondary-button">Next</button></div></div>
     </article>
 
-    <article class="panel message-preparation-panel outreach-secondary-action-panel"><div class="panel-header"><div><p class="panel-kicker">Recipient preparation</p><h2>Create Message Batch</h2><p class="panel-meta">Prepare selected recipients or keep the original Prepare All behavior for every currently eligible profile.</p></div><span id="messagePreparationCount" class="pill pill-neutral">0 eligible</span></div><div class="message-preparation-body"><div class="message-preparation-copy"><strong id="messagePreparationHeadline">No recipients ready to prepare</strong><span id="messagePreparationMeta">Accepted profiles not yet assigned to a prepared batch appear here.</span></div><div class="message-preparation-actions"><button id="messagePrepareSelectedButton" class="secondary-button" type="button" disabled>Prepare selected</button><button id="messagePrepareAllButton" class="primary-button" type="button" disabled>Prepare all</button></div></div><p id="messagePreparationError" class="outreach-error" hidden></p></article>
   </section>
 
   <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
