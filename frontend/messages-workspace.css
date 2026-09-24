@@ -1,0 +1,410 @@
+/* Messages follows the light, full-width Acceptance and Recipients workspaces. */
+#appMainScroll:has(#tab-outreach:not([hidden]) [data-outreach-process-panel="messages"].is-active) {
+  padding: 0 !important;
+  background: #fff;
+}
+
+#tab-outreach:has([data-outreach-process-panel="messages"].is-active) {
+  width: 100% !important;
+  max-width: none !important;
+  min-height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #fff;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] {
+  --stripe-border: #e8e8e5;
+  --stripe-border-strong: #dcdcd7;
+  --stripe-text: #37352f;
+  --stripe-text-secondary: #62615c;
+  --stripe-text-muted: #858580;
+  min-height: calc(100dvh - 72px);
+  background: #fff;
+  color: #37352f;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batches-panel {
+  min-width: 0;
+  min-height: calc(100dvh - 72px);
+  padding: 28px 32px 110px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+.message-dashboard-heading {
+  margin-bottom: 16px;
+}
+
+.message-dashboard-heading h3 {
+  margin: 0;
+  color: #252521;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+.message-dashboard-heading p {
+  margin: 4px 0 0;
+  color: #858580;
+  font-size: 13px;
+}
+
+.message-dashboard-toolbar {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  min-width: 0;
+  min-height: 36px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.message-week-picker {
+  position: relative;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-week-button {
+  display: inline-flex;
+  width: 100%;
+  max-width: 300px;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px !important;
+  border: 1px solid #deded9 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  color: #55544f !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  text-align: left;
+}
+
+.message-week-button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-week-button svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+  transition: transform 150ms ease;
+}
+
+.message-week-button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-week-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  width: min(380px, calc(100vw - 48px));
+  max-height: min(420px, 60dvh);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #e5e5e1;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(27, 27, 24, .16);
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-week-menu[hidden] {
+  display: none !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-week-option {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0 !important;
+  border-radius: 6px;
+  background: #fff !important;
+  color: #37352f !important;
+  text-align: left;
+  cursor: pointer;
+}
+
+.message-week-option:hover,
+.message-week-option:focus-visible,
+.message-week-option[aria-pressed="true"] {
+  background: #f1f1ef !important;
+}
+
+.message-week-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.message-week-option-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.message-week-option-copy small,
+.message-batch-count {
+  color: #858580;
+  font-size: 11px;
+}
+
+.message-week-option-check {
+  visibility: hidden;
+  color: #0a66c2;
+}
+
+.message-week-option[aria-pressed="true"] .message-week-option-check {
+  visibility: visible;
+}
+
+.message-batch-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] #messageBatchEmpty {
+  min-height: 180px;
+  border: 1px dashed #e5e5e1 !important;
+  border-radius: 9px !important;
+  background: #fbfbfa !important;
+  color: #858580 !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-grid-wrap {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e5e5e1;
+  border-radius: 9px;
+  background: #fff;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-grid-wrap[hidden] {
+  display: none !important;
+}
+
+.message-batch-grid-head,
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row {
+  display: grid !important;
+  width: 100%;
+  grid-template-columns: minmax(130px, 1.1fr) minmax(150px, 1.2fr) minmax(74px, .6fr) minmax(145px, 1fr) minmax(82px, .7fr) minmax(210px, 1.5fr);
+  align-items: stretch;
+  gap: 0 !important;
+}
+
+.message-batch-grid-head {
+  min-height: 44px;
+  background: #f7f7f5;
+}
+
+.message-batch-grid-head > span,
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > * {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  padding: 10px 12px !important;
+  border-right: 1px solid #e8e8e5;
+  overflow-wrap: anywhere;
+}
+
+.message-batch-grid-head > span:last-child,
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > *:last-child {
+  border-right: 0;
+}
+
+.message-batch-grid-head > span {
+  color: #77766f;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-list {
+  display: block !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row {
+  min-height: 66px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid #e8e8e5 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  color: #55544f;
+  font-size: 12px;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row:hover {
+  background: #fbfbfa !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > strong {
+  color: #37352f;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-source-id {
+  width: auto !important;
+  max-width: none !important;
+  min-height: 0;
+  justify-content: flex-start;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent;
+  color: #55544f !important;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row [data-message-batch-meta] {
+  color: #858580;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill {
+  align-self: center;
+  justify-self: start;
+  width: fit-content;
+  margin-left: 12px;
+  padding: 5px 8px !important;
+  border: 1px solid #e5e5e1;
+  border-radius: 6px;
+  background: #f7f7f5;
+  color: #62615c;
+  text-transform: capitalize;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill[data-status="completed"] {
+  border-color: #d5ebdf;
+  background: #edf8f1;
+  color: #18794e;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill[data-status="queued"],
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill[data-status="running"] {
+  border-color: #d9e8f8;
+  background: #f0f7ff;
+  color: #0a66c2;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill[data-status="failed"] {
+  border-color: #f3d8d8;
+  background: #fff2f2;
+  color: #b43a3a;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-self: stretch;
+  gap: 6px;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-actions > button {
+  width: 100% !important;
+  min-width: 0;
+  min-height: 34px;
+  padding: 5px 7px !important;
+  border-radius: 7px !important;
+  font-size: 11px !important;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-detail-button {
+  border: 1px solid #deded9 !important;
+  background: #fff !important;
+  color: #55544f !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-send-button {
+  border: 1px solid #0a66c2 !important;
+  background: #0a66c2 !important;
+  color: #fff !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] .message-batch-send-button:disabled {
+  border-color: #e5e5e1 !important;
+  background: #f7f7f5 !important;
+  color: #a09f9a !important;
+  opacity: 1;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] #messageBatchPagination {
+  min-height: 56px;
+  margin-top: 0;
+  border-top: 0 !important;
+  color: #858580;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] #messageBatchPagination[hidden] {
+  display: none !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] #messageBatchPagination .secondary-button {
+  min-height: 36px;
+  border: 1px solid #deded9 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  color: #55544f !important;
+}
+
+#tab-outreach [data-outreach-process-panel="messages"] #messageBatchPagination .secondary-button:disabled {
+  color: #a09f9a !important;
+  opacity: 1;
+}
+
+@media (max-width: 1180px) {
+  .message-batch-grid-head { display: none !important; }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 10px !important;
+    gap: 4px 12px !important;
+  }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > * {
+    padding: 5px 7px !important;
+    border-right: 0;
+  }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > strong,
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-actions {
+    grid-column: 1 / -1;
+  }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > .pill {
+    margin-left: 7px;
+  }
+}
+
+@media (max-width: 620px) {
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batches-panel {
+    padding-inline: 18px !important;
+  }
+  .message-dashboard-toolbar { flex-wrap: wrap; }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row > strong,
+  #tab-outreach [data-outreach-process-panel="messages"] .message-batch-actions {
+    grid-column: auto;
+  }
+}

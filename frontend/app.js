@@ -475,29 +475,26 @@ const els = {
   messageBatchSourceFilter:
     document.querySelector("#messageBatchSourceFilter"),
 
-  messageBatchWeekList:
-    document.querySelector("#messageBatchWeekList"),
+  messageBatchWeekPicker:
+    document.querySelector("#messageBatchWeekPicker"),
 
-  messageBatchHistoryButton:
-    document.querySelector("#messageBatchHistoryButton"),
+  messageBatchWeekButton:
+    document.querySelector("#messageBatchWeekButton"),
 
-  messageBatchWeekModal:
-    document.querySelector("#messageBatchWeekModal"),
+  messageBatchWeekButtonLabel:
+    document.querySelector("#messageBatchWeekButtonLabel"),
 
-  messageBatchWeekModalBackdrop:
-    document.querySelector("#messageBatchWeekModalBackdrop"),
-
-  messageBatchWeekModalClose:
-    document.querySelector("#messageBatchWeekModalClose"),
-
-  messageBatchWeekModalList:
-    document.querySelector("#messageBatchWeekModalList"),
+  messageBatchWeekMenu:
+    document.querySelector("#messageBatchWeekMenu"),
 
   messageBatchEmpty:
     document.querySelector("#messageBatchEmpty"),
 
   messageBatchList:
     document.querySelector("#messageBatchList"),
+
+  messageBatchGridWrap:
+    document.querySelector("#messageBatchGridWrap"),
 
   messageBatchPagination:
     document.querySelector("#messageBatchPagination"),
@@ -5599,38 +5596,33 @@ function getMessageBatchWeekGroups() {
 }
 
 
-function renderMessageBatchWeekCard(group, {compact = false} = {}) {
-  const element = document.createElement(compact ? "button" : "article");
-
-  element.className = compact
-    ? "week-card week-history-option"
-    : "week-card week-current-card";
-
-  if (compact) {
-    element.type = "button";
-    element.dataset.messageBatchWeekOption = group.key;
-  }
-
-  element.innerHTML = `
-    <span class="week-card-label">${escapeHtml(group.label)}</span>
-    <strong>${group.batches} batches</strong>
-    <div class="week-card-metrics">
-      <span>${group.recipients} recipients</span>
-      <span>Completed <b>${group.completed}</b></span>
-    </div>
+function renderMessageBatchWeekOption(group, selectedKey, currentKey) {
+  const option = document.createElement("button");
+  option.type = "button";
+  option.className = "message-week-option";
+  option.dataset.messageBatchWeekOption = group.key;
+  option.setAttribute("aria-pressed", String(group.key === selectedKey));
+  option.innerHTML = `
+    <span class="message-week-option-copy">
+      <strong>${escapeHtml(group.label)}${group.key === currentKey ? " · Current" : ""}</strong>
+      <small>${group.batches} batches · ${group.recipients} recipients</small>
+    </span>
+    <span class="message-week-option-check" aria-hidden="true">✓</span>
   `;
-
-  return element;
+  return option;
 }
 
 
 function getMessageBatchWeekSelection() {
   const groups = getMessageBatchWeekGroups();
   const current = getWeekInfo(new Date());
-  const selectedKey = state.messageBatchWeekKey || current?.key || groups[0]?.key;
+  const requestedKey = state.messageBatchWeekKey || current?.key;
+  const selectedKey = requestedKey === current?.key || groups.some(
+    (group) => group.key === requestedKey
+  ) ? requestedKey : current?.key;
   const selectedGroup = groups.find((group) => group.key === selectedKey);
 
-  if (!state.messageBatchWeekKey) {
+  if (state.messageBatchWeekKey !== selectedKey) {
     state.messageBatchWeekKey = selectedKey || null;
   }
 
@@ -5652,73 +5644,39 @@ function getMessageBatchWeekSelection() {
 
 
 function renderMessageBatchWeekList() {
-  const wrap = els.messageBatchWeekList;
-
-  if (!wrap) {
-    return;
-  }
-
   const selection = getMessageBatchWeekSelection();
-  wrap.replaceChildren(renderMessageBatchWeekCard(selection.selected));
-
-  const hasPreviousWeeks = selection.groups.some(
-    (group) => group.key !== selection.current?.key
-  );
-
-  if (els.messageBatchHistoryButton) {
-    els.messageBatchHistoryButton.hidden = !hasPreviousWeeks;
-    els.messageBatchHistoryButton.textContent =
-      selection.selected.key === selection.current?.key
-        ? "Explore previous weeks"
-        : "Back to current week";
+  if (els.messageBatchWeekButtonLabel) {
+    els.messageBatchWeekButtonLabel.textContent = selection.selected.label;
   }
-
-  if (!wrap.children.length) {
-    wrap.innerHTML = '<span class="week-list-empty">No dated message batches yet.</span>';
+  if (els.messageBatchWeekMenu) {
+    const currentGroup = selection.groups.find(
+      (group) => group.key === selection.current?.key
+    ) || {
+      ...selection.current,
+      batches: 0,
+      recipients: 0,
+      completed: 0
+    };
+    const options = [
+      currentGroup,
+      ...selection.groups.filter((group) => group.key !== selection.current?.key)
+    ];
+    els.messageBatchWeekMenu.replaceChildren(
+      ...options.map((group) => renderMessageBatchWeekOption(
+        group, selection.selected.key, selection.current?.key
+      ))
+    );
   }
 }
 
 
-function openMessageBatchWeekModal() {
-  const modal = els.messageBatchWeekModal;
-  const list = els.messageBatchWeekModalList;
-
-  if (!modal || !list) {
+function setMessageBatchWeekMenuOpen(open, {restoreFocus = false} = {}) {
+  if (!els.messageBatchWeekButton || !els.messageBatchWeekMenu) {
     return;
   }
-
-  const {groups, current} = getMessageBatchWeekSelection();
-  const previousGroups = groups.filter(
-    (group) => group.key !== current?.key
-  );
-
-  list.replaceChildren();
-
-  if (!previousGroups.length) {
-    list.innerHTML = '<div class="week-list-empty">No previous weeks available.</div>';
-  } else {
-    previousGroups.forEach((group) => {
-      const option = renderMessageBatchWeekCard(group, {compact: true});
-      option.classList.toggle(
-        "is-active",
-        group.key === state.messageBatchWeekKey
-      );
-      list.append(option);
-    });
-  }
-
-  modal.hidden = false;
-  modal.setAttribute("aria-hidden", "false");
-}
-
-
-function closeMessageBatchWeekModal() {
-  if (!els.messageBatchWeekModal) {
-    return;
-  }
-
-  els.messageBatchWeekModal.hidden = true;
-  els.messageBatchWeekModal.setAttribute("aria-hidden", "true");
+  els.messageBatchWeekMenu.hidden = !open;
+  els.messageBatchWeekButton.setAttribute("aria-expanded", String(open));
+  if (!open && restoreFocus) els.messageBatchWeekButton.focus();
 }
 
 
@@ -5815,6 +5773,10 @@ function renderMessagePreparation() {
     }
   }
 
+  if (els.messageBatchGridWrap) {
+    els.messageBatchGridWrap.hidden = batches.length === 0;
+  }
+
   if (
     !els.messageBatchList ||
     !els.messageBatchRowTemplate
@@ -5880,6 +5842,11 @@ function renderMessagePreparation() {
         "[data-message-batch-meta]"
       );
 
+    const recipients =
+      fragment.querySelector(
+        "[data-message-batch-recipients]"
+      );
+
     const source =
       fragment.querySelector(
         "[data-message-batch-source]"
@@ -5908,9 +5875,12 @@ function renderMessagePreparation() {
 
     if (meta) {
       meta.textContent =
-        `${Number(batch.target_count || 0)} recipients · ${formatDate(
-          batch.created_at
-        )}`;
+        formatDate(batch.created_at);
+    }
+
+    if (recipients) {
+      recipients.textContent =
+        String(Number(batch.target_count || 0));
     }
 
     if (source) {
@@ -5921,9 +5891,9 @@ function renderMessagePreparation() {
 
       if (sourceIds.length === 1) {
         source.textContent =
-          `Connect ID ${getMessageBatchSourceLabel(
+          getMessageBatchSourceLabel(
             sourceIds[0]
-          )}`;
+          );
 
         source.title =
           `Connect Job ID: ${sourceIds[0].id}`;
@@ -5950,6 +5920,7 @@ function renderMessagePreparation() {
     if (status) {
       status.textContent =
         batchStatus;
+      status.dataset.status = batchStatus;
     }
 
     if (detailButton) {
@@ -9625,10 +9596,10 @@ document.addEventListener(
     }
 
     if (
-      els.messageBatchWeekModal &&
-      !els.messageBatchWeekModal.hidden
+      els.messageBatchWeekMenu &&
+      !els.messageBatchWeekMenu.hidden
     ) {
-      closeMessageBatchWeekModal();
+      setMessageBatchWeekMenuOpen(false, {restoreFocus: true});
     }
   }
 );
@@ -9704,7 +9675,7 @@ document.addEventListener(
         messageBatchWeekButton.dataset.messageBatchWeekOption || null;
       state.messageBatchPage = 1;
       state.messageBatchSourceFilter = "all";
-      closeMessageBatchWeekModal();
+      setMessageBatchWeekMenuOpen(false, {restoreFocus: true});
       renderMessagePreparation();
       return;
     }
@@ -9804,28 +9775,22 @@ els.outreachAcceptedWeekMenu?.addEventListener("click", (event) => {
   renderOutreachAcceptedPool();
 });
 
-els.messageBatchHistoryButton?.addEventListener("click", () => {
-  const currentKey = getWeekInfo(new Date())?.key;
-
-  if (state.messageBatchWeekKey !== currentKey) {
-    state.messageBatchWeekKey = currentKey;
-    state.messageBatchPage = 1;
-    renderMessagePreparation();
-    return;
-  }
-
-  openMessageBatchWeekModal();
+els.messageBatchWeekButton?.addEventListener("click", () => {
+  setMessageBatchWeekMenuOpen(els.messageBatchWeekMenu?.hidden);
 });
 
-els.messageBatchWeekModalClose?.addEventListener(
-  "click",
-  closeMessageBatchWeekModal
-);
+els.messageBatchWeekButton?.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown") return;
+  event.preventDefault();
+  setMessageBatchWeekMenuOpen(true);
+  els.messageBatchWeekMenu?.querySelector("button")?.focus();
+});
 
-els.messageBatchWeekModalBackdrop?.addEventListener(
-  "click",
-  closeMessageBatchWeekModal
-);
+document.addEventListener("click", (event) => {
+  if (!els.messageBatchWeekPicker?.contains(event.target)) {
+    setMessageBatchWeekMenuOpen(false);
+  }
+});
 
 els.outreachAcceptanceHistoryModalClose?.addEventListener(
   "click",

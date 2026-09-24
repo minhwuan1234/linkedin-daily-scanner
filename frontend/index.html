@@ -20,6 +20,7 @@
   <link rel="stylesheet" href="./connect-workspace.css?v=20260923-connect-history-scroll-2" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
+  <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
 </head>
@@ -1241,42 +1242,6 @@
     </section>
   </div>
 
-  <div
-    id="messageBatchWeekModal"
-    class="outreach-week-modal"
-    hidden
-    aria-hidden="true"
-  >
-    <button
-      id="messageBatchWeekModalBackdrop"
-      class="outreach-week-modal-backdrop"
-      type="button"
-      aria-label="Close prepared batch history"
-    ></button>
-
-    <section
-      class="outreach-week-modal-dialog"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="messageBatchWeekModalTitle"
-    >
-      <header class="outreach-week-modal-header">
-        <div>
-          <p class="panel-kicker">Prepared batch history</p>
-          <h2 id="messageBatchWeekModalTitle">Explore previous weeks</h2>
-          <p class="panel-meta">Select a week to load its prepared message batches.</p>
-        </div>
-        <button
-          id="messageBatchWeekModalClose"
-          class="close-button"
-          type="button"
-          aria-label="Close prepared batch history"
-        >×</button>
-      </header>
-      <div id="messageBatchWeekModalList" class="outreach-week-modal-list"></div>
-    </section>
-  </div>
-
   <section class="outreach-process-panel" data-outreach-process-panel="recipients" hidden>
     <article id="outreachAcceptedPoolPanel" class="panel outreach-accepted-pool-panel outreach-primary-panel" aria-label="Accepted recipients">
       <div class="recipient-dashboard-heading">
@@ -1329,35 +1294,20 @@
 
   <section class="outreach-process-panel" data-outreach-process-panel="messages" hidden>
     <article class="panel message-batches-panel outreach-primary-panel">
-      <div class="panel-header">
-        <div>
-          <p class="panel-kicker">Prepared snapshots</p>
-          <h2>Message Batches</h2>
-          <p class="panel-meta">Choose a week, review its prepared recipients, then queue a batch for sending.</p>
-        </div>
-        <div class="message-batch-header-tools">
-          <span id="messageBatchCount" class="pill pill-neutral">Select a week</span>
-        </div>
+      <div class="message-dashboard-heading">
+        <h3>Messages overview</h3>
+        <p>Prepared message batches and sending status</p>
       </div>
-
-      <section class="week-browser" aria-labelledby="messageWeekBrowserTitle">
-        <div class="week-browser-heading">
-          <div>
-            <span class="week-browser-label">Prepared history</span>
-            <h3 id="messageWeekBrowserTitle">Choose a week</h3>
-            <p>Current week is shown first. Open history only when you need an older week.</p>
-          </div>
-          <button
-            id="messageBatchHistoryButton"
-            class="secondary-button week-history-button"
-            type="button"
-            hidden
-          >
-            Explore previous weeks
+      <div class="message-dashboard-toolbar">
+        <div id="messageBatchWeekPicker" class="message-week-picker">
+          <button id="messageBatchWeekButton" class="secondary-button message-week-button" type="button" aria-expanded="false" aria-controls="messageBatchWeekMenu">
+            <span id="messageBatchWeekButtonLabel">Select week</span>
+            <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg>
           </button>
+          <div id="messageBatchWeekMenu" class="message-week-menu" role="group" aria-label="Select a week" hidden></div>
         </div>
-        <div id="messageBatchWeekList" class="outreach-week-list" aria-label="Message batch weeks"></div>
-      </section>
+        <span id="messageBatchCount" class="message-batch-count">0 batches</span>
+      </div>
 
       <label class="message-batch-source-filter" hidden>
         <span>Connect ID</span>
@@ -1367,19 +1317,21 @@
       </label>
 
       <div id="messageBatchEmpty" class="state">Select a week to view message batches.</div>
-      <div id="messageBatchList" class="message-batch-list"></div>
+      <div id="messageBatchGridWrap" class="message-batch-grid-wrap" hidden>
+        <div class="message-batch-grid-head" aria-hidden="true">
+          <span>Batch ID</span><span>Connect source</span><span>Recipients</span><span>Prepared</span><span>Status</span><span>Actions</span>
+        </div>
+        <div id="messageBatchList" class="message-batch-list"></div>
+      </div>
 
       <template id="messageBatchRowTemplate">
         <div class="message-batch-row">
-          <div class="message-batch-copy">
-            <div class="message-batch-title-line">
-              <strong data-message-batch-code>Prepared batch</strong>
-              <span class="message-batch-source-id" data-message-batch-source>Connect ID —</span>
-            </div>
-            <span data-message-batch-meta>0 recipients</span>
-          </div>
+          <strong data-message-batch-code>Prepared batch</strong>
+          <span class="message-batch-source-id" data-message-batch-source>Connect ID —</span>
+          <span data-message-batch-recipients>0</span>
+          <span data-message-batch-meta>—</span>
+          <span class="pill pill-neutral" data-message-batch-status>prepared</span>
           <div class="message-batch-actions">
-            <span class="pill pill-neutral" data-message-batch-status>prepared</span>
             <button type="button" class="message-batch-detail-button" data-message-batch-detail>View snapshot</button>
             <button type="button" class="message-batch-send-button" data-message-batch-send>Send messages</button>
           </div>
