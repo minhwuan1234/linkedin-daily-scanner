@@ -61,6 +61,7 @@ from app.outreach_session_status import (
 from app.outreach_reply_store import (
     OutreachReplyStoreError,
     list_outreach_reply_accounts,
+    list_outreach_reply_page,
     list_recent_outreach_replies,
 )
 from app.outreach_reply_send_store import (
@@ -1873,14 +1874,28 @@ async def get_outreach_acceptance_insights_api(
 @app.get("/api/outreach/replies")
 async def list_outreach_replies_api(
     limit: int = 50,
+    account_id: str | None = None,
+    offset: int = 0,
+    metadata: bool = False,
 ) -> JSONResponse:
-    """Read the newest reply for each of the latest Outreach contacts."""
+    """Read account metadata or one scrollable page of conversations."""
 
     try:
-        replies = list_recent_outreach_replies(
-            limit=limit,
-        )
-        accounts = list_outreach_reply_accounts()
+        if metadata:
+            replies = []
+            accounts = list_outreach_reply_accounts(include_counts=True)
+            page = None
+        elif account_id:
+            page = list_outreach_reply_page(
+                account_id=account_id, offset=offset, limit=limit,
+            )
+            replies = page["replies"]
+            accounts = []
+        else:
+            # Preserve the original response for older dashboard clients.
+            replies = list_recent_outreach_replies(limit=limit)
+            accounts = list_outreach_reply_accounts()
+            page = None
         send_jobs = list_reply_send_jobs(
             [str(reply.get("id") or "") for reply in replies]
         )
@@ -1914,6 +1929,8 @@ async def list_outreach_replies_api(
             "count": len(replies),
             "replies": replies,
             "accounts": accounts,
+            "has_more": page["has_more"] if page else False,
+            "next_offset": page["next_offset"] if page else None,
         },
     )
 

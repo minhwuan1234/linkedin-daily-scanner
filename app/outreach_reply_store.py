@@ -142,57 +142,15 @@ def save_outreach_reply(
     return dict(rows[0]) if rows else payload
 
 
-def list_recent_outreach_replies(
-    *,
-    limit: int = 50,
-    client: Client | None = None,
-) -> list[dict]:
-    """Return the newest reply for each of up to ``limit`` people."""
+REPLY_SELECT_FIELDS = (
+    "id,sent_target_id,prospect_id,assigned_account_id,"
+    "user_name,linkedin_url,message_text,linkedin_message_time,"
+    "conversation_messages,match_reason,match_similarity,captured_at"
+)
 
-    safe_limit = max(1, min(int(limit or 50), 100))
-    active_client = client or get_outreach_client()
-    response = (
-        active_client.table(REPLY_TABLE)
-        .select(
-            (
-                "id,sent_target_id,prospect_id,assigned_account_id,"
-                "user_name,linkedin_url,message_text,linkedin_message_time,"
-                "conversation_messages,match_reason,match_similarity,captured_at"
-            )
-        )
-        .order("captured_at", desc=True)
-        .limit(max(50, safe_limit * 10))
-        .execute()
-    )
 
-    replies: list[dict] = []
-    seen_people: set[str] = set()
-
-    for raw_row in list(response.data or []):
-        row = dict(raw_row)
-        account_identity = _safe_text(
-            row.get("assigned_account_id")
-        ).casefold()
-        person_identity = _safe_text(row.get("linkedin_url")).casefold()
-        if person_identity:
-            identity = "|".join((account_identity, person_identity))
-        else:
-            identity = "|".join(
-                (
-                    account_identity,
-                    _safe_text(row.get("user_name")).casefold(),
-                )
-            )
-
-        if identity in seen_people:
-            continue
-
-        seen_people.add(identity)
-        replies.append(row)
-
-        if len(replies) >= safe_limit:
-            break
-
+def _attach_batch_codes(replies: list[dict], active_client: Client) -> None:
+    """Add the source message batch to reply records in place."""
     target_ids = [
         _safe_text(reply.get("sent_target_id"))
         for reply in replies
@@ -229,23 +187,100 @@ def list_recent_outreach_replies(
                     batch_codes[batch_id] = batch_code
 
     for reply in replies:
-        batch_id = target_to_batch.get(
-            _safe_text(reply.get("sent_target_id")),
-            "",
-        )
+        batch_id = target_to_batch.get(_safe_text(reply.get("sent_target_id")), "")
         reply["message_batch_code"] = batch_codes.get(batch_id) or None
 
+
+def list_outreach_reply_page(
+    *,
+    account_id: str,
+    offset: int = 0,
+    limit: int = 20,
+    client: Client | None = None,
+) -> dict:
+    """Fetch a stable page of raw reply rows for one account."""
+    cleaned_account_id = _safe_text(account_id)
+    if cleaned_account_id not in DEFAULT_OUTREACH_ACCOUNT_IDS[:5]:
+        raise OutreachReplyStoreError("Unknown Outreach account.")
+    safe_offset = max(0, int(offset))
+    safe_limit = max(1, min(int(limit), 50))
+    active_client = client or get_outreach_client()
+    response = (
+        active_client.table(REPLY_TABLE)
+        .select(REPLY_SELECT_FIELDS)
+        .eq("assigned_account_id", cleaned_account_id)
+        .order("captured_at", desc=True)
+        .order("id", desc=True)
+        .range(safe_offset, safe_offset + safe_limit)
+        .execute()
+    )
+    fetched = [dict(row) for row in list(response.data or [])]
+    replies = fetched[:safe_limit]
+    _attach_batch_codes(replies, active_client)
+    return {
+        "replies": replies,
+        "next_offset": safe_offset + len(replies),
+        "has_more": len(fetched) > safe_limit,
+    }
+
+
+def list_recent_outreach_replies(
+    *,
+    limit: int = 50,
+    client: Client | None = None,
+) -> list[dict]:
+    """Return the newest reply for each of up to ``limit`` people."""
+
+    safe_limit = max(1, min(int(limit or 50), 100))
+    active_client = client or get_outreach_client()
+    response = (
+        active_client.table(REPLY_TABLE)
+        .select(REPLY_SELECT_FIELDS)
+        .order("captured_at", desc=True)
+        .limit(max(50, safe_limit * 10))
+        .execute()
+    )
+
+    replies: list[dict] = []
+    seen_people: set[str] = set()
+
+    for raw_row in list(response.data or []):
+        row = dict(raw_row)
+        account_identity = _safe_text(
+            row.get("assigned_account_id")
+        ).casefold()
+        person_identity = _safe_text(row.get("linkedin_url")).casefold()
+        if person_identity:
+            identity = "|".join((account_identity, person_identity))
+        else:
+            identity = "|".join(
+                (
+                    account_identity,
+                    _safe_text(row.get("user_name")).casefold(),
+                )
+            )
+
+        if identity in seen_people:
+            continue
+
+        seen_people.add(identity)
+        replies.append(row)
+
+        if len(replies) >= safe_limit:
+            break
+
+    _attach_batch_codes(replies, active_client)
     return replies
 
 
 def list_outreach_reply_accounts(
     *,
     client: Client | None = None,
+    include_counts: bool = False,
 ) -> list[dict]:
     """Return up to five Outreach accounts with their display names."""
 
-    del client
-    return [
+    accounts = [
         {
             "account_id": account_id,
             "display_name": OUTREACH_ACCOUNT_DISPLAY_NAMES.get(
@@ -255,3 +290,14 @@ def list_outreach_reply_accounts(
         }
         for account_id in DEFAULT_OUTREACH_ACCOUNT_IDS[:5]
     ]
+    if include_counts:
+        active_client = client or get_outreach_client()
+        for account in accounts:
+            response = (
+                active_client.table(REPLY_TABLE)
+                .select("id", count="exact", head=True)
+                .eq("assigned_account_id", account["account_id"])
+                .execute()
+            )
+            account["reply_count"] = int(response.count or 0)
+    return accounts

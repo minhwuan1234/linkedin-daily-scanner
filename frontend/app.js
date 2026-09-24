@@ -545,18 +545,6 @@ const els = {
   outreachReplyAccountTabs:
     document.querySelector("#outreachReplyAccountTabs"),
 
-  outreachReplyPagination:
-    document.querySelector("#outreachReplyPagination"),
-
-  outreachReplyPageMeta:
-    document.querySelector("#outreachReplyPageMeta"),
-
-  outreachReplyPrevPage:
-    document.querySelector("#outreachReplyPrevPage"),
-
-  outreachReplyNextPage:
-    document.querySelector("#outreachReplyNextPage"),
-
   outreachReplyError:
     document.querySelector("#outreachReplyError"),
 
@@ -680,7 +668,13 @@ const state = {
   outreachReplySelectedIdByAccount: {},
   outreachReplyDrafts: {},
   outreachReplySendErrors: {},
-  outreachReplyPageByAccount: {},
+  outreachReplyNextOffsetByAccount: {},
+  outreachReplyHasMoreByAccount: {},
+  outreachReplyLoadedByAccount: {},
+  outreachReplyLoadingMoreByAccount: {},
+  outreachReplyLoadErrorByAccount: {},
+  outreachReplyScrollByAccount: {},
+  outreachReplyRequestGeneration: 0,
   outreachRepliesLoading: false,
   outreachReplySendSubmitting: false,
   tableErrors: {},
@@ -8097,6 +8091,9 @@ function renderOutreachReplyInbox() {
   const replies = Array.isArray(state.outreachReplies) ? state.outreachReplies : [];
   const configured = Array.isArray(state.outreachReplyAccounts)
     ? state.outreachReplyAccounts.slice(0, 5) : [];
+  const replyCounts = new Map(configured.map((account) => [
+    String(account.account_id || "").trim(), Number(account.reply_count || 0)
+  ]));
   const accountMap = new Map(configured.map((account) => [
     String(account.account_id || "").trim(),
     String(account.display_name || account.account_id || "Outreach account").trim()
@@ -8111,10 +8108,11 @@ function renderOutreachReplyInbox() {
       replies.some((reply) => String(reply.assigned_account_id || "").trim() === account.id)
     )?.id || accounts[0]?.id || null;
   }
-  if (els.outreachReplyTabCount) els.outreachReplyTabCount.textContent = String(replies.length);
+  if (els.outreachReplyTabCount) els.outreachReplyTabCount.textContent =
+    String(Array.from(replyCounts.values()).reduce((total, count) => total + count, 0));
   els.outreachReplyAccountTabs?.replaceChildren();
   accounts.forEach((account) => {
-    const count = replies.filter((reply) =>
+    const count = replyCounts.get(account.id) ?? replies.filter((reply) =>
       String(reply.assigned_account_id || "").trim() === account.id
     ).length;
     const button = document.createElement("button");
@@ -8127,11 +8125,19 @@ function renderOutreachReplyInbox() {
     button.addEventListener("click", () => {
       state.outreachReplySelectedAccountId = account.id;
       renderOutreachReplies();
+      if (!state.outreachReplyLoadedByAccount[account.id] ||
+          state.outreachReplyLoadErrorByAccount[account.id]) {
+        void loadMoreOutreachReplies(account.id);
+      }
     });
     els.outreachReplyAccountTabs?.appendChild(button);
   });
 
   if (!els.outreachReplyList || !els.outreachReplyConversation || !els.outreachReplyInbox) return;
+  const previousListAccount = els.outreachReplyList.dataset.accountId;
+  if (previousListAccount) {
+    state.outreachReplyScrollByAccount[previousListAccount] = els.outreachReplyList.scrollTop;
+  }
   els.outreachReplyList.replaceChildren();
   els.outreachReplyConversation.replaceChildren();
   if (state.outreachRepliesLoading) {
@@ -8141,33 +8147,29 @@ function renderOutreachReplyInbox() {
     return;
   }
   const accountId = state.outreachReplySelectedAccountId;
+  els.outreachReplyList.dataset.accountId = accountId || "";
   const accountReplies = replies.filter((reply) =>
     String(reply.assigned_account_id || "").trim() === accountId
   );
   if (!accountReplies.length) {
+    const loadError = state.outreachReplyLoadErrorByAccount[accountId];
     els.outreachReplyEmpty.hidden = false;
-    els.outreachReplyEmpty.textContent = accounts.length
-      ? "No verified replies have been captured for this account yet."
-      : "No verified replies have been captured yet.";
+    els.outreachReplyEmpty.textContent = loadError
+      ? `Could not load conversations: ${loadError}`
+      : !state.outreachReplyLoadedByAccount[accountId]
+        ? "Loading conversations..."
+        : accounts.length
+          ? "No verified replies have been captured for this account yet."
+          : "No verified replies have been captured yet.";
     els.outreachReplyInbox.hidden = true;
     return;
   }
   els.outreachReplyEmpty.hidden = true;
   els.outreachReplyInbox.hidden = false;
-  if (els.outreachReplyAccountCount) els.outreachReplyAccountCount.textContent = String(accountReplies.length);
+  if (els.outreachReplyAccountCount) els.outreachReplyAccountCount.textContent =
+    String(replyCounts.get(accountId) ?? accountReplies.length);
 
-  const pageSize = 10;
-  const pageCount = Math.max(1, Math.ceil(accountReplies.length / pageSize));
-  const requestedPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
-  const currentPage = Math.min(pageCount, Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1));
-  state.outreachReplyPageByAccount[accountId] = currentPage;
-  const pageStart = (currentPage - 1) * pageSize;
-  const visibleReplies = accountReplies.slice(pageStart, pageStart + pageSize);
-  if (els.outreachReplyPageMeta) els.outreachReplyPageMeta.textContent =
-    `Page ${currentPage} / ${pageCount} · ${pageStart + 1}-${Math.min(pageStart + pageSize, accountReplies.length)} of ${accountReplies.length}`;
-  if (els.outreachReplyPrevPage) els.outreachReplyPrevPage.disabled = currentPage <= 1;
-  if (els.outreachReplyNextPage) els.outreachReplyNextPage.disabled = currentPage >= pageCount;
-  if (els.outreachReplyPagination) els.outreachReplyPagination.hidden = pageCount <= 1;
+  const visibleReplies = accountReplies;
 
   const selectedIds = state.outreachReplySelectedIdByAccount;
   if (!visibleReplies.some((reply) => String(reply.id) === selectedIds[accountId])) {
@@ -8191,6 +8193,24 @@ function renderOutreachReplyInbox() {
     });
     els.outreachReplyList.appendChild(row);
   });
+  const loadingMore = state.outreachReplyLoadingMoreByAccount[accountId];
+  const loadError = state.outreachReplyLoadErrorByAccount[accountId];
+  if (loadingMore || loadError || state.outreachReplyHasMoreByAccount[accountId]) {
+    const status = document.createElement("div");
+    status.className = "reply-inbox-load-state";
+    if (loadError) {
+      status.textContent = "Could not load more contacts. ";
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.textContent = "Try again";
+      retry.addEventListener("click", () => void loadMoreOutreachReplies(accountId));
+      status.appendChild(retry);
+    } else {
+      status.textContent = loadingMore ? "Loading more contacts…" : "Scroll for more contacts";
+    }
+    els.outreachReplyList.appendChild(status);
+  }
+  els.outreachReplyList.scrollTop = state.outreachReplyScrollByAccount[accountId] || 0;
 
   const reply = visibleReplies.find((item) => String(item.id) === selectedIds[accountId]);
   if (!reply) return;
@@ -8272,11 +8292,81 @@ function renderOutreachReplyInbox() {
     }
   });
   els.outreachReplyConversation.querySelector(".reply-inbox-thread")?.scrollTo({ top: 999999 });
+  requestAnimationFrame(maybeLoadMoreOutreachReplies);
 }
 
 function renderOutreachReplies() {
   renderOutreachReplyInbox();
 }
+
+const OUTREACH_REPLY_BATCH_SIZE = 20;
+
+function outreachReplyContactKey(reply) {
+  const account = String(reply.assigned_account_id || "").trim().toLowerCase();
+  const identity = String(reply.linkedin_url || reply.user_name || reply.id || "").trim().toLowerCase();
+  return `${account}|${identity}`;
+}
+
+function maybeLoadMoreOutreachReplies() {
+  if (document.querySelector("#tab-replies")?.hidden || els.outreachReplyInbox?.hidden) return;
+  const accountId = state.outreachReplySelectedAccountId;
+  const list = els.outreachReplyList;
+  if (!accountId || !list || !state.outreachReplyHasMoreByAccount[accountId] ||
+      state.outreachReplyLoadingMoreByAccount[accountId] ||
+      state.outreachReplyLoadErrorByAccount[accountId]) return;
+  if (list.scrollHeight - list.scrollTop - list.clientHeight < 180) {
+    void loadMoreOutreachReplies(accountId);
+  }
+}
+
+async function loadMoreOutreachReplies(accountId) {
+  if (!accountId || state.outreachReplyLoadingMoreByAccount[accountId] ||
+      state.outreachReplyHasMoreByAccount[accountId] === false) return;
+  const generation = state.outreachReplyRequestGeneration;
+  const offset = Number(state.outreachReplyNextOffsetByAccount[accountId] || 0);
+  state.outreachReplyLoadingMoreByAccount[accountId] = true;
+  delete state.outreachReplyLoadErrorByAccount[accountId];
+  renderOutreachReplies();
+  try {
+    const params = new URLSearchParams({
+      account_id: accountId, offset: String(offset), limit: String(OUTREACH_REPLY_BATCH_SIZE)
+    });
+    const response = await fetch(`/api/outreach/replies?${params}`, {
+      headers: { "Accept": "application/json" }, cache: "no-store"
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.detail || result.error || "Could not load more contacts.");
+    }
+    if (generation !== state.outreachReplyRequestGeneration) return;
+    const page = Array.isArray(result.replies) ? result.replies : [];
+    const seen = new Set(state.outreachReplies.map(outreachReplyContactKey));
+    for (const reply of page) {
+      const key = outreachReplyContactKey(reply);
+      if (!seen.has(key)) {
+        seen.add(key);
+        state.outreachReplies.push(reply);
+      }
+    }
+    state.outreachReplyNextOffsetByAccount[accountId] = Number(result.next_offset) || offset + page.length;
+    state.outreachReplyHasMoreByAccount[accountId] = Boolean(result.has_more && page.length);
+    state.outreachReplyLoadedByAccount[accountId] = true;
+  } catch (error) {
+    if (generation !== state.outreachReplyRequestGeneration) return;
+    state.outreachReplyLoadErrorByAccount[accountId] = error.message || String(error);
+  } finally {
+    if (generation === state.outreachReplyRequestGeneration) {
+      state.outreachReplyLoadingMoreByAccount[accountId] = false;
+      renderOutreachReplies();
+    }
+  }
+}
+
+els.outreachReplyList?.addEventListener("scroll", () => {
+  const accountId = els.outreachReplyList.dataset.accountId;
+  if (accountId) state.outreachReplyScrollByAccount[accountId] = els.outreachReplyList.scrollTop;
+  maybeLoadMoreOutreachReplies();
+}, { passive: true });
 
 async function loadOutreachReplies() {
   if (state.outreachRepliesLoading) {
@@ -8284,6 +8374,7 @@ async function loadOutreachReplies() {
   }
 
   state.outreachRepliesLoading = true;
+  const generation = ++state.outreachReplyRequestGeneration;
   if (els.outreachReplyError) {
     els.outreachReplyError.hidden = true;
     els.outreachReplyError.textContent = "";
@@ -8292,7 +8383,7 @@ async function loadOutreachReplies() {
 
   try {
     const response = await fetch(
-      "/api/outreach/replies?limit=100",
+      "/api/outreach/replies?metadata=1",
       {
         method: "GET",
         headers: { "Accept": "application/json" },
@@ -8307,12 +8398,28 @@ async function loadOutreachReplies() {
       );
     }
 
-    state.outreachReplies = Array.isArray(result.replies)
-      ? result.replies
-      : [];
+    if (generation !== state.outreachReplyRequestGeneration) return;
+    state.outreachReplies = [];
     state.outreachReplyAccounts = Array.isArray(result.accounts)
       ? result.accounts.slice(0, 5)
       : [];
+    state.outreachReplyNextOffsetByAccount = {};
+    state.outreachReplyHasMoreByAccount = {};
+    state.outreachReplyLoadedByAccount = {};
+    state.outreachReplyLoadingMoreByAccount = {};
+    state.outreachReplyLoadErrorByAccount = {};
+    state.outreachReplyScrollByAccount = {};
+    for (const account of state.outreachReplyAccounts) {
+      const id = String(account.account_id || "").trim();
+      const count = Number(account.reply_count || 0);
+      state.outreachReplyHasMoreByAccount[id] = count > 0;
+      state.outreachReplyLoadedByAccount[id] = count === 0;
+    }
+    const previousId = state.outreachReplySelectedAccountId;
+    if (!state.outreachReplyAccounts.some((account) => account.account_id === previousId && account.reply_count > 0)) {
+      state.outreachReplySelectedAccountId = state.outreachReplyAccounts.find((account) => account.reply_count > 0)?.account_id ||
+        state.outreachReplyAccounts[0]?.account_id || null;
+    }
   } catch (error) {
     state.outreachReplies = [];
     if (els.outreachReplyError) {
@@ -8322,6 +8429,10 @@ async function loadOutreachReplies() {
   } finally {
     state.outreachRepliesLoading = false;
     renderOutreachReplies();
+  }
+  const accountId = state.outreachReplySelectedAccountId;
+  if (accountId && state.outreachReplyHasMoreByAccount[accountId]) {
+    await loadMoreOutreachReplies(accountId);
   }
 }
 
@@ -8477,26 +8588,6 @@ document
       }
     });
   });
-
-els.outreachReplyPrevPage?.addEventListener("click", () => {
-  const accountId = state.outreachReplySelectedAccountId;
-  if (!accountId) {
-    return;
-  }
-  const currentPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
-  state.outreachReplyPageByAccount[accountId] = Math.max(1, currentPage - 1);
-  renderOutreachReplies();
-});
-
-els.outreachReplyNextPage?.addEventListener("click", () => {
-  const accountId = state.outreachReplySelectedAccountId;
-  if (!accountId) {
-    return;
-  }
-  const currentPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
-  state.outreachReplyPageByAccount[accountId] = currentPage + 1;
-  renderOutreachReplies();
-});
 
 els.killProcessButton?.addEventListener(
   "click",

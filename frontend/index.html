@@ -15,13 +15,13 @@
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260924-worker-activity-1" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260924-worker-flare-2" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260924-connect-progress-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
-  <link rel="stylesheet" href="./replies-workspace.css?v=20260924-draggable-nav-1" />
+  <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-infinite-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
@@ -1240,13 +1240,6 @@
           <aside class="reply-inbox-list" aria-label="Conversations">
             <div class="reply-inbox-list-heading">Messages <span id="outreachReplyAccountCount"></span></div>
             <div id="outreachReplyList" class="outreach-reply-list"></div>
-            <div id="outreachReplyPagination" class="outreach-list-pagination" hidden>
-              <span id="outreachReplyPageMeta" class="panel-meta">Page 1 / 1</span>
-              <div class="outreach-list-pagination-actions">
-                <button id="outreachReplyPrevPage" type="button" class="secondary-button">Previous</button>
-                <button id="outreachReplyNextPage" type="button" class="secondary-button">Next</button>
-              </div>
-            </div>
           </aside>
           <section id="outreachReplyConversation" class="reply-inbox-conversation" aria-label="Selected conversation"></section>
         </div>
@@ -1702,7 +1695,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260924-worker-activity-1"></script>
+  <script src="./app.js?v=20260924-replies-infinite-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>
