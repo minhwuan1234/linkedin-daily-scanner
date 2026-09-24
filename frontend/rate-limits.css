@@ -22,7 +22,7 @@
 
 #rateLimitDrawer .rate-limit-drawer-panel {
   position: absolute;
-  top: 10px;
+  top: 50%;
   right: 24px;
   bottom: auto;
   left: auto;
@@ -39,13 +39,13 @@
   box-shadow: 0 24px 72px rgba(22, 27, 33, .22) !important;
   color: var(--rate-text);
   opacity: 0;
-  transform: translateX(calc(100% + 32px));
+  transform: translate(calc(100% + 32px), -50%);
   transition: transform 300ms cubic-bezier(.22, 1, .36, 1), opacity 250ms ease;
 }
 
 #rateLimitDrawer.is-open .rate-limit-drawer-panel {
   opacity: 1;
-  transform: translateX(0);
+  transform: translate(0, -50%);
 }
 
 #rateLimitDrawer .rate-limit-drawer-header {
@@ -130,19 +130,34 @@
 }
 
 #rateLimitDrawer .rate-limit-progress-track {
+  position: relative;
   width: 100%;
-  height: 7px;
+  height: 20px;
   overflow: hidden;
   border-radius: 100px;
   background: #ededeb !important;
 }
 
 #rateLimitDrawer .rate-limit-progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
   width: 0;
   height: 100%;
   border-radius: inherit;
   background: #0a66c2 !important;
   transition: width 220ms cubic-bezier(.22, 1, .36, 1), background-color 160ms ease;
+}
+
+#rateLimitDrawer .rate-limit-progress-value {
+  position: absolute;
+  z-index: 1;
+  inset: 0 8px 0 auto;
+  display: flex;
+  align-items: center;
+  color: #454541;
+  font-size: 10px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 #rateLimitDrawer .rate-limit-account-card.is-warning .rate-limit-progress-bar {
@@ -151,6 +166,19 @@
 
 #rateLimitDrawer .rate-limit-account-card.is-limited .rate-limit-progress-bar {
   background: #d44c47 !important;
+}
+
+.topbar .header-actions > .outreach-rate-limit-button.is-critical,
+.topbar .header-actions > .outreach-rate-limit-button.is-critical:hover {
+  border-color: #e5a4a4 !important;
+  background: #fff5f4 !important;
+  color: #c43732 !important;
+}
+
+.topbar .header-actions > .outreach-rate-limit-button.is-critical .topbar-icon-badge {
+  border-color: #fff !important;
+  background: #d44c47 !important;
+  color: #fff !important;
 }
 
 #rateLimitDrawer .outreach-job-empty {
@@ -162,11 +190,16 @@
 
 @media (max-width: 560px) {
   #rateLimitDrawer .rate-limit-drawer-panel {
-    top: 8px;
+    top: 50%;
     right: 8px;
     width: calc(100vw - 16px) !important;
     max-width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px) !important;
+    transform: translate(calc(100% + 16px), -50%);
+  }
+
+  #rateLimitDrawer.is-open .rate-limit-drawer-panel {
+    transform: translate(0, -50%);
   }
 }
 

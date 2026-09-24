@@ -2600,29 +2600,20 @@ function renderRateLimitSidebarSummary(
     }
 
     if (
-      weeklySent / weeklyLimit >= 0.9
+      weeklySent / weeklyLimit >= 0.8
     ) {
       nearCap += 1;
     }
   });
 
-  if (exhausted > 0) {
+  const alertCount = exhausted + nearCap;
+
+  if (alertCount > 0) {
     els.rateLimitSidebarBadge.textContent =
-      `${exhausted}`;
+      `${alertCount}`;
 
     els.rateLimitDrawerButton.classList.add(
       "is-critical"
-    );
-
-    return;
-  }
-
-  if (nearCap > 0) {
-    els.rateLimitSidebarBadge.textContent =
-      `${nearCap}`;
-
-    els.rateLimitDrawerButton.classList.add(
-      "is-warning"
     );
 
     return;
@@ -2770,6 +2761,11 @@ function renderOutreachAccounts(
       getOutreachAccountDisplayName(
         account.account_id
       )
+    );
+
+    setText(
+      "[data-rate-weekly-label]",
+      `${weeklySent} / ${weeklyLimit}`
     );
 
     const progressBar =
