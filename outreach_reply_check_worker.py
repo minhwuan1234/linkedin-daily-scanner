@@ -29,8 +29,12 @@ from urllib.parse import unquote, urlparse
 
 from playwright.sync_api import Frame, Locator, Page
 
-from app.outreach_account_pool import OutreachAccountPool
+from app.outreach_account_pool import (
+    DEFAULT_OUTREACH_ACCOUNT_IDS,
+    OutreachAccountPool,
+)
 from app.outreach_message_executor import get_outreach_supabase_client
+from app.outreach_reply_schedule import run_reply_check_schedule
 from app.outreach_reply_store import save_outreach_reply
 
 
@@ -1677,13 +1681,48 @@ def run_once(account_id: str) -> None:
         browser.stop()
 
 
+def run_all_accounts() -> None:
+    """Scan all five profiles sequentially, continuing after account errors."""
+
+    failed_accounts: list[str] = []
+    for account_id in DEFAULT_OUTREACH_ACCOUNT_IDS:
+        logger.info("Reply check starting | account=%s", account_id)
+        try:
+            run_once(account_id)
+        except Exception:
+            failed_accounts.append(account_id)
+            logger.exception("Reply check failed | account=%s", account_id)
+
+    if failed_accounts:
+        logger.error(
+            "Reply check finished with failed accounts: %s",
+            ", ".join(failed_accounts),
+        )
+    else:
+        logger.info("Reply check finished for all five accounts")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Open LinkedIn Messaging > Unread for reply checking."
         )
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--schedule",
+        action="store_true",
+        help=(
+            "Continuously scan all five accounts at 12:00 and 18:00 "
+            "Asia/Ho_Chi_Minh time."
+        ),
+    )
+    mode.add_argument(
+        "--all-accounts",
+        action="store_true",
+        help="Scan all five accounts once, sequentially.",
+    )
+    mode.add_argument(
         "--account-id",
         default=os.getenv(
             "OUTREACH_REPLY_CHECK_ACCOUNT_ID",
@@ -1703,7 +1742,12 @@ def main() -> None:
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
     args = _parse_args()
-    run_once(str(args.account_id).strip())
+    if args.schedule:
+        run_reply_check_schedule(run_all_accounts)
+    elif args.all_accounts:
+        run_all_accounts()
+    else:
+        run_once(str(args.account_id).strip())
 
 
 if __name__ == "__main__":
