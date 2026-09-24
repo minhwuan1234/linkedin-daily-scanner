@@ -38,43 +38,59 @@
   box-shadow: none !important;
 }
 
-#outreachAcceptedPoolPanel > .recipient-dashboard-toolbar {
+#outreachAcceptedPoolPanel > .recipient-dashboard-heading {
   order: 0;
+}
+
+#outreachAcceptedPoolPanel .recipient-dashboard-heading h3 {
+  margin: 0;
+  color: #252521;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -.035em;
+}
+
+#outreachAcceptedPoolPanel .recipient-dashboard-heading p {
+  margin: 4px 0 0;
+  color: #858580;
+  font-size: 13px;
+}
+
+#outreachAcceptedPoolPanel > .recipient-dashboard-toolbar {
+  order: 1;
+  position: relative;
+  z-index: 5;
   display: flex;
-  width: 100%;
   min-width: 0;
   align-items: center;
   gap: 12px;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 
-#outreachAcceptedPoolPanel .recipient-dashboard-toolbar > .week-browser {
-  display: flex;
+#outreachAcceptedPoolPanel .recipient-week-picker {
+  position: relative;
   flex: 0 0 auto;
   min-width: 0;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
 }
 
-#outreachAcceptedPoolPanel .week-browser-heading {
-  display: flex;
-  min-height: 0;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-start;
-  flex-direction: row;
-  padding: 0;
-}
-
-#outreachAcceptedPoolPanel .week-history-button {
+#outreachAcceptedPoolPanel .recipient-week-button {
+  display: inline-flex;
+  height: 36px;
   min-height: 36px !important;
-  margin-top: 0;
+  max-width: 300px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-button > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #outreachAcceptedPoolPanel .secondary-button {
@@ -92,52 +108,85 @@
   color: #37352f !important;
 }
 
-#outreachAcceptedPoolPanel #outreachAcceptedWeekList {
-  display: block !important;
-  width: auto !important;
-  min-width: 0;
-}
-
-#outreachAcceptedPoolPanel .week-current-card {
-  display: inline-flex !important;
-  width: auto;
-  min-width: 0;
-  height: 36px !important;
-  min-height: 36px !important;
-  padding: 7px 11px !important;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px !important;
-  border: 1px solid #deded9 !important;
-  border-radius: 7px !important;
-  background: #fff !important;
-  color: #37352f;
-  box-shadow: none !important;
-}
-
-#outreachAcceptedPoolPanel .week-current-card.is-active {
-  border-color: #deded9 !important;
-  background: #fff !important;
-  box-shadow: none !important;
-}
-
-#outreachAcceptedPoolPanel .week-current-card::after,
-#outreachAcceptedPoolPanel .week-current-card .week-card-metrics {
-  display: none;
-}
-
-#outreachAcceptedPoolPanel .week-current-card .week-card-label {
-  width: auto;
-  color: #55544f !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-}
-
-#outreachAcceptedPoolPanel .week-current-card strong {
+#outreachAcceptedPoolPanel .recipient-week-button svg {
+  width: 15px;
+  height: 15px;
   flex: 0 0 auto;
-  color: #858580 !important;
-  font-size: 11px !important;
-  font-weight: 500 !important;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-button[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+#outreachAcceptedPoolPanel .recipient-week-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: grid;
+  width: min(380px, calc(100vw - 48px));
+  max-height: min(420px, 60dvh);
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #e5e5e1;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(27, 27, 24, .16);
+}
+
+#outreachAcceptedPoolPanel .recipient-week-menu[hidden] {
+  display: none !important;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option {
+  display: flex;
+  width: 100%;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 0 !important;
+  border-radius: 6px;
+  background: #fff !important;
+  color: #37352f !important;
+  text-align: left;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option:hover,
+#outreachAcceptedPoolPanel .recipient-week-option:focus-visible,
+#outreachAcceptedPoolPanel .recipient-week-option[aria-pressed="true"] {
+  background: #f1f1ef !important;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option-copy strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option-copy small {
+  color: #858580;
+  font-size: 10px;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option-check {
+  visibility: hidden;
+  color: #0a66c2;
+}
+
+#outreachAcceptedPoolPanel .recipient-week-option[aria-pressed="true"] .recipient-week-option-check {
+  visibility: visible;
 }
 
 #outreachAcceptedPoolPanel .recipient-dashboard-toolbar > .outreach-pool-controls {
@@ -330,56 +379,19 @@
 
 #outreachAcceptedPoolPanel > #outreachAcceptedPagination {
   order: 4;
+  border-top: 0 !important;
   color: #858580;
 }
 
-#outreachAcceptedWeekModal .outreach-week-modal-backdrop {
-  background: rgba(35, 35, 32, .36);
-  backdrop-filter: blur(3px);
-}
-
-#outreachAcceptedWeekModal .outreach-week-modal-dialog {
-  border: 1px solid #e5e5e1;
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 18px 55px rgba(27, 27, 24, .18);
-}
-
-#outreachAcceptedWeekModal .outreach-week-modal-header {
-  border-bottom-color: #e8e8e5;
-  background: #fff;
-}
-
-#outreachAcceptedWeekModal .outreach-week-modal-header h2 {
-  color: #252521;
-}
-
-#outreachAcceptedWeekModal .outreach-week-modal-header .panel-kicker,
-#outreachAcceptedWeekModal .outreach-week-modal-header .panel-meta {
-  color: #858580 !important;
-}
-
-#outreachAcceptedWeekModal .week-history-option {
-  border: 1px solid #e5e5e1 !important;
-  background: #fff !important;
-  color: #37352f !important;
-  box-shadow: none !important;
-}
-
-#outreachAcceptedWeekModal .week-history-option:hover,
-#outreachAcceptedWeekModal .week-history-option.is-active {
-  border-color: #b6d2ed !important;
-  background: #f8fbfe !important;
-}
-
-#outreachAcceptedWeekModal .week-history-option .week-card-label,
-#outreachAcceptedWeekModal .week-history-option strong,
-#outreachAcceptedWeekModal .week-history-option .week-card-metrics,
-#outreachAcceptedWeekModal .week-history-option .week-card-metrics b {
-  color: #55544f !important;
+#outreachAcceptedPoolPanel > #outreachAcceptedPagination[hidden] {
+  display: none !important;
 }
 
 @media (max-width: 900px) {
+  #outreachAcceptedPoolPanel > .recipient-dashboard-toolbar {
+    flex-wrap: wrap;
+  }
+
   #outreachAcceptedPoolPanel .outreach-accepted-pool-table {
     min-width: 760px;
   }
