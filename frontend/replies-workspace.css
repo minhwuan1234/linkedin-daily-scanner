@@ -1,7 +1,7 @@
 /* Notion-style two-pane inbox for LinkedIn replies. */
-#appMainScroll:has(#tab-replies:not([hidden])) { padding: 0 !important; background: #fff; }
-#tab-replies:not([hidden]) { width: 100% !important; max-width: none !important; min-height: 100%; margin: 0 !important; padding: 0 !important; background: #fff; color: #37352f; }
-#tab-replies .outreach-replies-panel { display: flex; flex-direction: column; height: calc(100dvh - 72px); min-height: 620px; padding: 28px 32px 100px !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; box-shadow: none !important; }
+#appMainScroll:has(#tab-replies:not([hidden])) { display: flex; flex-direction: column; padding: 0 !important; background: #fff; }
+#tab-replies:not([hidden]) { display: flex; flex: 1 1 auto; flex-direction: column; width: 100% !important; max-width: none !important; min-height: 0; margin: 0 !important; padding: 0 !important; background: #fff; color: #37352f; }
+#tab-replies .outreach-replies-panel { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; padding: 28px 32px 18px !important; border: 0 !important; border-radius: 0 !important; background: #fff !important; box-shadow: none !important; }
 #tab-replies .outreach-replies-header { flex: none; margin: 0 0 20px !important; padding: 0 !important; border: 0 !important; border-bottom: 0 !important; }
 #tab-replies .outreach-replies-header h2 { margin: 0; color: #252521; font-size: 22px; font-weight: 650; letter-spacing: -.035em; }
 #tab-replies .outreach-replies-header .panel-meta { margin: 4px 0 0; color: #858580; font-size: 13px; }
@@ -28,7 +28,7 @@
 .reply-inbox-person-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
 .reply-inbox-person-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #858580; font-size: 12px; }
 .reply-inbox-person-date { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9b9b96; font-size: 10px; }
-#tab-replies .outreach-list-pagination { flex-wrap: wrap; gap: 6px; margin: 0; padding: 9px 12px; border-top: 1px solid #e8e8e5; color: #858580; background: #fff; }
+#tab-replies .outreach-list-pagination { flex-wrap: wrap; gap: 6px; margin: 0; padding: 9px 12px calc(76px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e8e8e5; color: #858580; background: #fff; }
 #tab-replies .outreach-list-pagination .panel-meta { font-size: 11px; }
 #tab-replies .outreach-list-pagination button { min-height: 30px; padding: 4px 8px; border-color: #e8e8e5; border-radius: 6px; color: #37352f; background: #fff; font-size: 11px; }
 .reply-inbox-conversation { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
@@ -46,7 +46,7 @@
 .reply-inbox-message.is-own .reply-inbox-bubble { border-color: #d9e8f5; border-radius: 12px 12px 4px 12px; background: #eaf3fa; }
 .reply-inbox-message time { color: #9b9b96; font-size: 10px; }
 .reply-inbox-no-history { margin: auto; color: #858580; font-size: 13px; }
-.reply-inbox-compose { flex: none; padding: 12px 18px 16px; border-top: 1px solid #e8e8e5; background: #fff; }
+.reply-inbox-compose { flex: none; padding: 12px 18px calc(76px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e8e8e5; background: #fff; }
 .reply-inbox-compose-field { position: relative; border: 1px solid #dcdcd7; border-radius: 10px; background: #fff; transition: border-color .16s, box-shadow .16s; }
 .reply-inbox-compose-field:focus-within { border-color: #0a66c2; box-shadow: 0 0 0 2px #0a66c21a; }
 #tab-replies .reply-inbox-compose-field textarea { display: block; width: 100%; min-height: 100px; padding: 12px 14px 48px; resize: vertical; border: 0 !important; outline: 0; border-radius: 10px !important; color: #37352f !important; background: #fff !important; box-shadow: none !important; font: inherit; font-size: 13px; }
@@ -63,12 +63,14 @@
 .sidebar-navigation .tab-count, #tab-replies .outreach-reply-account-tab span { border-radius: 100px !important; }
 
 @media (max-width: 900px) {
-  #tab-replies .outreach-replies-panel { padding: 18px 16px 100px !important; }
+  #tab-replies .outreach-replies-panel { padding: 18px 16px !important; }
   #tab-replies .outreach-reply-account-tab { width: 138px; }
   .reply-inbox { grid-template-columns: minmax(190px, 36%) minmax(0, 1fr); }
 }
 @media (max-width: 600px) {
-  #tab-replies .outreach-replies-panel { height: auto; min-height: calc(100dvh - 72px); }
+  #appMainScroll:has(#tab-replies:not([hidden])) { display: block; }
+  #tab-replies:not([hidden]) { display: block; }
+  #tab-replies .outreach-replies-panel { min-height: calc(100dvh - 72px); }
   .reply-inbox { grid-template-columns: 1fr; min-height: 600px; overflow: visible; }
   .reply-inbox-list { max-height: 260px; border-right: 0; border-bottom: 1px solid #e8e8e5; }
   .reply-inbox-conversation { min-height: 420px; }
