@@ -6713,6 +6713,34 @@ function renderConnectHistory(jobs) {
       failed.textContent = `${Number(job.failed_count || 0)} failed`;
       meta.append(created, profiles, processed, success, failed);
       button.append(name, status, meta);
+      if (String(job.status || "").toLowerCase() === "running") {
+        const total = Math.max(0, Number(job.target_count) || 0);
+        const successCount = Math.max(0, Number(job.success_count) || 0);
+        const failedCount = Math.max(0, Number(job.failed_count) || 0);
+        const successPercent = total > 0
+          ? Math.min(100, (successCount / total) * 100)
+          : 0;
+        const failedPercent = total > 0
+          ? Math.min(100 - successPercent, (failedCount / total) * 100)
+          : 0;
+        const progress = document.createElement("span");
+        progress.className = "connect-history-progress";
+        progress.setAttribute("role", "progressbar");
+        progress.setAttribute("aria-label", "Connect run progress");
+        progress.setAttribute("aria-valuemin", "0");
+        progress.setAttribute("aria-valuemax", String(total));
+        progress.setAttribute("aria-valuenow", String(Math.min(
+          total, Math.max(0, Number(job.processed_count) || 0)
+        )));
+        const successSegment = document.createElement("span");
+        successSegment.className = "connect-history-progress-success";
+        successSegment.style.width = `${successPercent}%`;
+        const failedSegment = document.createElement("span");
+        failedSegment.className = "connect-history-progress-failed";
+        failedSegment.style.width = `${failedPercent}%`;
+        progress.append(successSegment, failedSegment);
+        button.append(progress);
+      }
       button.addEventListener("click", () => {
         state.selectedConnectHistoryJobId = state.selectedConnectHistoryJobId === job.id
           ? null : job.id;
