@@ -1,0 +1,178 @@
+/* Compact Notion-style account capacity drawer. */
+#rateLimitDrawer {
+  --rate-text: #292927;
+  --rate-muted: #73736f;
+  --rate-border: #e6e6e2;
+  z-index: 1310;
+  visibility: hidden;
+  transition: visibility 0s linear 300ms;
+}
+
+#rateLimitDrawer.is-open {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+#rateLimitDrawer .rate-limit-drawer-backdrop {
+  background: rgba(24, 28, 34, .38) !important;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  transition: opacity 300ms ease;
+}
+
+#rateLimitDrawer .rate-limit-drawer-panel {
+  position: absolute;
+  top: 10px;
+  right: 24px;
+  bottom: auto;
+  left: auto;
+  display: flex !important;
+  width: min(480px, calc(100vw - 48px)) !important;
+  height: auto !important;
+  max-width: calc(100vw - 48px);
+  max-height: calc(100dvh - 20px) !important;
+  flex-direction: column;
+  overflow: hidden !important;
+  border: 1px solid var(--rate-border) !important;
+  border-radius: 18px;
+  background: #fff !important;
+  box-shadow: 0 24px 72px rgba(22, 27, 33, .22) !important;
+  color: var(--rate-text);
+  opacity: 0;
+  transform: translateX(calc(100% + 32px));
+  transition: transform 300ms cubic-bezier(.22, 1, .36, 1), opacity 250ms ease;
+}
+
+#rateLimitDrawer.is-open .rate-limit-drawer-panel {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+#rateLimitDrawer .rate-limit-drawer-header {
+  position: relative !important;
+  top: auto;
+  flex: 0 0 auto;
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid var(--rate-border) !important;
+  background: #fff !important;
+  backdrop-filter: none;
+}
+
+#rateLimitDrawer .panel-kicker {
+  color: #0a66c2 !important;
+  font-size: 10px !important;
+  letter-spacing: .1em !important;
+}
+
+#rateLimitDrawer .rate-limit-drawer-header h2 {
+  margin: 0 0 5px;
+  color: var(--rate-text) !important;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+#rateLimitDrawer .panel-meta {
+  color: var(--rate-muted) !important;
+  line-height: 1.5;
+}
+
+#rateLimitDrawer .close-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid var(--rate-border) !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: #64645f !important;
+}
+
+#rateLimitDrawer .close-button:hover,
+#rateLimitDrawer .close-button:focus-visible {
+  border-color: #c5c5c0 !important;
+  background: #f6f6f4 !important;
+  color: var(--rate-text) !important;
+}
+
+#rateLimitDrawer .rate-limit-drawer-body {
+  min-height: 0 !important;
+  padding: 10px 24px 18px !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background: #fff !important;
+}
+
+#rateLimitDrawer .rate-limit-accounts-list {
+  display: grid;
+  gap: 0;
+}
+
+#rateLimitDrawer .rate-limit-account-card {
+  display: grid;
+  width: 100%;
+  padding: 15px 0 16px;
+  gap: 10px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--rate-border) !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+#rateLimitDrawer .rate-limit-account-card:last-child {
+  border-bottom: 0 !important;
+}
+
+#rateLimitDrawer .rate-limit-account-card > strong {
+  color: var(--rate-text) !important;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+#rateLimitDrawer .rate-limit-progress-track {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 100px;
+  background: #ededeb !important;
+}
+
+#rateLimitDrawer .rate-limit-progress-bar {
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #0a66c2 !important;
+  transition: width 220ms cubic-bezier(.22, 1, .36, 1), background-color 160ms ease;
+}
+
+#rateLimitDrawer .rate-limit-account-card.is-warning .rate-limit-progress-bar {
+  background: #c58a19 !important;
+}
+
+#rateLimitDrawer .rate-limit-account-card.is-limited .rate-limit-progress-bar {
+  background: #d44c47 !important;
+}
+
+#rateLimitDrawer .outreach-job-empty {
+  padding: 28px 0;
+  color: var(--rate-muted) !important;
+  background: #fff !important;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  #rateLimitDrawer .rate-limit-drawer-panel {
+    top: 8px;
+    right: 8px;
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #rateLimitDrawer .rate-limit-drawer-panel,
+  #rateLimitDrawer .rate-limit-progress-bar {
+    transition: none !important;
+  }
+}

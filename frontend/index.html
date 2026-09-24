@@ -24,6 +24,7 @@
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
+  <link rel="stylesheet" href="./rate-limits.css?v=20260924-notion-rate-limits-1" />
 </head>
 
 <body class="login-mode">
@@ -306,7 +307,7 @@
             <p class="panel-kicker">Outreach capacity</p>
             <h2 id="rateLimitDrawerTitle">Rate Limits</h2>
             <p class="panel-meta">
-              Turn usage and weekly Connect capacity for every Outreach account.
+              Weekly Connect usage for every Outreach account.
             </p>
           </div>
 
@@ -321,182 +322,28 @@
         </header>
 
         <div class="rate-limit-drawer-body">
-          <section class="rate-limit-section">
-            <div class="rate-limit-section-heading">
-              <div>
-                <p class="panel-kicker">Scheduler</p>
-                <h3>Current Rotation</h3>
-              </div>
+          <div id="outreachAccountsList" class="rate-limit-accounts-list">
+            <div class="outreach-job-empty">No account data available.</div>
+          </div>
 
-              <span
-                id="outreachSchedulerBadge"
-                class="pill pill-neutral"
+          <template id="rateLimitAccountCardTemplate">
+            <article class="rate-limit-account-card">
+              <strong data-rate-account-name>—</strong>
+              <div
+                class="rate-limit-progress-track"
+                data-rate-progress-track
+                role="progressbar"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
               >
-                —
-              </span>
-            </div>
-
-            <div class="outreach-scheduler-grid rate-limit-scheduler-grid">
-              <div class="outreach-info-item">
-                <span>Current account</span>
-                <strong id="outreachCurrentAccount">—</strong>
+                <div
+                  class="rate-limit-progress-bar"
+                  data-rate-weekly-progress
+                ></div>
               </div>
-
-              <div class="outreach-info-item">
-                <span>Used this turn</span>
-                <strong id="outreachUsedTurn">0 / 0</strong>
-              </div>
-
-              <div class="outreach-info-item">
-                <span>Remaining</span>
-                <strong id="outreachRemainingTurn">0</strong>
-              </div>
-
-              <div class="outreach-info-item">
-                <span>Scheduler updated</span>
-                <strong id="outreachSchedulerUpdatedAt">—</strong>
-              </div>
-            </div>
-          </section>
-
-          <section class="rate-limit-section">
-            <div class="rate-limit-section-heading">
-              <div>
-                <p class="panel-kicker">Outreach accounts</p>
-                <h3>Account Pool</h3>
-              </div>
-
-              <span id="outreachAccountCount" class="panel-meta">
-                0 accounts
-              </span>
-            </div>
-
-            <div
-              id="outreachAccountsList"
-              class="rate-limit-accounts-list"
-            >
-              <div class="outreach-job-empty">
-                No account data available.
-              </div>
-            </div>
-
-            <template id="rateLimitAccountCardTemplate">
-              <article class="outreach-account-card rate-limit-account-card">
-                <div class="outreach-account-card-header">
-                  <div>
-                    <strong data-rate-account-name>—</strong>
-
-                    <span
-                      class="outreach-current-label"
-                      data-rate-account-current
-                      hidden
-                    >
-                      Current
-                    </span>
-
-                    <span
-                      class="outreach-current-label"
-                      data-rate-account-limited
-                      hidden
-                    >
-                      Limit reached
-                    </span>
-                  </div>
-
-                  <span
-                    class="pill pill-neutral"
-                    data-rate-account-status
-                  >
-                    unknown
-                  </span>
-                </div>
-
-                <div class="rate-limit-progress-block">
-                  <div class="rate-limit-progress-label">
-                    <span>Weekly usage</span>
-                    <strong data-rate-weekly-label>0 / 100</strong>
-                  </div>
-
-                  <div class="rate-limit-progress-track">
-                    <div
-                      class="rate-limit-progress-bar"
-                      data-rate-weekly-progress
-                    ></div>
-                  </div>
-                </div>
-
-                <div class="outreach-account-quota">
-                  <div>
-                    <span>Turn</span>
-                    <strong data-rate-turn>0 / 10</strong>
-                  </div>
-
-                  <div>
-                    <span>Turn remaining</span>
-                    <strong data-rate-turn-remaining>10</strong>
-                  </div>
-                </div>
-
-                <div class="outreach-account-quota">
-                  <div>
-                    <span>Weekly sent</span>
-                    <strong data-rate-weekly-sent>0 / 100</strong>
-                  </div>
-
-                  <div>
-                    <span>Weekly remaining</span>
-                    <strong data-rate-weekly-remaining>100</strong>
-                  </div>
-                </div>
-
-                <div class="outreach-account-stats">
-                  <div>
-                    <span>Assigned</span>
-                    <strong data-rate-assigned>0</strong>
-                  </div>
-
-                  <div>
-                    <span>Success</span>
-                    <strong data-rate-success>0</strong>
-                  </div>
-
-                  <div>
-                    <span>Failed</span>
-                    <strong data-rate-failed>0</strong>
-                  </div>
-                </div>
-
-                <div class="outreach-account-last">
-                  <div>
-                    <span>Last job</span>
-                    <strong data-rate-last-job>—</strong>
-                  </div>
-
-                  <div>
-                    <span>Last used</span>
-                    <strong data-rate-last-used>—</strong>
-                  </div>
-
-                  <div>
-                    <span>Last URL</span>
-                    <a
-                      data-rate-last-url
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      —
-                    </a>
-                  </div>
-
-                  <p
-                    class="outreach-error"
-                    data-rate-last-error
-                    hidden
-                  ></p>
-                </div>
-              </article>
-            </template>
-          </section>
+            </article>
+          </template>
         </div>
       </aside>
     </div>
@@ -1837,7 +1684,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260924-draggable-nav-1"></script>
+  <script src="./app.js?v=20260924-notion-rate-limits-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

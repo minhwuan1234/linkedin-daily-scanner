@@ -2675,11 +2675,6 @@ function renderOutreachAccounts(
       ? accounts
       : [];
 
-  if (els.outreachAccountCount) {
-    els.outreachAccountCount.textContent =
-      `${rows.length} accounts`;
-  }
-
   renderRateLimitSidebarSummary(
     rows
   );
@@ -2721,47 +2716,6 @@ function renderOutreachAccounts(
         ".rate-limit-account-card"
       );
 
-    const current =
-      Boolean(
-        account.is_current_account
-      );
-
-    const status =
-      String(
-        account.status ||
-        "unknown"
-      );
-
-    const used =
-      Number(
-        account.used_in_current_turn || 0
-      );
-
-    const limit =
-      Number(
-        account.turn_limit || 0
-      );
-
-    const remaining =
-      Number(
-        account.remaining_in_current_turn || 0
-      );
-
-    const assigned =
-      Number(
-        account.total_assigned || 0
-      );
-
-    const completed =
-      Number(
-        account.completed_count || 0
-      );
-
-    const failed =
-      Number(
-        account.failed_count || 0
-      );
-
     const weeklySent =
       Number(
         account.weekly_success_count || 0
@@ -2784,10 +2738,6 @@ function renderOutreachAccounts(
           )
         )
       );
-
-    const quotaAvailable =
-      account.quota_available !== false &&
-      weeklyRemaining > 0;
 
     const weeklyPercent =
       Math.max(
@@ -2822,97 +2772,6 @@ function renderOutreachAccounts(
       )
     );
 
-    setText(
-      "[data-rate-account-status]",
-      status
-    );
-
-    setText(
-      "[data-rate-turn]",
-      `${used} / ${limit}`
-    );
-
-    setText(
-      "[data-rate-turn-remaining]",
-      remaining
-    );
-
-    setText(
-      "[data-rate-weekly-label]",
-      `${weeklySent} / ${weeklyLimit}`
-    );
-
-    setText(
-      "[data-rate-weekly-sent]",
-      `${weeklySent} / ${weeklyLimit}`
-    );
-
-    setText(
-      "[data-rate-weekly-remaining]",
-      weeklyRemaining
-    );
-
-    setText(
-      "[data-rate-assigned]",
-      assigned
-    );
-
-    setText(
-      "[data-rate-success]",
-      completed
-    );
-
-    setText(
-      "[data-rate-failed]",
-      failed
-    );
-
-    setText(
-      "[data-rate-last-job]",
-      account.last_job_code || "—"
-    );
-
-    setText(
-      "[data-rate-last-used]",
-      formatDate(
-        account.last_used_at
-      )
-    );
-
-    const statusPill =
-      fragment.querySelector(
-        "[data-rate-account-status]"
-      );
-
-    if (statusPill) {
-      statusPill.className =
-        `pill ${
-          quotaAvailable
-            ? "pill-neutral"
-            : "pill-red"
-        }`;
-    }
-
-    const currentLabel =
-      fragment.querySelector(
-        "[data-rate-account-current]"
-      );
-
-    if (currentLabel) {
-      currentLabel.hidden =
-        !current;
-    }
-
-    const limitedLabel =
-      fragment.querySelector(
-        "[data-rate-account-limited]"
-      );
-
-    if (limitedLabel) {
-      limitedLabel.hidden =
-        quotaAvailable;
-    }
-
     const progressBar =
       fragment.querySelector(
         "[data-rate-weekly-progress]"
@@ -2923,53 +2782,29 @@ function renderOutreachAccounts(
         `${weeklyPercent}%`;
     }
 
-    const lastUrl =
+    const progressTrack =
       fragment.querySelector(
-        "[data-rate-last-url]"
+        "[data-rate-progress-track]"
       );
 
-    if (lastUrl) {
-      const url =
-        String(
-          account.last_linkedin_url ||
-          ""
-        ).trim();
-
-      lastUrl.textContent =
-        url || "—";
-
-      if (url) {
-        lastUrl.href =
-          url;
-      } else {
-        lastUrl.removeAttribute(
-          "href"
-        );
-      }
-    }
-
-    const lastError =
-      fragment.querySelector(
-        "[data-rate-last-error]"
+    if (progressTrack) {
+      progressTrack.setAttribute(
+        "aria-valuenow",
+        String(Math.round(weeklyPercent))
       );
-
-    if (lastError) {
-      const errorText =
-        String(
-          account.last_error ||
-          ""
-        ).trim();
-
-      lastError.hidden =
-        !errorText;
-
-      lastError.textContent =
-        errorText;
+      progressTrack.setAttribute(
+        "aria-valuetext",
+        `${weeklySent} of ${weeklyLimit} weekly connections used`
+      );
     }
 
     card?.classList.toggle(
-      "is-current",
-      current
+      "is-warning",
+      weeklyPercent >= 80 && weeklyRemaining > 0
+    );
+    card?.classList.toggle(
+      "is-limited",
+      weeklyRemaining <= 0 || account.quota_available === false
     );
 
     els.outreachAccountsList.append(
