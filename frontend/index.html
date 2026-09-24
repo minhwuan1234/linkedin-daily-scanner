@@ -16,12 +16,12 @@
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260923-vertical-collapsed-footer-2" />
-  <link rel="stylesheet" href="./workflow-nav.css?v=20260923-shared-nav-1" />
+  <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260924-connect-progress-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
-  <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-inbox-3" />
+  <link rel="stylesheet" href="./replies-workspace.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
 </head>
@@ -1389,7 +1389,7 @@
     </section>
 
     </div>
-    <nav id="outreachWorkflowNavigation" class="outreach-workflow-tabs" aria-label="Outreach workflow">
+    <nav id="outreachWorkflowNavigation" class="outreach-workflow-tabs" aria-label="Outreach workflow" title="Drag to move">
       <button type="button" class="outreach-workflow-tab is-active" data-outreach-process-tab="connect" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3.5 19v-1a5.5 5.5 0 0 1 5.5-5.5h2M18 10v7m-3.5-3.5h7"/></svg><span class="workflow-step-label">Connect</span></button>
       <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="acceptance"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/></svg><span class="workflow-step-label">Acceptance</span></button>
       <button type="button" class="outreach-workflow-tab" data-outreach-process-tab="recipients"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><path d="M3 19v-1.5a6 6 0 0 1 12 0V19H3ZM16 5.5a3 3 0 0 1 0 5.5M17 13a5 5 0 0 1 4 5v1h-3"/></svg><span class="workflow-step-label">Recipients</span></button>
@@ -1837,7 +1837,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260924-replies-inbox-2"></script>
+  <script src="./app.js?v=20260924-draggable-nav-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

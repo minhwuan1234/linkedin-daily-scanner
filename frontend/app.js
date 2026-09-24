@@ -8628,6 +8628,93 @@ if (outreachWorkflowNavs.length && "ResizeObserver" in window) {
 
 window.addEventListener("resize", syncOutreachWorkflowPill);
 
+const draggableWorkflowNavigation = document.querySelector("#outreachWorkflowNavigation");
+const workflowNavPositionKey = "outreach-workflow-nav-position";
+
+function clampWorkflowNavPosition(left, top) {
+  const nav = draggableWorkflowNavigation;
+  if (!nav) return;
+  const margin = 8;
+  const clampedLeft = Math.min(
+    Math.max(margin, left),
+    Math.max(margin, window.innerWidth - nav.offsetWidth - margin)
+  );
+  const clampedTop = Math.min(
+    Math.max(margin, top),
+    Math.max(margin, window.innerHeight - nav.offsetHeight - margin)
+  );
+  nav.style.setProperty("--workflow-drag-left", `${clampedLeft}px`);
+  nav.style.setProperty("--workflow-drag-top", `${clampedTop}px`);
+  nav.classList.add("is-positioned");
+}
+
+if (draggableWorkflowNavigation) {
+  let savedPosition = null;
+  try {
+    savedPosition = JSON.parse(localStorage.getItem(workflowNavPositionKey) || "null");
+  } catch (_) {
+    // A malformed or unavailable saved position should leave the default layout intact.
+  }
+  if (Number.isFinite(savedPosition?.left) && Number.isFinite(savedPosition?.top)) {
+    clampWorkflowNavPosition(savedPosition.left, savedPosition.top);
+  }
+
+  let drag = null;
+  let suppressClick = false;
+  draggableWorkflowNavigation.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || event.target.closest("a, input, textarea, select")) return;
+    const rect = draggableWorkflowNavigation.getBoundingClientRect();
+    drag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      left: rect.left,
+      top: rect.top,
+      moved: false
+    };
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) < 5) return;
+    drag.moved = true;
+    suppressClick = true;
+    draggableWorkflowNavigation.classList.add("is-dragging");
+    clampWorkflowNavPosition(drag.left + dx, drag.top + dy);
+    event.preventDefault();
+  }, { passive: false });
+
+  const finishDrag = (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    if (drag.moved) {
+      const rect = draggableWorkflowNavigation.getBoundingClientRect();
+      try {
+        localStorage.setItem(workflowNavPositionKey, JSON.stringify({ left: rect.left, top: rect.top }));
+      } catch (_) {
+        // Navigation remains movable when browser storage is unavailable.
+      }
+      window.setTimeout(() => { suppressClick = false; }, 0);
+    }
+    draggableWorkflowNavigation.classList.remove("is-dragging");
+    drag = null;
+  };
+  window.addEventListener("pointerup", finishDrag);
+  window.addEventListener("pointercancel", finishDrag);
+  draggableWorkflowNavigation.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    suppressClick = false;
+  }, true);
+  window.addEventListener("resize", () => {
+    if (!draggableWorkflowNavigation.classList.contains("is-positioned")) return;
+    const rect = draggableWorkflowNavigation.getBoundingClientRect();
+    clampWorkflowNavPosition(rect.left, rect.top);
+  });
+}
+
 function setOutreachProcessTab(
   tabName
 ) {

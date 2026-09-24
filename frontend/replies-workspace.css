@@ -28,7 +28,7 @@
 .reply-inbox-person-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 650; }
 .reply-inbox-person-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #858580; font-size: 12px; }
 .reply-inbox-person-date { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9b9b96; font-size: 10px; }
-#tab-replies .outreach-list-pagination { flex-wrap: wrap; gap: 6px; margin: 0; padding: 9px 12px calc(76px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e8e8e5; color: #858580; background: #fff; }
+#tab-replies .outreach-list-pagination { flex: none; flex-wrap: wrap; gap: 6px; margin: auto 0 0; padding: 9px 12px; border-top: 1px solid #e8e8e5; color: #858580; background: #fff; }
 #tab-replies .outreach-list-pagination .panel-meta { font-size: 11px; }
 #tab-replies .outreach-list-pagination button { min-height: 30px; padding: 4px 8px; border-color: #e8e8e5; border-radius: 6px; color: #37352f; background: #fff; font-size: 11px; }
 .reply-inbox-conversation { display: flex; min-width: 0; min-height: 0; flex-direction: column; }
@@ -46,7 +46,7 @@
 .reply-inbox-message.is-own .reply-inbox-bubble { border-color: #d9e8f5; border-radius: 12px 12px 4px 12px; background: #eaf3fa; }
 .reply-inbox-message time { color: #9b9b96; font-size: 10px; }
 .reply-inbox-no-history { margin: auto; color: #858580; font-size: 13px; }
-.reply-inbox-compose { flex: none; padding: 12px 18px calc(76px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid #e8e8e5; background: #fff; }
+.reply-inbox-compose { flex: none; margin-top: auto; padding: 12px 18px; border-top: 1px solid #e8e8e5; background: #fff; }
 .reply-inbox-compose-field { position: relative; border: 1px solid #dcdcd7; border-radius: 10px; background: #fff; transition: border-color .16s, box-shadow .16s; }
 .reply-inbox-compose-field:focus-within { border-color: #0a66c2; box-shadow: 0 0 0 2px #0a66c21a; }
 #tab-replies .reply-inbox-compose-field textarea { display: block; width: 100%; min-height: 100px; padding: 12px 14px 48px; resize: vertical; border: 0 !important; outline: 0; border-radius: 10px !important; color: #37352f !important; background: #fff !important; box-shadow: none !important; font: inherit; font-size: 13px; }

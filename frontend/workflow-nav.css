@@ -243,6 +243,17 @@
   background: #fff !important;
   box-shadow: 0 10px 30px rgba(2, 12, 24, .24), 0 2px 6px rgba(2, 12, 24, .09) !important;
   isolation: isolate;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+#outreachWorkflowNavigation.is-dragging { cursor: grabbing; }
+#outreachWorkflowNavigation.is-dragging .outreach-workflow-tab { cursor: grabbing; }
+#outreachWorkflowNavigation.is-positioned {
+  left: var(--workflow-drag-left) !important;
+  top: var(--workflow-drag-top) !important;
+  bottom: auto !important;
+  transform: none !important;
 }
 #outreachWorkflowNavigation[hidden] { display: none !important; }
 #outreachWorkflowNavigation::before {
