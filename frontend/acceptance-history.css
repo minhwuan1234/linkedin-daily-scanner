@@ -8,9 +8,9 @@
 }
 
 #outreachAcceptanceHistoryModal .outreach-history-modal-backdrop {
-  background: rgba(24, 28, 34, .38) !important;
-  -webkit-backdrop-filter: blur(3px);
-  backdrop-filter: blur(3px);
+  background: rgba(0, 0, 0, .7) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 #outreachAcceptanceHistoryModal .outreach-history-modal-dialog {
