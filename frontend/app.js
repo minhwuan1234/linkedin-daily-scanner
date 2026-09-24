@@ -563,26 +563,14 @@ const els = {
   outreachReplyList:
     document.querySelector("#outreachReplyList"),
 
-  outreachReplySendModal:
-    document.querySelector("#outreachReplySendModal"),
+  outreachReplyInbox:
+    document.querySelector("#outreachReplyInbox"),
 
-  outreachReplySendMeta:
-    document.querySelector("#outreachReplySendMeta"),
+  outreachReplyConversation:
+    document.querySelector("#outreachReplyConversation"),
 
-  outreachReplySendInput:
-    document.querySelector("#outreachReplySendInput"),
-
-  outreachReplySendError:
-    document.querySelector("#outreachReplySendError"),
-
-  outreachReplySendCloseButton:
-    document.querySelector("#outreachReplySendCloseButton"),
-
-  outreachReplySendCancelButton:
-    document.querySelector("#outreachReplySendCancelButton"),
-
-  outreachReplySendSaveButton:
-    document.querySelector("#outreachReplySendSaveButton"),
+  outreachReplyAccountCount:
+    document.querySelector("#outreachReplyAccountCount"),
 
   pageEyebrow:
     document.querySelector("#pageEyebrow"),
@@ -684,10 +672,11 @@ const state = {
   outreachReplies: [],
   outreachReplyAccounts: [],
   outreachReplySelectedAccountId: null,
+  outreachReplySelectedIdByAccount: {},
+  outreachReplyDrafts: {},
+  outreachReplySendErrors: {},
   outreachReplyPageByAccount: {},
-  outreachReplyExpandedIds: new Set(),
   outreachRepliesLoading: false,
-  outreachReplySendSelectedId: null,
   outreachReplySendSubmitting: false,
   tableErrors: {},
   commandPending: false
@@ -8179,430 +8168,194 @@ function closeDrawer() {
   document.body.style.overflow = "";
 }
 
-function closeOutreachReplySendModal() {
-  if (!els.outreachReplySendModal || state.outreachReplySendSubmitting) {
-    return;
-  }
-  els.outreachReplySendModal.hidden = true;
-  state.outreachReplySendSelectedId = null;
-  document.body.style.overflow = "";
-}
 
-function openOutreachReplySendModal(reply) {
-  if (!els.outreachReplySendModal || !els.outreachReplySendInput) {
-    return;
-  }
-  const replyId = String(reply?.id || "").trim();
-  if (!replyId) {
-    return;
-  }
-  state.outreachReplySendSelectedId = replyId;
-  els.outreachReplySendInput.value = String(
-    reply?.send_job?.message_text || ""
-  );
-  if (els.outreachReplySendMeta) {
-    const accountId = String(reply.assigned_account_id || "").trim();
-    const account = state.outreachReplyAccounts.find(
-      (item) => String(item.account_id || "").trim() === accountId
-    );
-    const accountName = String(
-      account?.display_name || accountId || "Outreach account"
-    );
-    els.outreachReplySendMeta.textContent =
-      `${reply.user_name || "LinkedIn user"} · ${accountName}`;
-  }
-  if (els.outreachReplySendError) {
-    els.outreachReplySendError.hidden = true;
-    els.outreachReplySendError.textContent = "";
-  }
-  els.outreachReplySendModal.hidden = false;
-  document.body.style.overflow = "hidden";
-  window.setTimeout(() => els.outreachReplySendInput?.focus(), 0);
-}
-
-async function sendCustomizedOutreachReply() {
-  const replyId = state.outreachReplySendSelectedId;
-  const messageText = String(els.outreachReplySendInput?.value || "").trim();
-  if (!replyId || !messageText || state.outreachReplySendSubmitting) {
-    if (!messageText && els.outreachReplySendError) {
-      els.outreachReplySendError.textContent = "Enter a message before saving.";
-      els.outreachReplySendError.hidden = false;
-    }
-    return;
-  }
-
-  state.outreachReplySendSubmitting = true;
-  if (els.outreachReplySendSaveButton) {
-    els.outreachReplySendSaveButton.disabled = true;
-    els.outreachReplySendSaveButton.textContent = "Sending...";
-  }
-
-  try {
-    const response = await fetch(
-      `/api/outreach/replies/${encodeURIComponent(replyId)}/send`,
-      {
-        method: "POST",
-        headers: {
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ message_text: messageText })
-      }
-    );
-    const result = await response.json();
-    if (!response.ok || !result.ok) {
-      throw new Error(result.error || "Could not queue the reply message.");
-    }
-
-    const reply = state.outreachReplies.find(
-      (item) => String(item.id || "") === replyId
-    );
-    if (reply) {
-      reply.send_job = result.job;
-    }
-    state.outreachReplySendSubmitting = false;
-    closeOutreachReplySendModal();
-    renderOutreachReplies();
-  } catch (error) {
-    if (els.outreachReplySendError) {
-      els.outreachReplySendError.textContent = error.message || String(error);
-      els.outreachReplySendError.hidden = false;
-    }
-  } finally {
-    state.outreachReplySendSubmitting = false;
-    if (els.outreachReplySendSaveButton) {
-      els.outreachReplySendSaveButton.disabled = false;
-      els.outreachReplySendSaveButton.textContent = "Send";
-    }
-  }
-}
-
-function renderOutreachReplies() {
-  const replies = Array.isArray(state.outreachReplies)
-    ? state.outreachReplies
-    : [];
-
-  const configuredAccounts = Array.isArray(state.outreachReplyAccounts)
-    ? state.outreachReplyAccounts.slice(0, 5)
-    : [];
-
-  const accountMap = new Map(
-    configuredAccounts.map((account) => [
-      String(account.account_id || "").trim(),
-      String(account.display_name || account.account_id || "Outreach account").trim()
-    ])
-  );
-
+function renderOutreachReplyInbox() {
+  const replies = Array.isArray(state.outreachReplies) ? state.outreachReplies : [];
+  const configured = Array.isArray(state.outreachReplyAccounts)
+    ? state.outreachReplyAccounts.slice(0, 5) : [];
+  const accountMap = new Map(configured.map((account) => [
+    String(account.account_id || "").trim(),
+    String(account.display_name || account.account_id || "Outreach account").trim()
+  ]));
   replies.forEach((reply) => {
-    const accountId = String(reply.assigned_account_id || "").trim();
-    if (accountId && !accountMap.has(accountId) && accountMap.size < 5) {
-      accountMap.set(accountId, accountId);
-    }
+    const id = String(reply.assigned_account_id || "").trim();
+    if (id && !accountMap.has(id) && accountMap.size < 5) accountMap.set(id, id);
   });
-
-  const accounts = Array.from(accountMap.entries()).map(
-    ([accountId, displayName]) => ({ accountId, displayName })
-  );
-
-  if (
-    !state.outreachReplySelectedAccountId ||
-    !accountMap.has(state.outreachReplySelectedAccountId)
-  ) {
-    const accountWithReply = accounts.find((account) =>
-      replies.some(
-        (reply) =>
-          String(reply.assigned_account_id || "").trim() === account.accountId
-      )
-    );
-    state.outreachReplySelectedAccountId =
-      accountWithReply?.accountId || accounts[0]?.accountId || null;
+  const accounts = Array.from(accountMap, ([id, name]) => ({ id, name }));
+  if (!accountMap.has(state.outreachReplySelectedAccountId)) {
+    state.outreachReplySelectedAccountId = accounts.find((account) =>
+      replies.some((reply) => String(reply.assigned_account_id || "").trim() === account.id)
+    )?.id || accounts[0]?.id || null;
   }
-
-  if (els.outreachReplyTabCount) {
-    els.outreachReplyTabCount.textContent = String(replies.length);
-  }
-
+  if (els.outreachReplyTabCount) els.outreachReplyTabCount.textContent = String(replies.length);
   if (els.outreachReplyCount) {
     els.outreachReplyCount.textContent = state.outreachRepliesLoading
-      ? "Loading"
-      : `${replies.length} ${replies.length === 1 ? "person" : "people"}`;
+      ? "Loading" : `${replies.length} ${replies.length === 1 ? "person" : "people"}`;
   }
-
-  if (els.outreachReplyAccountTabs) {
-    els.outreachReplyAccountTabs.replaceChildren();
-    accounts.forEach((account) => {
-      const accountReplyCount = replies.filter(
-        (reply) =>
-          String(reply.assigned_account_id || "").trim() === account.accountId
-      ).length;
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "outreach-reply-account-tab";
-      button.classList.toggle(
-        "is-active",
-        account.accountId === state.outreachReplySelectedAccountId
-      );
-      button.setAttribute("role", "tab");
-      button.setAttribute(
-        "aria-selected",
-        account.accountId === state.outreachReplySelectedAccountId
-          ? "true"
-          : "false"
-      );
-      button.innerHTML = `
-        <strong>${escapeHtml(account.displayName)}</strong>
-        <span>${accountReplyCount}</span>
-      `;
-      button.addEventListener("click", () => {
-        state.outreachReplySelectedAccountId = account.accountId;
-        renderOutreachReplies();
-      });
-      els.outreachReplyAccountTabs.appendChild(button);
+  els.outreachReplyAccountTabs?.replaceChildren();
+  accounts.forEach((account) => {
+    const count = replies.filter((reply) =>
+      String(reply.assigned_account_id || "").trim() === account.id
+    ).length;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "outreach-reply-account-tab";
+    button.classList.toggle("is-active", account.id === state.outreachReplySelectedAccountId);
+    button.setAttribute("role", "tab");
+    button.setAttribute("aria-selected", String(account.id === state.outreachReplySelectedAccountId));
+    button.innerHTML = `<strong>${escapeHtml(account.name)}</strong><span>${count}</span>`;
+    button.addEventListener("click", () => {
+      state.outreachReplySelectedAccountId = account.id;
+      renderOutreachReplies();
     });
-  }
+    els.outreachReplyAccountTabs?.appendChild(button);
+  });
 
-  if (!els.outreachReplyList || !els.outreachReplyEmpty) {
-    return;
-  }
-
+  if (!els.outreachReplyList || !els.outreachReplyConversation || !els.outreachReplyInbox) return;
   els.outreachReplyList.replaceChildren();
-
+  els.outreachReplyConversation.replaceChildren();
   if (state.outreachRepliesLoading) {
     els.outreachReplyEmpty.hidden = false;
     els.outreachReplyEmpty.textContent = "Loading verified replies...";
-    els.outreachReplyList.hidden = true;
-    if (els.outreachReplyPagination) {
-      els.outreachReplyPagination.hidden = true;
-    }
+    els.outreachReplyInbox.hidden = true;
     return;
   }
-
-  const selectedAccountId = state.outreachReplySelectedAccountId;
-  const accountReplies = replies.filter(
-    (reply) =>
-      String(reply.assigned_account_id || "").trim() === selectedAccountId
+  const accountId = state.outreachReplySelectedAccountId;
+  const accountReplies = replies.filter((reply) =>
+    String(reply.assigned_account_id || "").trim() === accountId
   );
-
   if (!accountReplies.length) {
     els.outreachReplyEmpty.hidden = false;
-    els.outreachReplyEmpty.textContent =
-      accounts.length
-        ? "No verified replies have been captured for this account yet."
-        : "No verified replies have been captured yet.";
-    els.outreachReplyList.hidden = true;
-    if (els.outreachReplyPagination) {
-      els.outreachReplyPagination.hidden = true;
-    }
+    els.outreachReplyEmpty.textContent = accounts.length
+      ? "No verified replies have been captured for this account yet."
+      : "No verified replies have been captured yet.";
+    els.outreachReplyInbox.hidden = true;
     return;
   }
+  els.outreachReplyEmpty.hidden = true;
+  els.outreachReplyInbox.hidden = false;
+  if (els.outreachReplyAccountCount) els.outreachReplyAccountCount.textContent = String(accountReplies.length);
 
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(accountReplies.length / pageSize));
-  const requestedPage = Number(
-    state.outreachReplyPageByAccount[selectedAccountId] || 1
-  );
-  const currentPage = Math.min(
-    pageCount,
-    Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1)
-  );
-  state.outreachReplyPageByAccount[selectedAccountId] = currentPage;
+  const requestedPage = Number(state.outreachReplyPageByAccount[accountId] || 1);
+  const currentPage = Math.min(pageCount, Math.max(1, Number.isFinite(requestedPage) ? requestedPage : 1));
+  state.outreachReplyPageByAccount[accountId] = currentPage;
   const pageStart = (currentPage - 1) * pageSize;
   const visibleReplies = accountReplies.slice(pageStart, pageStart + pageSize);
+  if (els.outreachReplyPageMeta) els.outreachReplyPageMeta.textContent =
+    `Page ${currentPage} / ${pageCount} · ${pageStart + 1}-${Math.min(pageStart + pageSize, accountReplies.length)} of ${accountReplies.length}`;
+  if (els.outreachReplyPrevPage) els.outreachReplyPrevPage.disabled = currentPage <= 1;
+  if (els.outreachReplyNextPage) els.outreachReplyNextPage.disabled = currentPage >= pageCount;
+  if (els.outreachReplyPagination) els.outreachReplyPagination.hidden = pageCount <= 1;
 
-  if (els.outreachReplyPageMeta) {
-    const firstItem = pageStart + 1;
-    const lastItem = Math.min(pageStart + pageSize, accountReplies.length);
-    els.outreachReplyPageMeta.textContent =
-      `Page ${currentPage} / ${pageCount} · ${firstItem}-${lastItem} of ${accountReplies.length}`;
+  const selectedIds = state.outreachReplySelectedIdByAccount;
+  if (!visibleReplies.some((reply) => String(reply.id) === selectedIds[accountId])) {
+    selectedIds[accountId] = String(visibleReplies[0]?.id || "");
   }
-  if (els.outreachReplyPrevPage) {
-    els.outreachReplyPrevPage.disabled = currentPage <= 1;
-  }
-  if (els.outreachReplyNextPage) {
-    els.outreachReplyNextPage.disabled = currentPage >= pageCount;
-  }
-  if (els.outreachReplyPagination) {
-    els.outreachReplyPagination.hidden = false;
-  }
-
   visibleReplies.forEach((reply) => {
-  const card = document.createElement("article");
-  card.className = "outreach-reply-card";
-
-  const userName = String(reply.user_name || "Unknown LinkedIn user").trim();
-  const linkedInUrl = String(reply.linkedin_url || "").trim();
-  const messageText = String(reply.message_text || "").trim();
-  const messageBatchCode = String(reply.message_batch_code || "").trim();
-  const accountName = accountMap.get(selectedAccountId) || selectedAccountId;
-  const rawReplyTime = String(reply.linkedin_message_time || "").trim();
-  let replyTime = reply.captured_at
-    ? formatDate(reply.captured_at)
-    : "Reply time unavailable";
-
-  if (rawReplyTime) {
-    const hasDateEvidence =
-      /\d{4}-\d{2}-\d{2}|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|monday|tuesday|wednesday|thursday|friday|saturday|sunday|today|yesterday)\b/i
-        .test(rawReplyTime);
-    if (hasDateEvidence) {
-      replyTime = rawReplyTime;
-    } else if (reply.captured_at) {
-      const capturedDate = new Date(reply.captured_at);
-      const datePart = Number.isNaN(capturedDate.getTime())
-        ? ""
-        : capturedDate.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric"
-          });
-      replyTime = datePart ? `${datePart} · ${rawReplyTime}` : rawReplyTime;
-    } else {
-      replyTime = rawReplyTime;
-    }
-  }
-
-  let safeUrl = "";
-  try {
-    const parsedUrl = new URL(linkedInUrl);
-    if (parsedUrl.protocol === "https:" || parsedUrl.protocol === "http:") {
-      safeUrl = parsedUrl.href;
-    }
-  } catch (error) {
-    safeUrl = "";
-  }
-
-  const rawConversationMessages = Array.isArray(reply.conversation_messages)
-    ? reply.conversation_messages
-    : [];
-  const conversationMessages = rawConversationMessages.reduce(
-    (messages, rawMessage) => {
-      const message = rawMessage && typeof rawMessage === "object"
-        ? { ...rawMessage }
-        : {};
-      const normalizedText = String(message.text || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toLocaleLowerCase();
-      const previous = messages[messages.length - 1];
-      const previousText = previous
-        ? String(previous.text || "")
-            .replace(/\s+/g, " ")
-            .trim()
-            .toLocaleLowerCase()
-        : "";
-      const previousTimestamp = String(previous?.timestamp || "").trim();
-      const currentTimestamp = String(message.timestamp || "").trim();
-      const isNestedDuplicate = Boolean(
-        previous &&
-        normalizedText &&
-        normalizedText === previousText &&
-        Boolean(message.is_own_message) ===
-          Boolean(previous.is_own_message)
-      );
-
-      if (isNestedDuplicate) {
-        if (
-          currentTimestamp.length > previousTimestamp.length
-        ) {
-          previous.timestamp = currentTimestamp;
-        }
-        if (!previous.author && message.author) {
-          previous.author = message.author;
-        }
-        previous.is_incoming = Boolean(
-          previous.is_incoming || message.is_incoming
-        );
-        return messages;
-      }
-
-      messages.push(message);
-      return messages;
-    },
-    []
-  );
-  const replyId = String(
-    reply.id || reply.linkedin_url || reply.user_name || "unknown-reply"
-  );
-  const conversationExpanded = state.outreachReplyExpandedIds.has(replyId);
-  const conversationHtml = conversationMessages.length
-    ? conversationMessages.map((message) => `
-        <article class="outreach-conversation-message ${message.is_own_message ? "is-own" : "is-incoming"}">
-          <div class="outreach-conversation-message-meta">
-            <strong>${escapeHtml(message.is_own_message ? accountName : userName)}</strong>
-            <span>${escapeHtml(message.timestamp || "")}</span>
-          </div>
-          <p>${escapeHtml(message.text || "")}</p>
-        </article>
-      `).join("")
-    : `<p class="panel-meta">Run the updated Reply Check Worker once to capture the full conversation.</p>`;
-  const sendJob = reply.send_job && typeof reply.send_job === "object"
-    ? reply.send_job
-    : null;
-  const sendStatus = String(sendJob?.status || "not prepared").toLowerCase();
-  const sendLocked = sendStatus === "queued" || sendStatus === "processing";
-  const prepareLabel = sendStatus === "sent"
-    ? "Send another reply"
-    : sendJob
-      ? "Edit and send"
-      : "Send reply";
-
-  card.innerHTML = `
-      <div class="outreach-reply-main">
-        <div class="outreach-reply-title-row">
-          <h3>${escapeHtml(userName)}</h3>
-          ${messageBatchCode
-            ? `<span class="outreach-reply-message-batch">${escapeHtml(messageBatchCode)}</span>`
-            : ""}
-          <span class="outreach-reply-account-name">${escapeHtml(accountName)}</span>
-        </div>
-        <div class="outreach-reply-meta">
-          ${safeUrl
-            ? `<a class="outreach-reply-link" href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkedInUrl)}</a>`
-            : `<span>${escapeHtml(linkedInUrl || "LinkedIn URL unavailable")}</span>`}
-          <span class="outreach-reply-time">Replied ${escapeHtml(replyTime)}</span>
-        </div>
-        <p class="outreach-reply-message">${escapeHtml(messageText || "No message content captured.")}</p>
-        <div class="outreach-reply-card-controls">
-          <button class="secondary-button outreach-conversation-toggle" type="button">
-            ${conversationExpanded ? "Hide full conversation" : "Show full conversation"}
-          </button>
-        </div>
-        <div class="outreach-full-conversation" ${conversationExpanded ? "" : "hidden"} tabindex="0">
-          ${conversationHtml}
-        </div>
-      </div>
-      <div class="outreach-reply-actions">
-        <span class="pill pill-neutral outreach-reply-send-status">${escapeHtml(sendStatus)}</span>
-        <button
-          class="secondary-button outreach-reply-button"
-          type="button"
-          ${sendLocked ? "disabled" : ""}
-        >${escapeHtml(prepareLabel)}</button>
-        ${sendStatus === "failed" && sendJob?.last_error
-          ? `<small class="outreach-reply-send-error">${escapeHtml(sendJob.last_error)}</small>`
-          : ""}
-      </div>
-    `;
-
-  card
-    .querySelector(".outreach-conversation-toggle")
-    ?.addEventListener("click", () => {
-      if (state.outreachReplyExpandedIds.has(replyId)) {
-        state.outreachReplyExpandedIds.delete(replyId);
-      } else {
-        state.outreachReplyExpandedIds.add(replyId);
-      }
+    const id = String(reply.id || "");
+    const name = String(reply.user_name || "LinkedIn user").trim();
+    const text = String(reply.message_text || "No message content captured.").trim();
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "reply-inbox-person";
+    row.classList.toggle("is-active", id === selectedIds[accountId]);
+    row.setAttribute("aria-current", id === selectedIds[accountId] ? "true" : "false");
+    row.innerHTML = `<span class="reply-inbox-avatar" aria-hidden="true">${escapeHtml(name.charAt(0).toUpperCase())}</span>
+      <span class="reply-inbox-person-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(text)}</small></span>
+      <span class="reply-inbox-person-date">${escapeHtml(reply.captured_at ? formatDate(reply.captured_at) : "")}</span>`;
+    row.addEventListener("click", () => {
+      selectedIds[accountId] = id;
       renderOutreachReplies();
     });
-
-  card
-    .querySelector(".outreach-reply-button")
-    ?.addEventListener("click", () => openOutreachReplySendModal(reply));
-
-  els.outreachReplyList.appendChild(card);
+    els.outreachReplyList.appendChild(row);
   });
 
-  els.outreachReplyEmpty.hidden = true;
-  els.outreachReplyList.hidden = false;
+  const reply = visibleReplies.find((item) => String(item.id) === selectedIds[accountId]);
+  if (!reply) return;
+  const id = String(reply.id || "");
+  const name = String(reply.user_name || "LinkedIn user").trim();
+  const accountName = accountMap.get(accountId) || accountId;
+  const batch = String(reply.message_batch_code || "").trim();
+  const rawUrl = String(reply.linkedin_url || "").trim();
+  let safeUrl = "";
+  try {
+    const url = new URL(rawUrl);
+    if (["https:", "http:"].includes(url.protocol)) safeUrl = url.href;
+  } catch (error) { /* No navigable LinkedIn URL. */ }
+  const sourceMessages = Array.isArray(reply.conversation_messages) ? reply.conversation_messages : [];
+  const messages = sourceMessages.filter((message, index) => {
+    const previous = sourceMessages[index - 1];
+    return !previous || String(previous.text || "").trim() !== String(message.text || "").trim() ||
+      Boolean(previous.is_own_message) !== Boolean(message.is_own_message);
+  });
+  if (!messages.length && reply.message_text) {
+    messages.push({ text: reply.message_text, is_own_message: false, timestamp: reply.linkedin_message_time || "" });
+  }
+  const job = reply.send_job && typeof reply.send_job === "object" ? reply.send_job : null;
+  const status = String(job?.status || "").toLowerCase();
+  const locked = state.outreachReplySendSubmitting || status === "queued" || status === "processing";
+  const header = `<header class="reply-inbox-chat-header">
+    <span class="reply-inbox-avatar is-large" aria-hidden="true">${escapeHtml(name.charAt(0).toUpperCase())}</span>
+    <div class="reply-inbox-chat-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(accountName)}${batch ? ` · ${escapeHtml(batch)}` : ""}</p></div>
+    ${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="reply-inbox-link">LinkedIn ↗</a>` : ""}
+  </header>`;
+  const conversation = messages.length ? messages.map((message) => `
+    <article class="reply-inbox-message ${message.is_own_message ? "is-own" : "is-incoming"}">
+      <span class="reply-inbox-message-author">${escapeHtml(message.is_own_message ? accountName : name)}</span>
+      <div class="reply-inbox-bubble">${escapeHtml(message.text || "")}</div>
+      <time>${escapeHtml(message.timestamp || "")}</time>
+    </article>`).join("") : `<p class="reply-inbox-no-history">No conversation history captured yet.</p>`;
+  els.outreachReplyConversation.innerHTML = `${header}
+    <div class="reply-inbox-thread">${conversation}</div>
+    <div class="reply-inbox-compose">
+      ${job ? `<p class="reply-inbox-job-status">Worker status: ${escapeHtml(status)}${job.last_error ? ` · ${escapeHtml(job.last_error)}` : ""}</p>` : ""}
+      <div class="reply-inbox-compose-field">
+        <textarea id="outreachReplyInlineInput" rows="3" aria-label="Reply message" placeholder="Message..."></textarea>
+        <button id="outreachReplyInlineSend" type="button" ${locked ? "disabled" : ""} aria-label="Send via worker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-8-8 18-2.5-7.5L3 11Z"/><path d="M10.5 13.5 21 3"/></svg><span>${state.outreachReplySendSubmitting ? "Sending..." : "Send via worker"}</span></button>
+      </div>
+      <p id="outreachReplyInlineError" class="reply-inbox-inline-error" ${state.outreachReplySendErrors[id] ? "" : "hidden"}>${escapeHtml(state.outreachReplySendErrors[id] || "")}</p>
+    </div>`;
+  const input = els.outreachReplyConversation.querySelector("#outreachReplyInlineInput");
+  input.value = Object.prototype.hasOwnProperty.call(state.outreachReplyDrafts, id)
+    ? state.outreachReplyDrafts[id] : String(job?.message_text || "");
+  input.addEventListener("input", () => { state.outreachReplyDrafts[id] = input.value; });
+  els.outreachReplyConversation.querySelector("#outreachReplyInlineSend")?.addEventListener("click", async () => {
+    const messageText = input.value.trim();
+    const errorEl = els.outreachReplyConversation.querySelector("#outreachReplyInlineError");
+    if (!messageText) {
+      errorEl.textContent = "Enter a message before sending.";
+      errorEl.hidden = false;
+      input.focus();
+      return;
+    }
+    if (!window.confirm(`Send this reply to ${name} via the LinkedIn worker?`)) return;
+    delete state.outreachReplySendErrors[id];
+    state.outreachReplySendSubmitting = true;
+    renderOutreachReplies();
+    try {
+      const response = await fetch(`/api/outreach/replies/${encodeURIComponent(id)}/send`, {
+        method: "POST", headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify({ message_text: messageText })
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || "Could not queue the reply message.");
+      reply.send_job = result.job;
+      delete state.outreachReplyDrafts[id];
+    } catch (error) {
+      state.outreachReplyDrafts[id] = messageText;
+      state.outreachReplySendErrors[id] = error.message || String(error);
+    } finally {
+      state.outreachReplySendSubmitting = false;
+      renderOutreachReplies();
+    }
+  });
+  els.outreachReplyConversation.querySelector(".reply-inbox-thread")?.scrollTo({ top: 999999 });
+}
+
+function renderOutreachReplies() {
+  renderOutreachReplyInbox();
 }
 
 async function loadOutreachReplies() {
@@ -8824,27 +8577,6 @@ els.outreachReplyNextPage?.addEventListener("click", () => {
   state.outreachReplyPageByAccount[accountId] = currentPage + 1;
   renderOutreachReplies();
 });
-
-els.outreachReplySendCloseButton?.addEventListener(
-  "click",
-  closeOutreachReplySendModal
-);
-
-els.outreachReplySendCancelButton?.addEventListener(
-  "click",
-  closeOutreachReplySendModal
-);
-
-document
-  .querySelectorAll("[data-outreach-reply-send-close]")
-  .forEach((element) => {
-    element.addEventListener("click", closeOutreachReplySendModal);
-  });
-
-els.outreachReplySendSaveButton?.addEventListener(
-  "click",
-  () => void sendCustomizedOutreachReply()
-);
 
 els.killProcessButton?.addEventListener(
   "click",
