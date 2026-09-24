@@ -23,9 +23,9 @@
 #rateLimitDrawer .rate-limit-drawer-panel {
   position: absolute;
   top: 50%;
-  right: 24px;
+  right: auto;
   bottom: auto;
-  left: auto;
+  left: 50%;
   display: flex !important;
   width: min(480px, calc(100vw - 48px)) !important;
   height: auto !important;
@@ -39,13 +39,13 @@
   box-shadow: 0 24px 72px rgba(22, 27, 33, .22) !important;
   color: var(--rate-text);
   opacity: 0;
-  transform: translate(calc(100% + 32px), -50%);
+  transform: translate(calc(-50% + 36px), -50%);
   transition: transform 300ms cubic-bezier(.22, 1, .36, 1), opacity 250ms ease;
 }
 
 #rateLimitDrawer.is-open .rate-limit-drawer-panel {
   opacity: 1;
-  transform: translate(0, -50%);
+  transform: translate(-50%, -50%);
 }
 
 #rateLimitDrawer .rate-limit-drawer-header {
@@ -191,15 +191,16 @@
 @media (max-width: 560px) {
   #rateLimitDrawer .rate-limit-drawer-panel {
     top: 50%;
-    right: 8px;
+    right: auto;
+    left: 50%;
     width: calc(100vw - 16px) !important;
     max-width: calc(100vw - 16px);
     max-height: calc(100dvh - 16px) !important;
-    transform: translate(calc(100% + 16px), -50%);
+    transform: translate(calc(-50% + 24px), -50%);
   }
 
   #rateLimitDrawer.is-open .rate-limit-drawer-panel {
-    transform: translate(0, -50%);
+    transform: translate(-50%, -50%);
   }
 }
 
