@@ -384,9 +384,6 @@ const els = {
   outreachAcceptanceHistoryModalTitle:
     document.querySelector("#outreachAcceptanceHistoryModalTitle"),
 
-  outreachAcceptanceHistoryModalCount:
-    document.querySelector("#outreachAcceptanceHistoryModalCount"),
-
   outreachAcceptanceHistoryModalEmpty:
     document.querySelector("#outreachAcceptanceHistoryModalEmpty"),
 
@@ -3096,12 +3093,6 @@ function renderAcceptanceHistoryModal() {
   if (els.outreachAcceptanceHistoryModalTitle) {
     els.outreachAcceptanceHistoryModalTitle.textContent =
       `${getConnectCampaignLabel(job) || "Connect Job"} · Check runs`;
-  }
-
-  if (els.outreachAcceptanceHistoryModalCount) {
-    els.outreachAcceptanceHistoryModalCount.textContent = loading
-      ? "Loading"
-      : `${runs.length} ${runs.length === 1 ? "run" : "runs"}`;
   }
 
   const empty = els.outreachAcceptanceHistoryModalEmpty;

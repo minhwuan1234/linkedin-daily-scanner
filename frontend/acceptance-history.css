@@ -1,0 +1,190 @@
+/* Notion-style acceptance check history modal. */
+#outreachAcceptanceHistoryModal {
+  --history-text: #292927;
+  --history-muted: #73736f;
+  --history-border: #e6e6e2;
+  padding: 16px;
+  color: var(--history-text);
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-backdrop {
+  background: rgba(24, 28, 34, .38) !important;
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-dialog {
+  display: flex;
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--history-border) !important;
+  border-radius: 16px;
+  background: #fff !important;
+  box-shadow: 0 24px 72px rgba(22, 27, 33, .22) !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-header {
+  flex: 0 0 auto;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--history-border) !important;
+  background: #fff !important;
+}
+
+#outreachAcceptanceHistoryModal .panel-kicker {
+  color: #0a66c2 !important;
+  font-size: 10px !important;
+  letter-spacing: .1em !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-header h2 {
+  margin: 2px 0 5px;
+  color: var(--history-text) !important;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+#outreachAcceptanceHistoryModal .panel-meta {
+  color: var(--history-muted) !important;
+  line-height: 1.5;
+}
+
+#outreachAcceptanceHistoryModal .close-button {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border: 1px solid var(--history-border) !important;
+  border-radius: 9px !important;
+  background: #fff !important;
+  color: #64645f !important;
+}
+
+#outreachAcceptanceHistoryModal .close-button:hover,
+#outreachAcceptanceHistoryModal .close-button:focus-visible {
+  border-color: #c5c5c0 !important;
+  background: #f6f6f4 !important;
+  color: var(--history-text) !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-history-modal-body {
+  min-height: 0;
+  padding: 18px 22px 22px;
+  overflow: hidden;
+  background: #fff;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-list {
+  display: grid;
+  max-height: 350px;
+  margin: 0;
+  padding: 0 6px 0 0;
+  gap: 10px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-item {
+  display: grid;
+  min-height: 110px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--history-border) !important;
+  border-radius: 11px;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-run {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-run .pill {
+  min-height: 26px;
+  border-radius: 100px;
+  font-size: 10px;
+}
+
+#outreachAcceptanceHistoryModal .outreach-table-subtext {
+  color: var(--history-muted) !important;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-metrics {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 7px;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-metrics > div {
+  display: grid;
+  min-width: 0;
+  min-height: 66px;
+  padding: 9px 10px;
+  align-content: space-between;
+  gap: 5px;
+  border: 1px solid #ecece8 !important;
+  border-radius: 8px;
+  background: #f7f7f5 !important;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-metrics span {
+  color: var(--history-muted) !important;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+#outreachAcceptanceHistoryModal .outreach-acceptance-history-metrics strong {
+  color: var(--history-text) !important;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+#outreachAcceptanceHistoryModal .outreach-job-empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--history-muted) !important;
+  background: #fff !important;
+}
+
+@media (max-width: 720px) {
+  #outreachAcceptanceHistoryModal {
+    padding: 8px;
+  }
+
+  #outreachAcceptanceHistoryModal .outreach-history-modal-dialog {
+    width: calc(100vw - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  #outreachAcceptanceHistoryModal .outreach-acceptance-history-item {
+    grid-template-columns: 1fr;
+  }
+
+  #outreachAcceptanceHistoryModal .outreach-acceptance-history-run {
+    align-items: center;
+    flex-direction: row;
+    justify-content: space-between;
+  }
+
+  #outreachAcceptanceHistoryModal .outreach-acceptance-history-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
