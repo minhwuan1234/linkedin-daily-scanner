@@ -2004,7 +2004,7 @@ function populateAcceptanceInsightsJobFilter() {
     option.value = jobId;
     option.textContent =
       String(
-        job.job_code ||
+        getConnectCampaignLabel(job) ||
         jobId
       );
 
@@ -3108,6 +3108,10 @@ async function queueOutreachAcceptanceCheck(
 }
 
 
+function getConnectCampaignLabel(job) {
+  return String(job?.display_name || job?.job_code || job?.id || "").trim();
+}
+
 function getLatestAcceptanceCheckedAt(acceptance){if(!acceptance)return null;return acceptance.completed_at||acceptance.updated_at||acceptance.started_at||null}
 function getAcceptanceDisplayStatus(acceptance){return acceptance?normaliseStatus(acceptance.status||"not_checked"):"not_checked"}
 function getAcceptanceStatusLabel(acceptance){const s=getAcceptanceDisplayStatus(acceptance),n=Number(acceptance?.run_number||0);if(s==="not_checked")return"Not checked";const l=s==="pending"?"Queued":s==="running"?"Checking":s==="completed"?"Completed":s==="failed"?"Check failed":statusLabel(s);return n>0?`#${n} ${l}`:l}
@@ -3257,7 +3261,7 @@ function renderAcceptanceHistoryModal() {
 
   if (els.outreachAcceptanceHistoryModalTitle) {
     els.outreachAcceptanceHistoryModalTitle.textContent =
-      `${job.job_code || "Connect Job"} · Check runs`;
+      `${getConnectCampaignLabel(job) || "Connect Job"} · Check runs`;
   }
 
   if (els.outreachAcceptanceHistoryModalCount) {
@@ -3403,7 +3407,7 @@ function openAcceptanceDeleteJobsModal() {
       .map(
         (job) =>
           String(
-            job.job_code ||
+            getConnectCampaignLabel(job) ||
             job.id ||
             ""
           ).trim()
@@ -3484,7 +3488,7 @@ async function deleteSelectedAcceptanceJobs() {
           );
 
         throw new Error(
-          `${job?.job_code || jobId}: ${
+          `${getConnectCampaignLabel(job) || jobId}: ${
             result.detail ||
             result.error ||
             "Delete failed."
@@ -3910,7 +3914,7 @@ function renderOutreachAcceptanceJobs(
 
     setText(
       "[data-acceptance-job-code]",
-      job.job_code || "—"
+      getConnectCampaignLabel(job) || "—"
     );
 
     setText(
@@ -4383,6 +4387,7 @@ function getAcceptedPoolConnectIdLabel(
 ) {
   const jobCode =
     String(
+      item?.display_name ||
       item?.job_code ||
       ""
     ).trim();
@@ -5371,6 +5376,7 @@ function getMessageBatchSourceLabel(
 ) {
   const code =
     String(
+      source?.display_name ||
       source?.code ||
       ""
     ).trim();
@@ -5393,7 +5399,6 @@ function getMessageBatchSourceLabel(
     ? `${id.slice(0, 8)}…${id.slice(-5)}`
     : id;
 }
-
 
 function renderMessageBatchSourceFilter() {
   const select =
@@ -7445,6 +7450,7 @@ function applyProfileFilters() {
           profile.linkedin_url,
           profile.normalized_url,
           profile.job_code,
+          profile.display_name,
           getOutreachAccountDisplayName(
             profile.assigned_account_id
           ),
@@ -7603,7 +7609,7 @@ function renderProfileTable() {
 
             <td>
               ${escapeHtml(
-                profile.job_code || "—"
+                profile.display_name || profile.job_code || "—"
               )}
             </td>
 

@@ -247,7 +247,7 @@ def _load_job_metadata(
     This is the original send/run identity:
         outreach_job_targets.job_id
             -> outreach_jobs.id
-            -> outreach_jobs.job_code + outreach_jobs.created_at
+            -> outreach_jobs.display_name + outreach_jobs.job_code
 
     Only the distinct job IDs present in the Accepted Pool are requested.
     """
@@ -269,7 +269,7 @@ def _load_job_metadata(
             JOB_TABLE
         )
         .select(
-            "id,job_code,created_at"
+            "*"
         )
         .in_(
             "id",
@@ -295,6 +295,7 @@ def _load_job_metadata(
 
         result[job_id] = {
             "job_code": _safe_text(row.get("job_code")),
+            "display_name": _safe_text(row.get("display_name")),
             "created_at": _safe_text(row.get("created_at")),
         }
 
@@ -498,6 +499,7 @@ def get_accepted_pool(
 
         job_metadata = job_metadata_by_id.get(job_id, {})
         item["job_code"] = job_metadata.get("job_code", "")
+        item["display_name"] = job_metadata.get("display_name", "")
         item["job_created_at"] = job_metadata.get("created_at")
 
     # Stable newest-first output by the week the Connect Job was sent.

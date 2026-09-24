@@ -740,10 +740,7 @@ def _attach_source_connect_ids_to_batches(
         )
     )
 
-    job_code_by_id: dict[
-        str,
-        str,
-    ] = {}
+    job_code_by_id: dict[str, dict[str, str]] = {}
 
     for chunk in _chunked_values(
         job_ids
@@ -754,7 +751,7 @@ def _attach_source_connect_ids_to_batches(
                 CONNECT_JOB_TABLE
             )
             .select(
-                "id,job_code"
+                "*"
             )
             .in_(
                 "id",
@@ -772,11 +769,10 @@ def _attach_source_connect_ids_to_batches(
             )
 
             if job_id:
-                job_code_by_id[
-                    job_id
-                ] = _safe_text(
-                    row.get("job_code")
-                )
+                job_code_by_id[job_id] = {
+                    "code": _safe_text(row.get("job_code")),
+                    "display_name": _safe_text(row.get("display_name")),
+                }
 
     source_target_ids_by_batch: dict[
         str,
@@ -859,10 +855,10 @@ def _attach_source_connect_ids_to_batches(
                 {
                     "id": job_id,
                     "code": (
-                        job_code_by_id.get(
-                            job_id,
-                            "",
-                        )
+                        job_code_by_id.get(job_id, {}).get("code", "")
+                    ),
+                    "display_name": job_code_by_id.get(job_id, {}).get(
+                        "display_name", ""
                     ),
                 }
             )

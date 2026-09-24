@@ -1740,7 +1740,7 @@ def get_outreach_profiles(
                 JOB_TABLE
             )
             .select(
-                "id,job_code"
+                "*"
             )
             .in_(
                 "id",
@@ -1754,11 +1754,10 @@ def get_outreach_profiles(
                 row.get(
                     "id"
                 )
-            ): _safe_text(
-                row.get(
-                    "job_code"
-                )
-            )
+            ): {
+                "job_code": _safe_text(row.get("job_code")),
+                "display_name": _safe_text(row.get("display_name")),
+            }
             for row in (
                 job_response.data
                 or []
@@ -1819,10 +1818,10 @@ def get_outreach_profiles(
                 ),
                 "job_id": job_id,
                 "job_code": (
-                    job_code_by_id.get(
-                        job_id,
-                        "",
-                    )
+                    job_code_by_id.get(job_id, {}).get("job_code", "")
+                ),
+                "display_name": job_code_by_id.get(job_id, {}).get(
+                    "display_name", ""
                 ),
                 "linkedin_url": _safe_text(
                     prospect.get(
