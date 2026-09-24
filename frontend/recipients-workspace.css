@@ -31,6 +31,8 @@
   display: grid !important;
   min-width: 0;
   padding: 28px 32px 110px !important;
+  align-content: start;
+  grid-auto-rows: max-content;
   row-gap: 16px;
   border: 0 !important;
   border-radius: 0 !important;
