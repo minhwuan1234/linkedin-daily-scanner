@@ -536,9 +536,6 @@ const els = {
   outreachReplyTabCount:
     document.querySelector("#outreachReplyTabCount"),
 
-  outreachReplyCount:
-    document.querySelector("#outreachReplyCount"),
-
   outreachReplyAccountTabs:
     document.querySelector("#outreachReplyAccountTabs"),
 
@@ -8188,10 +8185,6 @@ function renderOutreachReplyInbox() {
     )?.id || accounts[0]?.id || null;
   }
   if (els.outreachReplyTabCount) els.outreachReplyTabCount.textContent = String(replies.length);
-  if (els.outreachReplyCount) {
-    els.outreachReplyCount.textContent = state.outreachRepliesLoading
-      ? "Loading" : `${replies.length} ${replies.length === 1 ? "person" : "people"}`;
-  }
   els.outreachReplyAccountTabs?.replaceChildren();
   accounts.forEach((account) => {
     const count = replies.filter((reply) =>
