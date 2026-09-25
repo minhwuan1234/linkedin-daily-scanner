@@ -5227,6 +5227,15 @@ function getMessageBatchSourceLabel(
     : id;
 }
 
+function getMessageBatchSourceTooltipLine(source) {
+  const code = String(source?.code || source?.id || "").trim();
+  const name = String(source?.display_name || "").trim();
+
+  return code && name
+    ? `${code} - ${name}`
+    : code || name || "Unknown Connect Job";
+}
+
 function renderMessageBatchSourceFilter() {
   const select =
     els.messageBatchSourceFilter;
@@ -5726,17 +5735,14 @@ function renderMessagePreparation() {
           );
 
         source.title =
-          `Connect Job ID: ${sourceIds[0].id}`;
+          getMessageBatchSourceTooltipLine(sourceIds[0]);
       } else if (sourceIds.length > 1) {
         source.textContent =
           `${sourceIds.length} Connect IDs`;
 
         source.title =
           sourceIds
-            .map(
-              (item) =>
-                `${getMessageBatchSourceLabel(item)} · ${item.id}`
-            )
+            .map(getMessageBatchSourceTooltipLine)
             .join("\n");
       } else {
         source.textContent =
