@@ -26,6 +26,7 @@
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
+  <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-1" />
 </head>
 
 <body class="login-mode">
@@ -1411,14 +1412,6 @@
             <span class="session-status-toolbar-label">Session state</span>
             <strong id="sessionStatusSummary">Not checked yet</strong>
           </div>
-
-          <button
-            id="sessionStatusCheckButton"
-            class="primary-button session-status-check-button"
-            type="button"
-          >
-            Check all accounts
-          </button>
         </div>
 
         <div id="sessionStatusError" class="outreach-error" hidden></div>
@@ -1426,16 +1419,12 @@
         <div id="sessionStatusList" class="session-status-list" aria-live="polite">
           <div class="session-status-empty">Open this popup to load session status.</div>
         </div>
-      </div>
-
-      <div class="message-send-dialog-footer session-status-footer">
-        <span id="sessionStatusUpdatedAt" class="panel-meta">Never checked</span>
         <button
-          id="sessionStatusDoneButton"
-          class="secondary-button"
+          id="sessionStatusCheckButton"
+          class="primary-button session-status-check-button"
           type="button"
         >
-          Done
+          Check all accounts
         </button>
       </div>
     </section>
@@ -1695,7 +1684,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260925-message-source-tooltip-1"></script>
+  <script src="./app.js?v=20260925-session-status-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

@@ -1,0 +1,211 @@
+/* Light, centered Session Check-in dialog. */
+#sessionStatusModal {
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+#sessionStatusModal .message-send-modal-backdrop {
+  background: rgba(0, 0, 0, .38);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+#sessionStatusModal .session-status-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(620px, 100%);
+  max-height: calc(100dvh - 40px);
+  overflow: hidden;
+  border: 1px solid #e8e8e5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .18);
+  color: #37352f;
+}
+
+#sessionStatusModal .session-status-header {
+  flex: 0 0 auto;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #e8e8e5;
+}
+
+#sessionStatusModal .panel-kicker {
+  margin: 0 0 8px;
+  color: #0b62bd;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .09em;
+}
+
+#sessionStatusModal .session-status-header h2 {
+  margin: 0 0 6px;
+  color: #252521;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+#sessionStatusModal .session-status-header .panel-meta {
+  margin: 0;
+  color: #858580;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+#sessionStatusModal .close-button {
+  flex: 0 0 auto;
+  border: 1px solid #e8e8e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #62615c;
+}
+
+#sessionStatusModal .close-button:hover {
+  border-color: #d3d3ce;
+  background: #f7f7f5;
+  color: #37352f;
+}
+
+#sessionStatusModal .session-status-body {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  padding: 20px 24px 24px;
+  background: #fff;
+}
+
+#sessionStatusModal .session-status-toolbar {
+  flex: 0 0 auto;
+  padding: 0 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+#sessionStatusModal .session-status-toolbar-label {
+  color: #858580;
+  font-size: 10px;
+}
+
+#sessionStatusModal .session-status-toolbar strong {
+  color: #37352f;
+  font-size: 13px;
+}
+
+#sessionStatusModal .session-status-list {
+  display: block;
+  min-height: 0;
+  overflow-y: auto;
+  border: 1px solid #e8e8e5;
+  border-radius: 8px;
+  background: #fff;
+}
+
+#sessionStatusModal #sessionStatusError {
+  margin: 0 0 14px;
+  border: 1px solid #f2d7d7 !important;
+  background: #fff0f0 !important;
+  color: #b54444 !important;
+}
+
+#sessionStatusModal .session-status-item {
+  min-height: 64px;
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid #e8e8e5;
+  border-radius: 0;
+  background: #fff;
+}
+
+#sessionStatusModal .session-status-item:last-child {
+  border-bottom: 0;
+}
+
+#sessionStatusModal .session-status-account strong {
+  color: #37352f;
+  font-size: 13px;
+}
+
+#sessionStatusModal .session-status-account span {
+  color: #858580;
+  font-size: 11px;
+}
+
+#sessionStatusModal .session-status-pill {
+  min-height: 28px;
+  border-color: #e8e8e5;
+  border-radius: 100px;
+  background: #f7f7f5;
+  color: #62615c;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+#sessionStatusModal .session-status-pill.is-logged-in {
+  border-color: #d6ebe0;
+  background: #eaf6ef;
+  color: #23845a;
+}
+
+#sessionStatusModal .session-status-pill.is-logged-out,
+#sessionStatusModal .session-status-pill.is-failed {
+  border-color: #f2d7d7;
+  background: #fff0f0;
+  color: #b54444;
+}
+
+#sessionStatusModal .session-status-pill.is-checkpoint,
+#sessionStatusModal .session-status-pill.is-busy {
+  border-color: #f0e4c7;
+  background: #fff7e5;
+  color: #9a6b16;
+}
+
+#sessionStatusModal .session-status-pill.is-pending,
+#sessionStatusModal .session-status-pill.is-checking {
+  border-color: #dce8f6;
+  background: #eef5fc;
+  color: #0b62bd;
+}
+
+#sessionStatusModal .session-status-empty {
+  padding: 28px 16px;
+  border: 0;
+  color: #858580;
+  font-size: 12px;
+}
+
+#sessionStatusModal .session-status-check-button {
+  min-height: 38px;
+  align-self: center;
+  margin-top: 20px;
+  padding: 0 18px !important;
+  border: 1px solid #0b62bd !important;
+  border-radius: 8px !important;
+  background: #0b62bd !important;
+  box-shadow: none !important;
+  color: #fff !important;
+  font-size: 12px !important;
+}
+
+#sessionStatusModal .session-status-check-button:hover:not(:disabled) {
+  background: #0956a6 !important;
+  transform: none;
+}
+
+@media (max-width: 680px) {
+  #sessionStatusModal .session-status-header,
+  #sessionStatusModal .session-status-body {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  #sessionStatusModal .session-status-check-button {
+    width: 100%;
+  }
+}

@@ -30,12 +30,10 @@ const els = {
   sessionStatusBadge: document.querySelector("#sessionStatusBadge"),
   sessionStatusModal: document.querySelector("#sessionStatusModal"),
   sessionStatusCloseButton: document.querySelector("#sessionStatusCloseButton"),
-  sessionStatusDoneButton: document.querySelector("#sessionStatusDoneButton"),
   sessionStatusCheckButton: document.querySelector("#sessionStatusCheckButton"),
   sessionStatusSummary: document.querySelector("#sessionStatusSummary"),
   sessionStatusList: document.querySelector("#sessionStatusList"),
   sessionStatusError: document.querySelector("#sessionStatusError"),
-  sessionStatusUpdatedAt: document.querySelector("#sessionStatusUpdatedAt"),
 
   settingsButton: document.querySelector("#settingsButton"),
   settingsModal: document.querySelector("#settingsModal"),
@@ -9110,17 +9108,6 @@ function renderSessionStatuses() {
         : "Check all accounts";
   }
 
-  const latestCheckedAt = accounts
-    .map((account) => account.checked_at)
-    .filter(Boolean)
-    .sort()
-    .at(-1);
-
-  if (els.sessionStatusUpdatedAt) {
-    els.sessionStatusUpdatedAt.textContent = latestCheckedAt
-      ? `Last checked ${formatSessionCheckedAt(latestCheckedAt)}`
-      : "Never checked";
-  }
 }
 
 function getSessionRealtimeRow(payload) {
@@ -9338,11 +9325,6 @@ els.sessionStatusButton?.addEventListener(
 );
 
 els.sessionStatusCloseButton?.addEventListener(
-  "click",
-  closeSessionStatusModal
-);
-
-els.sessionStatusDoneButton?.addEventListener(
   "click",
   closeSessionStatusModal
 );
