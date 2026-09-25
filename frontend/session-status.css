@@ -21,22 +21,26 @@
   width: min(620px, 100%);
   max-height: calc(100dvh - 40px);
   overflow: hidden;
-  border: 1px solid #e8e8e5;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .18);
+  border: 1px solid #e8e8e5 !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .18) !important;
   color: #37352f;
 }
 
 #sessionStatusModal .session-status-header {
   flex: 0 0 auto;
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid #e8e8e5;
+  padding: 22px 24px 18px !important;
+  border-bottom: 1px solid #e8e8e5 !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 #sessionStatusModal .panel-kicker {
   margin: 0 0 8px;
-  color: #0b62bd;
+  color: #62615c !important;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .09em;
@@ -51,23 +55,23 @@
 
 #sessionStatusModal .session-status-header .panel-meta {
   margin: 0;
-  color: #858580;
+  color: #858580 !important;
   font-size: 12px;
   line-height: 1.5;
 }
 
 #sessionStatusModal .close-button {
   flex: 0 0 auto;
-  border: 1px solid #e8e8e5;
-  border-radius: 8px;
-  background: #fff;
-  color: #62615c;
+  border: 1px solid #e8e8e5 !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  color: #62615c !important;
 }
 
 #sessionStatusModal .close-button:hover {
-  border-color: #d3d3ce;
-  background: #f7f7f5;
-  color: #37352f;
+  border-color: #d3d3ce !important;
+  background: #f7f7f5 !important;
+  color: #37352f !important;
 }
 
 #sessionStatusModal .session-status-body {
@@ -75,13 +79,16 @@
   min-height: 0;
   flex-direction: column;
   gap: 0;
-  padding: 20px 24px 24px;
-  background: #fff;
+  padding: 20px 24px 24px !important;
+  background: #fff !important;
 }
 
 #sessionStatusModal .session-status-toolbar {
   flex: 0 0 auto;
-  padding: 0 0 14px;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
@@ -182,8 +189,8 @@
 
 #sessionStatusModal .session-status-check-button {
   min-height: 38px;
-  align-self: center;
-  margin-top: 20px;
+  flex: 0 0 auto;
+  margin: 0;
   padding: 0 18px !important;
   border: 1px solid #0b62bd !important;
   border-radius: 8px !important;
@@ -205,7 +212,12 @@
     padding-right: 16px;
   }
 
+  #sessionStatusModal .session-status-toolbar {
+    flex-direction: row;
+    align-items: center;
+  }
+
   #sessionStatusModal .session-status-check-button {
-    width: 100%;
+    width: auto;
   }
 }

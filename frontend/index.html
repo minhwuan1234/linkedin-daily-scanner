@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
-  <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-1" />
+  <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
 </head>
 
 <body class="login-mode">
@@ -1407,25 +1407,24 @@
       </div>
 
       <div class="message-send-dialog-body session-status-body">
-        <div class="session-status-toolbar">
-          <div>
-            <span class="session-status-toolbar-label">Session state</span>
-            <strong id="sessionStatusSummary">Not checked yet</strong>
-          </div>
-        </div>
-
         <div id="sessionStatusError" class="outreach-error" hidden></div>
 
         <div id="sessionStatusList" class="session-status-list" aria-live="polite">
           <div class="session-status-empty">Open this popup to load session status.</div>
         </div>
-        <button
-          id="sessionStatusCheckButton"
-          class="primary-button session-status-check-button"
-          type="button"
-        >
-          Check all accounts
-        </button>
+        <div class="session-status-toolbar">
+          <div>
+            <span class="session-status-toolbar-label">Session state</span>
+            <strong id="sessionStatusSummary">Not checked yet</strong>
+          </div>
+          <button
+            id="sessionStatusCheckButton"
+            class="primary-button session-status-check-button"
+            type="button"
+          >
+            Check all accounts
+          </button>
+        </div>
       </div>
     </section>
   </div>
