@@ -14,6 +14,7 @@ from app.settings import load_settings
 JOB_TABLE = "outreach_jobs"
 PROSPECT_TABLE = "outreach_prospects"
 TARGET_TABLE = "outreach_job_targets"
+MAX_CONNECT_URLS = 150
 
 LOCAL_TIMEZONE = ZoneInfo(
     "Asia/Ho_Chi_Minh"
@@ -355,6 +356,11 @@ def create_connect_job(
     if input_count == 0:
         raise OutreachJobStoreError(
             "URL list cannot be empty."
+        )
+
+    if input_count > MAX_CONNECT_URLS:
+        raise OutreachJobStoreError(
+            f"Maximum {MAX_CONNECT_URLS} LinkedIn profile URLs per Connect job."
         )
 
     job_code = _build_job_code(

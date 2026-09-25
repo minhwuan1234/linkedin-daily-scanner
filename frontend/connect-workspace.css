@@ -85,6 +85,8 @@
 #tab-outreach #outreachUrlInput:focus { outline: 2px solid #c9e0fa; border-color: #8fbbe9 !important; }
 #tab-outreach .outreach-input-footer { align-items: center !important; }
 #tab-outreach .outreach-input-summary strong { color: #37352f; }
+#tab-outreach .outreach-input-summary strong.is-over-limit { color: #b54444 !important; }
+#tab-outreach #outreachUrlInput[aria-invalid="true"] { border-color: #d88585 !important; outline-color: #f4d3d3; }
 #tab-outreach .outreach-input-summary .panel-meta { color: #858580 !important; }
 #tab-outreach #outreachStartButton { min-width: 140px; border-radius: 7px !important; background: #0a66c2 !important; color: #fff !important; }
 

@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260924-worker-flare-2" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
-  <link rel="stylesheet" href="./connect-workspace.css?v=20260924-connect-progress-1" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20260925-connect-url-limit-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
@@ -818,6 +818,7 @@
           <textarea
             id="outreachUrlInput"
             rows="3"
+            aria-describedby="outreachDetectedCount"
             placeholder="Paste LinkedIn profile URLs here…"
             spellcheck="false"
             required
@@ -826,7 +827,7 @@
 
         <div class="outreach-input-footer outreach-input-footer-smart">
           <div class="outreach-input-summary">
-            <strong id="outreachDetectedCount">
+            <strong id="outreachDetectedCount" aria-live="polite">
               0 URLs detected
             </strong>
 
@@ -1683,7 +1684,7 @@
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260925-session-status-1"></script>
+  <script src="./app.js?v=20260925-connect-url-limit-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
 </body>
 </html>

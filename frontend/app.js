@@ -1519,6 +1519,7 @@ async function createYoutubeResearchJob(event) {
 
 const OUTREACH_ACTIVE_POLL_INTERVAL_MS = 5000;
 const OUTREACH_IDLE_POLL_INTERVAL_MS = 45000;
+const OUTREACH_MAX_CONNECT_URLS = 150;
 const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
   outreach_account_01: "Minh Anh",
   outreach_account_02: "Trang Liu",
@@ -1564,13 +1565,17 @@ function parseOutreachUrls() {
 
 function updateOutreachDetectedCount() {
   const urls = parseOutreachUrls();
+  const overLimit = urls.length > OUTREACH_MAX_CONNECT_URLS;
 
-  if (!els.outreachDetectedCount) {
-    return;
+  if (els.outreachDetectedCount) {
+    els.outreachDetectedCount.textContent = overLimit
+      ? `${urls.length} URLs detected — maximum ${OUTREACH_MAX_CONNECT_URLS}`
+      : `${urls.length} / ${OUTREACH_MAX_CONNECT_URLS} URLs detected`;
+    els.outreachDetectedCount.classList.toggle("is-over-limit", overLimit);
   }
 
-  els.outreachDetectedCount.textContent =
-    `${urls.length} URLs detected`;
+  els.outreachUrlInput?.setAttribute("aria-invalid", String(overLimit));
+  renderOutreachSubmittingState();
 }
 
 
@@ -1585,7 +1590,8 @@ function renderOutreachSubmittingState() {
   }
 
   els.outreachStartButton.disabled =
-    state.outreachSubmitting;
+    state.outreachSubmitting ||
+    parseOutreachUrls().length > OUTREACH_MAX_CONNECT_URLS;
 
   if (els.outreachStartButtonText) {
     els.outreachStartButtonText.textContent =
@@ -7007,6 +7013,16 @@ async function createOutreachConnectJob(
       "Enter at least one LinkedIn profile URL."
     );
 
+    return;
+  }
+
+  if (urls.length > OUTREACH_MAX_CONNECT_URLS) {
+    if (els.outreachError) {
+      els.outreachError.hidden = false;
+      els.outreachError.textContent =
+        `Maximum ${OUTREACH_MAX_CONNECT_URLS} LinkedIn profile URLs per Connect run.`;
+    }
+    els.outreachUrlInput?.focus();
     return;
   }
 

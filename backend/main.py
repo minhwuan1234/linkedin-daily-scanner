@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.outreach_job_store import (
+    MAX_CONNECT_URLS,
     OutreachJobStoreError,
     create_connect_job,
 )
@@ -605,6 +606,18 @@ async def create_outreach_connect_job(
                 "error": (
                     "At least one LinkedIn URL "
                     "is required"
+                ),
+            },
+        )
+
+    if len(cleaned_urls) > MAX_CONNECT_URLS:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "ok": False,
+                "error": (
+                    f"Maximum {MAX_CONNECT_URLS} LinkedIn profile URLs "
+                    "per Connect job."
                 ),
             },
         )
