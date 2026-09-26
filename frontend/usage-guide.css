@@ -105,6 +105,8 @@
 .usage-guide-messages-note { margin: 12px 0 0; color: #62615c; font-size: 10px; line-height: 1.5; }
 .usage-guide-messages-note code { padding: 1px 3px; border-radius: 3px; background: #f1f1ef; color: #37352f; font-size: inherit; }
 .usage-guide-replies-preview .usage-guide-preview-body { display: block; }
+.usage-guide-replies-schedule { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; padding: 8px 10px; border: 1px solid #e8e8e5; border-radius: 7px; background: #fff; color: #62615c; font-size: 10px; }
+.usage-guide-replies-schedule strong { color: #0b62bd; font-weight: 650; }
 .usage-guide-replies-flow { display: grid; grid-template-columns: minmax(0, .8fr) 18px minmax(0, 1.2fr); align-items: center; gap: 10px; }
 .usage-guide-replies-source, .usage-guide-replies-chat { display: flex; min-width: 0; min-height: 257px; flex-direction: column; gap: 10px; padding: 13px; border: 1px solid #e8e8e5; border-radius: 9px; background: #fff; }
 .usage-guide-replies-mini-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid #e8e8e5; }

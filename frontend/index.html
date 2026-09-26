@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
   <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
-  <link rel="stylesheet" href="./usage-guide.css?v=20260926-replies-guide-1" />
+  <link rel="stylesheet" href="./usage-guide.css?v=20260926-replies-schedule-1" />
 </head>
 
 <body class="login-mode">
@@ -1799,6 +1799,7 @@
       <div id="usageGuideRepliesPreview" class="usage-guide-preview usage-guide-replies-preview" aria-label="A worker matches Jordan Lee's unread LinkedIn message with a previously sent profile, reads the conversation, and displays it in Replies. The user writes a reply and queues the worker to send it from the matching Outreach account." hidden>
         <div class="usage-guide-preview-top"><span class="usage-guide-preview-dot"></span><span>Unread → matched conversation → reply</span><span class="usage-guide-preview-label">ILLUSTRATION</span></div>
         <div class="usage-guide-preview-body">
+          <div class="usage-guide-replies-schedule"><span>Scheduled inbox checks</span><strong>12:00 &amp; 18:00 · Vietnam time</strong></div>
           <div class="usage-guide-replies-flow">
             <div class="usage-guide-replies-source">
               <div class="usage-guide-replies-mini-header"><strong>LinkedIn · Unread</strong><span>1</span></div>
@@ -1815,7 +1816,7 @@
               <div class="usage-guide-replies-bubble usage-guide-replies-sent">Happy to share details. <small>Sent ✓</small></div>
             </div>
           </div>
-          <p class="usage-guide-replies-note">Select the account and conversation, write your reply, then confirm Send via worker. The worker sends from that account to the matched LinkedIn profile; new incoming messages appear after a reply scan.</p>
+          <p class="usage-guide-replies-note">New incoming messages appear after the next scheduled scan, not instantly. Select the account and conversation, write your reply, then confirm Send via worker to send from that account to the matched LinkedIn profile.</p>
         </div>
       </div>
     </div>
@@ -1828,6 +1829,6 @@
   <script src="./config.js"></script>
   <script src="./app.js?v=20260925-connect-url-limit-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
-  <script src="./usage-guide.js?v=20260926-replies-guide-1"></script>
+  <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>
 </html>
