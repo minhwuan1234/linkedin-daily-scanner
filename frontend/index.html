@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
   <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
-  <link rel="stylesheet" href="./usage-guide.css?v=20260926-notion-guide-2" />
+  <link rel="stylesheet" href="./usage-guide.css?v=20260926-acceptance-guide-1" />
 </head>
 
 <body class="login-mode">
@@ -1734,6 +1734,33 @@
           </div>
         </div>
       </div>
+      <div id="usageGuideAcceptancePreview" class="usage-guide-preview usage-guide-acceptance-preview" role="img" aria-label="About a week after sending 100 invitations, BD would check profiles one by one. In Acceptance, select the week and click Check again on the Connect job; the worker checks invitation outcomes. Ten accepted is an illustrative estimate, not a guarantee." hidden>
+        <div class="usage-guide-preview-top"><span class="usage-guide-preview-dot"></span><span>One week later · check invitation outcomes</span><span class="usage-guide-preview-label">ILLUSTRATION</span></div>
+        <div class="usage-guide-preview-body" aria-hidden="true">
+          <div class="usage-guide-comparison usage-guide-before">
+            <div class="usage-guide-comparison-heading"><span class="usage-guide-comparison-index">BEFORE</span><strong>BD checks one by one</strong></div>
+            <div class="usage-guide-acceptance-card">
+              <div class="usage-guide-acceptance-card-title">Sent invitations <span>100 profiles</span></div>
+              <div class="usage-guide-acceptance-person"><span class="usage-guide-acceptance-avatar">JL</span><span>Jordan Lee</span><small>Pending</small></div>
+              <div class="usage-guide-acceptance-person"><span class="usage-guide-acceptance-avatar">AM</span><span>Alex Morgan</span><small>Pending</small></div>
+              <div class="usage-guide-acceptance-person"><span class="usage-guide-acceptance-avatar">SK</span><span>Sam Kim</span><small>Pending</small></div>
+              <span class="usage-guide-acceptance-manual-cursor" aria-hidden="true">↖</span>
+            </div>
+            <p>Open profiles → inspect status → repeat</p>
+          </div>
+          <span class="usage-guide-comparison-arrow">→</span>
+          <div class="usage-guide-comparison usage-guide-after">
+            <div class="usage-guide-comparison-heading"><span class="usage-guide-comparison-index">AFTER</span><strong>Worker checks the job</strong></div>
+            <div class="usage-guide-acceptance-card usage-guide-acceptance-job">
+              <div class="usage-guide-acceptance-card-title">Acceptance <span>100 profiles</span></div>
+              <div class="usage-guide-acceptance-job-line"><strong>Connect job</strong><span>Sent 1 week ago</span></div>
+              <div class="usage-guide-acceptance-job-controls"><span class="usage-guide-acceptance-check-button"><span class="usage-guide-acceptance-check-label">Check again</span><span class="usage-guide-acceptance-running-label">Checking…</span><span class="usage-guide-acceptance-done-label">Completed</span></span><span class="usage-guide-acceptance-worker"><i></i>Worker running</span></div>
+              <div class="usage-guide-acceptance-result"><strong>Example: ~10 accepted</strong><span>of 100 invitations sent</span></div>
+            </div>
+            <p>Select week &amp; job → Check again → wait</p>
+          </div>
+        </div>
+      </div>
       <div id="usageGuidePendingStep" class="usage-guide-pending-step" hidden>
         <span id="usageGuidePendingNumber" class="usage-guide-pending-number">02</span>
         <p>Guide content for this step is coming soon.</p>
@@ -1748,6 +1775,6 @@
   <script src="./config.js"></script>
   <script src="./app.js?v=20260925-connect-url-limit-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
-  <script src="./usage-guide.js?v=20260926-notion-guide-2"></script>
+  <script src="./usage-guide.js?v=20260926-acceptance-guide-1"></script>
 </body>
 </html>
