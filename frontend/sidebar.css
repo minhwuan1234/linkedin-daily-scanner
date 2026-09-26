@@ -189,6 +189,14 @@
   color: #37352f !important;
 }
 
+.sidebar-navigation .sidebar-nav-placeholder,
+.sidebar-navigation .sidebar-nav-placeholder:hover {
+  border-color: transparent !important;
+  background: transparent !important;
+  color: #6f6e69 !important;
+  cursor: default !important;
+}
+
 .sidebar-navigation .tab-button.is-active {
   border-color: #dfdfdc !important;
   background: #fff !important;
