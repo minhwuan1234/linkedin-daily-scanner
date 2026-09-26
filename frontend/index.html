@@ -27,7 +27,7 @@
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
   <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
-  <link rel="stylesheet" href="./usage-guide.css?v=20260926-acceptance-guide-1" />
+  <link rel="stylesheet" href="./usage-guide.css?v=20260926-recipients-guide-1" />
 </head>
 
 <body class="login-mode">
@@ -1761,6 +1761,21 @@
           </div>
         </div>
       </div>
+      <div id="usageGuideRecipientsPreview" class="usage-guide-preview usage-guide-recipients-preview" aria-label="Recipients dashboard guide" hidden>
+        <div class="usage-guide-preview-top"><span class="usage-guide-preview-dot"></span><span>Accepted people · message workflow</span><span class="usage-guide-preview-label">ILLUSTRATION</span></div>
+        <div class="usage-guide-preview-body">
+          <div class="usage-guide-recipients-context"><span>Selected Connect week</span><strong>Week 38</strong><span class="usage-guide-recipients-all">All 10 accepted</span></div>
+          <div class="usage-guide-recipients-flow" aria-label="Ready, Prepared and Sent recipient states">
+            <div class="usage-guide-recipient-stage usage-guide-recipient-ready"><strong>Ready</strong><p>Accepted, not sent, and eligible for a message batch.</p><span class="usage-guide-recipient-person">Jordan Lee</span></div>
+            <span class="usage-guide-recipient-flow-arrow" aria-hidden="true">→</span>
+            <div class="usage-guide-recipient-stage usage-guide-recipient-prepared"><strong>Prepared</strong><p>Accepted and unsent, but no longer eligible to prepare again. Usually already in a batch.</p><span class="usage-guide-recipient-person">Jordan Lee</span></div>
+            <span class="usage-guide-recipient-flow-arrow" aria-hidden="true">→</span>
+            <div class="usage-guide-recipient-stage usage-guide-recipient-sent"><strong>Sent</strong><p>A LinkedIn message has been sent and recorded for this person.</p><span class="usage-guide-recipient-person">Jordan Lee</span></div>
+          </div>
+          <div class="usage-guide-recipients-actions"><span>Ready → Prepare selected / Prepare all</span><span>Prepared → Send from Messages</span></div>
+          <p class="usage-guide-recipients-note">Ready, Prepared and Sent are filters; their counts add up to All for the selected Connect week. Profiles are grouped by Connect ID. Preparing saves a fixed batch without sending a message. An accepted profile missing required details can also appear under Prepared.</p>
+        </div>
+      </div>
       <div id="usageGuidePendingStep" class="usage-guide-pending-step" hidden>
         <span id="usageGuidePendingNumber" class="usage-guide-pending-number">02</span>
         <p>Guide content for this step is coming soon.</p>
@@ -1775,6 +1790,6 @@
   <script src="./config.js"></script>
   <script src="./app.js?v=20260925-connect-url-limit-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
-  <script src="./usage-guide.js?v=20260926-acceptance-guide-1"></script>
+  <script src="./usage-guide.js?v=20260926-recipients-guide-1"></script>
 </body>
 </html>

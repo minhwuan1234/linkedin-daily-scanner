@@ -73,6 +73,19 @@
 .usage-guide-acceptance-result { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 11px 12px 0; padding: 10px; border: 1px solid #d6ebe0; border-radius: 7px; background: #eaf6ef; opacity: 0; transform: translateY(5px); }
 .usage-guide-acceptance-result strong { color: #23845a; font-size: 10px; }
 .usage-guide-acceptance-result span { color: #62615c; font-size: 9px; white-space: nowrap; }
+.usage-guide-recipients-preview .usage-guide-preview-body { display: block; }
+.usage-guide-recipients-context { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; color: #858580; font-size: 10px; }
+.usage-guide-recipients-context strong { padding: 5px 7px; border: 1px solid #e8e8e5; border-radius: 5px; background: #fff; color: #37352f; font-size: 10px; }
+.usage-guide-recipients-all { margin-left: auto; color: #62615c; font-weight: 650; }
+.usage-guide-recipients-flow { display: grid; grid-template-columns: minmax(0, 1fr) 14px minmax(0, 1fr) 14px minmax(0, 1fr); align-items: stretch; gap: 6px; }
+.usage-guide-recipient-stage { display: flex; min-width: 0; min-height: 160px; flex-direction: column; align-items: flex-start; padding: 14px; border: 1px solid #e8e8e5; border-radius: 9px; background: #fff; }
+.usage-guide-recipient-stage > strong { color: #252521; font-size: 13px; }
+.usage-guide-recipient-stage p { margin: 9px 0 14px; color: #62615c; font-size: 10px; line-height: 1.5; }
+.usage-guide-recipient-person { margin-top: auto; padding: 6px 9px; border: 1px solid #dce8f6; border-radius: 6px; background: #eef5fc; color: #0b62bd; font-size: 10px; font-weight: 600; opacity: .22; }
+.usage-guide-recipient-flow-arrow { align-self: center; color: #858580; font-size: 18px; text-align: center; }
+.usage-guide-recipients-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.usage-guide-recipients-actions span { padding: 7px 9px; border: 1px solid #e8e8e5; border-radius: 6px; background: #fff; color: #62615c; font-size: 10px; font-weight: 600; }
+.usage-guide-recipients-note { margin: 12px 0 0; color: #62615c; font-size: 10px; line-height: 1.5; }
 .usage-guide-pending-step { display: grid; min-height: 338px; place-content: center; justify-items: center; gap: 8px; border: 1px solid #e8e8e5; border-radius: 9px; background: #f7f7f5; color: #858580; text-align: center; }
 .usage-guide-pending-number { color: #c1c1bc; font-size: 36px; font-weight: 650; line-height: 1; }
 .usage-guide-pending-step p { margin: 0; font-size: 12px; }
@@ -115,6 +128,18 @@
 @keyframes guide-acceptance-done { 0%, 78%, 95%, 100% { opacity: 0; } 79%, 94% { opacity: 1; } }
 @keyframes guide-acceptance-worker { 0%, 59%, 79%, 100% { opacity: 0; } 63%, 77% { opacity: 1; } }
 @keyframes guide-acceptance-result { 0%, 76%, 100% { opacity: 0; transform: translateY(5px); } 82%, 94% { opacity: 1; transform: translateY(0); } }
+.usage-guide-dialog.is-playing .usage-guide-recipient-ready { animation: guide-recipient-ready 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-recipient-prepared { animation: guide-recipient-prepared 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-recipient-sent { animation: guide-recipient-sent 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-recipient-ready .usage-guide-recipient-person { animation: guide-recipient-person-ready 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-recipient-prepared .usage-guide-recipient-person { animation: guide-recipient-person-prepared 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-recipient-sent .usage-guide-recipient-person { animation: guide-recipient-person-sent 9s ease-in-out infinite; }
+@keyframes guide-recipient-ready { 0%, 26% { border-color: #a9c8e8; background: #f8fbfe; } 38%, 100% { border-color: #e8e8e5; background: #fff; } }
+@keyframes guide-recipient-prepared { 0%, 29%, 69%, 100% { border-color: #e8e8e5; background: #fff; } 39%, 63% { border-color: #a9c8e8; background: #f8fbfe; } }
+@keyframes guide-recipient-sent { 0%, 65%, 100% { border-color: #e8e8e5; background: #fff; } 74%, 94% { border-color: #a9c8e8; background: #f8fbfe; } }
+@keyframes guide-recipient-person-ready { 0%, 26% { opacity: 1; } 38%, 100% { opacity: .22; } }
+@keyframes guide-recipient-person-prepared { 0%, 29%, 69%, 100% { opacity: .22; } 39%, 63% { opacity: 1; } }
+@keyframes guide-recipient-person-sent { 0%, 65%, 100% { opacity: .22; } 74%, 94% { opacity: 1; } }
 
 @media (max-width: 620px) {
   .usage-guide-header { padding: 18px; }
@@ -122,6 +147,9 @@
   .usage-guide-navigation { padding: 12px 18px; }
   .usage-guide-preview-body { grid-template-columns: 1fr; gap: 8px; padding: 16px; }
   .usage-guide-comparison-arrow { transform: rotate(90deg); line-height: 1; }
+  .usage-guide-recipients-flow { grid-template-columns: 1fr; gap: 7px; }
+  .usage-guide-recipient-stage { min-height: 115px; }
+  .usage-guide-recipient-flow-arrow { transform: rotate(90deg); line-height: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
   .usage-guide-dialog.is-playing .usage-guide-before,
@@ -140,7 +168,9 @@
   .usage-guide-dialog.is-playing .usage-guide-acceptance-check-label,
   .usage-guide-dialog.is-playing .usage-guide-acceptance-worker,
   .usage-guide-dialog.is-playing .usage-guide-acceptance-worker i,
-  .usage-guide-dialog.is-playing .usage-guide-acceptance-result { animation: none; }
+  .usage-guide-dialog.is-playing .usage-guide-acceptance-result,
+  .usage-guide-dialog.is-playing .usage-guide-recipient-stage,
+  .usage-guide-dialog.is-playing .usage-guide-recipient-person { animation: none; }
   .usage-guide-dialog.is-playing .usage-guide-after { border-color: #82bae9; }
   .usage-guide-dialog.is-playing .usage-guide-worker-indicator { opacity: 1; }
   .usage-guide-dialog.is-playing .usage-guide-after .usage-guide-profile-action { border-color: #d6eadf; background: #e7f5ed; color: #238452; }
@@ -152,4 +182,6 @@
   .usage-guide-dialog.is-playing .usage-guide-acceptance-worker { opacity: 0; }
   .usage-guide-dialog.is-playing .usage-guide-acceptance-done-label,
   .usage-guide-dialog.is-playing .usage-guide-acceptance-result { opacity: 1; transform: none; }
+  .usage-guide-dialog.is-playing .usage-guide-recipient-ready { border-color: #a9c8e8; background: #f8fbfe; }
+  .usage-guide-dialog.is-playing .usage-guide-recipient-ready .usage-guide-recipient-person { opacity: 1; }
 }

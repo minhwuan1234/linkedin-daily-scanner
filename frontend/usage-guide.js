@@ -9,14 +9,15 @@
   const description = document.getElementById("usageGuideDescription");
   const preview = dialog?.querySelector(".usage-guide-preview");
   const acceptancePreview = document.getElementById("usageGuideAcceptancePreview");
+  const recipientsPreview = document.getElementById("usageGuideRecipientsPreview");
   const pendingStep = document.getElementById("usageGuidePendingStep");
   const pendingNumber = document.getElementById("usageGuidePendingNumber");
-  if (!trigger || !dialog || !closeButton || !previousButton || !nextButton || !stepLabel || !title || !description || !preview || !acceptancePreview || !pendingStep || !pendingNumber) return;
+  if (!trigger || !dialog || !closeButton || !previousButton || !nextButton || !stepLabel || !title || !description || !preview || !acceptancePreview || !recipientsPreview || !pendingStep || !pendingNumber) return;
 
   const steps = [
     { name: "Connect", title: "No more manual Connect clicks", description: "BD used to open each LinkedIn profile and click Connect by hand. Now you provide the profile URLs, and the worker sends the invitations for you. This step removes that repetitive manual work from the outreach process." },
     { name: "Acceptance", title: "See who accepted your invitations", description: "Around a week after a Connect run, open Acceptance, select the week and click Check again on that Connect job. The worker checks who has accepted while you wait for the result. Checking once a week is usually enough; roughly 10% accepted after a week is an estimate, not a guaranteed rate." },
-    { name: "Recipients" },
+    { name: "Recipients", title: "Turn accepted connections into recipients", description: "Recipients gathers people confirmed as Accepted by the acceptance checks. Select a Connect week, then use Ready, Prepared and Sent to see where each person stands before or after messaging. Select Ready people and choose Prepare selected or Prepare all to create a recipient batch." },
     { name: "Messages" },
     { name: "Replies" },
   ];
@@ -30,13 +31,14 @@
     description.textContent = step.description || `The ${step.name} guide is being prepared.`;
     preview.hidden = index !== 0;
     acceptancePreview.hidden = index !== 1;
-    pendingStep.hidden = index < 2;
+    recipientsPreview.hidden = index !== 2;
+    pendingStep.hidden = index < 3;
     pendingNumber.textContent = String(index + 1).padStart(2, "0");
     previousButton.disabled = index === 0;
     nextButton.disabled = index === steps.length - 1;
 
     dialog.classList.remove("is-playing");
-    if (index < 2) {
+    if (index < 3) {
       // Restart the illustration when either completed guide appears.
       void dialog.offsetWidth;
       dialog.classList.add("is-playing");
