@@ -15,7 +15,7 @@
 
   <link rel="stylesheet" href="./styles.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
-  <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-3" />
+  <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-demo-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20260925-connect-url-limit-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
@@ -27,6 +27,7 @@
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
   <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
+  <link rel="stylesheet" href="./usage-guide.css?v=20260926-notion-guide-2" />
 </head>
 
 <body class="login-mode">
@@ -140,10 +141,10 @@
             <span class="sidebar-nav-text">Settings</span>
           </button>
 
-          <div class="tab-button sidebar-action-button sidebar-nav-placeholder">
+          <button id="usageGuideButton" class="tab-button sidebar-action-button" type="button" aria-haspopup="dialog" aria-controls="usageGuideDialog">
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5c-2.4-1.4-5-1.4-8-.5v12c3-.9 5.6-.9 8 .5m0-12c2.4-1.4 5-1.4 8-.5v12c-3-.9-5.6-.9-8 .5m0-12v12"/></svg></span>
             <span class="sidebar-nav-text">Usage Guide</span>
-          </div>
+          </button>
         </div>
       </nav>
 
@@ -1687,9 +1688,66 @@
   </aside>
 
   </div>
+  <dialog id="usageGuideDialog" class="usage-guide-dialog" aria-labelledby="usageGuideTitle" aria-describedby="usageGuideDescription">
+    <div class="usage-guide-header">
+      <div class="usage-guide-header-copy">
+        <span class="usage-guide-kicker">USAGE GUIDE <span aria-hidden="true">/</span> <span id="usageGuideStepLabel">STEP 01 OF 05</span></span>
+        <h2 id="usageGuideTitle">No more manual Connect clicks</h2>
+        <p id="usageGuideDescription">BD used to open each LinkedIn profile and click Connect by hand. Now you provide the profile URLs, and the worker sends the invitations for you. This step removes that repetitive manual work from the outreach process.</p>
+      </div>
+      <button id="usageGuideCloseButton" class="usage-guide-close" type="button" aria-label="Close usage guide">×</button>
+    </div>
+    <div class="usage-guide-content">
+      <div class="usage-guide-preview" role="img" aria-label="Before: a BD teammate manually opens Jordan Lee's LinkedIn profile and clicks Connect. After: the worker opens the same profile and sends the invitation automatically.">
+        <div class="usage-guide-preview-top"><span class="usage-guide-preview-dot"></span><span>One profile · two ways to connect</span><span class="usage-guide-preview-label">ILLUSTRATION</span></div>
+        <div class="usage-guide-preview-body" aria-hidden="true">
+          <div class="usage-guide-comparison usage-guide-before">
+            <div class="usage-guide-comparison-heading"><span class="usage-guide-comparison-index">BEFORE</span><strong>BD does it manually</strong></div>
+            <div class="usage-guide-profile">
+              <div class="usage-guide-profile-cover"></div>
+              <div class="usage-guide-profile-main">
+                <span class="usage-guide-profile-avatar">JL</span>
+                <strong>Jordan Lee</strong>
+                <span>Creative producer · London</span>
+                <small>linkedin.com/in/jordan-lee</small>
+                <span class="usage-guide-profile-action">Connect</span>
+                <svg class="usage-guide-pointer" viewBox="0 0 24 28" aria-hidden="true"><path d="M2 2v21l5.6-5.2 4 8 3.3-1.7-4-7.7 7.5-.3L2 2Z"/></svg>
+              </div>
+            </div>
+            <p>Open profile → click Connect → repeat</p>
+          </div>
+          <span class="usage-guide-comparison-arrow">→</span>
+          <div class="usage-guide-comparison usage-guide-after">
+            <div class="usage-guide-comparison-heading"><span class="usage-guide-comparison-index">AFTER</span><strong>Worker does it for BD</strong></div>
+            <div class="usage-guide-profile">
+              <div class="usage-guide-profile-cover"></div>
+              <div class="usage-guide-profile-main">
+                <span class="usage-guide-profile-avatar">JL</span>
+                <strong>Jordan Lee</strong>
+                <span>Creative producer · London</span>
+                <small>linkedin.com/in/jordan-lee</small>
+                <span class="usage-guide-profile-action"><span class="usage-guide-after-connect">Connect</span><span class="usage-guide-after-pending">Pending ✓</span></span>
+                <span class="usage-guide-worker-indicator"><span class="usage-guide-worker-dot"></span>Worker active</span>
+              </div>
+            </div>
+            <p>Give URL → worker sends invitation</p>
+          </div>
+        </div>
+      </div>
+      <div id="usageGuidePendingStep" class="usage-guide-pending-step" hidden>
+        <span id="usageGuidePendingNumber" class="usage-guide-pending-number">02</span>
+        <p>Guide content for this step is coming soon.</p>
+      </div>
+    </div>
+    <div class="usage-guide-navigation" aria-label="Usage guide steps">
+      <button id="usageGuidePreviousButton" type="button" aria-label="Previous step" disabled><span aria-hidden="true">←</span></button>
+      <button id="usageGuideNextButton" type="button" aria-label="Next step"><span aria-hidden="true">→</span></button>
+    </div>
+  </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
   <script src="./app.js?v=20260925-connect-url-limit-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
+  <script src="./usage-guide.js?v=20260926-notion-guide-2"></script>
 </body>
 </html>
