@@ -86,6 +86,24 @@
 .usage-guide-recipients-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .usage-guide-recipients-actions span { padding: 7px 9px; border: 1px solid #e8e8e5; border-radius: 6px; background: #fff; color: #62615c; font-size: 10px; font-weight: 600; }
 .usage-guide-recipients-note { margin: 12px 0 0; color: #62615c; font-size: 10px; line-height: 1.5; }
+.usage-guide-messages-preview .usage-guide-preview-body { display: block; }
+.usage-guide-messages-batch { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding: 9px 11px; border: 1px solid #e8e8e5; border-radius: 7px; background: #fff; color: #37352f; font-size: 11px; font-weight: 600; }
+.usage-guide-messages-batch strong { color: #62615c; font-size: 10px; font-weight: 600; }
+.usage-guide-messages-flow { display: grid; grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); align-items: center; gap: 10px; }
+.usage-guide-messages-template, .usage-guide-messages-output { display: flex; min-width: 0; min-height: 196px; flex-direction: column; gap: 11px; padding: 14px; border: 1px solid #e8e8e5; border-radius: 9px; background: #fff; }
+.usage-guide-messages-card-title { display: flex; justify-content: space-between; gap: 8px; }
+.usage-guide-messages-card-title strong { color: #252521; font-size: 12px; }
+.usage-guide-messages-card-title span { color: #858580; font-size: 9px; text-align: right; }
+.usage-guide-messages-editor { min-height: 84px; padding: 11px; border: 1px solid #e8e8e5; border-radius: 7px; color: #37352f; font-size: 11px; line-height: 1.5; }
+.usage-guide-messages-editor mark { padding: 2px 3px; border-radius: 3px; background: #eef5fc; color: #0b62bd; font-weight: 700; }
+.usage-guide-messages-queue { align-self: flex-end; margin-top: auto; padding: 7px 10px; border-radius: 6px; background: #0a66c2; color: #fff; font-size: 10px; font-weight: 650; }
+.usage-guide-messages-person { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #e8e8e5; border-radius: 7px; opacity: .24; transform: translateY(5px); }
+.usage-guide-messages-person > div { min-width: 0; }
+.usage-guide-messages-person strong { color: #37352f; font-size: 10px; }
+.usage-guide-messages-person p { margin: 3px 0 0; overflow: hidden; color: #62615c; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.usage-guide-messages-person small { margin-left: auto; color: #23845a; font-size: 9px; font-weight: 700; }
+.usage-guide-messages-note { margin: 12px 0 0; color: #62615c; font-size: 10px; line-height: 1.5; }
+.usage-guide-messages-note code { padding: 1px 3px; border-radius: 3px; background: #f1f1ef; color: #37352f; font-size: inherit; }
 .usage-guide-pending-step { display: grid; min-height: 338px; place-content: center; justify-items: center; gap: 8px; border: 1px solid #e8e8e5; border-radius: 9px; background: #f7f7f5; color: #858580; text-align: center; }
 .usage-guide-pending-number { color: #c1c1bc; font-size: 36px; font-weight: 650; line-height: 1; }
 .usage-guide-pending-step p { margin: 0; font-size: 12px; }
@@ -140,6 +158,14 @@
 @keyframes guide-recipient-person-ready { 0%, 26% { opacity: 1; } 38%, 100% { opacity: .22; } }
 @keyframes guide-recipient-person-prepared { 0%, 29%, 69%, 100% { opacity: .22; } 39%, 63% { opacity: 1; } }
 @keyframes guide-recipient-person-sent { 0%, 65%, 100% { opacity: .22; } 74%, 94% { opacity: 1; } }
+.usage-guide-dialog.is-playing .usage-guide-messages-editor mark { animation: guide-message-token 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-messages-queue { animation: guide-message-queue 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-messages-person-one { animation: guide-message-first 9s ease-in-out infinite; }
+.usage-guide-dialog.is-playing .usage-guide-messages-person-two { animation: guide-message-second 9s ease-in-out infinite; }
+@keyframes guide-message-token { 0%, 12%, 42%, 100% { background: #eef5fc; } 20%, 34% { background: #cfe6fb; } }
+@keyframes guide-message-queue { 0%, 30%, 42%, 100% { box-shadow: none; transform: scale(1); } 36% { box-shadow: 0 0 0 5px #0a66c226; transform: scale(.97); } }
+@keyframes guide-message-first { 0%, 43%, 100% { opacity: .24; transform: translateY(5px); } 53%, 91% { opacity: 1; transform: translateY(0); } }
+@keyframes guide-message-second { 0%, 62%, 100% { opacity: .24; transform: translateY(5px); } 72%, 91% { opacity: 1; transform: translateY(0); } }
 
 @media (max-width: 620px) {
   .usage-guide-header { padding: 18px; }
@@ -150,6 +176,7 @@
   .usage-guide-recipients-flow { grid-template-columns: 1fr; gap: 7px; }
   .usage-guide-recipient-stage { min-height: 115px; }
   .usage-guide-recipient-flow-arrow { transform: rotate(90deg); line-height: 1; }
+  .usage-guide-messages-flow { grid-template-columns: 1fr; gap: 7px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .usage-guide-dialog.is-playing .usage-guide-before,
@@ -170,7 +197,10 @@
   .usage-guide-dialog.is-playing .usage-guide-acceptance-worker i,
   .usage-guide-dialog.is-playing .usage-guide-acceptance-result,
   .usage-guide-dialog.is-playing .usage-guide-recipient-stage,
-  .usage-guide-dialog.is-playing .usage-guide-recipient-person { animation: none; }
+  .usage-guide-dialog.is-playing .usage-guide-recipient-person,
+  .usage-guide-dialog.is-playing .usage-guide-messages-editor mark,
+  .usage-guide-dialog.is-playing .usage-guide-messages-queue,
+  .usage-guide-dialog.is-playing .usage-guide-messages-person { animation: none; }
   .usage-guide-dialog.is-playing .usage-guide-after { border-color: #82bae9; }
   .usage-guide-dialog.is-playing .usage-guide-worker-indicator { opacity: 1; }
   .usage-guide-dialog.is-playing .usage-guide-after .usage-guide-profile-action { border-color: #d6eadf; background: #e7f5ed; color: #238452; }
@@ -184,4 +214,5 @@
   .usage-guide-dialog.is-playing .usage-guide-acceptance-result { opacity: 1; transform: none; }
   .usage-guide-dialog.is-playing .usage-guide-recipient-ready { border-color: #a9c8e8; background: #f8fbfe; }
   .usage-guide-dialog.is-playing .usage-guide-recipient-ready .usage-guide-recipient-person { opacity: 1; }
+  .usage-guide-dialog.is-playing .usage-guide-messages-person { opacity: 1; transform: none; }
 }
