@@ -197,6 +197,14 @@
   cursor: default !important;
 }
 
+.sidebar-nav-group-bottom .sidebar-nav-placeholder {
+  order: 2;
+}
+
+.sidebar-nav-group-bottom #settingsButton {
+  order: 3;
+}
+
 .sidebar-navigation .tab-button.is-active {
   border-color: #dfdfdc !important;
   background: #fff !important;
