@@ -3,6 +3,8 @@
 The reply-check worker scans the five Outreach accounts sequentially at
 **12:00 and 18:00 Asia/Ho_Chi_Minh** every day. It records matched incoming
 replies and restores LinkedIn's unread state; it does not send messages.
+The Replies inbox reads those saved conversations and checks for new scan data
+every 30 seconds while the tab is open, updating the selected chat when it changes.
 
 On the worker Mac, after pulling this repo:
 

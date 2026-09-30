@@ -8,8 +8,9 @@ Flow:
     5. Log the incoming reply text with its database evidence.
     6. Use the active-thread menu beside Star to restore Mark as unread.
 
-This worker is read-only with respect to Supabase. Opening a conversation
-changes LinkedIn UI state, so it restores the unread state before continuing.
+Matched conversations are synchronized to Supabase for the Replies inbox.
+Opening a conversation changes LinkedIn UI state, so the worker restores the
+unread state before continuing.
 
 Keep other workers from using the same persistent browser profile while this
 worker is running.

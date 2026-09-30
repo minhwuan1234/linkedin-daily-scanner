@@ -149,6 +149,24 @@ REPLY_SELECT_FIELDS = (
 )
 
 
+def get_outreach_reply_revision(*, client: Client | None = None) -> str | None:
+    """Return a cheap change marker for the most recently captured conversation."""
+    active_client = client or get_outreach_client()
+    response = (
+        active_client.table(REPLY_TABLE)
+        .select("id,captured_at")
+        .order("captured_at", desc=True)
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = list(response.data or [])
+    if not rows:
+        return None
+    row = rows[0]
+    return f"{_safe_text(row.get('captured_at'))}:{_safe_text(row.get('id'))}"
+
+
 def _attach_batch_codes(replies: list[dict], active_client: Client) -> None:
     """Add the source message batch to reply records in place."""
     target_ids = [

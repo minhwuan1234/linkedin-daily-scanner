@@ -674,6 +674,9 @@ const state = {
   outreachReplyScrollByAccount: {},
   outreachReplyRequestGeneration: 0,
   outreachRepliesLoading: false,
+  outreachReplyRefreshing: false,
+  outreachReplyRevision: null,
+  outreachReplyRevisionLoading: false,
   outreachReplySendSubmitting: false,
   tableErrors: {},
   commandPending: false
@@ -8420,6 +8423,7 @@ async function loadOutreachReplies() {
 
     if (generation !== state.outreachReplyRequestGeneration) return;
     state.outreachReplies = [];
+    state.outreachReplyRevision = result.revision ?? null;
     state.outreachReplyAccounts = Array.isArray(result.accounts)
       ? result.accounts.slice(0, 5)
       : [];
@@ -8453,6 +8457,92 @@ async function loadOutreachReplies() {
   const accountId = state.outreachReplySelectedAccountId;
   if (accountId && state.outreachReplyHasMoreByAccount[accountId]) {
     await loadMoreOutreachReplies(accountId);
+  }
+}
+
+async function refreshOutreachRepliesAfterScan() {
+  if (state.outreachReplyRefreshing || state.outreachRepliesLoading ||
+      state.outreachReplySendSubmitting) return;
+  state.outreachReplyRefreshing = true;
+  const accountId = state.outreachReplySelectedAccountId;
+  const previousAccount = state.outreachReplyAccounts.find(
+    (account) => account.account_id === accountId
+  );
+  const previousCount = Number(previousAccount?.reply_count || 0);
+  const previouslyLoaded = Number(state.outreachReplyNextOffsetByAccount[accountId] || 0);
+  const selectedId = state.outreachReplySelectedIdByAccount[accountId];
+  const inputFocused = document.activeElement?.id === "outreachReplyInlineInput";
+  const inputSelection = inputFocused ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
+
+  try {
+    const metadataResponse = await fetch("/api/outreach/replies?metadata=1", { cache: "no-store" });
+    const metadata = await metadataResponse.json();
+    if (!metadataResponse.ok || !metadata.ok) throw new Error(metadata.error || "Could not refresh replies.");
+    const accounts = Array.isArray(metadata.accounts) ? metadata.accounts.slice(0, 5) : [];
+    const nextCount = Number(accounts.find((account) => account.account_id === accountId)?.reply_count || 0);
+    const targetCount = Math.max(OUTREACH_REPLY_BATCH_SIZE,
+      previouslyLoaded + Math.max(0, nextCount - previousCount));
+    const refreshed = [];
+    let hasMore = false;
+    if (accountId && nextCount > 0) {
+      while (refreshed.length < targetCount) {
+        const params = new URLSearchParams({
+          account_id: accountId,
+          offset: String(refreshed.length),
+          limit: String(Math.min(50, targetCount - refreshed.length))
+        });
+        const response = await fetch(`/api/outreach/replies?${params}`, { cache: "no-store" });
+        const page = await response.json();
+        if (!response.ok || !page.ok) throw new Error(page.error || "Could not refresh conversations.");
+        const rows = Array.isArray(page.replies) ? page.replies : [];
+        refreshed.push(...rows);
+        hasMore = Boolean(page.has_more);
+        if (!rows.length || !hasMore) break;
+      }
+    }
+    if (document.querySelector("#tab-replies")?.hidden ||
+        accountId !== state.outreachReplySelectedAccountId) return;
+
+    ++state.outreachReplyRequestGeneration;
+    state.outreachReplyAccounts = accounts;
+    state.outreachReplies = refreshed;
+    state.outreachReplyNextOffsetByAccount = { [accountId]: refreshed.length };
+    state.outreachReplyHasMoreByAccount = { [accountId]: hasMore };
+    state.outreachReplyLoadedByAccount = { [accountId]: true };
+    state.outreachReplyLoadingMoreByAccount = {};
+    state.outreachReplyLoadErrorByAccount = {};
+    state.outreachReplyRevision = metadata.revision ?? null;
+    renderOutreachReplies();
+    if (inputFocused && selectedId === state.outreachReplySelectedIdByAccount[accountId]) {
+      const input = els.outreachReplyConversation?.querySelector("#outreachReplyInlineInput");
+      if (input) {
+        input.focus();
+        if (inputSelection.every(Number.isInteger)) input.setSelectionRange(...inputSelection);
+      }
+    }
+  } catch (error) {
+    console.error("Reply refresh error:", error);
+  } finally {
+    state.outreachReplyRefreshing = false;
+  }
+}
+
+async function pollOutreachReplyRevision() {
+  if (document.hidden || document.querySelector("#tab-replies")?.hidden ||
+      state.outreachRepliesLoading || state.outreachReplyRevisionLoading ||
+      state.outreachReplyRefreshing || state.outreachReplySendSubmitting) return;
+  state.outreachReplyRevisionLoading = true;
+  try {
+    const response = await fetch("/api/outreach/replies?revision_only=1", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Could not check replies.");
+    if ((result.revision ?? null) !== state.outreachReplyRevision) {
+      await refreshOutreachRepliesAfterScan();
+    }
+  } catch (error) {
+    console.error("Reply revision error:", error);
+  } finally {
+    state.outreachReplyRevisionLoading = false;
   }
 }
 
@@ -10031,6 +10121,7 @@ void loadWorkerActivity();
 window.setInterval(() => {
   if (!document.hidden) void loadWorkerActivity();
 }, 15000);
+window.setInterval(() => { void pollOutreachReplyRevision(); }, 30000);
 
 startOutreachPolling();
 
