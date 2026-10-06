@@ -4,6 +4,7 @@ from collections import OrderedDict
 
 from supabase import Client, create_client
 
+from app.outreach_campaign_identity import campaign_id_for_name
 from app.settings import load_settings
 
 
@@ -296,6 +297,9 @@ def _load_job_metadata(
         result[job_id] = {
             "job_code": _safe_text(row.get("job_code")),
             "display_name": _safe_text(row.get("display_name")),
+            "campaign_id": campaign_id_for_name(
+                row.get("display_name"), connect_batch_id=job_id
+            ),
             "created_at": _safe_text(row.get("created_at")),
         }
 
@@ -498,8 +502,13 @@ def get_accepted_pool(
         )
 
         job_metadata = job_metadata_by_id.get(job_id, {})
+        item["connect_batch_id"] = job_id
+        item["campaign_id"] = job_metadata.get("campaign_id") or campaign_id_for_name(
+            "", connect_batch_id=job_id
+        )
         item["job_code"] = job_metadata.get("job_code", "")
         item["display_name"] = job_metadata.get("display_name", "")
+        item["campaign_name"] = item["display_name"]
         item["job_created_at"] = job_metadata.get("created_at")
 
     # Stable newest-first output by the week the Connect Job was sent.

@@ -8,6 +8,7 @@ from supabase import Client, create_client
 from app.outreach_accepted_pool_store import (
     get_accepted_pool,
 )
+from app.outreach_campaign_identity import campaign_id_for_name
 from app.settings import load_settings
 
 
@@ -318,6 +319,9 @@ def get_message_preparation_candidates(
                 "source_target_id": (
                     source_target_id
                 ),
+                "connect_batch_id": _safe_text(item.get("connect_batch_id")),
+                "campaign_id": _safe_text(item.get("campaign_id")),
+                "campaign_name": _safe_text(item.get("display_name")),
                 "assigned_account_id": (
                     account_id
                 ),
@@ -772,6 +776,9 @@ def _attach_source_connect_ids_to_batches(
                 job_code_by_id[job_id] = {
                     "code": _safe_text(row.get("job_code")),
                     "display_name": _safe_text(row.get("display_name")),
+                    "campaign_id": campaign_id_for_name(
+                        row.get("display_name"), connect_batch_id=job_id
+                    ),
                 }
 
     source_target_ids_by_batch: dict[
@@ -854,11 +861,15 @@ def _attach_source_connect_ids_to_batches(
             source_connect_ids.append(
                 {
                     "id": job_id,
+                    "connect_batch_id": job_id,
                     "code": (
                         job_code_by_id.get(job_id, {}).get("code", "")
                     ),
                     "display_name": job_code_by_id.get(job_id, {}).get(
                         "display_name", ""
+                    ),
+                    "campaign_id": job_code_by_id.get(job_id, {}).get(
+                        "campaign_id", ""
                     ),
                 }
             )
@@ -952,6 +963,48 @@ def list_prepared_message_batches(
     )
 
 
+def _attach_connect_identity_to_targets(*, client: Client, targets: list[dict]) -> None:
+    """Follow the persisted source_target_id link back to the Connect run."""
+    source_ids = list(dict.fromkeys(
+        _safe_text(target.get("source_target_id"))
+        for target in targets
+        if _safe_text(target.get("source_target_id"))
+    ))
+    source_to_job: dict[str, str] = {}
+    for chunk in _chunked_values(source_ids):
+        response = (
+            client.table(CONNECT_TARGET_TABLE)
+            .select("id,job_id")
+            .in_("id", chunk)
+            .execute()
+        )
+        for row in list(response.data or []):
+            source_to_job[_safe_text(row.get("id"))] = _safe_text(row.get("job_id"))
+
+    job_ids = list(dict.fromkeys(job_id for job_id in source_to_job.values() if job_id))
+    jobs: dict[str, dict] = {}
+    for chunk in _chunked_values(job_ids):
+        response = (
+            client.table(CONNECT_JOB_TABLE)
+            .select("id,job_code,display_name")
+            .in_("id", chunk)
+            .execute()
+        )
+        for row in list(response.data or []):
+            jobs[_safe_text(row.get("id"))] = row
+
+    for target in targets:
+        connect_batch_id = source_to_job.get(_safe_text(target.get("source_target_id")), "")
+        job = jobs.get(connect_batch_id, {})
+        campaign_name = _safe_text(job.get("display_name"))
+        target["connect_batch_id"] = connect_batch_id
+        target["connect_batch_code"] = _safe_text(job.get("job_code"))
+        target["campaign_id"] = campaign_id_for_name(
+            campaign_name, connect_batch_id=connect_batch_id
+        )
+        target["campaign_name"] = campaign_name
+
+
 def get_prepared_message_batch(
     batch_id: str,
     *,
@@ -1040,11 +1093,8 @@ def get_prepared_message_batch(
         batch_rows[0]
     )
 
-    batch[
-        "targets"
-    ] = list(
-        target_response.data
-        or []
-    )
+    targets = [dict(row) for row in list(target_response.data or [])]
+    _attach_connect_identity_to_targets(client=active_client, targets=targets)
+    batch["targets"] = targets
 
     return batch

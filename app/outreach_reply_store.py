@@ -9,12 +9,15 @@ from app.outreach_account_pool import (
     DEFAULT_OUTREACH_ACCOUNT_IDS,
     OUTREACH_ACCOUNT_DISPLAY_NAMES,
 )
+from app.outreach_campaign_identity import campaign_id_for_name
 from app.outreach_dashboard_store import get_outreach_client
 
 
 REPLY_TABLE = "outreach_reply_messages"
 MESSAGE_TARGET_TABLE = "outreach_message_targets"
 MESSAGE_BATCH_TABLE = "outreach_message_batches"
+CONNECT_TARGET_TABLE = "outreach_job_targets"
+CONNECT_JOB_TABLE = "outreach_jobs"
 
 
 class OutreachReplyStoreError(RuntimeError):
@@ -168,19 +171,20 @@ def get_outreach_reply_revision(*, client: Client | None = None) -> str | None:
 
 
 def _attach_batch_codes(replies: list[dict], active_client: Client) -> None:
-    """Add the source message batch to reply records in place."""
+    """Resolve message batch and original Connect campaign for each reply."""
     target_ids = [
         _safe_text(reply.get("sent_target_id"))
         for reply in replies
         if _safe_text(reply.get("sent_target_id"))
     ]
     target_to_batch: dict[str, str] = {}
+    target_to_source: dict[str, str] = {}
     batch_codes: dict[str, str] = {}
 
     if target_ids:
         target_response = (
             active_client.table(MESSAGE_TARGET_TABLE)
-            .select("id,batch_id")
+            .select("id,batch_id,source_target_id")
             .in_("id", target_ids)
             .execute()
         )
@@ -189,6 +193,8 @@ def _attach_batch_codes(replies: list[dict], active_client: Client) -> None:
             batch_id = _safe_text(target.get("batch_id"))
             if target_id and batch_id:
                 target_to_batch[target_id] = batch_id
+            if target_id:
+                target_to_source[target_id] = _safe_text(target.get("source_target_id"))
 
         unique_batch_ids = list(dict.fromkeys(target_to_batch.values()))
         if unique_batch_ids:
@@ -204,9 +210,45 @@ def _attach_batch_codes(replies: list[dict], active_client: Client) -> None:
                 if batch_id and batch_code:
                     batch_codes[batch_id] = batch_code
 
+    source_to_connect_batch: dict[str, str] = {}
+    source_ids = list(dict.fromkeys(source_id for source_id in target_to_source.values() if source_id))
+    if source_ids:
+        source_response = (
+            active_client.table(CONNECT_TARGET_TABLE)
+            .select("id,job_id")
+            .in_("id", source_ids)
+            .execute()
+        )
+        for source in list(source_response.data or []):
+            source_to_connect_batch[_safe_text(source.get("id"))] = _safe_text(source.get("job_id"))
+
+    connect_batch_ids = list(dict.fromkeys(
+        job_id for job_id in source_to_connect_batch.values() if job_id
+    ))
+    connect_jobs: dict[str, dict] = {}
+    if connect_batch_ids:
+        job_response = (
+            active_client.table(CONNECT_JOB_TABLE)
+            .select("id,job_code,display_name")
+            .in_("id", connect_batch_ids)
+            .execute()
+        )
+        for job in list(job_response.data or []):
+            connect_jobs[_safe_text(job.get("id"))] = job
+
     for reply in replies:
-        batch_id = target_to_batch.get(_safe_text(reply.get("sent_target_id")), "")
+        sent_target_id = _safe_text(reply.get("sent_target_id"))
+        batch_id = target_to_batch.get(sent_target_id, "")
         reply["message_batch_code"] = batch_codes.get(batch_id) or None
+        connect_batch_id = source_to_connect_batch.get(target_to_source.get(sent_target_id, ""), "")
+        connect_job = connect_jobs.get(connect_batch_id, {})
+        campaign_name = _safe_text(connect_job.get("display_name"))
+        reply["connect_batch_id"] = connect_batch_id
+        reply["connect_batch_code"] = _safe_text(connect_job.get("job_code"))
+        reply["campaign_id"] = campaign_id_for_name(
+            campaign_name, connect_batch_id=connect_batch_id
+        )
+        reply["campaign_name"] = campaign_name
 
 
 def list_outreach_reply_page(

@@ -10,6 +10,7 @@ from supabase import create_client
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.outreach_campaign_identity import campaign_id_for_name
 from app.outreach_job_store import (
     MAX_CONNECT_URLS,
     OutreachJobStoreError,
@@ -539,7 +540,15 @@ async def create_youtube_job(
 @app.get("/api/outreach/connect/campaigns")
 def get_outreach_connect_campaigns() -> JSONResponse:
     try:
-        return JSONResponse(content={"ok": True, "campaigns": list_connect_campaigns()})
+        campaigns = list_connect_campaigns()
+        return JSONResponse(content={
+            "ok": True,
+            "campaigns": campaigns,
+            "campaign_records": [
+                {"id": campaign_id_for_name(name), "name": name}
+                for name in campaigns
+            ],
+        })
     except Exception:
         logger.exception("Could not list Connect campaigns")
         return JSONResponse(status_code=500, content={
@@ -728,6 +737,8 @@ async def create_outreach_connect_job(
                 "job_id": result.job_id,
                 "job_code": result.job_code,
                 "display_name": display_name,
+                "campaign_id": campaign_id_for_name(display_name),
+                "connect_batch_id": result.job_id,
                 "input_count": (
                     result.input_count
                 ),
