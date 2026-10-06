@@ -1,25 +1,36 @@
-#tab-campaigns { width: 100%; max-width: none; color: #37352f; }
-.campaigns-workspace { padding: 34px 40px 60px; }
-.campaigns-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
-.campaigns-header h2 { margin: 0; color: #252521; font-size: 26px; letter-spacing: -.035em; }
-.campaigns-header p { margin: 6px 0 0; color: #858580; font-size: 13px; }
-.campaigns-timeframes { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid #e8e8e5; border-radius: 10px; background: #f7f7f5; }
-.campaigns-timeframes button { min-width: 48px; padding: 7px 11px; border: 0; border-radius: 7px; background: transparent; color: #62615c; font: inherit; font-size: 12px; cursor: pointer; }
-.campaigns-timeframes button.is-active { background: #fff; color: #0a66c2; box-shadow: 0 1px 3px #00000018; font-weight: 650; }
-.campaigns-method { max-width: 850px; margin: 20px 0; color: #858580; font-size: 11px; line-height: 1.6; }
-.campaigns-status { padding: 28px; border: 1px dashed #e8e8e5; border-radius: 10px; color: #858580; font-size: 13px; text-align: center; }
-.campaigns-status.is-error { color: #b42318; }
-.campaigns-table { min-width: 760px; overflow: hidden; border: 1px solid #e8e8e5; border-radius: 12px; background: #fff; }
-.campaigns-table-head, .campaigns-row, .campaigns-batch-row { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(145px, 1.6fr) repeat(4, minmax(75px, .75fr)); align-items: center; gap: 12px; }
-.campaigns-table-head { min-height: 45px; padding: 0 18px; border-bottom: 1px solid #e8e8e5; background: #f7f7f5; color: #858580; font-size: 11px; font-weight: 650; }
-.campaigns-row { width: 100%; min-height: 65px; padding: 10px 18px; border: 0; border-bottom: 1px solid #e8e8e5; background: #fff; color: #37352f; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.campaigns-row:hover, .campaigns-row[aria-expanded="true"] { background: #f8fafc; }
-.campaigns-row:focus-visible, .campaigns-timeframes button:focus-visible { outline: 2px solid #0a66c2; outline-offset: -2px; }
-.campaigns-row strong { color: #252521; font-weight: 650; }
-.campaigns-row .campaigns-batch-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #62615c; font-size: 11px; }
-.campaigns-detail { padding: 14px 18px 20px; border-bottom: 1px solid #e8e8e5; background: #fbfbfa; }
-.campaigns-detail h3 { margin: 0 0 10px; font-size: 12px; }
-.campaigns-batch-row { min-height: 33px; padding: 5px 0; border-top: 1px solid #ecece9; color: #62615c; font-size: 11px; }
-.campaigns-batch-row strong { color: #37352f; font-weight: 600; }
+/* Campaign performance follows the tokens and operations hierarchy in Design.md. */
+#appMainScroll:has(#tab-campaigns:not([hidden])) { background: var(--bg); }
+#tab-campaigns { width: 100%; max-width: none; color: var(--text); font-feature-settings: "ss01" 1; }
+.campaigns-workspace { width: min(100%, 1480px); margin: 0 auto; padding: 32px 32px 64px; }
+.campaigns-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.campaigns-header h2 { margin: 0; color: var(--text); font-size: clamp(26px, 2.4vw, 32px); font-weight: 400; line-height: 1.1; letter-spacing: -0.025em; }
+.campaigns-header p { max-width: 680px; margin: 8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.4; }
+.campaigns-updated { display: block; margin-top: 8px; color: var(--faint); font-size: 13px; font-feature-settings: "tnum" 1; }
+.campaigns-timeframes { display: inline-flex; flex: 0 0 auto; flex-wrap: wrap; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9999px; background: var(--panel); }
+.campaigns-timeframes button { min-width: 48px; min-height: 40px; padding: 0 16px; border: 0; border-radius: 9999px; background: transparent; color: var(--muted); font: inherit; font-size: 14px; font-weight: 400; cursor: pointer; }
+.campaigns-timeframes button:hover:not(.is-active) { background: var(--panel-hover); color: var(--text); }
+.campaigns-timeframes button.is-active { background: var(--accent); color: #fff; }
+.campaigns-timeframes button:focus-visible, .campaigns-row:focus-visible, .campaigns-status button:focus-visible { outline: 2px solid var(--accent-hover); outline-offset: 2px; }
+.campaigns-method { max-width: 900px; margin: 24px 0 16px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+.campaigns-status { display: grid; min-height: 128px; place-content: center; gap: 12px; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--muted); font-size: 15px; text-align: center; }
+.campaigns-status.is-loading::before { width: 9px; height: 9px; margin: 0 auto; border-radius: 50%; background: var(--accent); content: ""; animation: campaigns-pulse 1.4s ease-in-out infinite; }
+.campaigns-status.is-error { border-color: var(--red); background: var(--red-soft); color: var(--text); }
+.campaigns-status button { min-height: 40px; padding: 0 16px; border: 1px solid var(--border-strong); border-radius: 9999px; background: var(--panel-raised); color: var(--text); font-size: 14px; cursor: pointer; }
+.campaigns-status button:hover { background: var(--panel-hover); }
 .campaigns-scroll { overflow-x: auto; }
-@media (max-width: 760px) { .campaigns-workspace { padding: 22px 16px 40px; } .campaigns-header { flex-direction: column; } }
+.campaigns-table { min-width: 760px; overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+.campaigns-table-head, .campaigns-row, .campaigns-batch-row { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(145px, 1.6fr) repeat(4, minmax(75px, .75fr)); align-items: center; gap: 12px; }
+.campaigns-table-head { min-height: 48px; padding: 0 18px; border-bottom: 1px solid var(--border); background: var(--bg-soft); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.campaigns-row { width: 100%; min-height: 64px; padding: 10px 18px; border: 0; border-bottom: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; font-feature-settings: "tnum" 1; text-align: left; cursor: pointer; }
+.campaigns-row:hover, .campaigns-row[aria-expanded="true"] { background: var(--panel-hover); }
+.campaigns-row strong { color: var(--text); font-size: 15px; font-weight: 600; }
+.campaigns-row .campaigns-batch-summary { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.campaigns-detail { padding: 16px 18px 24px; border-bottom: 1px solid var(--border); background: var(--bg-soft); }
+.campaigns-detail h3 { margin: 0 0 12px; color: var(--text); font-size: 20px; font-weight: 400; line-height: 1.2; }
+.campaigns-batch-row { min-height: 40px; padding: 8px 0; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; font-feature-settings: "tnum" 1; }
+.campaigns-batch-row strong { color: var(--text); font-weight: 600; }
+@keyframes campaigns-pulse { 50% { opacity: .35; transform: scale(.7); } }
+body.reduce-motion .campaigns-status.is-loading::before { animation: none; }
+@media (prefers-reduced-motion: reduce) { .campaigns-status.is-loading::before { animation: none; } }
+@media (max-width: 768px) { .campaigns-workspace { padding: 24px 18px 64px; } .campaigns-header { flex-direction: column; gap: 16px; } }
+@media (max-width: 560px) { .campaigns-timeframes { width: 100%; } .campaigns-timeframes button { flex: 1 1 auto; min-height: 44px; } }

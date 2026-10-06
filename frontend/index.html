@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-infinite-1" />
-  <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-campaigns-1" />
+  <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-design-2" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
@@ -551,7 +551,7 @@
     <section id="tab-campaigns" class="tab-panel" hidden>
       <div class="campaigns-workspace">
         <header class="campaigns-header">
-          <div><h2>Campaigns</h2><p>Compare campaign performance across Connect batches. Click a campaign to see each batch.</p></div>
+          <div><h2>Campaigns</h2><p>Compare campaign performance across Connect batches. Click a campaign to see each batch.</p><span id="campaignsUpdatedAt" class="campaigns-updated"></span></div>
           <div class="campaigns-timeframes" role="group" aria-label="Campaign timeframe">
             <button type="button" data-campaign-window="1d">1D</button>
             <button type="button" data-campaign-window="7d">7D</button>
@@ -1878,7 +1878,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-campaigns-1"></script>
+  <script src="./app.js?v=20261006-campaigns-design-2"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

@@ -657,6 +657,7 @@ const state = {
   campaignPerformance: [],
   campaignPerformanceLoading: false,
   campaignPerformanceError: "",
+  campaignPerformanceUpdatedAt: null,
   campaignPerformanceRequestId: 0,
   expandedCampaignId: null,
   selectedConnectHistoryJobId: null,
@@ -8846,15 +8847,19 @@ function renderCampaignPerformance() {
   const status = document.querySelector("#campaignsStatus");
   const table = document.querySelector("#campaignsTable");
   const rows = document.querySelector("#campaignsRows");
+  const updated = document.querySelector("#campaignsUpdatedAt");
   if (!status || !table || !rows) return;
+  if (updated) updated.textContent = state.campaignPerformanceUpdatedAt
+    ? `Last updated ${formatDate(state.campaignPerformanceUpdatedAt)}` : "";
   document.querySelectorAll("[data-campaign-window]").forEach((button) => {
     const active = button.dataset.campaignWindow === state.campaignPerformanceWindow;
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", String(active));
   });
-  status.classList.remove("is-error");
+  status.classList.remove("is-error", "is-loading");
   if (state.campaignPerformanceLoading) {
     status.hidden = false;
+    status.classList.add("is-loading");
     status.textContent = "Loading campaign performance…";
     table.hidden = true;
     return;
@@ -8863,7 +8868,7 @@ function renderCampaignPerformance() {
   if (state.campaignPerformanceError) {
     status.hidden = false;
     status.classList.add("is-error");
-    status.textContent = state.campaignPerformanceError;
+    status.innerHTML = `<span>${escapeHtml(state.campaignPerformanceError)}</span><button type="button" data-campaign-retry>Try again</button>`;
     table.hidden = true;
     return;
   }
@@ -8894,6 +8899,7 @@ async function loadCampaignPerformance() {
     if (!response.ok || !result.ok) throw new Error(result.error || "Could not load campaigns.");
     if (requestId !== state.campaignPerformanceRequestId) return;
     state.campaignPerformance = Array.isArray(result.campaigns) ? result.campaigns : [];
+    state.campaignPerformanceUpdatedAt = new Date().toISOString();
     renderCampaignPerformance();
   } catch (error) {
     if (requestId !== state.campaignPerformanceRequestId) return;
@@ -8918,9 +8924,15 @@ document.querySelectorAll("[data-campaign-window]").forEach((button) => {
 document.querySelector("#campaignsRows")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-campaign-id]");
   if (!button) return;
-  state.expandedCampaignId = state.expandedCampaignId === button.dataset.campaignId
-    ? null : button.dataset.campaignId;
+  const campaignId = button.dataset.campaignId;
+  state.expandedCampaignId = state.expandedCampaignId === campaignId
+    ? null : campaignId;
   renderCampaignPerformance();
+  Array.from(document.querySelectorAll("#campaignsRows [data-campaign-id]"))
+    .find((row) => row.dataset.campaignId === campaignId)?.focus();
+});
+document.querySelector("#campaignsStatus")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-campaign-retry]")) void loadCampaignPerformance();
 });
 
 function switchTab(tabName) {
