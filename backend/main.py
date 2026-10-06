@@ -50,6 +50,8 @@ from app.outreach_message_preparation_store import (
     prepare_selected_unsent_accepted,
 )
 
+from app.outreach_campaign_performance_store import get_campaign_performance
+
 from app.outreach_message_queue_store import (
     OutreachMessageQueueStoreError,
     queue_message_batch,
@@ -2089,6 +2091,18 @@ async def send_outreach_reply_api(
 # =========================================================
 # OUTREACH DASHBOARD API
 # =========================================================
+
+
+@app.get("/api/outreach/campaigns/performance")
+async def get_outreach_campaign_performance_api(window: str = "all") -> JSONResponse:
+    if window not in ("1d", "7d", "30d", "all"):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Invalid timeframe"})
+    try:
+        campaigns = get_campaign_performance(window)
+    except Exception:
+        logger.exception("Could not load campaign performance")
+        return JSONResponse(status_code=500, content={"ok": False, "error": "Could not load campaign performance"})
+    return JSONResponse(content={"ok": True, "window": window, "campaigns": campaigns})
 
 
 @app.get("/api/outreach/worker-activity")

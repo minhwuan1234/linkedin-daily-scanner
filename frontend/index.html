@@ -22,6 +22,7 @@
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-infinite-1" />
+  <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-campaigns-1" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
   <link rel="stylesheet" href="./rate-limits.css?v=20260924-total-capacity-1" />
@@ -110,6 +111,11 @@
             <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9A2.5 2.5 0 0 1 17.5 17H10l-5 4v-4.8A2.5 2.5 0 0 1 4 14.5z"/><path d="M8 8h8M8 12h5"/></svg></span>
             <span class="sidebar-nav-text">Replies</span>
             <span id="outreachReplyTabCount" class="tab-count">0</span>
+          </button>
+
+          <button class="tab-button" type="button" data-tab="campaigns">
+            <span class="sidebar-nav-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M8 4v6m8-6v6M8 15h3m3 0h3"/></svg></span>
+            <span class="sidebar-nav-text">Campaigns</span>
           </button>
 
 
@@ -539,6 +545,29 @@
           </div>
         </div>
       </article>
+    </section>
+
+    <!-- CAMPAIGN PERFORMANCE -->
+    <section id="tab-campaigns" class="tab-panel" hidden>
+      <div class="campaigns-workspace">
+        <header class="campaigns-header">
+          <div><h2>Campaigns</h2><p>Compare campaign performance across Connect batches. Click a campaign to see each batch.</p></div>
+          <div class="campaigns-timeframes" role="group" aria-label="Campaign timeframe">
+            <button type="button" data-campaign-window="1d">1D</button>
+            <button type="button" data-campaign-window="7d">7D</button>
+            <button type="button" data-campaign-window="30d">30D</button>
+            <button type="button" data-campaign-window="all" class="is-active">All time</button>
+          </div>
+        </header>
+        <p class="campaigns-method">Timeframe selects Connect batches created in that period. Added = unique prospects; Messaged = unique prospects with a sent message; Replies = unique prospects with a verified reply. Reply rate = Replies ÷ Messaged.</p>
+        <div id="campaignsStatus" class="campaigns-status" role="status">Select Campaigns to load performance.</div>
+        <div class="campaigns-scroll">
+          <div id="campaignsTable" class="campaigns-table" hidden>
+            <div class="campaigns-table-head" aria-hidden="true"><span>Campaign</span><span>Batch IDs</span><span>Added</span><span>Messaged</span><span>Replies</span><span>Reply rate</span></div>
+            <div id="campaignsRows"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- PROFILES -->
@@ -1849,7 +1878,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-acceptance-campaign-summary-1"></script>
+  <script src="./app.js?v=20261006-campaigns-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

@@ -653,6 +653,12 @@ const state = {
   outreachAccounts: [],
   outreachRecentJobs: [],
   connectCampaigns: [],
+  campaignPerformanceWindow: "all",
+  campaignPerformance: [],
+  campaignPerformanceLoading: false,
+  campaignPerformanceError: "",
+  campaignPerformanceRequestId: 0,
+  expandedCampaignId: null,
   selectedConnectHistoryJobId: null,
   expandedConnectWeekKey: null,
   acceptanceInsights: null,
@@ -8836,6 +8842,87 @@ async function pollOutreachReplyRevision() {
   }
 }
 
+function renderCampaignPerformance() {
+  const status = document.querySelector("#campaignsStatus");
+  const table = document.querySelector("#campaignsTable");
+  const rows = document.querySelector("#campaignsRows");
+  if (!status || !table || !rows) return;
+  document.querySelectorAll("[data-campaign-window]").forEach((button) => {
+    const active = button.dataset.campaignWindow === state.campaignPerformanceWindow;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  status.classList.remove("is-error");
+  if (state.campaignPerformanceLoading) {
+    status.hidden = false;
+    status.textContent = "Loading campaign performance…";
+    table.hidden = true;
+    return;
+  }
+  const campaigns = state.campaignPerformance;
+  if (state.campaignPerformanceError) {
+    status.hidden = false;
+    status.classList.add("is-error");
+    status.textContent = state.campaignPerformanceError;
+    table.hidden = true;
+    return;
+  }
+  status.hidden = campaigns.length > 0;
+  table.hidden = campaigns.length === 0;
+  if (!campaigns.length) status.textContent = "No Connect batches in this timeframe.";
+  rows.innerHTML = campaigns.map((campaign) => {
+    const id = String(campaign.campaign_id || "");
+    const expanded = id === state.expandedCampaignId;
+    const batches = Array.isArray(campaign.batches) ? campaign.batches : [];
+    const codes = batches.map((batch) => String(batch.batch_code || batch.batch_id || ""));
+    const summary = codes.length <= 2 ? codes.join(", ") : `${codes[0]} + ${codes.length - 1} more`;
+    const detail = expanded ? `<div class="campaigns-detail"><h3>Connect batches in this campaign</h3>${batches.map((batch) => `
+      <div class="campaigns-batch-row"><strong>${escapeHtml(batch.batch_code || batch.batch_id)}</strong><span>${escapeHtml(formatDate(batch.created_at))}</span><span>${Number(batch.added || 0)}</span><span>${Number(batch.messaged || 0)}</span><span>${Number(batch.replies || 0)}</span><span>${Number(batch.reply_rate || 0).toFixed(1)}%</span></div>`).join("")}</div>` : "";
+    return `<button type="button" class="campaigns-row" data-campaign-id="${escapeHtml(id)}" aria-expanded="${expanded}" aria-label="${escapeHtml(campaign.campaign_name)}: ${codes.length} batches, ${campaign.replies} replies. ${expanded ? "Hide" : "Show"} details">
+      <strong>${escapeHtml(campaign.campaign_name)}</strong><span class="campaigns-batch-summary" title="${escapeHtml(codes.join("\n"))}">${escapeHtml(summary)}</span><span>${Number(campaign.added || 0)}</span><span>${Number(campaign.messaged || 0)}</span><span>${Number(campaign.replies || 0)}</span><span>${Number(campaign.reply_rate || 0).toFixed(1)}%</span></button>${detail}`;
+  }).join("");
+}
+
+async function loadCampaignPerformance() {
+  const requestId = ++state.campaignPerformanceRequestId;
+  state.campaignPerformanceLoading = true;
+  state.campaignPerformanceError = "";
+  renderCampaignPerformance();
+  try {
+    const response = await fetch(`/api/outreach/campaigns/performance?window=${encodeURIComponent(state.campaignPerformanceWindow)}`, {cache: "no-store"});
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Could not load campaigns.");
+    if (requestId !== state.campaignPerformanceRequestId) return;
+    state.campaignPerformance = Array.isArray(result.campaigns) ? result.campaigns : [];
+    renderCampaignPerformance();
+  } catch (error) {
+    if (requestId !== state.campaignPerformanceRequestId) return;
+    state.campaignPerformance = [];
+    state.campaignPerformanceError = error.message || "Could not load campaigns.";
+  } finally {
+    if (requestId === state.campaignPerformanceRequestId) {
+      state.campaignPerformanceLoading = false;
+      renderCampaignPerformance();
+    }
+  }
+}
+
+document.querySelectorAll("[data-campaign-window]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.campaignPerformanceWindow === button.dataset.campaignWindow) return;
+    state.campaignPerformanceWindow = button.dataset.campaignWindow;
+    state.expandedCampaignId = null;
+    void loadCampaignPerformance();
+  });
+});
+document.querySelector("#campaignsRows")?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-campaign-id]");
+  if (!button) return;
+  state.expandedCampaignId = state.expandedCampaignId === button.dataset.campaignId
+    ? null : button.dataset.campaignId;
+  renderCampaignPerformance();
+});
+
 function switchTab(tabName) {
   document
     .querySelectorAll(".tab-button")
@@ -8933,6 +9020,11 @@ function switchTab(tabName) {
       eyebrow: "Outreach",
       title: "Message Replies",
       subtitle: "Review verified LinkedIn replies captured by the Reply Check Worker."
+    },
+    campaigns: {
+      eyebrow: "Outreach",
+      title: "Campaigns",
+      subtitle: "Compare performance across batches in each campaign."
     }
   };
 
@@ -8985,6 +9077,9 @@ document
 
       if (button.dataset.tab === "replies") {
         void loadOutreachReplies();
+      }
+      if (button.dataset.tab === "campaigns") {
+        void loadCampaignPerformance();
       }
     });
   });
@@ -9856,6 +9951,9 @@ els.refreshButton?.addEventListener(
     if (repliesPanel && !repliesPanel.hidden) {
       void loadOutreachReplies();
     }
+    if (!document.querySelector("#tab-campaigns")?.hidden) {
+      void loadCampaignPerformance();
+    }
   }
 );
 
@@ -10421,12 +10519,16 @@ if (initialUiSettings.rememberLastSection) {
 
   if (
     savedTab === "outreach" ||
-    savedTab === "replies"
+    savedTab === "replies" ||
+    savedTab === "campaigns"
   ) {
     switchTab(savedTab);
 
     if (savedTab === "replies") {
       void loadOutreachReplies();
+    }
+    if (savedTab === "campaigns") {
+      void loadCampaignPerformance();
     }
   }
 }
