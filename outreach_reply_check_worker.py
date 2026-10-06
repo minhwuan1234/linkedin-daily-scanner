@@ -36,6 +36,10 @@ from app.outreach_account_pool import (
 )
 from app.outreach_message_executor import get_outreach_supabase_client
 from app.outreach_reply_schedule import run_reply_check_schedule
+from app.outreach_reply_check_requests import (
+    claim_reply_check_request,
+    finish_reply_check_request,
+)
 from app.outreach_reply_store import save_outreach_reply
 from app.outreach_worker_heartbeat import worker_heartbeat
 
@@ -1689,7 +1693,7 @@ def run_once(account_id: str) -> None:
         _run_once(account_id)
 
 
-def run_all_accounts() -> None:
+def run_all_accounts() -> list[str]:
     """Scan all five profiles sequentially, continuing after account errors."""
 
     failed_accounts: list[str] = []
@@ -1708,6 +1712,34 @@ def run_all_accounts() -> None:
         )
     else:
         logger.info("Reply check finished for all five accounts")
+    return failed_accounts
+
+
+def process_manual_reply_check_request() -> bool:
+    """Claim and execute one dashboard request; return whether work ran."""
+    try:
+        request = claim_reply_check_request()
+    except Exception:
+        logger.exception("Could not poll manual reply-check requests")
+        return False
+    if not request:
+        return False
+    request_id = str(request.get("id") or "")
+    logger.info("Starting dashboard-triggered reply check | request=%s", request_id)
+    try:
+        failed_accounts = run_all_accounts()
+        if failed_accounts:
+            finish_reply_check_request(
+                request_id,
+                error="Reply scan failed for: " + ", ".join(failed_accounts),
+            )
+            return True
+    except Exception as exc:
+        logger.exception("Dashboard-triggered reply check failed")
+        finish_reply_check_request(request_id, error=str(exc))
+    else:
+        finish_reply_check_request(request_id)
+    return True
 
 
 def _parse_args() -> argparse.Namespace:
@@ -1751,7 +1783,10 @@ def main() -> None:
     )
     args = _parse_args()
     if args.schedule:
-        run_reply_check_schedule(run_all_accounts)
+        run_reply_check_schedule(
+            run_all_accounts,
+            process_manual_request=process_manual_reply_check_request,
+        )
     elif args.all_accounts:
         run_all_accounts()
     else:

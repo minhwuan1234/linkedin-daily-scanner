@@ -38,19 +38,27 @@ def next_reply_check_at(now: datetime) -> datetime:
 def run_reply_check_schedule(
     scan_all_accounts: Callable[[], None],
     *,
+    process_manual_request: Callable[[], bool] = lambda: False,
     now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     sleep: Callable[[float], None] = time.sleep,
 ) -> None:
-    """Wait for each slot without drifting when a scan takes time."""
+    """Run scheduled scans and check the manual queue while waiting."""
 
     while True:
+        if process_manual_request():
+            continue
         slot = next_reply_check_at(now())
         logger.info("Next reply check: %s", slot.isoformat())
         while True:
+            if process_manual_request():
+                break
             seconds_left = (slot - now()).total_seconds()
             if seconds_left <= 0:
                 break
-            sleep(min(seconds_left, 60.0))
+            sleep(min(seconds_left, 10.0))
+
+        if now() < slot:
+            continue
 
         logger.info("Starting scheduled reply check: %s", slot.isoformat())
         scan_all_accounts()

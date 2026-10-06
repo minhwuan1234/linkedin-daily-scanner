@@ -8853,6 +8853,49 @@ async function pollOutreachReplyRevision() {
   }
 }
 
+async function requestOutreachReplyCheck() {
+  const button = document.querySelector("#outreachReplyCheckButton");
+  const status = document.querySelector("#outreachReplyCheckStatus");
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  button.textContent = "Queueing…";
+  status.textContent = "Sending request to worker…";
+  try {
+    const response = await fetch("/api/outreach/reply-check", { method: "POST" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Could not queue reply check.");
+    const requestId = result.request?.id;
+    if (!requestId) throw new Error("Worker request was queued without an ID.");
+    status.textContent = result.request.already_active
+      ? "A reply check is already queued or running."
+      : "Queued — waiting for worker…";
+    button.textContent = "Check queued";
+    while (true) {
+      await new Promise((resolve) => window.setTimeout(resolve, 4000));
+      const checkResponse = await fetch(`/api/outreach/reply-check/${encodeURIComponent(requestId)}`, { cache: "no-store" });
+      const checkResult = await checkResponse.json();
+      if (!checkResponse.ok || !checkResult.ok) throw new Error(checkResult.error || "Could not get reply-check status.");
+      const request = checkResult.request;
+      if (request.status === "running") {
+        button.textContent = "Checking…";
+        status.textContent = "Worker is checking all accounts…";
+      } else if (request.status === "completed") {
+        button.textContent = "Check replies";
+        status.textContent = "Reply check completed.";
+        await loadOutreachReplies();
+        break;
+      } else if (request.status === "failed") {
+        throw new Error(request.error || "Worker could not complete the reply check.");
+      }
+    }
+  } catch (error) {
+    status.textContent = error.message || String(error);
+  } finally {
+    button.disabled = false;
+    if (button.textContent !== "Check replies") button.textContent = "Check replies";
+  }
+}
+
 function renderCampaignPerformanceFilter() {
   const select = document.querySelector("#campaignPerformanceFilter");
   if (!select) return;
@@ -10056,6 +10099,9 @@ els.outreachCampaignSelect?.addEventListener("change", () => {
   if (els.outreachCampaignSelect.value === NEW_CONNECT_CAMPAIGN) els.outreachNewCampaign?.focus();
 });
 els.outreachNewCampaign?.addEventListener("input", renderConnectCampaignSelection);
+document.querySelector("#outreachReplyCheckButton")?.addEventListener("click", () => {
+  void requestOutreachReplyCheck();
+});
 for (const dropdown of connectDropdowns) setupConnectDropdown(dropdown);
 document.addEventListener("click", (event) => {
   for (const dropdown of connectDropdowns) {

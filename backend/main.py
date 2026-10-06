@@ -70,6 +70,10 @@ from app.outreach_reply_store import (
     list_outreach_reply_page,
     list_recent_outreach_replies,
 )
+from app.outreach_reply_check_requests import (
+    get_reply_check_request,
+    request_reply_check,
+)
 from app.outreach_reply_send_store import (
     OutreachReplySendStoreError,
     list_reply_send_jobs,
@@ -1988,6 +1992,37 @@ async def list_outreach_replies_api(
             "next_offset": page["next_offset"] if page else None,
         },
     )
+
+
+@app.post("/api/outreach/reply-check")
+async def request_outreach_reply_check_api() -> JSONResponse:
+    try:
+        request = request_reply_check()
+    except Exception as exc:
+        logger.exception("Could not queue a manual Outreach reply check")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
+    return JSONResponse(
+        status_code=202,
+        content={"ok": True, "request": request},
+    )
+
+
+@app.get("/api/outreach/reply-check/{request_id}")
+async def get_outreach_reply_check_request_api(request_id: str) -> JSONResponse:
+    try:
+        request = get_reply_check_request(request_id)
+    except Exception as exc:
+        logger.exception("Could not load manual reply-check status")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
+    if not request:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Request not found"})
+    return JSONResponse(content={"ok": True, "request": request})
 
 
 @app.put("/api/outreach/replies/{reply_id}/prepare-send")
