@@ -654,10 +654,11 @@ const state = {
   outreachRecentJobs: [],
   connectCampaigns: [],
   campaignPerformanceWindow: "all",
+  campaignPerformanceFilter: "all",
   campaignPerformance: [],
+  campaignPerformanceOptions: [],
   campaignPerformanceLoading: false,
   campaignPerformanceError: "",
-  campaignPerformanceUpdatedAt: null,
   campaignPerformanceRequestId: 0,
   expandedCampaignId: null,
   selectedConnectHistoryJobId: null,
@@ -8843,14 +8844,26 @@ async function pollOutreachReplyRevision() {
   }
 }
 
+function renderCampaignPerformanceFilter() {
+  const select = document.querySelector("#campaignPerformanceFilter");
+  if (!select) return;
+  const campaigns = state.campaignPerformanceOptions.length
+    ? state.campaignPerformanceOptions : state.campaignPerformance;
+  select.replaceChildren(new Option("All campaigns", "all"));
+  [...campaigns]
+    .sort((left, right) => String(left.campaign_name).localeCompare(String(right.campaign_name)))
+    .forEach((campaign) => select.add(new Option(campaign.campaign_name, campaign.campaign_id)));
+  if (!campaigns.some((campaign) => campaign.campaign_id === state.campaignPerformanceFilter)) {
+    state.campaignPerformanceFilter = "all";
+  }
+  select.value = state.campaignPerformanceFilter;
+}
+
 function renderCampaignPerformance() {
   const status = document.querySelector("#campaignsStatus");
   const table = document.querySelector("#campaignsTable");
   const rows = document.querySelector("#campaignsRows");
-  const updated = document.querySelector("#campaignsUpdatedAt");
   if (!status || !table || !rows) return;
-  if (updated) updated.textContent = state.campaignPerformanceUpdatedAt
-    ? `Last updated ${formatDate(state.campaignPerformanceUpdatedAt)}` : "";
   document.querySelectorAll("[data-campaign-window]").forEach((button) => {
     const active = button.dataset.campaignWindow === state.campaignPerformanceWindow;
     button.classList.toggle("is-active", active);
@@ -8864,7 +8877,10 @@ function renderCampaignPerformance() {
     table.hidden = true;
     return;
   }
-  const campaigns = state.campaignPerformance;
+  const campaigns = state.campaignPerformanceFilter === "all"
+    ? state.campaignPerformance
+    : state.campaignPerformance.filter((campaign) =>
+        campaign.campaign_id === state.campaignPerformanceFilter);
   if (state.campaignPerformanceError) {
     status.hidden = false;
     status.classList.add("is-error");
@@ -8874,7 +8890,9 @@ function renderCampaignPerformance() {
   }
   status.hidden = campaigns.length > 0;
   table.hidden = campaigns.length === 0;
-  if (!campaigns.length) status.textContent = "No Connect batches in this timeframe.";
+  if (!campaigns.length) status.textContent = state.campaignPerformanceFilter === "all"
+    ? "No Connect batches in this timeframe."
+    : "No batches for this campaign in this timeframe.";
   rows.innerHTML = campaigns.map((campaign) => {
     const id = String(campaign.campaign_id || "");
     const expanded = id === state.expandedCampaignId;
@@ -8899,7 +8917,10 @@ async function loadCampaignPerformance() {
     if (!response.ok || !result.ok) throw new Error(result.error || "Could not load campaigns.");
     if (requestId !== state.campaignPerformanceRequestId) return;
     state.campaignPerformance = Array.isArray(result.campaigns) ? result.campaigns : [];
-    state.campaignPerformanceUpdatedAt = new Date().toISOString();
+    if (state.campaignPerformanceWindow === "all") {
+      state.campaignPerformanceOptions = state.campaignPerformance;
+    }
+    renderCampaignPerformanceFilter();
     renderCampaignPerformance();
   } catch (error) {
     if (requestId !== state.campaignPerformanceRequestId) return;
@@ -8920,6 +8941,11 @@ document.querySelectorAll("[data-campaign-window]").forEach((button) => {
     state.expandedCampaignId = null;
     void loadCampaignPerformance();
   });
+});
+document.querySelector("#campaignPerformanceFilter")?.addEventListener("change", (event) => {
+  state.campaignPerformanceFilter = event.target.value;
+  state.expandedCampaignId = null;
+  renderCampaignPerformance();
 });
 document.querySelector("#campaignsRows")?.addEventListener("click", (event) => {
   const button = event.target.closest("[data-campaign-id]");

@@ -3,6 +3,8 @@ import unittest
 from types import ModuleType
 from unittest.mock import patch
 
+from app.outreach_campaign_identity import canonical_campaign_name, campaign_id_for_name
+
 
 try:
     from app.outreach_campaign_performance_store import aggregate_campaign_performance
@@ -18,10 +20,17 @@ except ModuleNotFoundError as exc:
 
 
 class CampaignPerformanceTest(unittest.TestCase):
+    def test_legacy_date_and_run_labels_share_campaign_identity(self):
+        first = "29/9/2026 - Video Production Agency"
+        later = "28/9/2026 - lần 3- Video Production Agency"
+        self.assertEqual(canonical_campaign_name(later), "Video Production Agency")
+        self.assertEqual(campaign_id_for_name(first), campaign_id_for_name(later))
+        self.assertEqual(canonical_campaign_name("MKT mana"), "MKT mana")
+
     def test_same_campaign_aggregates_batches_without_duplicate_replies(self):
         jobs = [
-            {"id": "b1", "job_code": "B-01", "display_name": "Video Agency", "created_at": "2026-10-06T10:00:00Z"},
-            {"id": "b2", "job_code": "B-02", "display_name": " video  agency ", "created_at": "2026-10-05T10:00:00Z"},
+            {"id": "b1", "job_code": "B-01", "display_name": "29/9/2026 - Video Agency", "created_at": "2026-10-06T10:00:00Z"},
+            {"id": "b2", "job_code": "B-02", "display_name": "28/9/2026 - lần 3- video  agency ", "created_at": "2026-10-05T10:00:00Z"},
             {"id": "b3", "job_code": "B-03", "display_name": "Other", "created_at": "2026-10-04T10:00:00Z"},
         ]
         targets = [

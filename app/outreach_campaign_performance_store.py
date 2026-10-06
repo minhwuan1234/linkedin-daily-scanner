@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from supabase import Client
 
-from app.outreach_campaign_identity import campaign_id_for_name
+from app.outreach_campaign_identity import campaign_id_for_name, canonical_campaign_name
 from app.outreach_dashboard_store import get_outreach_client
 
 
@@ -55,7 +55,7 @@ def aggregate_campaign_performance(jobs: list[dict], connect_targets: list[dict]
         batch_id = _text(job.get("id"))
         if not batch_id:
             continue
-        name = " ".join(_text(job.get("display_name")).split())
+        name = canonical_campaign_name(job.get("display_name"))
         campaign_id = campaign_id_for_name(name, connect_batch_id=batch_id)
         campaign = campaigns.setdefault(campaign_id, {
             "campaign_id": campaign_id,
