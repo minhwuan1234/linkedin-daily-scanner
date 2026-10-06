@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-demo-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20261006-campaign-menu-1" />
-  <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-filter-1" />
+  <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-infinite-1" />
@@ -918,6 +918,19 @@
       <div id="outreachAcceptanceEmpty" class="outreach-job-empty">
         Select a week to view its Connect Jobs.
       </div>
+
+      <section id="outreachAcceptanceCampaignSummary" class="acceptance-campaign-summary" aria-live="polite" hidden>
+        <div class="acceptance-campaign-summary-heading">
+          <div><strong id="outreachAcceptanceCampaignSummaryName"></strong><span>Campaign total for selected week</span></div>
+          <span id="outreachAcceptanceCampaignSummaryBatches"></span>
+        </div>
+        <div class="acceptance-campaign-summary-metrics">
+          <div><span>Prospects added</span><strong id="outreachAcceptanceCampaignSummaryProspects">0</strong></div>
+          <div><span>Accepted</span><strong id="outreachAcceptanceCampaignSummaryAccepted">0</strong></div>
+          <div><span>Pending</span><strong id="outreachAcceptanceCampaignSummaryPending">0</strong></div>
+          <div><span>Failed</span><strong id="outreachAcceptanceCampaignSummaryFailed">0</strong></div>
+        </div>
+      </section>
 
       <div id="outreachAcceptanceTableWrap" class="table-wrap acceptance-grid-wrap" hidden>
         <table class="outreach-acceptance-table">
@@ -1836,7 +1849,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-acceptance-campaign-filter-1"></script>
+  <script src="./app.js?v=20261006-acceptance-campaign-summary-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

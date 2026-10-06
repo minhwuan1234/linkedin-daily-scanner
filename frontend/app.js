@@ -324,6 +324,20 @@ const els = {
 
   outreachAcceptanceEmpty:
     document.querySelector("#outreachAcceptanceEmpty"),
+  outreachAcceptanceCampaignSummary:
+    document.querySelector("#outreachAcceptanceCampaignSummary"),
+  outreachAcceptanceCampaignSummaryName:
+    document.querySelector("#outreachAcceptanceCampaignSummaryName"),
+  outreachAcceptanceCampaignSummaryBatches:
+    document.querySelector("#outreachAcceptanceCampaignSummaryBatches"),
+  outreachAcceptanceCampaignSummaryProspects:
+    document.querySelector("#outreachAcceptanceCampaignSummaryProspects"),
+  outreachAcceptanceCampaignSummaryAccepted:
+    document.querySelector("#outreachAcceptanceCampaignSummaryAccepted"),
+  outreachAcceptanceCampaignSummaryPending:
+    document.querySelector("#outreachAcceptanceCampaignSummaryPending"),
+  outreachAcceptanceCampaignSummaryFailed:
+    document.querySelector("#outreachAcceptanceCampaignSummaryFailed"),
 
   outreachAcceptanceTableWrap:
     document.querySelector("#outreachAcceptanceTableWrap"),
@@ -3652,7 +3666,7 @@ function getIsoWeekNumber(date) {
 function getAcceptancePeriodRows(jobs) {
   const rows = (Array.isArray(jobs) ? jobs : []).filter((job) =>
     !state.outreachAcceptanceCampaign ||
-    String(job.display_name || "").trim() === state.outreachAcceptanceCampaign
+    String(job.display_name || "").trim().toLocaleLowerCase() === state.outreachAcceptanceCampaign.toLocaleLowerCase()
   );
 
   if (!state.outreachAcceptanceWeekKey) {
@@ -3685,7 +3699,7 @@ function getAcceptanceWeekGroups(jobs) {
 
   (Array.isArray(jobs) ? jobs : []).filter((job) =>
     !state.outreachAcceptanceCampaign ||
-    String(job.display_name || "").trim() === state.outreachAcceptanceCampaign
+    String(job.display_name || "").trim().toLocaleLowerCase() === state.outreachAcceptanceCampaign.toLocaleLowerCase()
   ).forEach((job) => {
     const info = getWeekInfo(job?.created_at);
 
@@ -3830,15 +3844,20 @@ function setAcceptanceWeekMenuOpen(open, {restoreFocus = false} = {}) {
 function renderAcceptancePeriodFilters() {
   const select = els.outreachAcceptanceCampaignFilter;
   if (select) {
-    const names = [...new Set(state.outreachRecentJobs
-      .map((job) => String(job.display_name || "").trim())
-      .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const namesByKey = new Map();
+    for (const job of state.outreachRecentJobs) {
+      const name = String(job.display_name || "").trim();
+      if (name) namesByKey.set(name.toLocaleLowerCase(), namesByKey.get(name.toLocaleLowerCase()) || name);
+    }
+    const names = [...namesByKey.values()].sort((a, b) => a.localeCompare(b));
+    const selectedKey = state.outreachAcceptanceCampaign.toLocaleLowerCase();
+    state.outreachAcceptanceCampaign = namesByKey.get(selectedKey) || "";
     const currentNames = [...select.options].slice(1).map((option) => option.value);
     if (names.join("\u0000") !== currentNames.join("\u0000")) {
       const selected = state.outreachAcceptanceCampaign;
       select.replaceChildren(new Option("All campaigns", ""));
       for (const name of names) select.add(new Option(name, name));
-      if (names.includes(selected)) {
+      if (namesByKey.has(selected.toLocaleLowerCase())) {
         select.value = selected;
       } else {
         state.outreachAcceptanceCampaign = "";
@@ -3853,6 +3872,30 @@ function renderAcceptancePeriodFilters() {
 
 }
 
+function renderAcceptanceCampaignSummary(rows) {
+  const visible = Boolean(state.outreachAcceptanceCampaign) && rows.length > 0;
+  const summary = els.outreachAcceptanceCampaignSummary;
+  if (!summary) return;
+  summary.hidden = !visible;
+  if (!visible) return;
+
+  const totals = rows.reduce((result, job) => {
+    const acceptance = job.acceptance || {};
+    result.prospects += Number(job.input_count || 0);
+    result.accepted += getAcceptanceAcceptedCount(acceptance);
+    result.pending += Number(acceptance.still_pending_count || 0);
+    result.failed += Number(acceptance.failed_count || 0);
+    return result;
+  }, { prospects: 0, accepted: 0, pending: 0, failed: 0 });
+  const setText = (element, text) => { if (element) element.textContent = String(text); };
+  setText(els.outreachAcceptanceCampaignSummaryName, state.outreachAcceptanceCampaign);
+  setText(els.outreachAcceptanceCampaignSummaryBatches, `${rows.length} ${rows.length === 1 ? "batch" : "batches"}`);
+  setText(els.outreachAcceptanceCampaignSummaryProspects, totals.prospects);
+  setText(els.outreachAcceptanceCampaignSummaryAccepted, totals.accepted);
+  setText(els.outreachAcceptanceCampaignSummaryPending, totals.pending);
+  setText(els.outreachAcceptanceCampaignSummaryFailed, totals.failed);
+}
+
 
 function renderOutreachAcceptanceJobs(
   jobs
@@ -3860,6 +3903,7 @@ function renderOutreachAcceptanceJobs(
   renderAcceptancePeriodFilters();
 
   const rows = getAcceptancePeriodRows(jobs);
+  renderAcceptanceCampaignSummary(rows);
   updateAcceptanceDeleteSelectionUi();
 
   if (
