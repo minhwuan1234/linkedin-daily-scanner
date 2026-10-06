@@ -6729,7 +6729,7 @@ function renderConnectHistory(jobs) {
       const batchId = document.createElement("span");
       batchId.textContent = `Batch ID: ${job.job_code || "—"}`;
       const profiles = document.createElement("span");
-      profiles.textContent = `${Number(job.target_count || 0)} profiles`;
+      profiles.textContent = `${Number(job.input_count || 0)} prospects added`;
       const processed = document.createElement("span");
       processed.textContent = `${Number(job.processed_count || 0)} processed`;
       const success = document.createElement("span");
