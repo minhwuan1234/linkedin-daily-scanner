@@ -5804,7 +5804,7 @@ function renderMessagePreparation() {
   if (els.messagePreparationMeta) {
     els.messagePreparationMeta.textContent =
       count > 0
-        ? "Prepare All will snapshot the current eligible list into one fixed batch."
+        ? "Prepare All creates a separate fixed message batch for each source Connect batch."
         : "Accepted profiles not yet assigned to a prepared batch appear here.";
   }
 
@@ -5990,16 +5990,15 @@ function renderMessagePreparation() {
         );
 
       if (sourceIds.length === 1) {
+        const sourceItem = sourceIds[0];
         source.textContent =
-          getMessageBatchSourceLabel(
-            sourceIds[0]
-          );
+          `${sourceItem.display_name || "Unnamed campaign"} · ${sourceItem.code || sourceItem.id}`;
 
         source.title =
-          getMessageBatchSourceTooltipLine(sourceIds[0]);
+          `Campaign: ${sourceItem.display_name || "Unnamed campaign"}\nSource Batch ID: ${sourceItem.id}\n${getMessageBatchSourceTooltipLine(sourceItem)}`;
       } else if (sourceIds.length > 1) {
         source.textContent =
-          `${sourceIds.length} Connect IDs`;
+          `Mixed legacy batch · ${sourceIds.length} sources`;
 
         source.title =
           sourceIds
@@ -6007,7 +6006,7 @@ function renderMessagePreparation() {
             .join("\n");
       } else {
         source.textContent =
-          "Connect ID —";
+          "Campaign · source batch unavailable";
 
         source.title =
           "Source Connect Job unavailable.";

@@ -490,6 +490,10 @@ def _create_prepared_batch_from_candidates(
         raise
 
     batch["target_count"] = inserted_count
+    source = candidates[0]
+    batch["campaign_id"] = _safe_text(source.get("campaign_id"))
+    batch["campaign_name"] = _safe_text(source.get("campaign_name"))
+    batch["source_connect_batch_id"] = _safe_text(source.get("connect_batch_id"))
 
     return {
         "created": True,
@@ -497,6 +501,40 @@ def _create_prepared_batch_from_candidates(
         "batch": batch,
         "target_count": inserted_count,
     }
+
+
+def _prepare_batches_by_connect_source(*, candidates: list[dict], client: Client) -> dict:
+    """Keep each prepared message batch tied to exactly one Connect batch."""
+    if not candidates:
+        return {"created": False, "reason": "no_eligible_recipients", "batch": None,
+                "batches": [], "target_count": 0}
+
+    groups: dict[str, list[dict]] = {}
+    for candidate in candidates:
+        source_id = _safe_text(candidate.get("connect_batch_id"))
+        if not source_id:
+            raise OutreachMessagePreparationStoreError(
+                "A recipient has no source Connect batch. Refresh the accepted pool before preparing."
+            )
+        groups.setdefault(source_id, []).append(candidate)
+
+    batches: list[dict] = []
+    total = 0
+    for group in groups.values():
+        try:
+            result = _create_prepared_batch_from_candidates(candidates=group, client=client)
+        except Exception as exc:
+            if batches:
+                raise OutreachMessagePreparationStoreError(
+                    f"Prepared {len(batches)} source batch(es) before an error. "
+                    "Refresh Messages before retrying; already prepared recipients will be skipped."
+                ) from exc
+            raise
+        batches.append(result["batch"])
+        total += result["target_count"]
+
+    return {"created": True, "reason": None, "batch": batches[0],
+            "batches": batches, "target_count": total}
 
 
 # =========================================================
@@ -519,7 +557,7 @@ def prepare_all_unsent_accepted(
         )
     )
 
-    return _create_prepared_batch_from_candidates(
+    return _prepare_batches_by_connect_source(
         candidates=list(
             candidate_result.get("items")
             or []
@@ -600,7 +638,7 @@ def prepare_selected_unsent_accepted(
         for prospect_id in cleaned_ids
     ]
 
-    return _create_prepared_batch_from_candidates(
+    return _prepare_batches_by_connect_source(
         candidates=selected_candidates,
         client=active_client,
     )
@@ -889,6 +927,18 @@ def _attach_source_connect_ids_to_batches(
         batch[
             "source_connect_ids"
         ] = source_connect_ids
+        campaign_ids = {item["campaign_id"] for item in source_connect_ids}
+        batch["campaign_id"] = next(iter(campaign_ids)) if len(campaign_ids) == 1 else None
+        batch["campaign_name"] = (
+            source_connect_ids[0]["display_name"] if len(campaign_ids) == 1 else None
+        )
+        batch["source_connect_batch_id"] = (
+            source_connect_ids[0]["connect_batch_id"] if len(source_connect_ids) == 1 else None
+        )
+        batch["source_connect_batch_code"] = (
+            source_connect_ids[0]["code"] if len(source_connect_ids) == 1 else None
+        )
+        batch["mixed_sources"] = len(source_connect_ids) > 1
 
         enriched.append(
             batch
@@ -1096,5 +1146,20 @@ def get_prepared_message_batch(
     targets = [dict(row) for row in list(target_response.data or [])]
     _attach_connect_identity_to_targets(client=active_client, targets=targets)
     batch["targets"] = targets
+
+    sources = {(target["connect_batch_id"], target["connect_batch_code"],
+                target["campaign_id"], target["campaign_name"])
+               for target in targets if target.get("connect_batch_id")}
+    batch["source_connect_ids"] = [
+        {"id": source_id, "connect_batch_id": source_id, "code": code,
+         "campaign_id": campaign_id, "display_name": name}
+        for source_id, code, campaign_id, name in sorted(sources)
+    ]
+    campaign_ids = {source[2] for source in sources}
+    batch["campaign_id"] = next(iter(campaign_ids)) if len(campaign_ids) == 1 else None
+    batch["campaign_name"] = next(iter(sources))[3] if len(campaign_ids) == 1 else None
+    batch["source_connect_batch_id"] = next(iter(sources))[0] if len(sources) == 1 else None
+    batch["source_connect_batch_code"] = next(iter(sources))[1] if len(sources) == 1 else None
+    batch["mixed_sources"] = len(sources) > 1
 
     return batch

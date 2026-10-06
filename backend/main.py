@@ -1396,7 +1396,7 @@ async def prepare_selected_outreach_messages_api(
 ) -> JSONResponse:
     """
     Snapshot only selected currently eligible accepted users
-    into one prepared message batch.
+    into prepared message batches grouped by source Connect batch.
 
     This endpoint does NOT send LinkedIn messages.
     """
@@ -1477,6 +1477,7 @@ async def prepare_selected_outreach_messages_api(
             "ok": True,
             "created": bool(result.get("created")),
             "batch": batch,
+            "batches": result.get("batches", []),
             "target_count": result.get("target_count", 0),
         },
     )
@@ -1486,7 +1487,7 @@ async def prepare_selected_outreach_messages_api(
 async def prepare_all_outreach_messages_api() -> JSONResponse:
     """
     Snapshot ALL currently eligible accepted + not-sent users
-    into one prepared message batch.
+    into separate prepared message batches per source Connect batch.
 
     IMPORTANT:
     This endpoint still does NOT send any LinkedIn message.
@@ -1548,6 +1549,7 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
                     )
                 ),
                 "batch": None,
+                "batches": [],
                 "target_count": 0,
             },
         )
@@ -1583,6 +1585,7 @@ async def prepare_all_outreach_messages_api() -> JSONResponse:
             "ok": True,
             "created": True,
             "batch": batch,
+            "batches": result.get("batches", []),
             "target_count": (
                 result.get(
                     "target_count",

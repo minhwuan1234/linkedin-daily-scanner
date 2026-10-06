@@ -292,6 +292,8 @@
   font-family: inherit;
   font-size: 12px;
   text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 #tab-outreach [data-outreach-process-panel="messages"] .message-batch-row [data-message-batch-meta] {
