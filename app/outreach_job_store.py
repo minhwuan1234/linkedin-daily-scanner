@@ -62,6 +62,32 @@ def get_outreach_supabase_client() -> Client:
     )
 
 
+def list_connect_campaigns(*, client: Client | None = None) -> list[str]:
+    """Existing campaign names, backed by Connect jobs (no migration needed)."""
+    active_client = client if client is not None else get_outreach_supabase_client()
+    names: dict[str, str] = {}
+    offset = 0
+    page_size = 1000
+    while True:
+        response = (
+            active_client.table(JOB_TABLE)
+            .select("display_name")
+            .eq("job_type", "connect")
+            .order("created_at", desc=True)
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = response.data if isinstance(response.data, list) else []
+        for row in rows:
+            name = str(row.get("display_name") or "").strip()
+            if name:
+                names.setdefault(name.casefold(), name)
+        if len(rows) < page_size:
+            break
+        offset += page_size
+    return sorted(names.values(), key=str.casefold)
+
+
 # =========================================================
 # URL NORMALIZATION
 # =========================================================

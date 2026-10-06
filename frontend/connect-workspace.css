@@ -57,6 +57,7 @@
 #tab-outreach .outreach-connect-form { gap: 20px; }
 .connect-name-field,
 #tab-outreach .outreach-url-field { display: grid; gap: 7px; }
+.connect-name-field[hidden] { display: none !important; }
 .connect-name-field > span,
 #tab-outreach .outreach-url-field > span {
   color: #55544f !important;
@@ -67,7 +68,8 @@
 }
 .connect-name-field small { color: #999891; font-size: 11px; font-weight: 400; }
 .connect-name-field > span small { margin-left: 5px; }
-#tab-outreach #outreachDisplayName,
+#tab-outreach #outreachCampaignSelect,
+#tab-outreach #outreachNewCampaign,
 #tab-outreach #outreachUrlInput {
   width: 100%;
   border: 1px solid #deded9 !important;
@@ -77,12 +79,16 @@
   color: #37352f !important;
   font: inherit;
 }
-#tab-outreach #outreachDisplayName { height: 42px; padding: 0 12px; }
+#tab-outreach #outreachCampaignSelect,
+#tab-outreach #outreachNewCampaign { height: 42px; padding: 0 12px; }
 #tab-outreach #outreachUrlInput { min-height: 160px !important; padding: 12px !important; resize: vertical; }
-#tab-outreach #outreachDisplayName::placeholder,
+#tab-outreach #outreachNewCampaign::placeholder,
 #tab-outreach #outreachUrlInput::placeholder { color: #aaa9a3 !important; }
-#tab-outreach #outreachDisplayName:focus,
+#tab-outreach #outreachCampaignSelect:focus,
+#tab-outreach #outreachNewCampaign:focus,
 #tab-outreach #outreachUrlInput:focus { outline: 2px solid #c9e0fa; border-color: #8fbbe9 !important; }
+#tab-outreach #outreachUrlInput:disabled { background: #f7f7f5 !important; cursor: not-allowed; }
+.connect-campaign-help { margin: -10px 0 0; color: #858580; font-size: 12px; line-height: 1.45; }
 #tab-outreach .outreach-input-footer { align-items: center !important; }
 #tab-outreach .outreach-input-summary strong { color: #37352f; }
 #tab-outreach .outreach-input-summary strong.is-over-limit { color: #b54444 !important; }
@@ -121,6 +127,8 @@
 .connect-history-panel { min-width: 0; height: 100%; min-height: 0; padding: 28px 32px 110px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; background: #fbfbfa; }
 .connect-history-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
 .connect-history-heading > span { padding: 4px 7px; border-radius: 5px; background: #efefed; color: #77766f; font-size: 11px; white-space: nowrap; }
+.connect-history-filter-label { display: block; margin-bottom: 6px; color: #55544f; font-size: 12px; font-weight: 600; }
+#tab-outreach .connect-history-filter { width: 100%; height: 38px; margin-bottom: 18px; padding: 0 10px; border: 1px solid #deded9; border-radius: 7px; background: #fff; color: #37352f; font: inherit; font-size: 13px; }
 .connect-history-week { margin-bottom: 10px; overflow: hidden; border: 1px solid #e5e5e1; border-radius: 9px; background: #fff; }
 .connect-history-week.is-expanded { border-color: #b9b9b3; box-shadow: 0 2px 10px rgba(27, 27, 24, .07); }
 .connect-history-week.is-current { border-color: #8f8e87; }

@@ -103,8 +103,14 @@ const els = {
   outreachUrlInput:
     document.querySelector("#outreachUrlInput"),
 
-  outreachDisplayName:
-    document.querySelector("#outreachDisplayName"),
+  outreachCampaignSelect:
+    document.querySelector("#outreachCampaignSelect"),
+  outreachNewCampaignField:
+    document.querySelector("#outreachNewCampaignField"),
+  outreachNewCampaign:
+    document.querySelector("#outreachNewCampaign"),
+  connectHistoryCampaignFilter:
+    document.querySelector("#connectHistoryCampaignFilter"),
 
   connectHistoryWeeks:
     document.querySelector("#connectHistoryWeeks"),
@@ -612,6 +618,7 @@ const state = {
   outreachScheduler: null,
   outreachAccounts: [],
   outreachRecentJobs: [],
+  connectCampaigns: [],
   selectedConnectHistoryJobId: null,
   expandedConnectWeekKey: null,
   acceptanceInsights: null,
@@ -1523,6 +1530,7 @@ async function createYoutubeResearchJob(event) {
 const OUTREACH_ACTIVE_POLL_INTERVAL_MS = 5000;
 const OUTREACH_IDLE_POLL_INTERVAL_MS = 45000;
 const OUTREACH_MAX_CONNECT_URLS = 150;
+const NEW_CONNECT_CAMPAIGN = "__new__";
 const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
   outreach_account_01: "Minh Anh",
   outreach_account_02: "Trang Liu",
@@ -1566,6 +1574,45 @@ function parseOutreachUrls() {
     .filter(Boolean);
 }
 
+function selectedConnectCampaign() {
+  const selected = els.outreachCampaignSelect?.value || "";
+  return selected === NEW_CONNECT_CAMPAIGN
+    ? (els.outreachNewCampaign?.value || "").trim()
+    : selected;
+}
+
+function renderConnectCampaignSelection() {
+  const isNew = els.outreachCampaignSelect?.value === NEW_CONNECT_CAMPAIGN;
+  if (els.outreachNewCampaignField) els.outreachNewCampaignField.hidden = !isNew;
+  if (els.outreachNewCampaign) els.outreachNewCampaign.required = isNew;
+  if (els.outreachUrlInput) els.outreachUrlInput.disabled = !selectedConnectCampaign();
+  renderOutreachSubmittingState();
+}
+
+function renderConnectCampaignOptions(preferredName = "") {
+  const select = els.outreachCampaignSelect;
+  if (!select) return;
+  const previous = select.value;
+  select.replaceChildren(new Option("Select a campaign", ""));
+  for (const name of state.connectCampaigns) select.add(new Option(name, name));
+  select.add(new Option("+ Create new campaign…", NEW_CONNECT_CAMPAIGN));
+  const choice = preferredName || previous;
+  select.value = [...select.options].some((option) => option.value === choice) ? choice : "";
+  renderConnectCampaignSelection();
+}
+
+async function loadConnectCampaigns(preferredName = "") {
+  try {
+    const response = await fetch("/api/outreach/connect/campaigns");
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Campaigns unavailable");
+    state.connectCampaigns = Array.isArray(result.campaigns) ? result.campaigns : [];
+    renderConnectCampaignOptions(preferredName);
+  } catch (error) {
+    console.error("Could not load Connect campaigns:", error);
+  }
+}
+
 function updateOutreachDetectedCount() {
   const urls = parseOutreachUrls();
   const overLimit = urls.length > OUTREACH_MAX_CONNECT_URLS;
@@ -1594,6 +1641,7 @@ function renderOutreachSubmittingState() {
 
   els.outreachStartButton.disabled =
     state.outreachSubmitting ||
+    !selectedConnectCampaign() ||
     parseOutreachUrls().length > OUTREACH_MAX_CONNECT_URLS;
 
   if (els.outreachStartButtonText) {
@@ -6458,7 +6506,21 @@ function connectWeekTitle(start) {
 function renderConnectHistory(jobs) {
   const container = els.connectHistoryWeeks;
   if (!container) return;
-  const rows = Array.isArray(jobs) ? jobs : [];
+  const allRows = Array.isArray(jobs) ? jobs : [];
+  const filter = els.connectHistoryCampaignFilter;
+  if (filter) {
+    const names = [...new Set(allRows.map((job) => String(job.display_name || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const currentNames = [...filter.options].slice(1).map((option) => option.value);
+    if (names.join("\u0000") !== currentNames.join("\u0000")) {
+      const selected = filter.value;
+      filter.replaceChildren(new Option("All campaigns", ""));
+      for (const name of names) filter.add(new Option(name, name));
+      filter.value = names.includes(selected) ? selected : "";
+    }
+  }
+  const rows = filter?.value
+    ? allRows.filter((job) => String(job.display_name || "").trim() === filter.value)
+    : allRows;
   if (els.connectHistoryCount) {
     els.connectHistoryCount.textContent = `${rows.length} ${rows.length === 1 ? "run" : "runs"}`;
   }
@@ -6546,6 +6608,8 @@ function renderConnectHistory(jobs) {
       meta.className = "connect-history-run-meta";
       const created = document.createElement("span");
       created.textContent = formatDate(job.created_at);
+      const batchId = document.createElement("span");
+      batchId.textContent = `Batch ID: ${job.job_code || "—"}`;
       const profiles = document.createElement("span");
       profiles.textContent = `${Number(job.target_count || 0)} profiles`;
       const processed = document.createElement("span");
@@ -6554,7 +6618,7 @@ function renderConnectHistory(jobs) {
       success.textContent = `${Number(job.success_count || 0)} success`;
       const failed = document.createElement("span");
       failed.textContent = `${Number(job.failed_count || 0)} failed`;
-      meta.append(created, profiles, processed, success, failed);
+      meta.append(batchId, created, profiles, processed, success, failed);
       button.append(name, status, meta);
       if (String(job.status || "").toLowerCase() === "running") {
         const total = Math.max(0, Number(job.target_count) || 0);
@@ -7008,6 +7072,15 @@ async function createOutreachConnectJob(
 ) {
   event.preventDefault();
 
+  const enteredCampaign = selectedConnectCampaign();
+  const campaignName = state.connectCampaigns.find(
+    (name) => name.toLocaleLowerCase() === enteredCampaign.toLocaleLowerCase()
+  ) || enteredCampaign;
+  if (!campaignName) {
+    els.outreachCampaignSelect?.focus();
+    return;
+  }
+
   const urls =
     parseOutreachUrls();
 
@@ -7054,7 +7127,7 @@ async function createOutreachConnectJob(
 
         body: JSON.stringify({
           urls,
-          display_name: els.outreachDisplayName?.value.trim() || ""
+          campaign_name: campaignName
         })
       }
     );
@@ -7092,9 +7165,13 @@ async function createOutreachConnectJob(
         "";
     }
 
-    if (els.outreachDisplayName) {
-      els.outreachDisplayName.value = "";
+    if (!state.connectCampaigns.some((name) => name.toLowerCase() === campaignName.toLowerCase())) {
+      state.connectCampaigns.push(campaignName);
+      state.connectCampaigns.sort((a, b) => a.localeCompare(b));
     }
+    renderConnectCampaignOptions(campaignName);
+    if (els.outreachNewCampaign) els.outreachNewCampaign.value = "";
+    void loadConnectCampaigns(campaignName);
 
 
     updateOutreachDetectedCount();
@@ -9615,6 +9692,18 @@ els.outreachUrlInput?.addEventListener(
   "input",
   updateOutreachDetectedCount
 );
+els.outreachCampaignSelect?.addEventListener("change", () => {
+  renderConnectCampaignSelection();
+  if (els.outreachCampaignSelect.value === NEW_CONNECT_CAMPAIGN) els.outreachNewCampaign?.focus();
+});
+els.outreachNewCampaign?.addEventListener("input", renderConnectCampaignSelection);
+els.connectHistoryCampaignFilter?.addEventListener("change", () => {
+  const jobs = state.outreachRecentJobs.filter((job) => !els.connectHistoryCampaignFilter.value || job.display_name === els.connectHistoryCampaignFilter.value);
+  state.expandedConnectWeekKey = jobs.length
+    ? connectWeekStart(jobs[0].created_at)?.toISOString().slice(0, 10) || "unknown"
+    : null;
+  renderConnectHistory(state.outreachRecentJobs);
+});
 
 
 document.addEventListener(
@@ -10109,6 +10198,8 @@ if (initialUiSettings.rememberLastSection) {
 }
 
 updateOutreachDetectedCount();
+renderConnectCampaignSelection();
+void loadConnectCampaigns();
 
 renderOutreachDashboard();
 

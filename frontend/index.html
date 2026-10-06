@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-demo-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
-  <link rel="stylesheet" href="./connect-workspace.css?v=20260925-connect-url-limit-1" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20261006-campaigns-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
@@ -817,7 +817,9 @@
         id="outreachConnectForm"
         class="outreach-connect-form outreach-connect-form-inline"
       >
-        <label class="connect-name-field" for="outreachDisplayName"><span>Campaign name <small>Optional</small></span><input id="outreachDisplayName" type="text" maxlength="80" placeholder="e.g. Prospecting Q3" autocomplete="off" /></label>
+        <label class="connect-name-field" for="outreachCampaignSelect"><span>Campaign</span><select id="outreachCampaignSelect" required><option value="">Select a campaign</option><option value="__new__">+ Create new campaign…</option></select></label>
+        <label class="connect-name-field" id="outreachNewCampaignField" for="outreachNewCampaign" hidden><span>New campaign name</span><input id="outreachNewCampaign" type="text" maxlength="80" placeholder="e.g. Video Production Agency" autocomplete="off" /></label>
+        <p class="connect-campaign-help">Choose a campaign before adding profiles. Each Start Connect creates a separate Batch ID in that campaign.</p>
         <label class="outreach-url-field outreach-url-field-smart">
           <span>LinkedIn Profile URLs</span>
 
@@ -855,7 +857,9 @@
 
   </div>
   <aside class="connect-history-panel" aria-labelledby="connectHistoryTitle">
-    <div class="connect-history-heading"><div><h2 id="connectHistoryTitle">Connect history</h2><p>Runs grouped by week</p></div><span id="connectHistoryCount">0 runs</span></div>
+    <div class="connect-history-heading"><div><h2 id="connectHistoryTitle">Connect history</h2><p>Batches grouped by week</p></div><span id="connectHistoryCount">0 runs</span></div>
+    <label class="connect-history-filter-label" for="connectHistoryCampaignFilter">Campaign</label>
+    <select id="connectHistoryCampaignFilter" class="connect-history-filter"><option value="">All campaigns</option></select>
     <div id="connectHistoryWeeks" class="connect-history-weeks"></div>
   </aside>
 </article>
@@ -1827,7 +1831,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20260930-replies-auto-refresh-1"></script>
+  <script src="./app.js?v=20261006-campaigns-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

@@ -14,6 +14,7 @@ from app.outreach_job_store import (
     MAX_CONNECT_URLS,
     OutreachJobStoreError,
     create_connect_job,
+    list_connect_campaigns,
 )
 from app.outreach_dashboard_store import (
     OutreachDashboardStoreError,
@@ -535,6 +536,18 @@ async def create_youtube_job(
 # =========================================================
 
 
+@app.get("/api/outreach/connect/campaigns")
+def get_outreach_connect_campaigns() -> JSONResponse:
+    try:
+        return JSONResponse(content={"ok": True, "campaigns": list_connect_campaigns()})
+    except Exception:
+        logger.exception("Could not list Connect campaigns")
+        return JSONResponse(status_code=500, content={
+            "ok": False,
+            "error": "Could not load Connect campaigns",
+        })
+
+
 @app.post("/api/outreach/connect/jobs")
 async def create_outreach_connect_job(
     request: Request,
@@ -627,13 +640,18 @@ async def create_outreach_connect_job(
     # 3. CREATE CONNECT JOB
     # -----------------------------------------------------
 
-    display_name = body.get("display_name", "")
+    display_name = body.get("campaign_name", body.get("display_name", ""))
     if not isinstance(display_name, str) or len(display_name.strip()) > 80:
         return JSONResponse(status_code=400, content={
             "ok": False,
-            "error": "display_name must be text of at most 80 characters",
+            "error": "Campaign name must be text of at most 80 characters",
         })
     display_name = display_name.strip()
+    if "campaign_name" in body and not display_name:
+        return JSONResponse(status_code=400, content={
+            "ok": False,
+            "error": "Choose or create a Campaign before starting Connect",
+        })
 
     try:
         result = create_connect_job(
