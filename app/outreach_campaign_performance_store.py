@@ -1,5 +1,7 @@
 """Read-only campaign cohorts across Connect, Messages, and Replies."""
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 

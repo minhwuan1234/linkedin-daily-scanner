@@ -1,5 +1,7 @@
 """Stable identity for a Connect campaign without a separate campaign table."""
 
+from __future__ import annotations
+
 import re
 from uuid import NAMESPACE_URL, uuid5
 
