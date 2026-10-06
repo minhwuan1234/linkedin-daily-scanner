@@ -105,12 +105,24 @@ const els = {
 
   outreachCampaignSelect:
     document.querySelector("#outreachCampaignSelect"),
+  outreachCampaignTrigger:
+    document.querySelector("#outreachCampaignTrigger"),
+  outreachCampaignMenu:
+    document.querySelector("#outreachCampaignMenu"),
+  outreachCampaignValue:
+    document.querySelector("#outreachCampaignValue"),
   outreachNewCampaignField:
     document.querySelector("#outreachNewCampaignField"),
   outreachNewCampaign:
     document.querySelector("#outreachNewCampaign"),
   connectHistoryCampaignFilter:
     document.querySelector("#connectHistoryCampaignFilter"),
+  connectHistoryCampaignTrigger:
+    document.querySelector("#connectHistoryCampaignTrigger"),
+  connectHistoryCampaignMenu:
+    document.querySelector("#connectHistoryCampaignMenu"),
+  connectHistoryCampaignValue:
+    document.querySelector("#connectHistoryCampaignValue"),
 
   connectHistoryWeeks:
     document.querySelector("#connectHistoryWeeks"),
@@ -1531,6 +1543,110 @@ const OUTREACH_ACTIVE_POLL_INTERVAL_MS = 5000;
 const OUTREACH_IDLE_POLL_INTERVAL_MS = 45000;
 const OUTREACH_MAX_CONNECT_URLS = 150;
 const NEW_CONNECT_CAMPAIGN = "__new__";
+const connectDropdowns = [
+  {
+    select: els.outreachCampaignSelect,
+    trigger: els.outreachCampaignTrigger,
+    menu: els.outreachCampaignMenu,
+    value: els.outreachCampaignValue,
+    description: (option) => option.value === NEW_CONNECT_CAMPAIGN
+      ? "Name a new group for future batches"
+      : option.value ? "Add a batch to this campaign" : "Choose a group before adding profiles",
+    icon: (option) => option.value === NEW_CONNECT_CAMPAIGN ? "+" : "▦"
+  },
+  {
+    select: els.connectHistoryCampaignFilter,
+    trigger: els.connectHistoryCampaignTrigger,
+    menu: els.connectHistoryCampaignMenu,
+    value: els.connectHistoryCampaignValue,
+    description: (option) => option.value
+      ? "Show this campaign's recent batches" : "Show batches from every campaign",
+    icon: () => "▦"
+  }
+];
+
+function closeConnectDropdown(dropdown, restoreFocus = false) {
+  if (!dropdown.menu || !dropdown.trigger) return;
+  dropdown.menu.hidden = true;
+  dropdown.trigger.setAttribute("aria-expanded", "false");
+  if (restoreFocus) dropdown.trigger.focus();
+}
+
+function renderConnectDropdown(dropdown) {
+  const { select, trigger, menu, value } = dropdown;
+  if (!select || !trigger || !menu || !value) return;
+  const options = [...select.options];
+  const selected = options.find((option) => option.value === select.value) || options[0];
+  value.textContent = selected?.textContent || "";
+  trigger.classList.toggle("is-placeholder", !select.value);
+  const signature = JSON.stringify(options.map((option) => [option.value, option.textContent]));
+  if (menu.dataset.optionsSignature !== signature) {
+    menu.replaceChildren();
+    for (const option of options) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "connect-custom-select-option";
+      item.setAttribute("role", "menuitemradio");
+      item.dataset.value = option.value;
+      const icon = document.createElement("span");
+      icon.className = "connect-custom-select-icon";
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = dropdown.icon(option);
+      const copy = document.createElement("span");
+      copy.className = "connect-custom-select-copy";
+      const title = document.createElement("strong");
+      title.textContent = option.textContent;
+      const description = document.createElement("small");
+      description.textContent = dropdown.description(option);
+      copy.append(title, description);
+      item.append(icon, copy);
+      item.addEventListener("click", () => {
+        select.value = option.value;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        closeConnectDropdown(dropdown, true);
+      });
+      menu.append(item);
+    }
+    menu.dataset.optionsSignature = signature;
+  }
+  for (const item of menu.querySelectorAll(".connect-custom-select-option")) {
+    const active = item.dataset.value === select.value;
+    item.classList.toggle("is-selected", active);
+    item.setAttribute("aria-checked", String(active));
+  }
+}
+
+function setupConnectDropdown(dropdown) {
+  if (!dropdown.trigger || !dropdown.menu) return;
+  renderConnectDropdown(dropdown);
+  dropdown.trigger.addEventListener("click", () => {
+    const opening = dropdown.menu.hidden;
+    for (const other of connectDropdowns) closeConnectDropdown(other);
+    dropdown.menu.hidden = !opening;
+    dropdown.trigger.setAttribute("aria-expanded", String(opening));
+  });
+  dropdown.trigger.addEventListener("keydown", (event) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    dropdown.menu.hidden = false;
+    dropdown.trigger.setAttribute("aria-expanded", "true");
+    const items = dropdown.menu.querySelectorAll(".connect-custom-select-option");
+    (event.key === "ArrowDown" ? items[0] : items[items.length - 1])?.focus();
+  });
+  dropdown.menu.addEventListener("keydown", (event) => {
+    const items = [...dropdown.menu.querySelectorAll(".connect-custom-select-option")];
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeConnectDropdown(dropdown, true);
+    } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const index = items.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+        : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      items[next]?.focus();
+    }
+  });
+}
 const OUTREACH_ACCOUNT_DISPLAY_NAMES = {
   outreach_account_01: "Minh Anh",
   outreach_account_02: "Trang Liu",
@@ -1586,6 +1702,7 @@ function renderConnectCampaignSelection() {
   if (els.outreachNewCampaignField) els.outreachNewCampaignField.hidden = !isNew;
   if (els.outreachNewCampaign) els.outreachNewCampaign.required = isNew;
   if (els.outreachUrlInput) els.outreachUrlInput.disabled = !selectedConnectCampaign();
+  renderConnectDropdown(connectDropdowns[0]);
   renderOutreachSubmittingState();
 }
 
@@ -6518,6 +6635,7 @@ function renderConnectHistory(jobs) {
       filter.value = names.includes(selected) ? selected : "";
     }
   }
+  renderConnectDropdown(connectDropdowns[1]);
   const rows = filter?.value
     ? allRows.filter((job) => String(job.display_name || "").trim() === filter.value)
     : allRows;
@@ -7077,7 +7195,7 @@ async function createOutreachConnectJob(
     (name) => name.toLocaleLowerCase() === enteredCampaign.toLocaleLowerCase()
   ) || enteredCampaign;
   if (!campaignName) {
-    els.outreachCampaignSelect?.focus();
+    els.outreachCampaignTrigger?.focus();
     return;
   }
 
@@ -9697,6 +9815,19 @@ els.outreachCampaignSelect?.addEventListener("change", () => {
   if (els.outreachCampaignSelect.value === NEW_CONNECT_CAMPAIGN) els.outreachNewCampaign?.focus();
 });
 els.outreachNewCampaign?.addEventListener("input", renderConnectCampaignSelection);
+for (const dropdown of connectDropdowns) setupConnectDropdown(dropdown);
+document.addEventListener("click", (event) => {
+  for (const dropdown of connectDropdowns) {
+    if (!dropdown.trigger?.parentElement?.contains(event.target)) closeConnectDropdown(dropdown);
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    for (const dropdown of connectDropdowns) {
+      if (!dropdown.menu?.hidden) closeConnectDropdown(dropdown, true);
+    }
+  }
+});
 els.connectHistoryCampaignFilter?.addEventListener("change", () => {
   const jobs = state.outreachRecentJobs.filter((job) => !els.connectHistoryCampaignFilter.value || job.display_name === els.connectHistoryCampaignFilter.value);
   state.expandedConnectWeekKey = jobs.length
