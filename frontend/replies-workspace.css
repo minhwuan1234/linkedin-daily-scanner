@@ -5,12 +5,15 @@
 #tab-replies .outreach-replies-header { flex: none; align-items: center; margin: 0 0 20px !important; padding: 0 !important; border: 0 !important; border-bottom: 0 !important; }
 #tab-replies .outreach-replies-header h2 { margin: 0; color: #252521; font-size: 22px; font-weight: 650; letter-spacing: -.035em; }
 #tab-replies .outreach-replies-header .panel-meta { margin: 4px 0 0; color: #858580; font-size: 13px; }
-#tab-replies .outreach-reply-check-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
-#tab-replies #outreachReplyCheckButton { min-height: 40px; padding: 0 16px; border: 1px solid #dcdcd7; border-radius: 8px; background: #fff; color: #37352f; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-#tab-replies #outreachReplyCheckButton:hover:not(:disabled) { background: #f7f7f5; }
+#tab-replies .outreach-reply-toolbar { position: sticky; top: 0; z-index: 20; display: flex; flex: none; align-items: center; justify-content: space-between; gap: 20px; min-width: 0; margin: 0 0 14px; background: #fff; }
+#tab-replies .outreach-reply-check-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 12px; }
+#tab-replies #outreachReplyCheckButton { flex: 0 0 auto; min-height: 40px; padding: 0 16px; border: 1px solid #e8e8e5; border-radius: 9px; background: #fff; box-shadow: none; color: #37352f; font: inherit; font-size: 13px; font-weight: 600; white-space: nowrap; cursor: pointer; }
+#tab-replies #outreachReplyCheckButton:hover:not(:disabled) { border-color: #dcdcd7; background: #f7f7f5; }
+#tab-replies #outreachReplyCheckButton:focus-visible { outline: 2px solid #0a66c2; outline-offset: 2px; }
 #tab-replies #outreachReplyCheckButton:disabled { opacity: .65; cursor: wait; }
-#tab-replies .outreach-reply-check-actions #outreachReplyCheckStatus { margin: 0; font-size: 12px; text-align: right; }
-#tab-replies .outreach-reply-account-tabs { position: sticky; top: 0; z-index: 20; display: flex; flex: none; align-self: flex-start; width: max-content; max-width: 100%; gap: 8px; overflow-x: auto; margin: 0 0 14px; padding: 8px 0; background: #fff; }
+#tab-replies .outreach-reply-check-actions #outreachReplyCheckStatus { max-width: 220px; margin: 0; color: #858580; font-size: 12px; text-align: right; }
+#tab-replies .outreach-reply-check-actions #outreachReplyCheckStatus:empty { display: none; }
+#tab-replies .outreach-reply-account-tabs { display: flex; flex: 0 1 auto; min-width: 0; width: max-content; gap: 8px; overflow-x: auto; margin: 0; padding: 8px 0; background: #fff; }
 #tab-replies .outreach-reply-account-tab { flex: 0 0 auto; width: 148px; min-height: 40px; padding: 7px 10px; border: 1px solid #e8e8e5; border-radius: 9px; color: #62615c; background: #fff; transition: background .16s, border-color .16s; }
 #tab-replies .outreach-reply-account-tab:hover { background: #f7f7f5; border-color: #dcdcd7; }
 #tab-replies .outreach-reply-account-tab.is-active { color: #252521; border-color: #37352f; background: #f7f7f5; box-shadow: none; }

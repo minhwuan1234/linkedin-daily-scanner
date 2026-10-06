@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
-  <link rel="stylesheet" href="./replies-workspace.css?v=20261006-reply-check-button-1" />
+  <link rel="stylesheet" href="./replies-workspace.css?v=20261006-reply-check-toolbar-2" />
   <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-light-filter-5" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
@@ -1288,18 +1288,20 @@
             <h2>Replies overview</h2>
             <p class="panel-meta">Conversations across your Outreach accounts</p>
           </div>
-          <div class="outreach-reply-check-actions">
-            <span id="outreachReplyCheckStatus" class="panel-meta" role="status" aria-live="polite"></span>
-            <button id="outreachReplyCheckButton" type="button" class="secondary-button">Check replies</button>
-          </div>
         </div>
 
-        <div
-          id="outreachReplyAccountTabs"
-          class="outreach-reply-account-tabs"
-          role="tablist"
-          aria-label="Outreach accounts"
-        ></div>
+        <div class="outreach-reply-toolbar">
+          <div
+            id="outreachReplyAccountTabs"
+            class="outreach-reply-account-tabs"
+            role="tablist"
+            aria-label="Outreach accounts"
+          ></div>
+          <div class="outreach-reply-check-actions">
+            <span id="outreachReplyCheckStatus" class="panel-meta" role="status" aria-live="polite"></span>
+            <button id="outreachReplyCheckButton" type="button">Check replies</button>
+          </div>
+        </div>
 
         <div id="outreachReplyError" class="outreach-error" hidden></div>
         <div id="outreachReplyEmpty" class="state">
