@@ -372,6 +372,14 @@ const els = {
 
   outreachAcceptanceWeekPicker:
     document.querySelector("#outreachAcceptanceWeekPicker"),
+  outreachAcceptanceCampaignFilter:
+    document.querySelector("#outreachAcceptanceCampaignFilter"),
+  outreachAcceptanceCampaignTrigger:
+    document.querySelector("#outreachAcceptanceCampaignTrigger"),
+  outreachAcceptanceCampaignMenu:
+    document.querySelector("#outreachAcceptanceCampaignMenu"),
+  outreachAcceptanceCampaignValue:
+    document.querySelector("#outreachAcceptanceCampaignValue"),
 
   outreachAcceptanceWeekButton:
     document.querySelector("#outreachAcceptanceWeekButton"),
@@ -641,6 +649,7 @@ const state = {
   outreachHistoryPageSize: 5,
   outreachAcceptancePage: 1,
   outreachAcceptancePageSize: 10,
+  outreachAcceptanceCampaign: "",
   messageBatchPage: 1,
   messageBatchPageSize: 8,
   messageBatchSourceFilter: "all",
@@ -1561,6 +1570,15 @@ const connectDropdowns = [
     value: els.connectHistoryCampaignValue,
     description: (option) => option.value
       ? "Show this campaign's recent batches" : "Show batches from every campaign",
+    icon: () => "▦"
+  },
+  {
+    select: els.outreachAcceptanceCampaignFilter,
+    trigger: els.outreachAcceptanceCampaignTrigger,
+    menu: els.outreachAcceptanceCampaignMenu,
+    value: els.outreachAcceptanceCampaignValue,
+    description: (option) => option.value
+      ? "Show acceptance results for this campaign" : "Show acceptance results from every campaign",
     icon: () => "▦"
   }
 ];
@@ -3632,7 +3650,10 @@ function getIsoWeekNumber(date) {
 
 
 function getAcceptancePeriodRows(jobs) {
-  const rows = Array.isArray(jobs) ? jobs : [];
+  const rows = (Array.isArray(jobs) ? jobs : []).filter((job) =>
+    !state.outreachAcceptanceCampaign ||
+    String(job.display_name || "").trim() === state.outreachAcceptanceCampaign
+  );
 
   if (!state.outreachAcceptanceWeekKey) {
     return [];
@@ -3662,7 +3683,10 @@ function getAcceptanceAcceptedCount(acceptance) {
 function getAcceptanceWeekGroups(jobs) {
   const groups = new Map();
 
-  (Array.isArray(jobs) ? jobs : []).forEach((job) => {
+  (Array.isArray(jobs) ? jobs : []).filter((job) =>
+    !state.outreachAcceptanceCampaign ||
+    String(job.display_name || "").trim() === state.outreachAcceptanceCampaign
+  ).forEach((job) => {
     const info = getWeekInfo(job?.created_at);
 
     if (!info) {
@@ -3741,10 +3765,10 @@ function renderAcceptanceWeekOption(group, selectedKey, currentKey) {
 function getAcceptanceWeekSelection(jobs) {
   const groups = getAcceptanceWeekGroups(jobs);
   const current = getWeekInfo(new Date());
-  const requestedKey = state.outreachAcceptanceWeekKey || current?.key;
-  const selectedKey = requestedKey === current?.key || groups.some(
-    (group) => group.key === requestedKey
-  ) ? requestedKey : current?.key;
+  const requestedKey = state.outreachAcceptanceWeekKey;
+  const selectedKey = groups.some((group) => group.key === requestedKey)
+    ? requestedKey
+    : groups[0]?.key || current?.key;
   const selectedGroup = groups.find((group) => group.key === selectedKey);
 
   if (state.outreachAcceptanceWeekKey !== selectedKey) {
@@ -3804,6 +3828,27 @@ function setAcceptanceWeekMenuOpen(open, {restoreFocus = false} = {}) {
 
 
 function renderAcceptancePeriodFilters() {
+  const select = els.outreachAcceptanceCampaignFilter;
+  if (select) {
+    const names = [...new Set(state.outreachRecentJobs
+      .map((job) => String(job.display_name || "").trim())
+      .filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const currentNames = [...select.options].slice(1).map((option) => option.value);
+    if (names.join("\u0000") !== currentNames.join("\u0000")) {
+      const selected = state.outreachAcceptanceCampaign;
+      select.replaceChildren(new Option("All campaigns", ""));
+      for (const name of names) select.add(new Option(name, name));
+      if (names.includes(selected)) {
+        select.value = selected;
+      } else {
+        state.outreachAcceptanceCampaign = "";
+        select.value = "";
+      }
+    } else {
+      select.value = state.outreachAcceptanceCampaign;
+    }
+  }
+  renderConnectDropdown(connectDropdowns[2]);
   renderAcceptanceWeekList(state.outreachRecentJobs);
 
 }
@@ -9888,6 +9933,14 @@ els.outreachAcceptanceNextPage?.addEventListener("click",()=>{state.outreachAcce
 
 els.outreachAcceptanceWeekButton?.addEventListener("click", () => {
   setAcceptanceWeekMenuOpen(els.outreachAcceptanceWeekMenu?.hidden);
+});
+
+els.outreachAcceptanceCampaignFilter?.addEventListener("change", () => {
+  state.outreachAcceptanceCampaign = els.outreachAcceptanceCampaignFilter.value || "";
+  state.outreachAcceptanceWeekKey = null;
+  state.outreachAcceptancePage = 1;
+  state.outreachAcceptanceSelectedDeleteJobIds.clear();
+  renderOutreachAcceptanceJobs(state.outreachRecentJobs);
 });
 
 els.outreachAcceptanceWeekButton?.addEventListener("keydown", (event) => {

@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-demo-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20261006-campaign-menu-1" />
-  <link rel="stylesheet" href="./acceptance-workspace.css?v=20260923-sidebar-responsive-red-1" />
+  <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-filter-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20260924-replies-infinite-1" />
@@ -886,6 +886,11 @@
 
       <div class="acceptance-results-toolbar">
         <div class="acceptance-toolbar-filters">
+          <div class="connect-custom-select acceptance-campaign-filter">
+            <select id="outreachAcceptanceCampaignFilter" hidden><option value="">All campaigns</option></select>
+            <button id="outreachAcceptanceCampaignTrigger" class="connect-custom-select-trigger" type="button" aria-label="Filter acceptance by campaign" aria-haspopup="menu" aria-expanded="false" aria-controls="outreachAcceptanceCampaignMenu"><span id="outreachAcceptanceCampaignValue">All campaigns</span><span class="connect-custom-select-chevron" aria-hidden="true"></span></button>
+            <div id="outreachAcceptanceCampaignMenu" class="connect-custom-select-menu" role="menu" hidden></div>
+          </div>
           <div id="outreachAcceptanceWeekPicker" class="acceptance-week-picker">
             <button
               id="outreachAcceptanceWeekButton"
@@ -1831,7 +1836,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-campaign-menu-1"></script>
+  <script src="./app.js?v=20261006-acceptance-campaign-filter-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

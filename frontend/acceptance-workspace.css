@@ -164,6 +164,19 @@
   flex: 0 1 auto;
 }
 
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-campaign-filter {
+  min-width: 160px;
+  max-width: 220px;
+  flex: 0 1 210px;
+}
+
+#tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-campaign-filter .connect-custom-select-trigger {
+  height: 36px !important;
+  min-height: 36px;
+  padding-inline: 10px !important;
+  font-size: 12px !important;
+}
+
 #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-week-picker[hidden],
 #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-week-menu[hidden] {
   display: none !important;
@@ -487,6 +500,20 @@
   #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-results-toolbar,
   #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-toolbar-filters {
     gap: 6px;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-results-toolbar {
+    flex-wrap: wrap;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-toolbar-filters {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+
+  #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-campaign-filter {
+    min-width: 130px;
+    flex: 1 1 150px;
   }
 
   #tab-outreach [data-outreach-process-panel="acceptance"] .acceptance-week-button {
