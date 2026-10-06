@@ -46,6 +46,41 @@ def get_reply_check_request(request_id: str, *, client: Client | None = None) ->
     return dict(response.data[0]) if response.data else None
 
 
+def get_latest_completed_reply_check(*, client: Client | None = None) -> dict | None:
+    response = (
+        (client or get_outreach_client()).table(TABLE)
+        .select("id,finished_at")
+        .eq("status", "completed")
+        .order("finished_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return dict(response.data[0]) if response.data else None
+
+
+def record_scheduled_reply_check(
+    started_at: str,
+    *,
+    error: str | None = None,
+    client: Client | None = None,
+) -> dict:
+    response = (
+        (client or get_outreach_client()).table(TABLE)
+        .insert({
+            "status": "failed" if error else "completed",
+            "requested_at": started_at,
+            "started_at": started_at,
+            "finished_at": _now(),
+            "error": str(error)[:1000] if error else None,
+        })
+        .execute()
+    )
+    rows = list(response.data or [])
+    if not rows:
+        raise RuntimeError("Could not record scheduled reply-check completion.")
+    return dict(rows[0])
+
+
 def claim_reply_check_request(*, client: Client | None = None) -> dict | None:
     active_client = client or get_outreach_client()
     queued = (

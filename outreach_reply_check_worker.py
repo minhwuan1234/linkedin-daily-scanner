@@ -25,6 +25,7 @@ import re
 import time
 import unicodedata
 from collections.abc import Callable
+from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from urllib.parse import unquote, urlparse
 
@@ -39,6 +40,7 @@ from app.outreach_reply_schedule import run_reply_check_schedule
 from app.outreach_reply_check_requests import (
     claim_reply_check_request,
     finish_reply_check_request,
+    record_scheduled_reply_check,
 )
 from app.outreach_reply_store import save_outreach_reply
 from app.outreach_worker_heartbeat import worker_heartbeat
@@ -1742,6 +1744,28 @@ def process_manual_reply_check_request() -> bool:
     return True
 
 
+def run_scheduled_reply_check() -> None:
+    """Record a scheduled scan so Replies can show when it last finished."""
+    started_at = datetime.now(timezone.utc).isoformat()
+    try:
+        failed_accounts = run_all_accounts()
+    except Exception as exc:
+        try:
+            record_scheduled_reply_check(started_at, error=str(exc))
+        except Exception:
+            logger.exception("Could not record scheduled reply-check failure")
+        raise
+
+    try:
+        record_scheduled_reply_check(
+            started_at,
+            error=("Reply scan failed for: " + ", ".join(failed_accounts))
+            if failed_accounts else None,
+        )
+    except Exception:
+        logger.exception("Could not record scheduled reply-check completion")
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -1784,7 +1808,7 @@ def main() -> None:
     args = _parse_args()
     if args.schedule:
         run_reply_check_schedule(
-            run_all_accounts,
+            run_scheduled_reply_check,
             process_manual_request=process_manual_reply_check_request,
         )
     elif args.all_accounts:

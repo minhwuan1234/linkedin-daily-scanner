@@ -728,6 +728,9 @@ const state = {
   outreachReplyRevision: null,
   outreachReplyRevisionLoading: false,
   outreachReplySendSubmitting: false,
+  outreachReplyLastScanLoading: false,
+  outreachReplyLastScanInitialized: false,
+  outreachReplyLastScanId: null,
   tableErrors: {},
   commandPending: false
 };
@@ -8699,6 +8702,7 @@ els.outreachReplyList?.addEventListener("scroll", () => {
 }, { passive: true });
 
 async function loadOutreachReplies() {
+  void pollLatestOutreachReplyScan();
   if (state.outreachRepliesLoading) {
     return;
   }
@@ -8853,6 +8857,44 @@ async function pollOutreachReplyRevision() {
   }
 }
 
+function formatOutreachReplyScanTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Last scan: —";
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric", month: "short", hour: "numeric", minute: "2-digit"
+  }).format(date);
+  return `Last scanned ${formatted}`;
+}
+
+async function pollLatestOutreachReplyScan() {
+  if (document.hidden || document.querySelector("#tab-replies")?.hidden ||
+      state.outreachReplyLastScanLoading) return;
+  state.outreachReplyLastScanLoading = true;
+  try {
+    const response = await fetch("/api/outreach/reply-check/latest", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || "Could not load last scan time.");
+    const scan = result.last_scan;
+    const scanId = scan?.id || null;
+    const changed = state.outreachReplyLastScanInitialized && scanId &&
+      scanId !== state.outreachReplyLastScanId;
+    state.outreachReplyLastScanId = scanId;
+    state.outreachReplyLastScanInitialized = true;
+    const button = document.querySelector("#outreachReplyCheckButton");
+    const lastScan = document.querySelector("#outreachReplyLastScan");
+    if (lastScan) {
+      const label = scan ? formatOutreachReplyScanTime(scan.finished_at) : "Last scan: —";
+      if (lastScan.textContent !== label) lastScan.textContent = label;
+      lastScan.title = scan?.finished_at ? new Date(scan.finished_at).toLocaleString() : "";
+    }
+    if (changed && !button?.disabled) await refreshOutreachRepliesAfterScan();
+  } catch (error) {
+    console.error("Last reply scan error:", error);
+  } finally {
+    state.outreachReplyLastScanLoading = false;
+  }
+}
+
 async function requestOutreachReplyCheck() {
   const button = document.querySelector("#outreachReplyCheckButton");
   const status = document.querySelector("#outreachReplyCheckStatus");
@@ -8881,7 +8923,11 @@ async function requestOutreachReplyCheck() {
         status.textContent = "Worker is checking all accounts…";
       } else if (request.status === "completed") {
         button.textContent = "Check replies";
-        status.textContent = "Reply check completed.";
+        status.textContent = "";
+        const lastScan = document.querySelector("#outreachReplyLastScan");
+        if (lastScan) lastScan.textContent = formatOutreachReplyScanTime(request.finished_at);
+        state.outreachReplyLastScanId = request.id;
+        state.outreachReplyLastScanInitialized = true;
         await loadOutreachReplies();
         break;
       } else if (request.status === "failed") {
@@ -10643,6 +10689,7 @@ window.setInterval(() => {
   if (!document.hidden) void loadWorkerActivity();
 }, 15000);
 window.setInterval(() => { void pollOutreachReplyRevision(); }, 30000);
+window.setInterval(() => { void pollLatestOutreachReplyScan(); }, 5000);
 
 startOutreachPolling();
 

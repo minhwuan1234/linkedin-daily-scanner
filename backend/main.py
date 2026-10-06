@@ -71,6 +71,7 @@ from app.outreach_reply_store import (
     list_recent_outreach_replies,
 )
 from app.outreach_reply_check_requests import (
+    get_latest_completed_reply_check,
     get_reply_check_request,
     request_reply_check,
 )
@@ -2008,6 +2009,19 @@ async def request_outreach_reply_check_api() -> JSONResponse:
         status_code=202,
         content={"ok": True, "request": request},
     )
+
+
+@app.get("/api/outreach/reply-check/latest")
+async def get_latest_outreach_reply_check_api() -> JSONResponse:
+    try:
+        last_scan = get_latest_completed_reply_check()
+    except Exception:
+        logger.exception("Could not load last reply-check time")
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": "Could not load last reply-check time"},
+        )
+    return JSONResponse(content={"ok": True, "last_scan": last_scan})
 
 
 @app.get("/api/outreach/reply-check/{request_id}")

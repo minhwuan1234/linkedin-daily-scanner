@@ -21,7 +21,7 @@
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
-  <link rel="stylesheet" href="./replies-workspace.css?v=20261006-reply-check-toolbar-2" />
+  <link rel="stylesheet" href="./replies-workspace.css?v=20261006-last-scan-3" />
   <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-light-filter-5" />
   <link rel="stylesheet" href="./login.css?v=20260923-login-motion-4" />
   <link rel="stylesheet" href="./acceptance-insights.css?v=20260923-light-insights-table-6" />
@@ -1298,7 +1298,10 @@
             aria-label="Outreach accounts"
           ></div>
           <div class="outreach-reply-check-actions">
-            <span id="outreachReplyCheckStatus" class="panel-meta" role="status" aria-live="polite"></span>
+            <div class="outreach-reply-check-meta">
+              <span id="outreachReplyLastScan" class="panel-meta" role="status" aria-live="polite">Last scan: —</span>
+              <span id="outreachReplyCheckStatus" class="panel-meta" role="status" aria-live="polite"></span>
+            </div>
             <button id="outreachReplyCheckButton" type="button">Check replies</button>
           </div>
         </div>
@@ -1890,7 +1893,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-reply-check-button-1"></script>
+  <script src="./app.js?v=20261006-last-scan-2"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>
