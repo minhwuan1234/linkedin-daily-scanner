@@ -1602,6 +1602,15 @@ const connectDropdowns = [
     description: (option) => option.value
       ? "Show acceptance results for this campaign" : "Show acceptance results from every campaign",
     icon: () => "▦"
+  },
+  {
+    select: document.querySelector("#campaignPerformanceFilter"),
+    trigger: document.querySelector("#campaignPerformanceFilterTrigger"),
+    menu: document.querySelector("#campaignPerformanceFilterMenu"),
+    value: document.querySelector("#campaignPerformanceFilterValue"),
+    description: (option) => option.value === "all"
+      ? "Show performance for every campaign" : "Show performance for this campaign",
+    icon: () => "▦"
   }
 ];
 
@@ -8857,6 +8866,7 @@ function renderCampaignPerformanceFilter() {
     state.campaignPerformanceFilter = "all";
   }
   select.value = state.campaignPerformanceFilter;
+  renderConnectDropdown(connectDropdowns[3]);
 }
 
 function renderCampaignPerformance() {
