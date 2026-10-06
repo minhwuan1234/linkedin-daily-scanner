@@ -8483,13 +8483,17 @@ function renderOutreachReplyInbox() {
     const id = String(reply.id || "");
     const name = String(reply.user_name || "LinkedIn user").trim();
     const text = String(reply.message_text || "No message content captured.").trim();
+    const campaignName = String(reply.campaign_name || "").trim();
+    const sourceBatch = String(reply.connect_batch_code || reply.connect_batch_id || "").trim();
+    const sourceLabel =
+      `Campaign: ${campaignName || "Unavailable"} · Batch ID: ${sourceBatch || "Unavailable"}`;
     const row = document.createElement("button");
     row.type = "button";
     row.className = "reply-inbox-person";
     row.classList.toggle("is-active", id === selectedIds[accountId]);
     row.setAttribute("aria-current", id === selectedIds[accountId] ? "true" : "false");
     row.innerHTML = `<span class="reply-inbox-avatar" aria-hidden="true">${escapeHtml(name.charAt(0).toUpperCase())}</span>
-      <span class="reply-inbox-person-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(text)}</small></span>
+      <span class="reply-inbox-person-copy"><strong>${escapeHtml(name)}</strong><small>${escapeHtml(text)}</small><span class="reply-inbox-person-source" title="${escapeHtml(sourceLabel)}">${escapeHtml(sourceLabel)}</span></span>
       <span class="reply-inbox-person-date">${escapeHtml(reply.captured_at ? formatDate(reply.captured_at) : "")}</span>`;
     row.addEventListener("click", () => {
       selectedIds[accountId] = id;
@@ -8522,6 +8526,10 @@ function renderOutreachReplyInbox() {
   const name = String(reply.user_name || "LinkedIn user").trim();
   const accountName = accountMap.get(accountId) || accountId;
   const batch = String(reply.message_batch_code || "").trim();
+  const campaignName = String(reply.campaign_name || "").trim();
+  const sourceBatchCode = String(reply.connect_batch_code || "").trim();
+  const sourceBatchId = String(reply.connect_batch_id || "").trim();
+  const sourceBatchLabel = sourceBatchCode || sourceBatchId;
   const rawUrl = String(reply.linkedin_url || "").trim();
   let safeUrl = "";
   try {
@@ -8542,7 +8550,8 @@ function renderOutreachReplyInbox() {
   const locked = state.outreachReplySendSubmitting || status === "queued" || status === "processing";
   const header = `<header class="reply-inbox-chat-header">
     <span class="reply-inbox-avatar is-large" aria-hidden="true">${escapeHtml(name.charAt(0).toUpperCase())}</span>
-    <div class="reply-inbox-chat-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(accountName)}${batch ? ` · ${escapeHtml(batch)}` : ""}</p></div>
+    <div class="reply-inbox-chat-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(accountName)}${batch ? ` · Message batch ${escapeHtml(batch)}` : ""}</p>
+      <p class="reply-inbox-chat-source" title="${sourceBatchId ? `Source Connect batch ID: ${escapeHtml(sourceBatchId)}` : "Source Connect batch unavailable"}">Campaign: ${escapeHtml(campaignName || "Unavailable")} · Source Batch ID: ${escapeHtml(sourceBatchLabel || "Unavailable")}</p></div>
     ${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="reply-inbox-link">LinkedIn ↗</a>` : ""}
   </header>`;
   const conversation = messages.length ? messages.map((message) => `
