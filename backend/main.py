@@ -1935,16 +1935,30 @@ async def list_outreach_replies_api(
     """Read account metadata or one scrollable page of conversations."""
 
     try:
+        latest_scan = (
+            get_latest_completed_reply_check()
+            if revision_only or metadata or account_id else None
+        )
+        active_since = str((latest_scan or {}).get("started_at") or "") or None
+        scan_id = str((latest_scan or {}).get("id") or "")
         if revision_only:
-            return JSONResponse(content={"ok": True, "revision": get_outreach_reply_revision()})
+            reply_revision = get_outreach_reply_revision(active_since=active_since)
+            return JSONResponse(content={
+                "ok": True,
+                "revision": f"{scan_id}:{reply_revision or ''}",
+            })
         if metadata:
             replies = []
-            accounts = list_outreach_reply_accounts(include_counts=True)
-            revision = get_outreach_reply_revision()
+            accounts = list_outreach_reply_accounts(
+                include_counts=True, active_since=active_since,
+            )
+            reply_revision = get_outreach_reply_revision(active_since=active_since)
+            revision = f"{scan_id}:{reply_revision or ''}"
             page = None
         elif account_id:
             page = list_outreach_reply_page(
                 account_id=account_id, offset=offset, limit=limit,
+                active_since=active_since,
             )
             replies = page["replies"]
             accounts = []

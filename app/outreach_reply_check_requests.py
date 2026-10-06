@@ -49,7 +49,7 @@ def get_reply_check_request(request_id: str, *, client: Client | None = None) ->
 def get_latest_completed_reply_check(*, client: Client | None = None) -> dict | None:
     response = (
         (client or get_outreach_client()).table(TABLE)
-        .select("id,finished_at")
+        .select("id,started_at,finished_at")
         .eq("status", "completed")
         .order("finished_at", desc=True)
         .limit(1)

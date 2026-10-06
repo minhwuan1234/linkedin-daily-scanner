@@ -8557,6 +8557,14 @@ function renderOutreachReplyInbox() {
     if (["https:", "http:"].includes(url.protocol)) safeUrl = url.href;
   } catch (error) { /* No navigable LinkedIn URL. */ }
   const sourceMessages = Array.isArray(reply.conversation_messages) ? reply.conversation_messages : [];
+  const sameParticipant = (left, right) => {
+    const tokens = (value) => String(value || "").normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim().split(/\s+/).filter(Boolean).sort();
+    const leftTokens = tokens(left);
+    const rightTokens = tokens(right);
+    return leftTokens.length > 0 && leftTokens.length === rightTokens.length &&
+      leftTokens.every((token, index) => token === rightTokens[index]);
+  };
   const messages = sourceMessages.filter((message, index) => {
     const previous = sourceMessages[index - 1];
     return !previous || String(previous.text || "").trim() !== String(message.text || "").trim() ||
@@ -8574,12 +8582,17 @@ function renderOutreachReplyInbox() {
       <p class="reply-inbox-chat-source" title="${sourceBatchId ? `Source Connect batch ID: ${escapeHtml(sourceBatchId)}` : "Source Connect batch unavailable"}">Campaign: ${escapeHtml(campaignName || "Unavailable")} · Source Batch ID: ${escapeHtml(sourceBatchLabel || "Unavailable")}</p></div>
     ${safeUrl ? `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" class="reply-inbox-link">LinkedIn ↗</a>` : ""}
   </header>`;
-  const conversation = messages.length ? messages.map((message) => `
-    <article class="reply-inbox-message ${message.is_own_message ? "is-own" : "is-incoming"}">
-      <span class="reply-inbox-message-author">${escapeHtml(message.is_own_message ? accountName : name)}</span>
+  const conversation = messages.length ? messages.map((message) => {
+    const direction = message.sender_type || (message.is_own_message || sameParticipant(message.author, accountName)
+      ? "own" : message.is_incoming || sameParticipant(message.author, name) ? "incoming" : "unknown");
+    const senderName = direction === "own" ? accountName : direction === "incoming" ? name : "Sender unverified";
+    return `
+    <article class="reply-inbox-message ${direction === "own" ? "is-own" : direction === "incoming" ? "is-incoming" : "is-unknown"}">
+      <span class="reply-inbox-message-author">${escapeHtml(senderName)}</span>
       <div class="reply-inbox-bubble">${escapeHtml(message.text || "")}</div>
       <time>${escapeHtml(message.timestamp || "")}</time>
-    </article>`).join("") : `<p class="reply-inbox-no-history">No conversation history captured yet.</p>`;
+    </article>`;
+  }).join("") : `<p class="reply-inbox-no-history">No conversation history captured yet.</p>`;
   els.outreachReplyConversation.innerHTML = `${header}
     <div class="reply-inbox-thread">${conversation}</div>
     <div class="reply-inbox-compose">

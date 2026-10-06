@@ -48,6 +48,26 @@ def _message_fingerprint(
     return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
 
+def prune_stale_outreach_replies(
+    scan_started_at: str, *, client: Client | None = None,
+) -> int:
+    """Atomically remove replies absent from a successful full Unread scan.
+
+    The database function excludes every reply with a linked send job, so a
+    concurrent queue operation cannot lose its parent row through CASCADE.
+    """
+    if not _safe_text(scan_started_at):
+        raise OutreachReplyStoreError("scan_started_at is required for pruning.")
+    response = (client or get_outreach_client()).rpc(
+        "prune_stale_outreach_replies",
+        {"p_scan_started_at": scan_started_at},
+    ).execute()
+    try:
+        return int(response.data)
+    except (TypeError, ValueError) as exc:
+        raise OutreachReplyStoreError("Reply pruning did not return a count.") from exc
+
+
 def save_outreach_reply(
     *,
     sent_target_id: str,
@@ -152,12 +172,19 @@ REPLY_SELECT_FIELDS = (
 )
 
 
-def get_outreach_reply_revision(*, client: Client | None = None) -> str | None:
+def get_outreach_reply_revision(
+    *, client: Client | None = None, active_since: str | None = None,
+) -> str | None:
     """Return a cheap change marker for the most recently captured conversation."""
     active_client = client or get_outreach_client()
-    response = (
+    query = (
         active_client.table(REPLY_TABLE)
         .select("id,captured_at")
+    )
+    if active_since:
+        query = query.gte("captured_at", active_since)
+    response = (
+        query
         .order("captured_at", desc=True)
         .order("id", desc=True)
         .limit(1)
@@ -257,6 +284,7 @@ def list_outreach_reply_page(
     offset: int = 0,
     limit: int = 20,
     client: Client | None = None,
+    active_since: str | None = None,
 ) -> dict:
     """Fetch a stable page of raw reply rows for one account."""
     cleaned_account_id = _safe_text(account_id)
@@ -265,10 +293,15 @@ def list_outreach_reply_page(
     safe_offset = max(0, int(offset))
     safe_limit = max(1, min(int(limit), 50))
     active_client = client or get_outreach_client()
-    response = (
+    query = (
         active_client.table(REPLY_TABLE)
         .select(REPLY_SELECT_FIELDS)
         .eq("assigned_account_id", cleaned_account_id)
+    )
+    if active_since:
+        query = query.gte("captured_at", active_since)
+    response = (
+        query
         .order("captured_at", desc=True)
         .order("id", desc=True)
         .range(safe_offset, safe_offset + safe_limit)
@@ -337,6 +370,7 @@ def list_outreach_reply_accounts(
     *,
     client: Client | None = None,
     include_counts: bool = False,
+    active_since: str | None = None,
 ) -> list[dict]:
     """Return up to five Outreach accounts with their display names."""
 
@@ -353,10 +387,15 @@ def list_outreach_reply_accounts(
     if include_counts:
         active_client = client or get_outreach_client()
         for account in accounts:
-            response = (
+            query = (
                 active_client.table(REPLY_TABLE)
                 .select("id", count="exact", head=True)
                 .eq("assigned_account_id", account["account_id"])
+            )
+            if active_since:
+                query = query.gte("captured_at", active_since)
+            response = (
+                query
                 .execute()
             )
             account["reply_count"] = int(response.count or 0)

@@ -8,6 +8,15 @@ every 30 seconds while the tab is open, updating the selected chat when it chang
 
 On the worker Mac, after pulling this repo:
 
+First apply `outreach_reply_pruning.sql` once in the Supabase SQL Editor. The
+database function removes replies absent from a successful five-account Unread
+scan, while preserving replies linked to any Send via worker job. Those
+preserved older replies are hidden from the live Replies inbox but remain in
+the database with their jobs. The foreign key is changed from CASCADE to
+RESTRICT so a concurrent send job cannot be deleted by cleanup. Without this
+SQL migration, the scan will report a cleanup error instead of silently
+claiming completion.
+
 ```bash
 cd /path/to/linkedin-daily-scanner
 .venv/bin/python3 -m playwright install chromium

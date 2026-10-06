@@ -33,6 +33,7 @@ from playwright.sync_api import Frame, Locator, Page
 
 from app.outreach_account_pool import (
     DEFAULT_OUTREACH_ACCOUNT_IDS,
+    OUTREACH_ACCOUNT_DISPLAY_NAMES,
     OutreachAccountPool,
 )
 from app.outreach_message_executor import get_outreach_supabase_client
@@ -43,6 +44,8 @@ from app.outreach_reply_check_requests import (
     record_scheduled_reply_check,
 )
 from app.outreach_reply_store import save_outreach_reply
+from app.outreach_reply_store import prune_stale_outreach_replies
+from app.outreach_reply_direction import classify_message_direction
 from app.outreach_worker_heartbeat import worker_heartbeat
 
 
@@ -762,11 +765,13 @@ def _message_group_for_body(body: Locator) -> Locator | None:
     selectors = (
         (
             'xpath=ancestor::*['
-            'contains(@class,"msg-s-message-group")][1]'
+            'contains(concat(" ",normalize-space(@class)," "),'
+            '" msg-s-message-group ")][1]'
         ),
         (
             'xpath=ancestor::*['
-            'contains(@class,"msg-s-event-listitem")][1]'
+            'contains(concat(" ",normalize-space(@class)," "),'
+            '" msg-s-event-listitem ")][1]'
         ),
         'xpath=ancestor::li[1]',
     )
@@ -780,6 +785,29 @@ def _message_group_for_body(body: Locator) -> Locator | None:
             continue
 
     return None
+
+
+def _message_class_evidence(body: Locator, group: Locator | None) -> str:
+    """Read direction classes from the message and its actual event ancestors."""
+    classes: list[str] = []
+    for locator in (body, group):
+        if locator is None:
+            continue
+        try:
+            classes.append(str(locator.get_attribute("class") or ""))
+        except Exception:
+            pass
+    try:
+        event = body.locator(
+            'xpath=ancestor::*['
+            'contains(concat(" ",normalize-space(@class)," "),'
+            '" msg-s-event-listitem ")][1]'
+        )
+        if event.count():
+            classes.append(str(event.first.get_attribute("class") or ""))
+    except Exception:
+        pass
+    return " ".join(classes).casefold()
 
 
 def _read_message_author(group: Locator | None) -> str:
@@ -976,6 +1004,7 @@ def read_incoming_reply_messages(
     *,
     unread_name: str,
     sent_message_text: str,
+    assigned_account_id: str,
 ) -> tuple[list[dict], list[dict]]:
     """Read incoming bubble text only from the active matched thread."""
 
@@ -984,8 +1013,8 @@ def read_incoming_reply_messages(
         surface = page
 
     body_locator = surface.locator(", ".join(MESSAGE_BODY_SELECTORS))
-    expected_author = _normalize_name(unread_name)
     normalized_sent_text = " ".join(str(sent_message_text or "").split())
+    account_name = OUTREACH_ACCOUNT_DISPLAY_NAMES.get(assigned_account_id, "")
     events: list[dict] = []
     seen_dom_event_keys: set[str] = set()
 
@@ -1026,30 +1055,22 @@ def read_incoming_reply_messages(
 
         group = _message_group_for_body(body)
         author = _read_message_author(group)
-        normalized_author = _normalize_name(author)
-
-        class_evidence = ""
-        if group is not None:
-            try:
-                class_evidence = str(
-                    group.get_attribute("class") or ""
-                ).casefold()
-            except Exception:
-                class_evidence = ""
-
-        is_own_message = (
-            "--is-me" in class_evidence
-            or "from-me" in class_evidence
-            or (
-                normalized_sent_text
-                and text_value == normalized_sent_text
+        class_evidence = _message_class_evidence(body, group)
+        direction = classify_message_direction(
+            class_evidence=class_evidence,
+            author=author,
+            account_name=account_name,
+            unread_name=unread_name,
+            text_value=text_value,
+            sent_message_text=normalized_sent_text,
+        )
+        if direction == "unknown":
+            logger.warning(
+                "MESSAGE SENDER UNKNOWN | unread_name=%s | author=%s | classes=%s",
+                unread_name,
+                author,
+                class_evidence,
             )
-        )
-        is_incoming = (
-            bool(normalized_author)
-            and normalized_author == expected_author
-            and not is_own_message
-        )
 
         events.append(
             {
@@ -1057,8 +1078,9 @@ def read_incoming_reply_messages(
                 "author": author,
                 "text": text_value,
                 "timestamp": _read_message_timestamp(group),
-                "is_own_message": is_own_message,
-                "is_incoming": is_incoming,
+                "is_own_message": direction == "own",
+                "is_incoming": direction == "incoming",
+                "sender_type": direction,
             }
         )
 
@@ -1351,6 +1373,7 @@ def process_matched_conversations(
     """Read matched replies and always attempt to restore unread state."""
 
     processed_count = 0
+    failed_count = 0
 
     for match in matched_profiles:
         unread_name = str(match.get("unread_name") or "").strip()
@@ -1367,9 +1390,11 @@ def process_matched_conversations(
                 page,
                 unread_name=unread_name,
                 sent_message_text=str(sent_profile.get("message_text") or ""),
+                assigned_account_id=str(sent_profile.get("assigned_account_id") or ""),
             )
 
             if not replies:
+                failed_count += 1
                 logger.warning(
                     (
                         "NO INCOMING MESSAGE BODY FOUND | unread_name=%s | "
@@ -1433,6 +1458,7 @@ def process_matched_conversations(
                         len(conversation_events),
                     )
                 except Exception as exc:
+                    failed_count += 1
                     logger.exception(
                         (
                             "REPLY STORE FAILED | sent_target_id=%s | "
@@ -1446,6 +1472,7 @@ def process_matched_conversations(
             processed_count += 1
 
         except Exception as exc:
+            failed_count += 1
             logger.exception(
                 "Matched conversation processing failed | unread_name=%s | error=%s",
                 unread_name,
@@ -1457,6 +1484,7 @@ def process_matched_conversations(
                 try:
                     mark_active_thread_as_unread(page, unread_name)
                 except Exception as exc:
+                    failed_count += 1
                     logger.exception(
                         (
                             "Could not restore unread state | "
@@ -1473,6 +1501,10 @@ def process_matched_conversations(
                     BETWEEN_CONVERSATIONS_MS,
                 )
 
+    if failed_count:
+        raise RuntimeError(
+            f"Could not verify or save {failed_count} matched conversation(s)."
+        )
     return processed_count
 
 
@@ -1727,6 +1759,7 @@ def process_manual_reply_check_request() -> bool:
     if not request:
         return False
     request_id = str(request.get("id") or "")
+    started_at = str(request.get("started_at") or "").strip()
     logger.info("Starting dashboard-triggered reply check | request=%s", request_id)
     try:
         failed_accounts = run_all_accounts()
@@ -1736,6 +1769,8 @@ def process_manual_reply_check_request() -> bool:
                 error="Reply scan failed for: " + ", ".join(failed_accounts),
             )
             return True
+        removed_count = prune_stale_outreach_replies(started_at)
+        logger.info("Pruned %s stale Replies without send jobs", removed_count)
     except Exception as exc:
         logger.exception("Dashboard-triggered reply check failed")
         finish_reply_check_request(request_id, error=str(exc))
@@ -1749,6 +1784,10 @@ def run_scheduled_reply_check() -> None:
     started_at = datetime.now(timezone.utc).isoformat()
     try:
         failed_accounts = run_all_accounts()
+        if failed_accounts:
+            raise RuntimeError("Reply scan failed for: " + ", ".join(failed_accounts))
+        removed_count = prune_stale_outreach_replies(started_at)
+        logger.info("Pruned %s stale Replies without send jobs", removed_count)
     except Exception as exc:
         try:
             record_scheduled_reply_check(started_at, error=str(exc))
@@ -1757,11 +1796,7 @@ def run_scheduled_reply_check() -> None:
         raise
 
     try:
-        record_scheduled_reply_check(
-            started_at,
-            error=("Reply scan failed for: " + ", ".join(failed_accounts))
-            if failed_accounts else None,
-        )
+        record_scheduled_reply_check(started_at)
     except Exception:
         logger.exception("Could not record scheduled reply-check completion")
 
@@ -1812,7 +1847,7 @@ def main() -> None:
             process_manual_request=process_manual_reply_check_request,
         )
     elif args.all_accounts:
-        run_all_accounts()
+        run_scheduled_reply_check()
     else:
         run_once(str(args.account_id).strip())
 
