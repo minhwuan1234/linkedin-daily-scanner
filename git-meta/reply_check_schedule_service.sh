@@ -51,9 +51,17 @@ with open(plist_path, "wb") as output:
 PY
 
     /usr/bin/plutil -lint "$PLIST_PATH"
-    launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
-    launchctl bootstrap "$DOMAIN" "$PLIST_PATH"
+    if launchctl print "$DOMAIN/$LABEL" >/dev/null 2>&1; then
+      echo "Reply-check schedule is already registered; restarting it."
+    else
+      if ! launchctl bootstrap "$DOMAIN" "$PLIST_PATH"; then
+        echo "Could not register the reply-check LaunchAgent in $DOMAIN." >&2
+        echo "Check the plist ownership and run 'launchctl print $DOMAIN/$LABEL' for details; do not use sudo for a user LaunchAgent." >&2
+        exit 1
+      fi
+    fi
     launchctl enable "$DOMAIN/$LABEL"
+    launchctl kickstart -k "$DOMAIN/$LABEL"
     echo "Reply-check schedule installed: 12:00 and 18:00 Asia/Ho_Chi_Minh"
     echo "Logs: $LOG_DIR/reply-check.out.log and reply-check.err.log"
     ;;
