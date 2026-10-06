@@ -6815,8 +6815,6 @@ function renderConnectHistory(jobs) {
       meta.className = "connect-history-run-meta";
       const created = document.createElement("span");
       created.textContent = formatDate(job.created_at);
-      const batchId = document.createElement("span");
-      batchId.textContent = `Batch ID: ${job.job_code || "—"}`;
       const profiles = document.createElement("span");
       profiles.textContent = `${Number(job.input_count || 0)} prospects added`;
       const processed = document.createElement("span");
@@ -6825,7 +6823,7 @@ function renderConnectHistory(jobs) {
       success.textContent = `${Number(job.success_count || 0)} success`;
       const failed = document.createElement("span");
       failed.textContent = `${Number(job.failed_count || 0)} failed`;
-      meta.append(batchId, created, profiles, processed, success, failed);
+      meta.append(created, profiles, processed, success, failed);
       button.append(name, status, meta);
       if (String(job.status || "").toLowerCase() === "running") {
         const total = Math.max(0, Number(job.target_count) || 0);
