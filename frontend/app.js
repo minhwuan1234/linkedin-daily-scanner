@@ -8781,6 +8781,16 @@ async function loadOutreachReplies() {
   }
 }
 
+async function reloadOutreachRepliesAfterScan() {
+  // A periodic/manual load may still be in flight when the worker completes.
+  // Wait for it to release the loading guard, then fetch the completed scan's
+  // metadata and selected account page instead of silently dropping refresh.
+  while (state.outreachRepliesLoading) {
+    await new Promise((resolve) => window.setTimeout(resolve, 100));
+  }
+  await loadOutreachReplies();
+}
+
 async function refreshOutreachRepliesAfterScan() {
   if (state.outreachReplyRefreshing || state.outreachRepliesLoading ||
       state.outreachReplySendSubmitting) return;
@@ -8938,7 +8948,7 @@ async function requestOutreachReplyCheck() {
         if (lastScan) lastScan.textContent = formatOutreachReplyScanTime(request.finished_at);
         state.outreachReplyLastScanId = request.id;
         state.outreachReplyLastScanInitialized = true;
-        await loadOutreachReplies();
+        await reloadOutreachRepliesAfterScan();
         break;
       } else if (request.status === "failed") {
         throw new Error(request.error || "Worker could not complete the reply check.");
