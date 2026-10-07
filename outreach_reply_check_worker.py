@@ -644,11 +644,12 @@ def match_unread_by_profile_url(
             )
             candidates = sent_by_slug.get(profile_key, []) if profile_key else []
             match_reason = "exact_thread_profile_url"
+            conversation_events = load_full_conversation(
+                page, unread_name, account_id=account_id,
+                sent_message_text=str(candidates[0].get("message_text") or "")
+                if candidates else "",
+            )
             if not candidates and sent_profiles:
-                conversation_events = load_full_conversation(
-                    page, unread_name,
-                    account_id=account_id,
-                )
                 own_text_match = sent_target_from_own_messages(
                     conversation_events, sent_profiles,
                 )
@@ -663,6 +664,7 @@ def match_unread_by_profile_url(
                 "similarity": 1.0 if candidates else 0.0,
                 "sent_profile": candidates[0] if candidates else {},
                 "linkedin_url": profile_url or thread_url,
+                "conversation_events": conversation_events,
             })
             if candidates:
                 logger.info(
@@ -681,6 +683,7 @@ def match_unread_by_profile_url(
         finally:
             if opened:
                 mark_active_thread_as_unread(page, unread_name)
+                page.wait_for_timeout(BETWEEN_CONVERSATIONS_MS)
     return matched_profiles
 
 
@@ -1411,13 +1414,12 @@ def mark_active_thread_as_unread(page: Page, unread_name: str) -> None:
 
 
 def process_matched_conversations(
-    page: Page,
     matched_profiles: list[dict],
     *,
     account_id: str,
     client,
 ) -> int:
-    """Read every Unread thread and always attempt to restore unread state."""
+    """Save conversations captured during the single Unread thread visit."""
 
     processed_count = 0
     failed_count = 0
@@ -1425,18 +1427,10 @@ def process_matched_conversations(
     for match in matched_profiles:
         unread_name = str(match.get("unread_name") or "").strip()
         sent_profile = dict(match.get("sent_profile") or {})
-        conversation_opened = False
 
         try:
-            opened_thread_url = open_matched_conversation(
-                page, unread_name, str(match.get("thread_url") or "")
-            )
-            conversation_opened = True
-
-            conversation_events = load_full_conversation(
-                page, unread_name, account_id=account_id,
-                sent_message_text=str(sent_profile.get("message_text") or ""),
-            )
+            opened_thread_url = str(match.get("thread_url") or "")
+            conversation_events = list(match.get("conversation_events") or [])
             replies = incoming_after_last_own(conversation_events)
 
             if not conversation_events:
@@ -1508,28 +1502,6 @@ def process_matched_conversations(
                 unread_name,
                 exc,
             )
-
-        finally:
-            if conversation_opened:
-                try:
-                    mark_active_thread_as_unread(page, unread_name)
-                except Exception as exc:
-                    failed_count += 1
-                    logger.exception(
-                        (
-                            "Could not restore unread state | "
-                            "unread_name=%s | error=%s"
-                        ),
-                        unread_name,
-                        exc,
-                    )
-
-                page.wait_for_timeout(BETWEEN_CONVERSATIONS_MS)
-                logger.info(
-                    "Conversation cycle settled | unread_name=%s | wait_ms=%s",
-                    unread_name,
-                    BETWEEN_CONVERSATIONS_MS,
-                )
 
     if failed_count:
         raise RuntimeError(
@@ -1744,7 +1716,6 @@ def _run_once(account_id: str) -> None:
             len(unread_names) - len(matched_profiles),
         )
         processed_count = process_matched_conversations(
-            page,
             matched_profiles,
             account_id=account.account_id,
             client=client,
