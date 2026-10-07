@@ -45,7 +45,11 @@ from app.outreach_reply_check_requests import (
 )
 from app.outreach_reply_store import save_outreach_reply
 from app.outreach_reply_store import prune_stale_outreach_replies
-from app.outreach_reply_direction import classify_message_direction
+from app.outreach_reply_direction import (
+    classify_message_direction,
+    profile_slug_key,
+    sent_target_from_own_messages,
+)
 from app.outreach_worker_heartbeat import worker_heartbeat
 
 
@@ -65,6 +69,8 @@ UNREAD_NAME_SELECTORS = (
     ".msg-conversation-listitem__participant-names",
     ".msg-conversation-card__participant-names",
     ".msg-conversation-listitem__participant-name",
+    ".msg-conversation-card__participant-name",
+    ".msg-conversations-container__conversations-listitem__participant-names",
     (
         ".msg-conversations-container__conversations-list "
         '[data-anonymize="person-name"]'
@@ -73,13 +79,20 @@ UNREAD_NAME_SELECTORS = (
         ".msg-conversations-container__convo-list "
         '[data-anonymize="person-name"]'
     ),
+    (
+        ".msg-conversations-container "
+        'a[href*="/messaging/thread/"] [data-anonymize="person-name"]'
+    ),
 )
 UNREAD_LIST_SELECTORS = (
     ".msg-conversations-container__conversations-list",
     ".msg-conversations-container__convo-list",
     ".msg-conversations-container__conversations-list-container",
 )
-FUZZY_MATCH_THRESHOLD = 0.70
+UNREAD_ROW_SELECTORS = (
+    ".msg-conversations-container .msg-conversation-listitem",
+    ".msg-conversations-container .msg-conversation-card",
+)
 CONVERSATION_SETTLE_MS = 2_500
 BEFORE_THREAD_MENU_MS = 1_200
 THREAD_MENU_SETTLE_MS = 700
@@ -295,33 +308,37 @@ def load_sent_message_profiles(
     """Load only successfully sent targets for the active LinkedIn account."""
 
     active_client = client or get_outreach_supabase_client()
-    response = (
-        active_client.table("outreach_message_targets")
-        .select(
-            (
+    sent_profiles: list[dict] = []
+    derivable_name_count = 0
+    page_size = 500
+    offset = 0
+    while True:
+        response = (
+            active_client.table("outreach_message_targets")
+            .select(
                 "id,prospect_id,assigned_account_id,linkedin_url,status,"
                 "message_text,completed_at"
             )
+            .eq("status", "sent")
+            .eq("assigned_account_id", str(account_id).strip())
+            .order("completed_at", desc=True)
+            .order("id", desc=True)
+            .range(offset, offset + page_size - 1)
+            .execute()
         )
-        .eq("status", "sent")
-        .eq("assigned_account_id", str(account_id).strip())
-        .order("completed_at", desc=True)
-        .execute()
-    )
-
-    sent_profiles: list[dict] = []
-    derivable_name_count = 0
-
-    for raw_row in list(response.data or []):
-        row = dict(raw_row)
-        normalized_name = _profile_name_from_linkedin_url(
-            row.get("linkedin_url")
-        )
-        row["normalized_name"] = normalized_name
-        sent_profiles.append(row)
-
-        if normalized_name:
-            derivable_name_count += 1
+        rows = list(response.data or [])
+        for raw_row in rows:
+            row = dict(raw_row)
+            normalized_name = _profile_name_from_linkedin_url(
+                row.get("linkedin_url")
+            )
+            row["normalized_name"] = normalized_name
+            sent_profiles.append(row)
+            if normalized_name:
+                derivable_name_count += 1
+        if len(rows) < page_size:
+            break
+        offset += page_size
 
     logger.info(
         (
@@ -358,17 +375,22 @@ def _read_visible_unread_names(surface: Page | Frame) -> list[str]:
     return names
 
 
-def _scroll_unread_list(surface: Page | Frame) -> dict:
+def _scroll_unread_list(surface: Page | Frame, *, reset: bool = False) -> dict:
     """Scroll only the conversation list so lazy-loaded unread names appear."""
 
     return surface.evaluate(
         """
-        ({listSelectors, nameSelectors}) => {
+        ({listSelectors, nameSelectors, reset}) => {
             let container = null;
+            let overflowed = false;
 
             for (const selector of listSelectors) {
                 const candidate = document.querySelector(selector);
-                if (candidate && candidate.scrollHeight > candidate.clientHeight) {
+                if (!candidate) continue;
+                overflowed ||= candidate.scrollHeight > candidate.clientHeight;
+                const style = window.getComputedStyle(candidate);
+                if (candidate.scrollHeight > candidate.clientHeight &&
+                    (style.overflowY === 'auto' || style.overflowY === 'scroll')) {
                     container = candidate;
                     break;
                 }
@@ -392,11 +414,11 @@ def _scroll_unread_list(surface: Page | Frame) -> dict:
             }
 
             if (!container) {
-                return {found: false, atBottom: true, top: 0};
+                return {found: false, atBottom: true, top: 0, overflowed};
             }
 
             const before = container.scrollTop;
-            container.scrollTop = Math.min(
+            container.scrollTop = reset ? 0 : Math.min(
                 container.scrollTop + Math.max(container.clientHeight * 0.8, 240),
                 container.scrollHeight
             );
@@ -411,15 +433,35 @@ def _scroll_unread_list(surface: Page | Frame) -> dict:
                 found: true,
                 atBottom: container.scrollTop >= maximum - 2,
                 top: container.scrollTop,
-                moved: container.scrollTop !== before
+                moved: container.scrollTop !== before,
+                overflowed
             };
         }
         """,
         {
             "listSelectors": list(UNREAD_LIST_SELECTORS),
             "nameSelectors": list(UNREAD_NAME_SELECTORS),
+            "reset": reset,
         },
     )
+
+
+def _unread_row_count(surface: Page | Frame) -> int:
+    return max(
+        (surface.locator(selector).count() for selector in UNREAD_ROW_SELECTORS),
+        default=0,
+    )
+
+
+def _unread_empty_state_visible(surface: Page | Frame) -> bool:
+    try:
+        return bool(surface.evaluate(
+            """() => /(?:no|you have no) unread (?:messages|conversations)/i.test(
+                document.body.innerText || ''
+            )"""
+        ))
+    except Exception:
+        return False
 
 
 def scan_unread_names(page: Page) -> list[str]:
@@ -432,8 +474,10 @@ def scan_unread_names(page: Page) -> list[str]:
 
     names: list[str] = []
     bottom_passes = 0
+    started_at = time.monotonic()
+    _scroll_unread_list(surface, reset=True)
 
-    for _ in range(40):
+    for _ in range(120):
         before_count = len(names)
 
         for name in _read_visible_unread_names(surface):
@@ -441,6 +485,10 @@ def scan_unread_names(page: Page) -> list[str]:
                 names.append(name)
 
         scroll_state = _scroll_unread_list(surface)
+        if not scroll_state.get("found") and scroll_state.get("overflowed"):
+            raise RuntimeError("Unread list overflows, but its scroll container was not found.")
+        if scroll_state.get("found") and not scroll_state.get("moved") and not scroll_state.get("atBottom"):
+            raise RuntimeError("Unread list stopped scrolling before reaching the bottom.")
         at_bottom = bool(scroll_state.get("atBottom"))
 
         if at_bottom and len(names) == before_count:
@@ -448,14 +496,28 @@ def scan_unread_names(page: Page) -> list[str]:
         else:
             bottom_passes = 0
 
-        if bottom_passes >= 2:
+        min_wait = 3.0 if names else 8.0
+        if bottom_passes >= 3 and time.monotonic() - started_at >= min_wait:
             break
 
         page.wait_for_timeout(500)
+    else:
+        raise RuntimeError("Unread list did not settle after 120 scroll passes.")
+
+    visible_rows = _unread_row_count(surface)
+    if not names and (visible_rows or not _unread_empty_state_visible(surface)):
+        raise RuntimeError(
+            "Unread list has no extracted names, and an empty inbox was not confirmed."
+        )
+    if visible_rows > len(names):
+        raise RuntimeError(
+            f"Unread list shows {visible_rows} rows but only {len(names)} names were captured."
+        )
 
     logger.info(
-        "Unread names scanned | count=%s | names=%s",
+        "Unread names scanned | count=%s | visible_rows=%s | names=%s",
         len(names),
+        visible_rows,
         names,
     )
     return names
@@ -489,6 +551,17 @@ def log_sent_name_matches(
         )
 
         if matches:
+            profile_keys = {
+                profile_slug_key(match.get("linkedin_url"))
+                for match in matches
+            }
+            if len(profile_keys) > 1 or not next(iter(profile_keys), ""):
+                logger.warning(
+                    "AMBIGUOUS UNREAD NAME | unread_name=%s | sent_targets=%s; checking thread profile URL",
+                    unread_name,
+                    len(matches),
+                )
+                continue
             best_match = matches[0]
             matched_profiles.append(
                 {
@@ -548,43 +621,6 @@ def log_sent_name_matches(
             else 0.0
         )
 
-        if (
-            best_profile is not None
-            and best_similarity >= FUZZY_MATCH_THRESHOLD
-        ):
-            matched_profiles.append(
-                {
-                    "unread_name": unread_name,
-                    "normalized_unread_name": normalized_unread_name,
-                    "match_reason": "fuzzy_similarity_at_or_above_threshold",
-                    "similarity": best_similarity,
-                    "sent_profile": best_profile,
-                }
-            )
-            logger.warning(
-                (
-                    "REPLY MATCH | reason=fuzzy_similarity_above_threshold | "
-                    "threshold=>=%.2f | similarity=%.3f | "
-                    "unread_name=%s | unread_normalized=%s | "
-                    "db_target_id=%s | db_prospect_id=%s | "
-                    "db_account_id=%s | db_status=%s | "
-                    "db_completed_at=%s | db_linkedin_url=%s | "
-                    "db_derived_name=%s"
-                ),
-                FUZZY_MATCH_THRESHOLD,
-                best_similarity,
-                unread_name,
-                normalized_unread_name,
-                best_profile.get("id"),
-                best_profile.get("prospect_id"),
-                best_profile.get("assigned_account_id"),
-                best_profile.get("status"),
-                best_profile.get("completed_at"),
-                best_profile.get("linkedin_url"),
-                best_profile.get("normalized_name"),
-            )
-            continue
-
         nearest_evidence = [
             {
                 "target_id": profile.get("id"),
@@ -609,14 +645,13 @@ def log_sent_name_matches(
         logger.warning(
             (
                 "NO REPLY MATCH | "
-                "reason=no_exact_match_and_best_similarity_below_threshold | "
+                "reason=no_unambiguous_exact_name; checking_thread_profile_url | "
                 "unread_name=%s | unread_normalized=%s | "
-                "required_similarity=>=%.2f | best_similarity=%.3f | "
+                "best_similarity=%.3f | "
                 "db_sent_row_count=%s | nearest_db_evidence=%s"
             ),
             unread_name,
             normalized_unread_name,
-            FUZZY_MATCH_THRESHOLD,
             best_similarity,
             len(sent_profiles),
             nearest_evidence,
@@ -627,6 +662,108 @@ def log_sent_name_matches(
         len(unread_names),
         len(matched_profiles),
     )
+    return matched_profiles
+
+
+def _active_thread_profile_key(page: Page) -> str:
+    """Use only a unique member link inside the opened message thread."""
+    surface = _find_unread_surface(page) or page
+    for selector in (
+        ".msg-thread__content",
+        ".msg-thread",
+        ".msg-conversation-container",
+    ):
+        try:
+            scopes = surface.locator(selector)
+            for index in range(scopes.count()):
+                scope = scopes.nth(index)
+                if not _is_visible(scope):
+                    continue
+                anchors = scope.locator('a[href*="/in/"]')
+                keys = {
+                    key
+                    for anchor_index in range(anchors.count())
+                    if (key := profile_slug_key(
+                        anchors.nth(anchor_index).get_attribute("href")
+                    ))
+                }
+                if len(keys) == 1:
+                    return next(iter(keys))
+                if len(keys) > 1:
+                    return ""
+        except Exception:
+            continue
+    return ""
+
+
+def match_unread_by_profile_url(
+    page: Page,
+    *,
+    unread_names: list[str],
+    matched_profiles: list[dict],
+    sent_profiles: list[dict],
+) -> list[dict]:
+    """Resolve name mismatches by the opened thread's exact member URL."""
+    matched_names = {
+        str(match.get("normalized_unread_name") or "")
+        for match in matched_profiles
+    }
+    sent_by_slug: dict[str, list[dict]] = {}
+    for profile in sent_profiles:
+        key = profile_slug_key(profile.get("linkedin_url"))
+        if key:
+            sent_by_slug.setdefault(key, []).append(profile)
+
+    for unread_name in unread_names:
+        normalized_name = _normalize_name(unread_name)
+        if normalized_name in matched_names:
+            continue
+        opened = False
+        try:
+            open_matched_conversation(page, unread_name)
+            opened = True
+            profile_key = _active_thread_profile_key(page)
+            candidates = sent_by_slug.get(profile_key, []) if profile_key else []
+            match_reason = "exact_thread_profile_url"
+            if not candidates and sent_profiles:
+                load_full_conversation(page, unread_name)
+                _, conversation_events = read_incoming_reply_messages(
+                    page,
+                    unread_name=unread_name,
+                    sent_message_text="",
+                    assigned_account_id=str(
+                        sent_profiles[0].get("assigned_account_id") or ""
+                    ),
+                )
+                own_text_match = sent_target_from_own_messages(
+                    conversation_events, sent_profiles,
+                )
+                if own_text_match:
+                    candidates = [own_text_match]
+                    match_reason = "exact_own_sent_message"
+            if candidates:
+                matched_profiles.append({
+                    "unread_name": unread_name,
+                    "normalized_unread_name": normalized_name,
+                    "match_reason": match_reason,
+                    "similarity": 1.0,
+                    "sent_profile": candidates[0],
+                })
+                logger.info(
+                    "REPLY MATCH | reason=%s | unread_name=%s | target_id=%s",
+                    match_reason,
+                    unread_name,
+                    candidates[0].get("id"),
+                )
+            else:
+                logger.warning(
+                    "UNMATCHED UNREAD THREAD | unread_name=%s | profile_link_found=%s",
+                    unread_name,
+                    bool(profile_key),
+                )
+        finally:
+            if opened:
+                mark_active_thread_as_unread(page, unread_name)
     return matched_profiles
 
 
@@ -654,22 +791,7 @@ def _find_visible_unread_name(
 
 def _scroll_unread_list_to_start(surface: Page | Frame) -> None:
     try:
-        surface.evaluate(
-            """
-            selectors => {
-                for (const selector of selectors) {
-                    const candidate = document.querySelector(selector);
-                    if (candidate) {
-                        candidate.scrollTop = 0;
-                        candidate.dispatchEvent(
-                            new Event('scroll', {bubbles: true})
-                        );
-                    }
-                }
-            }
-            """,
-            list(UNREAD_LIST_SELECTORS),
-        )
+        _scroll_unread_list(surface, reset=True)
     except Exception:
         pass
 
@@ -1702,11 +1824,30 @@ def _run_once(account_id: str) -> None:
             unread_names=unread_names,
             sent_profiles=sent_profiles,
         )
+        matched_profiles = match_unread_by_profile_url(
+            page,
+            unread_names=unread_names,
+            matched_profiles=matched_profiles,
+            sent_profiles=sent_profiles,
+        )
+        logger.info(
+            "Reply-check match coverage | account=%s | unread=%s | verified=%s | unmatched=%s",
+            account.account_id,
+            len(unread_names),
+            len(matched_profiles),
+            len(unread_names) - len(matched_profiles),
+        )
         processed_count = process_matched_conversations(
             page,
             matched_profiles,
             client=client,
         )
+        unmatched_count = len(unread_names) - len(matched_profiles)
+        if unmatched_count:
+            raise RuntimeError(
+                f"{unmatched_count} Unread conversation(s) could not be verified "
+                "against sent Outreach targets; keeping the previous Replies snapshot."
+            )
 
         print("")
         print("Reply-check scan completed.")

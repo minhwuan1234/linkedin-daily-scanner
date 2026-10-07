@@ -5,6 +5,11 @@ The reply-check worker scans the five Outreach accounts sequentially at
 replies and restores LinkedIn's unread state; it does not send messages.
 The Replies inbox reads those saved conversations and checks for new scan data
 every 30 seconds while the tab is open, updating the selected chat when it changes.
+For unread people whose display name differs from their LinkedIn URL slug, the
+worker opens the thread and verifies the profile link or a unique message sent
+by the active Outreach account. It does not treat a fuzzy name as proof. If the
+Unread list has not settled or visible rows cannot be read, the scan fails
+without pruning stored replies.
 
 On the worker Mac, after pulling this repo:
 
