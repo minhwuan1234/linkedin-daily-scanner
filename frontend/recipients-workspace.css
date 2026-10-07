@@ -133,13 +133,20 @@
   max-width: 230px;
   min-width: 150px;
   padding: 0 10px;
-  border: 1px solid #deded9;
-  border-radius: 7px;
-  background: #fff;
-  color: #37352f;
+  border: 1px solid #deded9 !important;
+  border-radius: 7px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  color: #37352f !important;
+  color-scheme: light;
   font: inherit;
   font-size: 12px;
   cursor: pointer;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-filter option {
+  background: #fff;
+  color: #37352f;
 }
 
 #outreachAcceptedPoolPanel .recipient-campaign-filter:focus-visible {
