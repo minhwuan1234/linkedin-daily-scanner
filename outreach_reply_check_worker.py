@@ -51,6 +51,8 @@ from app.outreach_reply_direction import (
     merge_conversation_snapshots,
     profile_slug_key,
     sent_target_from_own_messages,
+    sent_target_from_unverified_message,
+    verify_sent_message_events,
 )
 from app.outreach_worker_heartbeat import worker_heartbeat
 
@@ -656,6 +658,17 @@ def match_unread_by_profile_url(
                 if own_text_match:
                     candidates = [own_text_match]
                     match_reason = "exact_own_sent_message"
+                else:
+                    unverified_text_match = sent_target_from_unverified_message(
+                        conversation_events, sent_profiles, unread_name,
+                    )
+                    if unverified_text_match:
+                        candidates = [unverified_text_match]
+                        match_reason = "unique_recipient_and_exact_sent_message"
+            if candidates:
+                verify_sent_message_events(
+                    conversation_events, str(candidates[0].get("message_text") or ""),
+                )
             matched_profiles.append({
                 "unread_name": unread_name,
                 "thread_url": thread_url,

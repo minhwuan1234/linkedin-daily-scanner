@@ -8,6 +8,8 @@ from app.outreach_reply_direction import (
     merge_conversation_snapshots,
     profile_slug_key,
     sent_target_from_own_messages,
+    sent_target_from_unverified_message,
+    verify_sent_message_events,
 )
 
 
@@ -95,6 +97,45 @@ class ReplySenderTests(unittest.TestCase):
         ]
         events = [{"text": message, "is_own_message": True}]
         self.assertIsNone(sent_target_from_own_messages(events, profiles))
+
+    def test_authorless_exact_sent_message_resolves_unique_recipient(self) -> None:
+        message = "Hey Josh, good to connect! I work on the animation side of production."
+        profiles = [{
+            "id": "josh-target", "normalized_name": "josh lynch",
+            "message_text": message,
+        }]
+        events = [{
+            "text": message, "author": "", "sender_type": "unknown",
+            "is_own_message": False, "is_incoming": False,
+        }]
+        match = sent_target_from_unverified_message(events, profiles, "Josh Lynch")
+        self.assertEqual(match["id"], "josh-target")
+        verify_sent_message_events(events, match["message_text"])
+        self.assertEqual(events[0]["sender_type"], "own")
+        self.assertTrue(events[0]["is_own_message"])
+
+    def test_customer_authored_quote_stays_incoming(self) -> None:
+        message = "Hey Josh, good to connect! I work on the animation side of production."
+        profiles = [{
+            "id": "josh-target", "normalized_name": "josh lynch",
+            "message_text": message,
+        }]
+        events = [{
+            "text": message, "author": "Josh Lynch", "sender_type": "incoming",
+            "is_own_message": False, "is_incoming": True,
+        }]
+        self.assertIsNone(sent_target_from_unverified_message(events, profiles, "Josh Lynch"))
+        verify_sent_message_events(events, message)
+        self.assertEqual(events[0]["sender_type"], "incoming")
+
+    def test_duplicate_sent_messages_do_not_resolve_target(self) -> None:
+        message = "Hey Josh, good to connect! I work on the animation side of production."
+        profiles = [
+            {"id": "first", "normalized_name": "josh lynch", "message_text": message},
+            {"id": "second", "normalized_name": "josh lynch", "message_text": message},
+        ]
+        events = [{"text": message, "author": "", "sender_type": "unknown"}]
+        self.assertIsNone(sent_target_from_unverified_message(events, profiles, "Josh Lynch"))
 
     def test_overlapping_history_windows_keep_repeated_real_messages(self) -> None:
         first = {"text": "Hello", "timestamp": "10:00", "sender_type": "own"}

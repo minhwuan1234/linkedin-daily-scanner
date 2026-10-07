@@ -50,6 +50,43 @@ def sent_target_from_own_messages(
     return None
 
 
+def sent_target_from_unverified_message(
+    events: list[dict], sent_profiles: list[dict], unread_name: str,
+) -> dict | None:
+    """Resolve an authorless bubble using a unique recipient and sent text."""
+    matches: dict[str, dict] = {}
+    for profile in sent_profiles:
+        if not same_person_name(profile.get("normalized_name"), unread_name):
+            continue
+        sent_text = " ".join(str(profile.get("message_text") or "").split())
+        if len(sent_text) < 20:
+            continue
+        if any(
+            event.get("sender_type") == "unknown"
+            and not str(event.get("author") or "").strip()
+            and " ".join(str(event.get("text") or "").split()) == sent_text
+            for event in events
+        ):
+            target_id = str(profile.get("id") or "")
+            if target_id:
+                matches[target_id] = profile
+    return next(iter(matches.values())) if len(matches) == 1 else None
+
+
+def verify_sent_message_events(events: list[dict], sent_message_text: str) -> None:
+    """Mark only authorless, unclassified exact sent-message bubbles as own."""
+    sent_text = " ".join(str(sent_message_text or "").split())
+    if len(sent_text) < 20:
+        return
+    for event in events:
+        if (event.get("sender_type") == "unknown"
+                and not str(event.get("author") or "").strip()
+                and " ".join(str(event.get("text") or "").split()) == sent_text):
+            event["sender_type"] = "own"
+            event["is_own_message"] = True
+            event["is_incoming"] = False
+
+
 def merge_conversation_snapshots(older: list[dict], newer: list[dict]) -> list[dict]:
     """Join overlapping DOM windows without collapsing repeated real messages."""
     def identity(event: dict) -> tuple[str, str, str]:
