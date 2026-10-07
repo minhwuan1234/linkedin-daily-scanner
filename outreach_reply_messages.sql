@@ -2,11 +2,12 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.outreach_reply_messages (
   id uuid primary key default gen_random_uuid(),
-  sent_target_id uuid not null references public.outreach_message_targets(id) on delete cascade,
+  sent_target_id uuid null references public.outreach_message_targets(id) on delete cascade,
   prospect_id uuid null,
   assigned_account_id text not null,
   user_name text not null,
   linkedin_url text not null,
+  thread_url text null,
   message_text text not null,
   linkedin_message_time text null,
   conversation_messages jsonb not null default '[]'::jsonb,
@@ -24,6 +25,10 @@ create index if not exists outreach_reply_messages_captured_at_idx
 
 create index if not exists outreach_reply_messages_target_idx
   on public.outreach_reply_messages (sent_target_id);
+
+create unique index if not exists outreach_reply_messages_account_thread_idx
+  on public.outreach_reply_messages (assigned_account_id, thread_url)
+  where thread_url is not null and thread_url <> '';
 
 delete from public.outreach_reply_messages older
 using public.outreach_reply_messages newer

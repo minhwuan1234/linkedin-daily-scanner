@@ -48,6 +48,41 @@ def sent_target_from_own_messages(
     return None
 
 
+def merge_conversation_snapshots(older: list[dict], newer: list[dict]) -> list[dict]:
+    """Join overlapping DOM windows without collapsing repeated real messages."""
+    def identity(event: dict) -> tuple[str, str, str]:
+        return (
+            " ".join(str(event.get("text") or "").split()),
+            str(event.get("timestamp") or ""),
+            str(event.get("sender_type") or "unknown"),
+        )
+
+    old_keys = [identity(event) for event in older]
+    new_keys = [identity(event) for event in newer]
+    for overlap in range(min(len(older), len(newer)), 0, -1):
+        if old_keys[-overlap:] == new_keys[:overlap]:
+            return older + newer[overlap:]
+    if older and newer:
+        raise ValueError("Conversation DOM windows have no verified overlap.")
+    return older or newer
+
+
+def incoming_after_last_own(events: list[dict]) -> list[dict]:
+    """Return customer messages after the account's most recent message."""
+    last_own = max(
+        (index for index, event in enumerate(events) if event.get("sender_type") == "own"),
+        default=-1,
+    )
+    recent = [
+        event for index, event in enumerate(events)
+        if index > last_own and event.get("sender_type") == "incoming"
+    ]
+    if recent:
+        return recent
+    all_incoming = [event for event in events if event.get("sender_type") == "incoming"]
+    return all_incoming[-1:]
+
+
 def _name_tokens(value: str) -> list[str]:
     plain = unicodedata.normalize("NFKD", str(value or ""))
     plain = "".join(char for char in plain if not unicodedata.combining(char))
@@ -71,18 +106,25 @@ def classify_message_direction(
 ) -> str:
     """Return own, incoming, or unknown; unknown is never a verified reply."""
     classes = class_evidence.casefold().split()
-    if any(
+    own_dom = any(
         token.endswith(("--is-me", "--from-me", "--outgoing", "--is-self"))
         or token == "from-me"
         for token in classes
-    ):
+    )
+    incoming_dom = any(token.endswith(("--is-other", "--incoming")) for token in classes)
+    # Conflicting DOM evidence is not safe to assign to either participant.
+    if own_dom and incoming_dom:
+        return "unknown"
+    if own_dom:
         return "own"
-    if same_person_name(author, account_name):
-        return "own"
-    if sent_message_text and text_value == sent_message_text:
-        return "own"
-    if any(token.endswith(("--is-other", "--incoming")) for token in classes):
+    if incoming_dom:
         return "incoming"
-    if same_person_name(author, unread_name):
+    own_author = same_person_name(author, account_name)
+    incoming_author = same_person_name(author, unread_name)
+    if own_author and incoming_author:
+        return "unknown"
+    if own_author:
+        return "own"
+    if incoming_author:
         return "incoming"
     return "unknown"

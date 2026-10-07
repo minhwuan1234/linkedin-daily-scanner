@@ -4,6 +4,8 @@ import unittest
 
 from app.outreach_reply_direction import (
     classify_message_direction,
+    incoming_after_last_own,
+    merge_conversation_snapshots,
     profile_slug_key,
     sent_target_from_own_messages,
 )
@@ -37,12 +39,23 @@ class ReplySenderTests(unittest.TestCase):
     def test_unknown_sender_is_not_a_verified_reply(self) -> None:
         self.assertEqual(self.classify(author="Another person"), "unknown")
 
-    def test_known_sent_text_is_own_message(self) -> None:
+    def test_known_sent_text_does_not_override_customer_author(self) -> None:
         self.assertEqual(self.classify(
             author="Charlie Parkinson",
             text_value="Our outreach message",
             sent_message_text="Our outreach message",
-        ), "own")
+        ), "incoming")
+
+    def test_conflicting_dom_direction_is_unknown(self) -> None:
+        self.assertEqual(self.classify(
+            class_evidence="msg-s-event-listitem--is-me msg-s-event-listitem--incoming",
+        ), "unknown")
+
+    def test_explicit_incoming_dom_overrides_misleading_author(self) -> None:
+        self.assertEqual(self.classify(
+            class_evidence="msg-s-event-listitem--incoming",
+            author="Linh Giang",
+        ), "incoming")
 
     def test_relative_profile_link_matches_stored_url(self) -> None:
         self.assertEqual(
@@ -82,6 +95,33 @@ class ReplySenderTests(unittest.TestCase):
         ]
         events = [{"text": message, "is_own_message": True}]
         self.assertIsNone(sent_target_from_own_messages(events, profiles))
+
+    def test_overlapping_history_windows_keep_repeated_real_messages(self) -> None:
+        first = {"text": "Hello", "timestamp": "10:00", "sender_type": "own"}
+        repeat = {"text": "Hello", "timestamp": "10:01", "sender_type": "own"}
+        reply = {"text": "Hi", "timestamp": "10:02", "sender_type": "incoming"}
+        self.assertEqual(
+            merge_conversation_snapshots([first, repeat], [repeat, reply]),
+            [first, repeat, reply],
+        )
+
+    def test_nonoverlapping_history_windows_fail_closed(self) -> None:
+        with self.assertRaises(ValueError):
+            merge_conversation_snapshots(
+                [{"text": "old", "sender_type": "own"}],
+                [{"text": "new", "sender_type": "incoming"}],
+            )
+
+    def test_incoming_never_confuses_own_message(self) -> None:
+        events = [
+            {"text": "from customer", "sender_type": "incoming"},
+            {"text": "our answer", "sender_type": "own"},
+            {"text": "new customer message", "sender_type": "incoming"},
+        ]
+        self.assertEqual(
+            [event["text"] for event in incoming_after_last_own(events)],
+            ["new customer message"],
+        )
 
 
 if __name__ == "__main__":

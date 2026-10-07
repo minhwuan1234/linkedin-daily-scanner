@@ -1,14 +1,14 @@
-"""Scan LinkedIn Messaging > Unread for replies to sent outreach messages.
+"""Synchronize every LinkedIn Messaging > Unread conversation.
 
 Flow:
     1. Open the selected Outreach LinkedIn profile.
     2. Open LinkedIn Messaging and select Unread.
-    3. Compare unread sender names with successfully sent targets.
-    4. Open only the conversations verified by that comparison.
-    5. Log the incoming reply text with its database evidence.
+    3. Open every Unread conversation and read its full history.
+    4. Link to a sent target when identity can be verified; leave others unlinked.
+    5. Save messages with explicit own/incoming/unknown roles.
     6. Use the active-thread menu beside Star to restore Mark as unread.
 
-Matched conversations are synchronized to Supabase for the Replies inbox.
+Unread conversations are synchronized to Supabase for the Replies inbox.
 Opening a conversation changes LinkedIn UI state, so the worker restores the
 unread state before continuing.
 
@@ -26,8 +26,8 @@ import time
 import unicodedata
 from collections.abc import Callable
 from datetime import datetime, timezone
-from difflib import SequenceMatcher
 from urllib.parse import unquote, urlparse
+from urllib.parse import urljoin
 
 from playwright.sync_api import Frame, Locator, Page
 
@@ -47,6 +47,8 @@ from app.outreach_reply_store import save_outreach_reply
 from app.outreach_reply_store import prune_stale_outreach_replies
 from app.outreach_reply_direction import (
     classify_message_direction,
+    incoming_after_last_own,
+    merge_conversation_snapshots,
     profile_slug_key,
     sent_target_from_own_messages,
 )
@@ -92,6 +94,7 @@ UNREAD_LIST_SELECTORS = (
 UNREAD_ROW_SELECTORS = (
     ".msg-conversations-container .msg-conversation-listitem",
     ".msg-conversations-container .msg-conversation-card",
+    '.msg-conversations-container a[href*="/messaging/thread/"]',
 )
 CONVERSATION_SETTLE_MS = 2_500
 BEFORE_THREAD_MENU_MS = 1_200
@@ -375,6 +378,46 @@ def _read_visible_unread_names(surface: Page | Frame) -> list[str]:
     return names
 
 
+def _read_visible_unread_threads(surface: Page | Frame) -> list[dict]:
+    """Keep row identity so two people with the same name are not collapsed."""
+    threads: list[dict] = []
+    for row_selector in UNREAD_ROW_SELECTORS:
+        for row in surface.locator(row_selector).all():
+            if not _is_visible(row):
+                continue
+            name = ""
+            for selector in UNREAD_NAME_SELECTORS:
+                try:
+                    node = row.locator(selector).first
+                    if node.count() and _is_visible(node):
+                        name = " ".join(node.inner_text().split())
+                        if name:
+                            break
+                except Exception:
+                    continue
+            if not name:
+                continue
+            thread_url = ""
+            try:
+                link = (
+                    row if "/messaging/thread/" in str(row.get_attribute("href") or "")
+                    else row.locator('a[href*="/messaging/thread/"]').first
+                )
+                if link.count():
+                    thread_url = urljoin(
+                        LINKEDIN_HOME_URL, link.get_attribute("href") or ""
+                    ).split("?", 1)[0]
+            except Exception:
+                pass
+            threads.append({"name": name, "thread_url": thread_url})
+    if threads:
+        return threads
+    return [
+        {"name": name, "thread_url": ""}
+        for name in _read_visible_unread_names(surface)
+    ]
+
+
 def _scroll_unread_list(surface: Page | Frame, *, reset: bool = False) -> dict:
     """Scroll only the conversation list so lazy-loaded unread names appear."""
 
@@ -464,25 +507,28 @@ def _unread_empty_state_visible(surface: Page | Frame) -> bool:
         return False
 
 
-def scan_unread_names(page: Page) -> list[str]:
-    """Collect all currently listed Unread sender names without opening them."""
+def scan_unread_names(page: Page) -> list[dict]:
+    """Collect every Unread row, preserving thread URL where available."""
 
     surface = _find_unread_surface(page)
     if surface is None:
         _log_unread_diagnostics(page)
         raise RuntimeError("Unread filter surface disappeared before scanning.")
 
-    names: list[str] = []
+    threads: list[dict] = []
+    seen: set[str] = set()
     bottom_passes = 0
     started_at = time.monotonic()
     _scroll_unread_list(surface, reset=True)
 
     for _ in range(120):
-        before_count = len(names)
+        before_count = len(threads)
 
-        for name in _read_visible_unread_names(surface):
-            if name not in names:
-                names.append(name)
+        for thread in _read_visible_unread_threads(surface):
+            key = thread["thread_url"] or f"name:{_normalize_name(thread['name'])}"
+            if key not in seen:
+                seen.add(key)
+                threads.append(thread)
 
         scroll_state = _scroll_unread_list(surface)
         if not scroll_state.get("found") and scroll_state.get("overflowed"):
@@ -491,12 +537,12 @@ def scan_unread_names(page: Page) -> list[str]:
             raise RuntimeError("Unread list stopped scrolling before reaching the bottom.")
         at_bottom = bool(scroll_state.get("atBottom"))
 
-        if at_bottom and len(names) == before_count:
+        if at_bottom and len(threads) == before_count:
             bottom_passes += 1
         else:
             bottom_passes = 0
 
-        min_wait = 3.0 if names else 8.0
+        min_wait = 3.0 if threads else 8.0
         if bottom_passes >= 3 and time.monotonic() - started_at >= min_wait:
             break
 
@@ -505,164 +551,30 @@ def scan_unread_names(page: Page) -> list[str]:
         raise RuntimeError("Unread list did not settle after 120 scroll passes.")
 
     visible_rows = _unread_row_count(surface)
-    if not names and (visible_rows or not _unread_empty_state_visible(surface)):
+    if not threads and (visible_rows or not _unread_empty_state_visible(surface)):
         raise RuntimeError(
             "Unread list has no extracted names, and an empty inbox was not confirmed."
         )
-    if visible_rows > len(names):
+    if visible_rows > len(threads):
         raise RuntimeError(
-            f"Unread list shows {visible_rows} rows but only {len(names)} names were captured."
+            f"Unread list shows {visible_rows} rows but only {len(threads)} threads were captured."
         )
+    by_name: dict[str, list[dict]] = {}
+    for thread in threads:
+        by_name.setdefault(_normalize_name(thread["name"]), []).append(thread)
+    if any(
+        len(group) > 1 and any(not item["thread_url"] for item in group)
+        for group in by_name.values()
+    ):
+        raise RuntimeError("Duplicate Unread names lack thread URLs; cannot scan safely.")
 
     logger.info(
         "Unread names scanned | count=%s | visible_rows=%s | names=%s",
-        len(names),
+        len(threads),
         visible_rows,
-        names,
+        [thread["name"] for thread in threads],
     )
-    return names
-
-
-def log_sent_name_matches(
-    *,
-    unread_names: list[str],
-    sent_profiles: list[dict],
-) -> list[dict]:
-    """Log exact decisions with evidence from sent database records."""
-
-    sent_by_name: dict[str, list[dict]] = {}
-    for sent_profile in sent_profiles:
-        normalized_name = str(
-            sent_profile.get("normalized_name") or ""
-        ).strip()
-        if normalized_name:
-            sent_by_name.setdefault(normalized_name, []).append(sent_profile)
-
-    matched_profiles: list[dict] = []
-
-    for unread_name in unread_names:
-        normalized_unread_name = _normalize_name(unread_name)
-        matches = sent_by_name.get(normalized_unread_name, [])
-
-        logger.info(
-            "UNREAD NAME EVIDENCE | raw_name=%s | normalized_name=%s",
-            unread_name,
-            normalized_unread_name,
-        )
-
-        if matches:
-            profile_keys = {
-                profile_slug_key(match.get("linkedin_url"))
-                for match in matches
-            }
-            if len(profile_keys) > 1 or not next(iter(profile_keys), ""):
-                logger.warning(
-                    "AMBIGUOUS UNREAD NAME | unread_name=%s | sent_targets=%s; checking thread profile URL",
-                    unread_name,
-                    len(matches),
-                )
-                continue
-            best_match = matches[0]
-            matched_profiles.append(
-                {
-                    "unread_name": unread_name,
-                    "normalized_unread_name": normalized_unread_name,
-                    "match_reason": "exact_normalized_name",
-                    "similarity": 1.0,
-                    "sent_profile": best_match,
-                }
-            )
-
-            for match in matches:
-                logger.warning(
-                    (
-                        "REPLY MATCH | reason=exact_normalized_name | "
-                        "unread_name=%s | unread_normalized=%s | "
-                        "db_target_id=%s | db_prospect_id=%s | "
-                        "db_account_id=%s | db_status=%s | "
-                        "db_completed_at=%s | db_linkedin_url=%s | "
-                        "db_derived_name=%s"
-                    ),
-                    unread_name,
-                    normalized_unread_name,
-                    match.get("id"),
-                    match.get("prospect_id"),
-                    match.get("assigned_account_id"),
-                    match.get("status"),
-                    match.get("completed_at"),
-                    match.get("linkedin_url"),
-                    match.get("normalized_name"),
-                )
-            continue
-
-        comparable_profiles = [
-            profile
-            for profile in sent_profiles
-            if str(profile.get("normalized_name") or "").strip()
-        ]
-        ranked_profiles = sorted(
-            comparable_profiles,
-            key=lambda profile: SequenceMatcher(
-                None,
-                normalized_unread_name,
-                str(profile.get("normalized_name") or ""),
-            ).ratio(),
-            reverse=True,
-        )[:3]
-
-        best_profile = ranked_profiles[0] if ranked_profiles else None
-        best_similarity = (
-            SequenceMatcher(
-                None,
-                normalized_unread_name,
-                str(best_profile.get("normalized_name") or ""),
-            ).ratio()
-            if best_profile is not None
-            else 0.0
-        )
-
-        nearest_evidence = [
-            {
-                "target_id": profile.get("id"),
-                "prospect_id": profile.get("prospect_id"),
-                "account_id": profile.get("assigned_account_id"),
-                "status": profile.get("status"),
-                "completed_at": profile.get("completed_at"),
-                "linkedin_url": profile.get("linkedin_url"),
-                "derived_name": profile.get("normalized_name"),
-                "similarity": round(
-                    SequenceMatcher(
-                        None,
-                        normalized_unread_name,
-                        str(profile.get("normalized_name") or ""),
-                    ).ratio(),
-                    3,
-                ),
-            }
-            for profile in ranked_profiles
-        ]
-
-        logger.warning(
-            (
-                "NO REPLY MATCH | "
-                "reason=no_unambiguous_exact_name; checking_thread_profile_url | "
-                "unread_name=%s | unread_normalized=%s | "
-                "best_similarity=%.3f | "
-                "db_sent_row_count=%s | nearest_db_evidence=%s"
-            ),
-            unread_name,
-            normalized_unread_name,
-            best_similarity,
-            len(sent_profiles),
-            nearest_evidence,
-        )
-
-    logger.info(
-        "Reply-check summary | unread_names=%s | matched_sent_names=%s",
-        len(unread_names),
-        len(matched_profiles),
-    )
-    return matched_profiles
+    return threads
 
 
 def _active_thread_profile_key(page: Page) -> str:
@@ -699,41 +611,37 @@ def _active_thread_profile_key(page: Page) -> str:
 def match_unread_by_profile_url(
     page: Page,
     *,
-    unread_names: list[str],
-    matched_profiles: list[dict],
+    unread_names: list[dict],
     sent_profiles: list[dict],
+    account_id: str,
 ) -> list[dict]:
-    """Resolve name mismatches by the opened thread's exact member URL."""
-    matched_names = {
-        str(match.get("normalized_unread_name") or "")
-        for match in matched_profiles
-    }
+    """Resolve sent targets when possible; retain every other Unread thread."""
+    matched_profiles: list[dict] = []
     sent_by_slug: dict[str, list[dict]] = {}
     for profile in sent_profiles:
         key = profile_slug_key(profile.get("linkedin_url"))
         if key:
             sent_by_slug.setdefault(key, []).append(profile)
 
-    for unread_name in unread_names:
+    for unread_thread in unread_names:
+        unread_name = unread_thread["name"]
         normalized_name = _normalize_name(unread_name)
-        if normalized_name in matched_names:
-            continue
         opened = False
         try:
-            open_matched_conversation(page, unread_name)
+            thread_url = open_matched_conversation(
+                page, unread_name, unread_thread["thread_url"]
+            )
             opened = True
             profile_key = _active_thread_profile_key(page)
+            profile_url = (
+                f"https://www.linkedin.com/in/{profile_key}/" if profile_key else ""
+            )
             candidates = sent_by_slug.get(profile_key, []) if profile_key else []
             match_reason = "exact_thread_profile_url"
             if not candidates and sent_profiles:
-                load_full_conversation(page, unread_name)
-                _, conversation_events = read_incoming_reply_messages(
-                    page,
-                    unread_name=unread_name,
-                    sent_message_text="",
-                    assigned_account_id=str(
-                        sent_profiles[0].get("assigned_account_id") or ""
-                    ),
+                conversation_events = load_full_conversation(
+                    page, unread_name,
+                    account_id=account_id,
                 )
                 own_text_match = sent_target_from_own_messages(
                     conversation_events, sent_profiles,
@@ -741,14 +649,16 @@ def match_unread_by_profile_url(
                 if own_text_match:
                     candidates = [own_text_match]
                     match_reason = "exact_own_sent_message"
+            matched_profiles.append({
+                "unread_name": unread_name,
+                "thread_url": thread_url,
+                "normalized_unread_name": normalized_name,
+                "match_reason": match_reason if candidates else "unlinked_unread_thread",
+                "similarity": 1.0 if candidates else 0.0,
+                "sent_profile": candidates[0] if candidates else {},
+                "linkedin_url": profile_url or thread_url,
+            })
             if candidates:
-                matched_profiles.append({
-                    "unread_name": unread_name,
-                    "normalized_unread_name": normalized_name,
-                    "match_reason": match_reason,
-                    "similarity": 1.0,
-                    "sent_profile": candidates[0],
-                })
                 logger.info(
                     "REPLY MATCH | reason=%s | unread_name=%s | target_id=%s",
                     match_reason,
@@ -757,9 +667,10 @@ def match_unread_by_profile_url(
                 )
             else:
                 logger.warning(
-                    "UNMATCHED UNREAD THREAD | unread_name=%s | profile_link_found=%s",
+                    "UNLINKED UNREAD THREAD | unread_name=%s | profile_link_found=%s | thread_url_found=%s",
                     unread_name,
                     bool(profile_key),
+                    bool(thread_url),
                 )
         finally:
             if opened:
@@ -770,6 +681,7 @@ def match_unread_by_profile_url(
 def _find_visible_unread_name(
     surface: Page | Frame,
     unread_name: str,
+    thread_url: str = "",
 ) -> Locator | None:
     expected_name = _normalize_name(unread_name)
 
@@ -782,6 +694,18 @@ def _find_visible_unread_name(
                     continue
                 actual_name = _normalize_name(candidate.inner_text())
                 if actual_name == expected_name:
+                    if thread_url:
+                        anchor = candidate.locator(
+                            'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]'
+                        )
+                        if not anchor.count():
+                            continue
+                        candidate_url = urljoin(
+                            LINKEDIN_HOME_URL,
+                            anchor.first.get_attribute("href") or "",
+                        ).split("?", 1)[0]
+                        if candidate_url != thread_url:
+                            continue
                     return candidate
         except Exception:
             continue
@@ -836,7 +760,9 @@ def _click_conversation_name(name_locator: Locator) -> bool:
     return _click_locator(name_locator)
 
 
-def open_matched_conversation(page: Page, unread_name: str) -> None:
+def open_matched_conversation(
+    page: Page, unread_name: str, thread_url: str = "",
+) -> str:
     """Open one matched Unread row by exact normalized visible name."""
 
     surface = _find_unread_surface(page)
@@ -849,8 +775,17 @@ def open_matched_conversation(page: Page, unread_name: str) -> None:
     bottom_passes = 0
 
     for _ in range(45):
-        name_locator = _find_visible_unread_name(surface, unread_name)
+        name_locator = _find_visible_unread_name(surface, unread_name, thread_url)
         if name_locator is not None:
+            opened_url = thread_url
+            try:
+                anchor = name_locator.locator(
+                    'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]'
+                )
+                if anchor.count():
+                    opened_url = urljoin(LINKEDIN_HOME_URL, anchor.first.get_attribute("href") or "")
+            except Exception:
+                pass
             if not _click_conversation_name(name_locator):
                 raise RuntimeError(
                     f"Conversation row click failed for {unread_name!r}."
@@ -865,7 +800,9 @@ def open_matched_conversation(page: Page, unread_name: str) -> None:
                 CONVERSATION_SETTLE_MS,
                 page.url,
             )
-            return
+            if not opened_url and "/messaging/thread/" in page.url:
+                opened_url = page.url.split("?", 1)[0]
+            return opened_url.split("?", 1)[0]
 
         scroll_state = _scroll_unread_list(surface)
         if bool(scroll_state.get("atBottom")):
@@ -1031,11 +968,16 @@ def _message_event_dom_key(body: Locator) -> str:
         return ""
 
 
-def load_full_conversation(page: Page, unread_name: str) -> int:
-    """Scroll the active thread upward until older messages stop loading."""
+def load_full_conversation(
+    page: Page, unread_name: str, *, account_id: str,
+    sent_message_text: str = "",
+) -> list[dict]:
+    """Read overlapping DOM windows while walking from newest to oldest."""
 
     surface = _find_unread_surface(page) or page
     scroll_container: Locator | None = None
+    short_container: Locator | None = None
+    overflowed = False
 
     for selector in MESSAGE_SCROLL_CONTAINER_SELECTORS:
         try:
@@ -1043,30 +985,55 @@ def load_full_conversation(page: Page, unread_name: str) -> int:
             for index in range(candidates.count()):
                 candidate = candidates.nth(index)
                 if _is_visible(candidate):
-                    scroll_container = candidate
-                    logger.info(
-                        "CONVERSATION SCROLL EVIDENCE | unread_name=%s | selector=%s",
-                        unread_name,
-                        selector,
+                    state = candidate.evaluate(
+                        """element => ({
+                            height: element.scrollHeight,
+                            viewport: element.clientHeight,
+                            overflow: getComputedStyle(element).overflowY
+                        })"""
                     )
-                    break
+                    is_tall = state["height"] > state["viewport"] + 2
+                    overflowed = overflowed or is_tall
+                    if is_tall and state["overflow"] in {"auto", "scroll"}:
+                        scroll_container = candidate
+                        logger.info(
+                            "CONVERSATION SCROLL EVIDENCE | unread_name=%s | selector=%s",
+                            unread_name, selector,
+                        )
+                        break
+                    if not is_tall and short_container is None:
+                        short_container = candidate
         except Exception:
             continue
         if scroll_container is not None:
             break
 
+    if scroll_container is None and not overflowed:
+        scroll_container = short_container
     if scroll_container is None:
-        logger.warning(
-            "Conversation scroll container was not found | unread_name=%s",
-            unread_name,
+        raise RuntimeError(
+            f"Conversation scroll container was not found for {unread_name!r}."
         )
-        return 0
+
+    # Always start from newest, including after a previous identity check that
+    # left LinkedIn scrolled to the oldest message.
+    scroll_container.evaluate(
+        """element => {
+            element.scrollTo({top: element.scrollHeight, behavior: 'auto'});
+            element.dispatchEvent(new Event('scroll', {bubbles: true}));
+        }"""
+    )
+    page.wait_for_timeout(600)
 
     stable_passes = 0
     previous_height = -1
-    scroll_count = 0
+    _, collected = read_incoming_reply_messages(
+        page, unread_name=unread_name,
+        sent_message_text=sent_message_text,
+        assigned_account_id=account_id,
+    )
 
-    for _ in range(12):
+    for _ in range(80):
         try:
             state_before = scroll_container.evaluate(
                 """
@@ -1075,29 +1042,36 @@ def load_full_conversation(page: Page, unread_name: str) -> int:
                         height: element.scrollHeight,
                         top: element.scrollTop
                     };
-                    element.scrollTo({top: 0, behavior: 'auto'});
+                    element.scrollTo({
+                        top: Math.max(0, element.scrollTop - Math.max(element.clientHeight * 0.8, 240)),
+                        behavior: 'auto'
+                    });
                     element.dispatchEvent(new Event('scroll', {bubbles: true}));
                     return result;
                 }
                 """
             )
-        except Exception:
-            break
+        except Exception as exc:
+            raise RuntimeError("Could not scroll the conversation history.") from exc
 
-        scroll_count += 1
         page.wait_for_timeout(1_200)
+        _, older = read_incoming_reply_messages(
+            page, unread_name=unread_name,
+            sent_message_text=sent_message_text,
+            assigned_account_id=account_id,
+        )
+        collected = merge_conversation_snapshots(older, collected)
 
         try:
             current_height = int(
                 scroll_container.evaluate("element => element.scrollHeight")
                 or 0
             )
-        except Exception:
-            current_height = 0
+        except Exception as exc:
+            raise RuntimeError("Could not verify conversation history loading.") from exc
 
-        if current_height == previous_height and int(
-            state_before.get("top") or 0
-        ) == 0:
+        at_top = int(scroll_container.evaluate("element => element.scrollTop") or 0) == 0
+        if current_height == previous_height and at_top:
             stable_passes += 1
         else:
             stable_passes = 0
@@ -1108,7 +1082,7 @@ def load_full_conversation(page: Page, unread_name: str) -> int:
                 "height_before=%s | height_after=%s | stable_passes=%s"
             ),
             unread_name,
-            scroll_count,
+            len(collected),
             state_before.get("height"),
             current_height,
             stable_passes,
@@ -1117,8 +1091,12 @@ def load_full_conversation(page: Page, unread_name: str) -> int:
         previous_height = current_height
         if stable_passes >= 2:
             break
+    else:
+        raise RuntimeError("Conversation history did not settle at its beginning.")
 
-    return scroll_count
+    for index, event in enumerate(collected):
+        event["index"] = index
+    return collected
 
 
 def read_incoming_reply_messages(
@@ -1128,7 +1106,7 @@ def read_incoming_reply_messages(
     sent_message_text: str,
     assigned_account_id: str,
 ) -> tuple[list[dict], list[dict]]:
-    """Read incoming bubble text only from the active matched thread."""
+    """Snapshot every visible bubble with conservative sender evidence."""
 
     surface = _find_unread_surface(page)
     if surface is None:
@@ -1205,47 +1183,6 @@ def read_incoming_reply_messages(
                 "sender_type": direction,
             }
         )
-
-    deduplicated_events: list[dict] = []
-    for event in events:
-        previous = (
-            deduplicated_events[-1]
-            if deduplicated_events
-            else None
-        )
-        event_text = " ".join(
-            str(event.get("text") or "").casefold().split()
-        )
-        previous_text = " ".join(
-            str((previous or {}).get("text") or "").casefold().split()
-        )
-        same_nested_message = bool(
-            previous
-            and event_text
-            and event_text == previous_text
-            and bool(event.get("is_own_message"))
-            == bool(previous.get("is_own_message"))
-        )
-
-        if same_nested_message:
-            current_timestamp = str(event.get("timestamp") or "").strip()
-            previous_timestamp = str(
-                previous.get("timestamp") or ""
-            ).strip()
-            if len(current_timestamp) > len(previous_timestamp):
-                previous["timestamp"] = current_timestamp
-            if not previous.get("author") and event.get("author"):
-                previous["author"] = event.get("author")
-            previous["is_incoming"] = bool(
-                previous.get("is_incoming") or event.get("is_incoming")
-            )
-            continue
-
-        copied_event = dict(event)
-        copied_event["index"] = len(deduplicated_events)
-        deduplicated_events.append(copied_event)
-
-    events = deduplicated_events
 
     last_sent_index = -1
     for event in events:
@@ -1490,9 +1427,10 @@ def process_matched_conversations(
     page: Page,
     matched_profiles: list[dict],
     *,
+    account_id: str,
     client,
 ) -> int:
-    """Read matched replies and always attempt to restore unread state."""
+    """Read every Unread thread and always attempt to restore unread state."""
 
     processed_count = 0
     failed_count = 0
@@ -1503,60 +1441,43 @@ def process_matched_conversations(
         conversation_opened = False
 
         try:
-            open_matched_conversation(page, unread_name)
+            opened_thread_url = open_matched_conversation(
+                page, unread_name, str(match.get("thread_url") or "")
+            )
             conversation_opened = True
 
-            load_full_conversation(page, unread_name)
-
-            replies, conversation_events = read_incoming_reply_messages(
-                page,
-                unread_name=unread_name,
+            conversation_events = load_full_conversation(
+                page, unread_name, account_id=account_id,
                 sent_message_text=str(sent_profile.get("message_text") or ""),
-                assigned_account_id=str(sent_profile.get("assigned_account_id") or ""),
             )
+            replies = incoming_after_last_own(conversation_events)
 
-            if not replies:
+            if not conversation_events:
                 failed_count += 1
                 logger.warning(
                     (
-                        "NO INCOMING MESSAGE BODY FOUND | unread_name=%s | "
+                        "NO MESSAGE BODY FOUND | unread_name=%s | "
                         "db_target_id=%s"
                     ),
                     unread_name,
                     sent_profile.get("id"),
                 )
             else:
-                for reply in replies:
-                    logger.warning(
-                        (
-                            "REPLY MESSAGE CONTENT | sender=%s | message=%s | "
-                            "message_time=%s | db_target_id=%s | "
-                            "db_prospect_id=%s | match_reason=%s | "
-                            "similarity=%.3f"
-                        ),
-                        unread_name,
-                        reply.get("text"),
-                        reply.get("timestamp"),
-                        sent_profile.get("id"),
-                        sent_profile.get("prospect_id"),
-                        match.get("match_reason"),
-                        float(match.get("similarity") or 0.0),
-                    )
-
-                latest_reply = replies[-1]
+                latest_reply = replies[-1] if replies else conversation_events[-1]
                 try:
                     stored_reply = save_outreach_reply(
                         sent_target_id=str(sent_profile.get("id") or ""),
                         prospect_id=str(
                             sent_profile.get("prospect_id") or ""
                         ),
-                        assigned_account_id=str(
-                            sent_profile.get("assigned_account_id") or ""
-                        ),
+                        assigned_account_id=account_id,
                         user_name=unread_name,
                         linkedin_url=str(
-                            sent_profile.get("linkedin_url") or ""
+                            sent_profile.get("linkedin_url")
+                            or match.get("linkedin_url")
+                            or opened_thread_url
                         ),
+                        thread_url=opened_thread_url,
                         message_text=str(latest_reply.get("text") or ""),
                         linkedin_message_time=str(
                             latest_reply.get("timestamp") or ""
@@ -1625,7 +1546,7 @@ def process_matched_conversations(
 
     if failed_count:
         raise RuntimeError(
-            f"Could not verify or save {failed_count} matched conversation(s)."
+            f"Could not read, restore, or save {failed_count} Unread conversation(s)."
         )
     return processed_count
 
@@ -1797,7 +1718,7 @@ def open_unread(page: Page) -> None:
 
 
 def _run_once(account_id: str) -> None:
-    """Read replies from matched sent targets, then restore unread state."""
+    """Read every Unread thread, then restore unread state."""
 
     pool = OutreachAccountPool()
     account = pool.get_account(account_id)
@@ -1820,15 +1741,13 @@ def _run_once(account_id: str) -> None:
             client=client,
         )
         unread_names = scan_unread_names(page)
-        matched_profiles = log_sent_name_matches(
-            unread_names=unread_names,
-            sent_profiles=sent_profiles,
-        )
+        # A display name alone is not proof of identity. Open every thread and
+        # link it only through its member URL or a unique own sent message.
         matched_profiles = match_unread_by_profile_url(
             page,
             unread_names=unread_names,
-            matched_profiles=matched_profiles,
             sent_profiles=sent_profiles,
+            account_id=account.account_id,
         )
         logger.info(
             "Reply-check match coverage | account=%s | unread=%s | verified=%s | unmatched=%s",
@@ -1840,21 +1759,21 @@ def _run_once(account_id: str) -> None:
         processed_count = process_matched_conversations(
             page,
             matched_profiles,
+            account_id=account.account_id,
             client=client,
         )
-        unmatched_count = len(unread_names) - len(matched_profiles)
-        if unmatched_count:
+        unread_not_scanned = len(unread_names) - len(matched_profiles)
+        if unread_not_scanned:
             raise RuntimeError(
-                f"{unmatched_count} Unread conversation(s) could not be verified "
-                "against sent Outreach targets; keeping the previous Replies snapshot."
+                f"{unread_not_scanned} Unread conversation(s) could not be scanned; "
+                "keeping the previous Replies snapshot."
             )
 
         print("")
         print("Reply-check scan completed.")
-        print(f"Unread names: {len(unread_names)}")
-        print(f"Matched sent profiles: {len(matched_profiles)}")
-        print(f"Matched conversations processed: {processed_count}")
-        print("Reply contents and evidence were written to the worker log.")
+        print(f"Unread conversations: {len(unread_names)}")
+        print(f"Linked to sent targets: {sum(bool(item.get('sent_profile')) for item in matched_profiles)}")
+        print(f"Conversations saved: {processed_count}")
         print("Reply-check worker finished. Closing the browser.")
     except KeyboardInterrupt:
         logger.info("Reply-check worker stopped.")

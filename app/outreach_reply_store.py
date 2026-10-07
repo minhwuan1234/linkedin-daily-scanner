@@ -11,6 +11,7 @@ from app.outreach_account_pool import (
 )
 from app.outreach_campaign_identity import campaign_id_for_name
 from app.outreach_dashboard_store import get_outreach_client
+from app.outreach_reply_direction import profile_slug_key
 
 
 REPLY_TABLE = "outreach_reply_messages"
@@ -35,12 +36,16 @@ def _utc_now() -> str:
 def _message_fingerprint(
     *,
     sent_target_id: str,
+    assigned_account_id: str,
+    linkedin_url: str,
     message_text: str,
     linkedin_message_time: str,
 ) -> str:
     source = "\n".join(
         (
             _safe_text(sent_target_id),
+            _safe_text(assigned_account_id),
+            _safe_text(linkedin_url),
             " ".join(_safe_text(message_text).split()),
             _safe_text(linkedin_message_time),
         )
@@ -75,6 +80,7 @@ def save_outreach_reply(
     assigned_account_id: str,
     user_name: str,
     linkedin_url: str,
+    thread_url: str = "",
     message_text: str,
     linkedin_message_time: str = "",
     conversation_messages: list[dict] | None = None,
@@ -82,53 +88,88 @@ def save_outreach_reply(
     match_similarity: float = 0.0,
     client: Client | None = None,
 ) -> dict:
-    """Persist one verified reply without duplicating repeat scans."""
+    """Persist a complete Unread thread, with or without an Outreach target."""
 
     cleaned_target_id = _safe_text(sent_target_id)
     cleaned_name = _safe_text(user_name)
     cleaned_url = _safe_text(linkedin_url)
+    cleaned_thread_url = _safe_text(thread_url).split("?", 1)[0]
     cleaned_message = " ".join(_safe_text(message_text).split())
     cleaned_message_time = _safe_text(linkedin_message_time)
 
-    if not cleaned_target_id:
-        raise OutreachReplyStoreError("sent_target_id is required.")
+    cleaned_account = _safe_text(assigned_account_id)
+    if cleaned_account not in DEFAULT_OUTREACH_ACCOUNT_IDS[:5]:
+        raise OutreachReplyStoreError("A valid assigned_account_id is required.")
     if not cleaned_name:
         raise OutreachReplyStoreError("user_name is required.")
     if not cleaned_url:
         raise OutreachReplyStoreError("linkedin_url is required.")
-    if not cleaned_message:
-        raise OutreachReplyStoreError("message_text is required.")
+    if not list(conversation_messages or []):
+        raise OutreachReplyStoreError("A captured conversation is required.")
 
     active_client = client or get_outreach_client()
+    existing_rows: list[dict] = []
+    if cleaned_target_id:
+        target_response = (
+            active_client.table(REPLY_TABLE).select("*")
+            .eq("sent_target_id", cleaned_target_id)
+            .order("captured_at", desc=True).limit(1).execute()
+        )
+        existing_rows = list(target_response.data or [])
+    if not existing_rows:
+        if cleaned_thread_url:
+            thread_response = (
+                active_client.table(REPLY_TABLE).select("*")
+                .eq("assigned_account_id", cleaned_account)
+                .eq("thread_url", cleaned_thread_url)
+                .order("captured_at", desc=True).limit(1).execute()
+            )
+            existing_rows = list(thread_response.data or [])
+    if not existing_rows:
+        url_response = (
+            active_client.table(REPLY_TABLE).select("*")
+            .eq("assigned_account_id", cleaned_account)
+            .eq("linkedin_url", cleaned_url)
+            .order("captured_at", desc=True).limit(1).execute()
+        )
+        existing_rows = list(url_response.data or [])
+    existing = dict(existing_rows[0]) if existing_rows else {}
+    effective_target = cleaned_target_id or _safe_text(existing.get("sent_target_id"))
+    effective_url = cleaned_url
+    if (
+        existing
+        and (not cleaned_target_id or not profile_slug_key(cleaned_url))
+        and profile_slug_key(existing.get("linkedin_url"))
+    ):
+        effective_url = _safe_text(existing.get("linkedin_url"))
     fingerprint = _message_fingerprint(
-        sent_target_id=cleaned_target_id,
+        sent_target_id=effective_target,
+        assigned_account_id=cleaned_account,
+        linkedin_url=effective_url,
         message_text=cleaned_message,
         linkedin_message_time=cleaned_message_time,
     )
-
-    existing_response = (
-        active_client.table(REPLY_TABLE)
-        .select("*")
-        .eq("sent_target_id", cleaned_target_id)
-        .order("captured_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    existing_rows = list(existing_response.data or [])
     if existing_rows:
-        existing = dict(existing_rows[0])
         updates = {
-            "prospect_id": _safe_text(prospect_id) or None,
-            "assigned_account_id": _safe_text(assigned_account_id),
+            "sent_target_id": effective_target or None,
+            "prospect_id": _safe_text(prospect_id) or existing.get("prospect_id"),
+            "assigned_account_id": cleaned_account,
             "user_name": cleaned_name,
-            "linkedin_url": cleaned_url,
+            "linkedin_url": effective_url,
+            "thread_url": cleaned_thread_url or existing.get("thread_url"),
             "message_text": cleaned_message,
             "linkedin_message_time": cleaned_message_time or None,
             "conversation_messages": list(conversation_messages or []),
-            "match_reason": _safe_text(match_reason) or None,
+            "match_reason": (
+                _safe_text(match_reason)
+                if cleaned_target_id else _safe_text(existing.get("match_reason"))
+            ) or None,
             "match_similarity": max(
                 0.0,
-                min(1.0, float(match_similarity or 0.0)),
+                min(1.0, float(
+                    match_similarity if cleaned_target_id
+                    else existing.get("match_similarity") or 0.0
+                )),
             ),
             "message_fingerprint": fingerprint,
             "captured_at": _utc_now(),
@@ -146,11 +187,12 @@ def save_outreach_reply(
         return existing
 
     payload = {
-        "sent_target_id": cleaned_target_id,
+        "sent_target_id": cleaned_target_id or None,
         "prospect_id": _safe_text(prospect_id) or None,
-        "assigned_account_id": _safe_text(assigned_account_id),
+        "assigned_account_id": cleaned_account,
         "user_name": cleaned_name,
         "linkedin_url": cleaned_url,
+        "thread_url": cleaned_thread_url or None,
         "message_text": cleaned_message,
         "linkedin_message_time": cleaned_message_time or None,
         "conversation_messages": list(conversation_messages or []),

@@ -18,6 +18,7 @@ from app.outreach_reply_send_store import (
     finish_reply_send,
     load_queued_reply_sends,
 )
+from app.outreach_reply_direction import profile_slug_key
 from app.settings import load_settings
 
 
@@ -72,6 +73,8 @@ def run_once(account_id: str, *, quiet_empty: bool = False) -> dict[str, int]:
                     raise RuntimeError(
                         "Queued reply requires linkedin_url and message_text."
                     )
+                if not profile_slug_key(linkedin_url):
+                    raise RuntimeError("Queued reply has no verified LinkedIn profile URL.")
 
                 logger.info(
                     "Opening reply target | job_id=%s | user=%s | url=%s",

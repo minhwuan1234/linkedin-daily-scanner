@@ -8565,17 +8565,14 @@ function renderOutreachReplyInbox() {
     return leftTokens.length > 0 && leftTokens.length === rightTokens.length &&
       leftTokens.every((token, index) => token === rightTokens[index]);
   };
-  const messages = sourceMessages.filter((message, index) => {
-    const previous = sourceMessages[index - 1];
-    return !previous || String(previous.text || "").trim() !== String(message.text || "").trim() ||
-      Boolean(previous.is_own_message) !== Boolean(message.is_own_message);
-  });
+  const messages = [...sourceMessages];
   if (!messages.length && reply.message_text) {
     messages.push({ text: reply.message_text, is_own_message: false, timestamp: reply.linkedin_message_time || "" });
   }
   const job = reply.send_job && typeof reply.send_job === "object" ? reply.send_job : null;
   const status = String(job?.status || "").toLowerCase();
   const locked = state.outreachReplySendSubmitting || status === "queued" || status === "processing";
+  const hasProfileUrl = /^https?:\/\/(?:[a-z]{2}\.)?(?:www\.)?linkedin\.com\/in\/[^/?#]+\/?(?:[?#].*)?$/i.test(rawUrl);
   const header = `<header class="reply-inbox-chat-header">
     <span class="reply-inbox-avatar is-large" aria-hidden="true">${escapeHtml(name.charAt(0).toUpperCase())}</span>
     <div class="reply-inbox-chat-identity"><h3>${escapeHtml(name)}</h3><p>${escapeHtml(accountName)}${batch ? ` · Message batch ${escapeHtml(batch)}` : ""}</p>
@@ -8599,7 +8596,7 @@ function renderOutreachReplyInbox() {
       ${job ? `<p class="reply-inbox-job-status">Worker status: ${escapeHtml(status)}${job.last_error ? ` · ${escapeHtml(job.last_error)}` : ""}</p>` : ""}
       <div class="reply-inbox-compose-field">
         <textarea id="outreachReplyInlineInput" rows="3" aria-label="Reply message" placeholder="Message..."></textarea>
-        <button id="outreachReplyInlineSend" type="button" ${locked ? "disabled" : ""} aria-label="Send via worker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-8-8 18-2.5-7.5L3 11Z"/><path d="M10.5 13.5 21 3"/></svg><span>${state.outreachReplySendSubmitting ? "Sending..." : "Send via worker"}</span></button>
+        <button id="outreachReplyInlineSend" type="button" ${locked || !hasProfileUrl ? "disabled" : ""} aria-label="Send via worker" title="${hasProfileUrl ? "" : "A verified profile link is required before sending"}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 11 18-8-8 18-2.5-7.5L3 11Z"/><path d="M10.5 13.5 21 3"/></svg><span>${state.outreachReplySendSubmitting ? "Sending..." : "Send via worker"}</span></button>
       </div>
       <p id="outreachReplyInlineError" class="reply-inbox-inline-error" ${state.outreachReplySendErrors[id] ? "" : "hidden"}>${escapeHtml(state.outreachReplySendErrors[id] || "")}</p>
     </div>`;

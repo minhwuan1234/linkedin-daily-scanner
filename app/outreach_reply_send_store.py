@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from supabase import Client
 
 from app.outreach_dashboard_store import get_outreach_client
+from app.outreach_reply_direction import profile_slug_key
 
 
 REPLY_TABLE = "outreach_reply_messages"
@@ -73,6 +74,11 @@ def prepare_reply_send(
     if not reply_rows:
         raise OutreachReplySendStoreError("Reply conversation was not found.")
     reply = dict(reply_rows[0])
+    if not profile_slug_key(reply.get("linkedin_url")):
+        raise OutreachReplySendStoreError(
+            "This Unread conversation has no verified LinkedIn profile URL; "
+            "the worker cannot safely send a reply."
+        )
 
     existing_response = (
         active_client.table(REPLY_SEND_TABLE)

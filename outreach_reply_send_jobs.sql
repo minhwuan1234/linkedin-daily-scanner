@@ -3,7 +3,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.outreach_reply_send_jobs (
   id uuid primary key default gen_random_uuid(),
   reply_id uuid not null references public.outreach_reply_messages(id) on delete restrict,
-  sent_target_id uuid not null references public.outreach_message_targets(id) on delete cascade,
+  sent_target_id uuid null references public.outreach_message_targets(id) on delete cascade,
   assigned_account_id text not null,
   user_name text not null,
   linkedin_url text not null,
