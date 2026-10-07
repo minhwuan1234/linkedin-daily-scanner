@@ -43,11 +43,13 @@ from app.outreach_accepted_pool_store import (
 
 from app.outreach_message_preparation_store import (
     OutreachMessagePreparationStoreError,
+    get_campaign_message_template_for_batch,
     get_message_preparation_candidates,
     get_prepared_message_batch,
     list_prepared_message_batches,
     prepare_all_unsent_accepted,
     prepare_selected_unsent_accepted,
+    save_campaign_message_template_for_batch,
 )
 
 from app.outreach_campaign_performance_store import get_campaign_performance
@@ -1271,6 +1273,47 @@ async def get_outreach_message_batch_api(
         },
     )
 
+
+
+@app.get("/api/outreach/messages/batches/{batch_id}/template")
+async def get_outreach_campaign_message_template_api(batch_id: str) -> JSONResponse:
+    try:
+        template = get_campaign_message_template_for_batch(batch_id)
+    except OutreachMessagePreparationStoreError as exc:
+        return JSONResponse(status_code=404, content={"ok": False, "detail": str(exc)})
+    except Exception as exc:
+        logger.exception("Could not load campaign message template")
+        return JSONResponse(status_code=500, content={"ok": False, "detail": str(exc)})
+    return JSONResponse(status_code=200, content={"ok": True, "template": template})
+
+
+@app.post("/api/outreach/messages/batches/{batch_id}/template")
+async def save_outreach_campaign_message_template_api(
+    batch_id: str, request: Request
+) -> JSONResponse:
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    message_template = (
+        str(payload.get("message_template") or "")
+        if isinstance(payload, dict) else ""
+    )
+    if not message_template.strip():
+        return JSONResponse(
+            status_code=400,
+            content={"ok": False, "detail": "Message template cannot be empty."},
+        )
+    try:
+        template = save_campaign_message_template_for_batch(
+            batch_id, message_template
+        )
+    except OutreachMessagePreparationStoreError as exc:
+        return JSONResponse(status_code=409, content={"ok": False, "detail": str(exc)})
+    except Exception as exc:
+        logger.exception("Could not save campaign message template")
+        return JSONResponse(status_code=500, content={"ok": False, "detail": str(exc)})
+    return JSONResponse(status_code=200, content={"ok": True, "template": template})
 
 
 @app.post(

@@ -588,6 +588,15 @@ const els = {
   messageTemplateInput:
     document.querySelector("#messageTemplateInput"),
 
+  messageTemplateSaveButton:
+    document.querySelector("#messageTemplateSaveButton"),
+
+  messageTemplateStatus:
+    document.querySelector("#messageTemplateStatus"),
+
+  messageSendCampaignName:
+    document.querySelector("#messageSendCampaignName"),
+
   messageSendError:
     document.querySelector("#messageSendError"),
 
@@ -734,6 +743,10 @@ const state = {
   messagePrepareConfirmMode: null,
   messageBatchQueueSubmittingIds: new Set(),
   messageSendSelectedBatchId: null,
+  messageSendLoadVersion: 0,
+  messageTemplateLoading: false,
+  messageTemplateSaving: false,
+  messageTemplateCanSave: false,
   outreachReplies: [],
   outreachReplyAccounts: [],
   outreachReplySelectedAccountId: null,
@@ -6279,6 +6292,124 @@ function getMessageBatchById(
 }
 
 
+function setMessageTemplateStatus(message) {
+  if (els.messageTemplateStatus) els.messageTemplateStatus.textContent = message;
+}
+
+function refreshMessageTemplateControls() {
+  const batchId = state.messageSendSelectedBatchId;
+  const hasText = Boolean(els.messageTemplateInput?.value.trim());
+  const busy = state.messageTemplateLoading || state.messageTemplateSaving ||
+    state.messageBatchQueueSubmittingIds.has(batchId);
+  if (els.messageTemplateSaveButton) {
+    els.messageTemplateSaveButton.disabled =
+      !state.messageTemplateCanSave || !hasText || busy;
+  }
+  if (els.messageSendConfirmButton) {
+    els.messageSendConfirmButton.disabled = !hasText || busy;
+  }
+}
+
+async function loadCampaignMessageTemplate(batchId, loadVersion) {
+  try {
+    const response = await fetch(
+      "/api/outreach/messages/batches/" + encodeURIComponent(batchId) + "/template",
+      { headers: { "Accept": "application/json" }, cache: "no-store" }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.detail || result.error || "Could not load saved template.");
+    }
+    if (state.messageSendSelectedBatchId !== batchId ||
+        state.messageSendLoadVersion !== loadVersion) return;
+
+    const template = result.template || {};
+    state.messageTemplateCanSave = Boolean(template.can_save);
+    if (els.messageSendCampaignName && template.campaign_name) {
+      els.messageSendCampaignName.textContent =
+        acceptedPoolCampaignName({ campaign_name: template.campaign_name });
+    }
+    if (els.messageTemplateInput) {
+      els.messageTemplateInput.value = template.message_template || "";
+    }
+    setMessageTemplateStatus(
+      template.saved_at ? "Saved template loaded for this campaign" :
+      template.can_save ? "No template saved for this campaign yet" :
+      "This batch has no single campaign; enter a message for this batch"
+    );
+  } catch (error) {
+    if (state.messageSendSelectedBatchId !== batchId ||
+        state.messageSendLoadVersion !== loadVersion) return;
+    setMessageTemplateStatus("Saved template unavailable");
+    if (els.messageSendError) {
+      els.messageSendError.textContent = error.message || String(error);
+      els.messageSendError.hidden = false;
+    }
+  } finally {
+    if (state.messageSendSelectedBatchId === batchId &&
+        state.messageSendLoadVersion === loadVersion) {
+      state.messageTemplateLoading = false;
+      if (els.messageTemplateInput) els.messageTemplateInput.disabled = false;
+      refreshMessageTemplateControls();
+      els.messageTemplateInput?.focus();
+    }
+  }
+}
+
+async function saveCurrentCampaignMessageTemplate() {
+  const batchId = state.messageSendSelectedBatchId;
+  const loadVersion = state.messageSendLoadVersion;
+  const template = els.messageTemplateInput?.value.trim() || "";
+  if (!batchId || !template || !state.messageTemplateCanSave) return;
+  state.messageTemplateSaving = true;
+  refreshMessageTemplateControls();
+  if (els.messageTemplateSaveButton) {
+    els.messageTemplateSaveButton.textContent = "Saving...";
+  }
+  if (els.messageSendError) els.messageSendError.hidden = true;
+  try {
+    const response = await fetch(
+      "/api/outreach/messages/batches/" + encodeURIComponent(batchId) + "/template",
+      {
+        method: "POST",
+        headers: { "Accept": "application/json", "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ message_template: template })
+      }
+    );
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      throw new Error(result.detail || result.error || "Could not save template.");
+    }
+    if (state.messageSendSelectedBatchId === batchId &&
+        state.messageSendLoadVersion === loadVersion) {
+      setMessageTemplateStatus(
+        els.messageTemplateInput?.value.trim() === template
+          ? "Template saved for this campaign"
+          : "Saved previous draft · New changes are unsaved"
+      );
+    }
+  } catch (error) {
+    if (state.messageSendSelectedBatchId === batchId &&
+        state.messageSendLoadVersion === loadVersion) {
+      setMessageTemplateStatus("Template was not saved");
+      if (els.messageSendError) {
+        els.messageSendError.textContent = error.message || String(error);
+        els.messageSendError.hidden = false;
+      }
+    }
+  } finally {
+    if (state.messageSendSelectedBatchId === batchId &&
+        state.messageSendLoadVersion === loadVersion) {
+      state.messageTemplateSaving = false;
+      if (els.messageTemplateSaveButton) {
+        els.messageTemplateSaveButton.textContent = "Save template";
+      }
+      refreshMessageTemplateControls();
+    }
+  }
+}
+
 function openMessageSendModal(
   batchId
 ) {
@@ -6299,6 +6430,10 @@ function openMessageSendModal(
 
   state.messageSendSelectedBatchId =
     String(batch.id || "").trim();
+  state.messageSendLoadVersion += 1;
+  state.messageTemplateLoading = true;
+  state.messageTemplateCanSave = Boolean(batch.campaign_id);
+  const loadVersion = state.messageSendLoadVersion;
 
   if (els.messageSendDialogMeta) {
     els.messageSendDialogMeta.textContent =
@@ -6307,10 +6442,16 @@ function openMessageSendModal(
       )} recipients`;
   }
 
-  if (els.messageTemplateInput) {
-    els.messageTemplateInput.value =
-      "Hi {first_name},\n\nI’ve been seeing a bunch of agencies adding motion/animation into client campaigns lately. Out of curiosity, is that something you are exploring too, or do you guys prefer to keep it simple? Would love to hear your thoughts!"
+  if (els.messageSendCampaignName) {
+    els.messageSendCampaignName.textContent = batch.campaign_id
+      ? acceptedPoolCampaignName({ campaign_name: batch.campaign_name })
+      : "Mixed source batch";
   }
+  if (els.messageTemplateInput) {
+    els.messageTemplateInput.value = "";
+    els.messageTemplateInput.disabled = true;
+  }
+  setMessageTemplateStatus("Loading saved template...");
 
   if (els.messageSendError) {
     els.messageSendError.hidden = true;
@@ -6320,16 +6461,21 @@ function openMessageSendModal(
   if (els.messageSendModal) {
     els.messageSendModal.hidden = false;
   }
-
-  requestAnimationFrame(() => {
-    els.messageTemplateInput?.focus();
-  });
+  refreshMessageTemplateControls();
+  void loadCampaignMessageTemplate(state.messageSendSelectedBatchId, loadVersion);
 }
 
 
 function closeMessageSendModal() {
   state.messageSendSelectedBatchId =
     null;
+  state.messageSendLoadVersion += 1;
+  state.messageTemplateLoading = false;
+  state.messageTemplateSaving = false;
+  state.messageTemplateCanSave = false;
+  if (els.messageTemplateSaveButton) {
+    els.messageTemplateSaveButton.textContent = "Save template";
+  }
 
   if (els.messageSendError) {
     els.messageSendError.hidden = true;
@@ -6404,6 +6550,8 @@ async function queueMessageBatchForSending(
     els.messageSendConfirmButton.textContent =
       "Queueing...";
   }
+  setMessageTemplateStatus("Queueing batch and saving template...");
+  refreshMessageTemplateControls();
 
   renderMessagePreparation();
 
@@ -6457,6 +6605,8 @@ async function queueMessageBatchForSending(
       els.messageSendConfirmButton.textContent =
         "Queue & Send";
     }
+
+    refreshMessageTemplateControls();
 
     renderMessagePreparation();
   }
@@ -10794,6 +10944,19 @@ if (els.messageSendCancelButton) {
   );
 }
 
+els.messageTemplateInput?.addEventListener("input", () => {
+  setMessageTemplateStatus(
+    state.messageTemplateCanSave
+      ? "Unsaved changes · Save template or Queue & Send"
+      : "This message applies only to this batch"
+  );
+  refreshMessageTemplateControls();
+});
+
+els.messageTemplateSaveButton?.addEventListener("click", () => {
+  void saveCurrentCampaignMessageTemplate();
+});
+
 if (els.messageSendModal) {
   els.messageSendModal
     .querySelectorAll(
@@ -10834,6 +10997,8 @@ if (els.messageSendConfirmButton) {
           "Queue message batch error:",
           error
         );
+
+        setMessageTemplateStatus("Queue failed · Review message and retry");
 
         if (els.messageSendError) {
           els.messageSendError.textContent =

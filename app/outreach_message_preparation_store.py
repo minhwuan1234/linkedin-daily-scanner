@@ -696,27 +696,22 @@ def _attach_source_connect_ids_to_batches(
     for chunk in _chunked_values(
         batch_ids
     ):
-        response = (
-            client
-            .table(
-                MESSAGE_TARGET_TABLE
+        offset = 0
+        while True:
+            response = (
+                client
+                .table(MESSAGE_TARGET_TABLE)
+                .select("batch_id,source_target_id")
+                .in_("batch_id", chunk)
+                .order("id")
+                .range(offset, offset + 999)
+                .execute()
             )
-            .select(
-                "batch_id,source_target_id"
-            )
-            .in_(
-                "batch_id",
-                chunk,
-            )
-            .execute()
-        )
-
-        target_rows.extend(
-            list(
-                response.data
-                or []
-            )
-        )
+            rows = list(response.data or [])
+            target_rows.extend(rows)
+            if len(rows) < 1000:
+                break
+            offset += 1000
 
     source_target_ids = list(
         dict.fromkeys(
@@ -1088,6 +1083,7 @@ def get_prepared_message_batch(
                 "batch_code,"
                 "status,"
                 "target_count,"
+                "message_template,"
                 "created_at,"
                 "updated_at"
             )
@@ -1163,3 +1159,117 @@ def get_prepared_message_batch(
     batch["mixed_sources"] = len(sources) > 1
 
     return batch
+
+
+def get_campaign_message_template_for_batch(
+    batch_id: str,
+    *,
+    client: Client | None = None,
+) -> dict:
+    """Find the latest saved template from any batch in this campaign."""
+    active_client = client if client is not None else get_outreach_supabase_client()
+    batch = get_prepared_message_batch(batch_id, client=active_client)
+    if batch is None:
+        raise OutreachMessagePreparationStoreError("Message batch not found.")
+
+    campaign_id = _safe_text(batch.get("campaign_id"))
+    result = {
+        "campaign_id": campaign_id,
+        "campaign_name": _safe_text(batch.get("campaign_name")),
+        "message_template": "",
+        "saved_at": None,
+        "can_save": (
+            bool(campaign_id)
+            and _safe_text(batch.get("status")).lower() == "prepared"
+        ),
+    }
+    if not campaign_id:
+        result["message_template"] = _safe_text(batch.get("message_template"))
+        return result
+
+    page_size = 50
+    offset = 0
+    best_saved_at = datetime.min.replace(tzinfo=timezone.utc)
+
+    def parse_timestamp(value) -> datetime:
+        try:
+            parsed = datetime.fromisoformat(_safe_text(value).replace("Z", "+00:00"))
+            return parsed.astimezone(timezone.utc)
+        except (TypeError, ValueError):
+            return datetime.min.replace(tzinfo=timezone.utc)
+
+    while True:
+        response = (
+            active_client.table(MESSAGE_BATCH_TABLE)
+            .select("id,message_template,status,queued_at,updated_at")
+            .neq("message_template", "")
+            .order("updated_at", desc=True)
+            .range(offset, offset + page_size - 1)
+            .execute()
+        )
+        rows = list(response.data or [])
+        if not rows:
+            break
+        for candidate in _attach_source_connect_ids_to_batches(
+            client=active_client, batches=rows
+        ):
+            if _safe_text(candidate.get("campaign_id")) == campaign_id:
+                saved_at = (
+                    candidate.get("updated_at")
+                    if _safe_text(candidate.get("status")).lower() == "prepared"
+                    else candidate.get("queued_at") or candidate.get("updated_at")
+                )
+                parsed_saved_at = parse_timestamp(saved_at)
+                if parsed_saved_at > best_saved_at:
+                    best_saved_at = parsed_saved_at
+                    result["message_template"] = _safe_text(candidate.get("message_template"))
+                    result["saved_at"] = saved_at
+        if best_saved_at >= parse_timestamp(rows[-1].get("updated_at")):
+            break
+        if len(rows) < page_size:
+            break
+        offset += page_size
+
+    return result
+
+
+def save_campaign_message_template_for_batch(
+    batch_id: str,
+    message_template: str,
+    *,
+    client: Client | None = None,
+) -> dict:
+    """Save a campaign template on a prepared batch; newer saves win."""
+    active_client = client if client is not None else get_outreach_supabase_client()
+    batch = get_prepared_message_batch(batch_id, client=active_client)
+    if batch is None:
+        raise OutreachMessagePreparationStoreError("Message batch not found.")
+    if _safe_text(batch.get("status")).lower() != "prepared":
+        raise OutreachMessagePreparationStoreError("Only prepared batches can save a template.")
+    campaign_id = _safe_text(batch.get("campaign_id"))
+    if not campaign_id:
+        raise OutreachMessagePreparationStoreError(
+            "This batch has no single campaign; its template cannot be shared."
+        )
+    cleaned_template = _safe_text(message_template)
+    if not cleaned_template:
+        raise OutreachMessagePreparationStoreError("Message template cannot be empty.")
+
+    saved_at = _utc_now()
+    response = (
+        active_client.table(MESSAGE_BATCH_TABLE)
+        .update({"message_template": cleaned_template, "updated_at": saved_at})
+        .eq("id", _safe_text(batch_id))
+        .eq("status", "prepared")
+        .execute()
+    )
+    if not response.data:
+        raise OutreachMessagePreparationStoreError(
+            "Could not save template; this batch may no longer be prepared."
+        )
+    return {
+        "campaign_id": campaign_id,
+        "campaign_name": _safe_text(batch.get("campaign_name")),
+        "message_template": cleaned_template,
+        "saved_at": saved_at,
+    }

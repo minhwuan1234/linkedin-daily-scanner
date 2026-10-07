@@ -29,6 +29,7 @@
   <link rel="stylesheet" href="./acceptance-history.css?v=20260924-transparent-overlay-1" />
   <link rel="stylesheet" href="./session-status.css?v=20260925-session-status-2" />
   <link rel="stylesheet" href="./usage-guide.css?v=20260926-replies-schedule-1" />
+  <link rel="stylesheet" href="./message-send-dialog.css?v=20261007-campaign-template-1" />
 </head>
 
 <body class="login-mode">
@@ -1635,22 +1636,19 @@
       </div>
 
       <div class="message-send-dialog-body">
-        <label
-          class="message-template-field"
-          for="messageTemplateInput"
-        >
-          <span>Message template</span>
-
-          <textarea
-            id="messageTemplateInput"
-            rows="8"
-            placeholder="Hi {first_name},&#10;&#10;..."
-          ></textarea>
-
-          <small>
-            Use <code>{first_name}</code> to insert the recipient's first name.
-          </small>
-        </label>
+        <div class="message-send-campaign-context">
+          <span>Campaign</span>
+          <strong id="messageSendCampaignName">Loading campaign...</strong>
+          <small id="messageTemplateStatus" aria-live="polite">Loading saved template...</small>
+        </div>
+        <div class="message-template-field">
+          <div class="message-template-toolbar">
+            <label for="messageTemplateInput">Message template</label>
+            <button id="messageTemplateSaveButton" class="secondary-button" type="button" disabled>Save template</button>
+          </div>
+          <textarea id="messageTemplateInput" rows="8" placeholder="Write a message for this campaign..." disabled></textarea>
+          <small>Use <code>{first_name}</code> to insert the recipient's first name. Saving makes this template available to future batches in the same campaign.</small>
+        </div>
 
         <div
           id="messageSendError"
@@ -1905,7 +1903,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261007-recipient-campaign-3"></script>
+  <script src="./app.js?v=20261007-campaign-template-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>
