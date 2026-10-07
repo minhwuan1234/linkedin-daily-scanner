@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20261007-connect-date-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
-  <link rel="stylesheet" href="./recipients-workspace.css?v=20261007-recipient-campaign-2" />
+  <link rel="stylesheet" href="./recipients-workspace.css?v=20261007-recipient-campaign-3" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20261006-last-scan-3" />
   <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-light-filter-5" />
@@ -1189,7 +1189,13 @@
           </button>
           <div id="outreachAcceptedWeekMenu" class="recipient-week-menu" role="group" aria-label="Select a week" hidden></div>
         </div>
-        <select id="outreachAcceptedCampaignFilter" class="recipient-campaign-filter" aria-label="Filter recipients by campaign"><option value="">All campaigns</option></select>
+        <div id="outreachAcceptedCampaignPicker" class="recipient-week-picker recipient-campaign-picker">
+          <button id="outreachAcceptedCampaignButton" class="secondary-button recipient-week-button recipient-campaign-button" type="button" aria-expanded="false" aria-controls="outreachAcceptedCampaignMenu">
+            <span id="outreachAcceptedCampaignButtonLabel">All campaigns</span>
+            <svg aria-hidden="true" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4" /></svg>
+          </button>
+          <div id="outreachAcceptedCampaignMenu" class="recipient-week-menu" role="group" aria-label="Select a campaign" hidden></div>
+        </div>
         <div class="outreach-pool-controls">
           <div class="outreach-recipient-filter-group">
             <div id="outreachAcceptedPoolFilters" class="segmented-filter">
@@ -1899,7 +1905,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261007-recipient-campaign-1"></script>
+  <script src="./app.js?v=20261007-recipient-campaign-3"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>

@@ -127,33 +127,6 @@
   transform: rotate(180deg);
 }
 
-#outreachAcceptedPoolPanel .recipient-campaign-filter {
-  height: 36px;
-  min-height: 36px;
-  max-width: 230px;
-  min-width: 150px;
-  padding: 0 10px;
-  border: 1px solid #deded9 !important;
-  border-radius: 7px !important;
-  background: #fff !important;
-  box-shadow: none !important;
-  color: #37352f !important;
-  color-scheme: light;
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-#outreachAcceptedPoolPanel .recipient-campaign-filter option {
-  background: #fff;
-  color: #37352f;
-}
-
-#outreachAcceptedPoolPanel .recipient-campaign-filter:focus-visible {
-  outline: 2px solid #c9e0fa;
-  outline-offset: 2px;
-}
-
 #outreachAcceptedPoolPanel .recipient-week-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -524,10 +497,6 @@
     min-width: 760px;
   }
 
-  #outreachAcceptedPoolPanel .recipient-campaign-filter {
-    max-width: none;
-    flex: 1 1 180px;
-  }
 }
 
 @media (max-width: 620px) {

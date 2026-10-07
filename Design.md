@@ -129,6 +129,8 @@ Panels use `var(--panel)`, a 1px `var(--border)` border, 12px radius, and restra
 
 Inputs use `var(--bg-soft)` with a `var(--border-strong)` border, 8px radius, and 40px minimum height. Focus uses a 2px indigo outline with a 2px offset. Labels sit above fields and use caption or eyebrow styles. Preserve entered values when a request fails.
 
+Dropdowns use the custom trigger-and-menu pattern from the Recipients week picker: a bordered button with a label and chevron opens a matching anchored menu of selectable rows. Do not use native select controls for workflow filters. Match the trigger shape, spacing, surfaces, hover, selected, and focus states to the week picker.
+
 ### Workflow tabs
 
 The four Outreach process tabs use a segmented pill container. The active tab is filled indigo with white text. Inactive tabs are transparent or neutral and must retain a clear hover and focus state. The active process panel is the only visible panel.

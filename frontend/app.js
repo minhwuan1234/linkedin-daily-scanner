@@ -424,6 +424,18 @@ const els = {
   outreachAcceptedWeekMenu:
     document.querySelector("#outreachAcceptedWeekMenu"),
 
+  outreachAcceptedCampaignPicker:
+    document.querySelector("#outreachAcceptedCampaignPicker"),
+
+  outreachAcceptedCampaignButton:
+    document.querySelector("#outreachAcceptedCampaignButton"),
+
+  outreachAcceptedCampaignButtonLabel:
+    document.querySelector("#outreachAcceptedCampaignButtonLabel"),
+
+  outreachAcceptedCampaignMenu:
+    document.querySelector("#outreachAcceptedCampaignMenu"),
+
   outreachAcceptanceHistoryModal:
     document.querySelector("#outreachAcceptanceHistoryModal"),
 
@@ -469,9 +481,6 @@ const els = {
 
   outreachAcceptedPoolCampaignTemplate:
     document.querySelector("#outreachAcceptedPoolCampaignTemplate"),
-
-  outreachAcceptedCampaignFilter:
-    document.querySelector("#outreachAcceptedCampaignFilter"),
 
   outreachAcceptedSelectPage:
     document.querySelector("#outreachAcceptedSelectPage"),
@@ -4372,24 +4381,45 @@ function acceptedPoolCampaignName(item) {
 }
 
 function renderAcceptedPoolCampaignFilter() {
-  const select = els.outreachAcceptedCampaignFilter;
-  if (!select) return;
+  const menu = els.outreachAcceptedCampaignMenu;
+  if (!menu) return;
   const campaigns = new Map();
   for (const item of getAcceptedPoolVisibleItems()) {
-    campaigns.set(acceptedPoolCampaignKey(item), acceptedPoolCampaignName(item));
+    const id = acceptedPoolCampaignKey(item);
+    const existing = campaigns.get(id);
+    campaigns.set(id, {
+      name: acceptedPoolCampaignName(item),
+      count: (existing?.count || 0) + 1
+    });
   }
-  const options = [...campaigns.entries()].sort((left, right) =>
-    left[1].localeCompare(right[1], undefined, { sensitivity: "base" }));
-  const signature = JSON.stringify(options);
-  if (select.dataset.optionsSignature !== signature) {
-    select.replaceChildren(new Option("All campaigns", ""));
-    for (const [id, name] of options) select.add(new Option(name, id));
-    select.dataset.optionsSignature = signature;
-  }
+  const items = getAcceptedPoolVisibleItems();
+  const options = [
+    ["", { name: "All campaigns", count: items.length }],
+    ...[...campaigns.entries()].sort((left, right) =>
+      left[1].name.localeCompare(right[1].name, undefined, { sensitivity: "base" }))
+  ];
   if (!campaigns.has(state.outreachAcceptedCampaignId)) {
     state.outreachAcceptedCampaignId = "";
   }
-  select.value = state.outreachAcceptedCampaignId;
+  const selected = campaigns.get(state.outreachAcceptedCampaignId);
+  if (els.outreachAcceptedCampaignButtonLabel) {
+    els.outreachAcceptedCampaignButtonLabel.textContent = selected?.name || "All campaigns";
+  }
+  if (els.outreachAcceptedCampaignButton) {
+    els.outreachAcceptedCampaignButton.setAttribute("aria-expanded", String(!menu.hidden));
+  }
+  menu.replaceChildren(...options.map(([id, campaign]) => {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "recipient-week-option";
+    option.dataset.acceptedCampaignOption = id;
+    option.setAttribute("aria-pressed", String(id === state.outreachAcceptedCampaignId));
+    option.innerHTML = "<span class=\"recipient-week-option-copy\"><strong>" +
+      escapeHtml(campaign.name) + "</strong><small>" + campaign.count + " " +
+      (campaign.count === 1 ? "recipient" : "recipients") +
+      "</small></span><span class=\"recipient-week-option-check\" aria-hidden=\"true\">✓</span>";
+    return option;
+  }));
 }
 
 function getAcceptedPoolCampaignItems() {
@@ -4548,6 +4578,15 @@ function setAcceptedPoolWeekMenuOpen(open, {restoreFocus = false} = {}) {
   if (!open && restoreFocus) {
     els.outreachAcceptedWeekButton.focus();
   }
+}
+
+function setAcceptedPoolCampaignMenuOpen(open, {restoreFocus = false} = {}) {
+  if (!els.outreachAcceptedCampaignMenu || !els.outreachAcceptedCampaignButton) {
+    return;
+  }
+  els.outreachAcceptedCampaignMenu.hidden = !open;
+  els.outreachAcceptedCampaignButton.setAttribute("aria-expanded", String(open));
+  if (!open && restoreFocus) els.outreachAcceptedCampaignButton.focus();
 }
 
 
@@ -4954,8 +4993,13 @@ function renderOutreachAcceptedPool() {
     const selectedWeek = getAcceptedPoolWeekSelection().selected;
     const periodLabel = selectedWeek?.label || "Current week";
 
+    const campaignLabel = state.outreachAcceptedCampaignId
+      ? " · " + (els.outreachAcceptedCampaignButtonLabel?.textContent || "Campaign")
+      : "";
     els.outreachAcceptedPoolSummary.textContent =
-      `${periodLabel}${state.outreachAcceptedCampaignId ? ` · ${els.outreachAcceptedCampaignFilter?.selectedOptions[0]?.textContent || "Campaign"}` : ""} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
+      periodLabel + campaignLabel + " · " + uiSummary.all + " accepted profiles · " +
+      uiSummary.ready + " ready · " + uiSummary.prepared + " prepared · " +
+      uiSummary.sent + " sent";
   }
 
   if (els.outreachAcceptedSelectedCount) {
@@ -10260,6 +10304,14 @@ document.addEventListener(
     }
 
     if (
+      els.outreachAcceptedCampaignMenu &&
+      !els.outreachAcceptedCampaignMenu.hidden
+    ) {
+      setAcceptedPoolCampaignMenuOpen(false, {restoreFocus: true});
+      return;
+    }
+
+    if (
       els.messageBatchWeekMenu &&
       !els.messageBatchWeekMenu.hidden
     ) {
@@ -10475,6 +10527,33 @@ document.addEventListener("click", (event) => {
   }
 });
 
+els.outreachAcceptedCampaignButton?.addEventListener("click", () => {
+  setAcceptedPoolCampaignMenuOpen(els.outreachAcceptedCampaignMenu?.hidden);
+});
+
+els.outreachAcceptedCampaignButton?.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowDown") return;
+  event.preventDefault();
+  setAcceptedPoolCampaignMenuOpen(true);
+  els.outreachAcceptedCampaignMenu?.querySelector("button")?.focus();
+});
+
+document.addEventListener("click", (event) => {
+  if (!els.outreachAcceptedCampaignPicker?.contains(event.target)) {
+    setAcceptedPoolCampaignMenuOpen(false);
+  }
+});
+
+els.outreachAcceptedCampaignMenu?.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-accepted-campaign-option]");
+  if (!option) return;
+  state.outreachAcceptedCampaignId = option.dataset.acceptedCampaignOption || "";
+  state.outreachAcceptedSelectedProspectIds.clear();
+  state.outreachAcceptedPoolPage = 1;
+  setAcceptedPoolCampaignMenuOpen(false, {restoreFocus: true});
+  renderOutreachAcceptedPool();
+});
+
 els.outreachAcceptedWeekMenu?.addEventListener("click", (event) => {
   const option = event.target.closest("[data-accepted-week-option]");
 
@@ -10488,13 +10567,6 @@ els.outreachAcceptedWeekMenu?.addEventListener("click", (event) => {
   state.outreachAcceptedSelectedProspectIds.clear();
   state.outreachAcceptedPoolPage = 1;
   setAcceptedPoolWeekMenuOpen(false, {restoreFocus: true});
-  renderOutreachAcceptedPool();
-});
-
-els.outreachAcceptedCampaignFilter?.addEventListener("change", (event) => {
-  state.outreachAcceptedCampaignId = event.target.value;
-  state.outreachAcceptedSelectedProspectIds.clear();
-  state.outreachAcceptedPoolPage = 1;
   renderOutreachAcceptedPool();
 });
 
