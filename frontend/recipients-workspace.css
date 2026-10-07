@@ -127,6 +127,26 @@
   transform: rotate(180deg);
 }
 
+#outreachAcceptedPoolPanel .recipient-campaign-filter {
+  height: 36px;
+  min-height: 36px;
+  max-width: 230px;
+  min-width: 150px;
+  padding: 0 10px;
+  border: 1px solid #deded9;
+  border-radius: 7px;
+  background: #fff;
+  color: #37352f;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-filter:focus-visible {
+  outline: 2px solid #c9e0fa;
+  outline-offset: 2px;
+}
+
 #outreachAcceptedPoolPanel .recipient-week-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -338,6 +358,45 @@
   background: #f7f7f5 !important;
 }
 
+#outreachAcceptedPoolPanel .recipient-campaign-group-row td,
+#outreachAcceptedPoolPanel .outreach-accepted-pool-table tbody .recipient-campaign-group-row:hover td {
+  padding: 10px 12px !important;
+  border-right: 0 !important;
+  background: #efefed !important;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-group-copy {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-group-copy strong {
+  color: #252521;
+  font-size: 13px;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-group-copy span {
+  color: #858580;
+  font-size: 11px;
+}
+
+#outreachAcceptedPoolPanel .recipient-campaign-select-all {
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 11px !important;
+  white-space: nowrap;
+}
+
 #outreachAcceptedPoolPanel .recipient-batch-group-label,
 #outreachAcceptedPoolPanel .recipient-batch-group-count {
   color: #858580;
@@ -456,6 +515,11 @@
 
   #outreachAcceptedPoolPanel .outreach-accepted-pool-table {
     min-width: 760px;
+  }
+
+  #outreachAcceptedPoolPanel .recipient-campaign-filter {
+    max-width: none;
+    flex: 1 1 180px;
   }
 }
 

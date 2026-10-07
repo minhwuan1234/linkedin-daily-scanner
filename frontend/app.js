@@ -467,6 +467,12 @@ const els = {
   outreachAcceptedPoolGroupTemplate:
     document.querySelector("#outreachAcceptedPoolGroupTemplate"),
 
+  outreachAcceptedPoolCampaignTemplate:
+    document.querySelector("#outreachAcceptedPoolCampaignTemplate"),
+
+  outreachAcceptedCampaignFilter:
+    document.querySelector("#outreachAcceptedCampaignFilter"),
+
   outreachAcceptedSelectPage:
     document.querySelector("#outreachAcceptedSelectPage"),
 
@@ -703,6 +709,7 @@ const state = {
     items: []
   },
   outreachAcceptedPoolFilter: "all",
+  outreachAcceptedCampaignId: "",
   outreachAcceptedPoolWeekKey: null,
   outreachAcceptanceWeekKey: null,
   outreachAcceptedPoolPage: 1,
@@ -4346,6 +4353,53 @@ function getAcceptedPoolVisibleItems() {
   });
 }
 
+function acceptedPoolCampaignKey(item) {
+  return String(item?.campaign_id || "").trim() ||
+    `batch:${String(item?.connect_batch_id || item?.job_id || "unknown").trim()}`;
+}
+
+function acceptedPoolCampaignName(item) {
+  let name = String(item?.campaign_name || item?.display_name || "").trim();
+  while (name) {
+    const canonical = name
+      .replace(/^(?:\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{2}-\d{2})\s*[-–—:]\s*/, "")
+      .replace(/^(?:lần|lan)\s*\d+\s*[-–—:]\s*/i, "")
+      .trim();
+    if (!canonical || canonical === name) break;
+    name = canonical;
+  }
+  return name || "Campaign unavailable";
+}
+
+function renderAcceptedPoolCampaignFilter() {
+  const select = els.outreachAcceptedCampaignFilter;
+  if (!select) return;
+  const campaigns = new Map();
+  for (const item of getAcceptedPoolVisibleItems()) {
+    campaigns.set(acceptedPoolCampaignKey(item), acceptedPoolCampaignName(item));
+  }
+  const options = [...campaigns.entries()].sort((left, right) =>
+    left[1].localeCompare(right[1], undefined, { sensitivity: "base" }));
+  const signature = JSON.stringify(options);
+  if (select.dataset.optionsSignature !== signature) {
+    select.replaceChildren(new Option("All campaigns", ""));
+    for (const [id, name] of options) select.add(new Option(name, id));
+    select.dataset.optionsSignature = signature;
+  }
+  if (!campaigns.has(state.outreachAcceptedCampaignId)) {
+    state.outreachAcceptedCampaignId = "";
+  }
+  select.value = state.outreachAcceptedCampaignId;
+}
+
+function getAcceptedPoolCampaignItems() {
+  const items = getAcceptedPoolVisibleItems();
+  const campaignId = state.outreachAcceptedCampaignId;
+  return campaignId
+    ? items.filter((item) => acceptedPoolCampaignKey(item) === campaignId)
+    : items;
+}
+
 
 function getAcceptedPoolWeekGroups() {
   const groups = new Map();
@@ -4512,7 +4566,6 @@ function getAcceptedPoolConnectIdLabel(
 ) {
   const jobCode =
     String(
-      item?.display_name ||
       item?.job_code ||
       ""
     ).trim();
@@ -4543,6 +4596,14 @@ function sortAcceptedPoolBySendBatch(
     ...items
   ].sort(
     (left, right) => {
+      const campaignOrder = acceptedPoolCampaignName(left).localeCompare(
+        acceptedPoolCampaignName(right), undefined, { sensitivity: "base" }
+      );
+      if (campaignOrder) return campaignOrder;
+      const campaignIdOrder = acceptedPoolCampaignKey(left).localeCompare(
+        acceptedPoolCampaignKey(right)
+      );
+      if (campaignIdOrder) return campaignIdOrder;
       const leftBatch =
         getAcceptedPoolBatchCode(
           left
@@ -4648,7 +4709,7 @@ function getAcceptedPoolUiBucket(
 
 
 function getAcceptedPoolFilteredItems() {
-  const items = getAcceptedPoolVisibleItems();
+  const items = getAcceptedPoolCampaignItems();
 
   const filter =
     state.outreachAcceptedPoolFilter ||
@@ -4675,7 +4736,7 @@ function getAcceptedPoolFilteredItems() {
 }
 
 function getAcceptedPoolUiSummary() {
-  const items = getAcceptedPoolVisibleItems();
+  const items = getAcceptedPoolCampaignItems();
 
   const eligibleIds =
     getEligibleMessageProspectIds();
@@ -4875,6 +4936,7 @@ function renderOutreachAcceptedPool() {
   reconcileAcceptedPoolSelection();
 
   renderAcceptedPoolWeekList();
+  renderAcceptedPoolCampaignFilter();
 
   const uiSummary =
     getAcceptedPoolUiSummary();
@@ -4893,7 +4955,7 @@ function renderOutreachAcceptedPool() {
     const periodLabel = selectedWeek?.label || "Current week";
 
     els.outreachAcceptedPoolSummary.textContent =
-      `${periodLabel} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
+      `${periodLabel}${state.outreachAcceptedCampaignId ? ` · ${els.outreachAcceptedCampaignFilter?.selectedOptions[0]?.textContent || "Campaign"}` : ""} · ${uiSummary.all} accepted profiles · ${uiSummary.ready} ready · ${uiSummary.prepared} prepared · ${uiSummary.sent} sent`;
   }
 
   if (els.outreachAcceptedSelectedCount) {
@@ -5004,6 +5066,18 @@ function renderOutreachAcceptedPool() {
   const eligibleIds =
     getEligibleMessageProspectIds();
 
+  const campaignGroups = new Map();
+  for (const item of filteredItems) {
+    const key = acceptedPoolCampaignKey(item);
+    if (!campaignGroups.has(key)) {
+      campaignGroups.set(key, { count: 0, readyIds: new Set() });
+    }
+    const group = campaignGroups.get(key);
+    group.count += 1;
+    const prospectId = String(item.prospect_id || "").trim();
+    if (prospectId && eligibleIds.has(prospectId)) group.readyIds.add(prospectId);
+  }
+
   els.outreachAcceptedPoolBody
     .replaceChildren();
 
@@ -5029,10 +5103,40 @@ function renderOutreachAcceptedPool() {
       new Map()
     );
 
-  let previousBatchCode =
-    null;
+  let previousCampaignKey = null;
+  let previousBatchCode = null;
 
   pageItems.forEach((item) => {
+    const campaignKey = acceptedPoolCampaignKey(item);
+    if (campaignKey !== previousCampaignKey && els.outreachAcceptedPoolCampaignTemplate) {
+      const campaignFragment = els.outreachAcceptedPoolCampaignTemplate.content.cloneNode(true);
+      const name = campaignFragment.querySelector("[data-recipient-campaign-name]");
+      const count = campaignFragment.querySelector("[data-recipient-campaign-count]");
+      const selectAll = campaignFragment.querySelector("[data-recipient-campaign-select]");
+      const group = campaignGroups.get(campaignKey);
+      const readyIds = [...(group?.readyIds || [])];
+      const allSelected = readyIds.length > 0 && readyIds.every((id) =>
+        state.outreachAcceptedSelectedProspectIds.has(id));
+      if (name) name.textContent = acceptedPoolCampaignName(item);
+      if (count) count.textContent = `${group?.count || 0} recipients · ${readyIds.length} ready`;
+      if (selectAll) {
+        selectAll.disabled = !readyIds.length || state.messagePreparationSubmitting ||
+          state.messagePreparationSelectedSubmitting;
+        selectAll.textContent = allSelected
+          ? `Clear selected (${readyIds.length})` : `Select all ready (${readyIds.length})`;
+        selectAll.setAttribute("aria-label", `${selectAll.textContent} in ${acceptedPoolCampaignName(item)}`);
+        selectAll.addEventListener("click", () => {
+          for (const id of readyIds) {
+            if (allSelected) state.outreachAcceptedSelectedProspectIds.delete(id);
+            else state.outreachAcceptedSelectedProspectIds.add(id);
+          }
+          renderOutreachAcceptedPool();
+        });
+      }
+      els.outreachAcceptedPoolBody.append(campaignFragment);
+      previousCampaignKey = campaignKey;
+      previousBatchCode = null;
+    }
     const currentBatchCode =
       getAcceptedPoolBatchCode(
         item
@@ -10380,8 +10484,17 @@ els.outreachAcceptedWeekMenu?.addEventListener("click", (event) => {
 
   state.outreachAcceptedPoolWeekKey =
     option.dataset.acceptedWeekOption || null;
+  state.outreachAcceptedCampaignId = "";
+  state.outreachAcceptedSelectedProspectIds.clear();
   state.outreachAcceptedPoolPage = 1;
   setAcceptedPoolWeekMenuOpen(false, {restoreFocus: true});
+  renderOutreachAcceptedPool();
+});
+
+els.outreachAcceptedCampaignFilter?.addEventListener("change", (event) => {
+  state.outreachAcceptedCampaignId = event.target.value;
+  state.outreachAcceptedSelectedProspectIds.clear();
+  state.outreachAcceptedPoolPage = 1;
   renderOutreachAcceptedPool();
 });
 

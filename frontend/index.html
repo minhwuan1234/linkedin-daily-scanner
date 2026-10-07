@@ -19,7 +19,7 @@
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
   <link rel="stylesheet" href="./connect-workspace.css?v=20261007-connect-date-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
-  <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
+  <link rel="stylesheet" href="./recipients-workspace.css?v=20261007-recipient-campaign-1" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
   <link rel="stylesheet" href="./replies-workspace.css?v=20261006-last-scan-3" />
   <link rel="stylesheet" href="./campaigns-workspace.css?v=20261006-light-filter-5" />
@@ -1189,6 +1189,7 @@
           </button>
           <div id="outreachAcceptedWeekMenu" class="recipient-week-menu" role="group" aria-label="Select a week" hidden></div>
         </div>
+        <select id="outreachAcceptedCampaignFilter" class="recipient-campaign-filter" aria-label="Filter recipients by campaign"><option value="">All campaigns</option></select>
         <div class="outreach-pool-controls">
           <div class="outreach-recipient-filter-group">
             <div id="outreachAcceptedPoolFilters" class="segmented-filter">
@@ -1206,6 +1207,9 @@
       </div>
       <div id="outreachAcceptedPoolEmpty" class="state">No accepted profiles found.</div>
       <div id="outreachAcceptedPoolTableWrap" class="table-wrap" hidden><table class="outreach-accepted-pool-table"><thead><tr><th class="accepted-select-column"><label class="accepted-select-control"><input id="outreachAcceptedSelectPage" type="checkbox" aria-label="Select eligible profiles on this page"><span aria-hidden="true"></span></label></th><th>LinkedIn</th><th>Account</th><th>Accepted</th><th>Connect ID</th><th>Message</th></tr></thead><tbody id="outreachAcceptedPoolBody"></tbody></table><template id="outreachAcceptedPoolRowTemplate"><tr><td class="accepted-select-column"><label class="accepted-select-control"><input type="checkbox" data-accepted-select aria-label="Select profile for message batch"><span aria-hidden="true"></span></label></td><td><a data-accepted-link target="_blank" rel="noopener noreferrer">—</a></td><td data-accepted-account>—</td><td data-accepted-at>—</td><td><span class="recipient-send-batch" data-accepted-send-batch>—</span></td><td><span class="pill pill-neutral" data-accepted-message>Not sent</span></td></tr></template>
+        <template id="outreachAcceptedPoolCampaignTemplate">
+          <tr class="recipient-campaign-group-row"><td colspan="6"><div class="recipient-campaign-group"><div class="recipient-campaign-group-copy"><strong data-recipient-campaign-name>—</strong><span data-recipient-campaign-count>0 recipients</span></div><button type="button" class="secondary-button recipient-campaign-select-all" data-recipient-campaign-select>Select all</button></div></td></tr>
+        </template>
         <template id="outreachAcceptedPoolGroupTemplate">
           <tr class="recipient-batch-group-row">
             <td colspan="6">
@@ -1895,7 +1899,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261007-connect-date-1"></script>
+  <script src="./app.js?v=20261007-recipient-campaign-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>
