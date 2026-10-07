@@ -378,6 +378,33 @@ def _read_visible_unread_names(surface: Page | Frame) -> list[str]:
     return names
 
 
+def _thread_url_for_row(row: Locator) -> str:
+    """Find a thread link on a row or inside it; LinkedIn uses both shapes."""
+    try:
+        href = row.get_attribute("href") or ""
+        if "/messaging/thread/" not in href:
+            link = row.locator('a[href*="/messaging/thread/"]').first
+            href = link.get_attribute("href") if link.count() else ""
+        if href and "/messaging/thread/" in href:
+            return urljoin(LINKEDIN_HOME_URL, href).split("?", 1)[0]
+    except Exception:
+        pass
+    return ""
+
+
+def _name_for_unread_row(row: Locator) -> str:
+    for selector in UNREAD_NAME_SELECTORS:
+        try:
+            node = row.locator(selector).first
+            if node.count() and _is_visible(node):
+                name = " ".join(node.inner_text().split())
+                if name:
+                    return name
+        except Exception:
+            continue
+    return ""
+
+
 def _read_visible_unread_threads(surface: Page | Frame) -> list[dict]:
     """Keep row identity so two people with the same name are not collapsed."""
     threads: list[dict] = []
@@ -385,31 +412,10 @@ def _read_visible_unread_threads(surface: Page | Frame) -> list[dict]:
         for row in surface.locator(row_selector).all():
             if not _is_visible(row):
                 continue
-            name = ""
-            for selector in UNREAD_NAME_SELECTORS:
-                try:
-                    node = row.locator(selector).first
-                    if node.count() and _is_visible(node):
-                        name = " ".join(node.inner_text().split())
-                        if name:
-                            break
-                except Exception:
-                    continue
+            name = _name_for_unread_row(row)
             if not name:
                 continue
-            thread_url = ""
-            try:
-                link = (
-                    row if "/messaging/thread/" in str(row.get_attribute("href") or "")
-                    else row.locator('a[href*="/messaging/thread/"]').first
-                )
-                if link.count():
-                    thread_url = urljoin(
-                        LINKEDIN_HOME_URL, link.get_attribute("href") or ""
-                    ).split("?", 1)[0]
-            except Exception:
-                pass
-            threads.append({"name": name, "thread_url": thread_url})
+            threads.append({"name": name, "thread_url": _thread_url_for_row(row)})
     if threads:
         return threads
     return [
@@ -681,7 +687,6 @@ def match_unread_by_profile_url(
 def _find_visible_unread_name(
     surface: Page | Frame,
     unread_name: str,
-    thread_url: str = "",
 ) -> Locator | None:
     expected_name = _normalize_name(unread_name)
 
@@ -694,22 +699,32 @@ def _find_visible_unread_name(
                     continue
                 actual_name = _normalize_name(candidate.inner_text())
                 if actual_name == expected_name:
-                    if thread_url:
-                        anchor = candidate.locator(
-                            'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]'
-                        )
-                        if not anchor.count():
-                            continue
-                        candidate_url = urljoin(
-                            LINKEDIN_HOME_URL,
-                            anchor.first.get_attribute("href") or "",
-                        ).split("?", 1)[0]
-                        if candidate_url != thread_url:
-                            continue
                     return candidate
         except Exception:
             continue
 
+    return None
+
+
+def _find_visible_unread_row(
+    surface: Page | Frame, unread_name: str, thread_url: str,
+) -> Locator | None:
+    """Find the clickable box using the same identity captured during scan."""
+    expected_name = _normalize_name(unread_name)
+    for selector in UNREAD_ROW_SELECTORS:
+        try:
+            rows = surface.locator(selector)
+            for index in range(rows.count()):
+                row = rows.nth(index)
+                if not _is_visible(row):
+                    continue
+                if _normalize_name(_name_for_unread_row(row)) != expected_name:
+                    continue
+                if thread_url and _thread_url_for_row(row) != thread_url:
+                    continue
+                return row
+        except Exception:
+            continue
     return None
 
 
@@ -720,50 +735,10 @@ def _scroll_unread_list_to_start(surface: Page | Frame) -> None:
         pass
 
 
-def _click_conversation_name(name_locator: Locator) -> bool:
-    # The visible participant-name div itself owns the LinkedIn row click.
-    # Click that exact matched-name node first instead of guessing an ancestor.
-    if _click_locator(name_locator):
-        logger.info(
-            "CONVERSATION CLICK EVIDENCE | strategy=matched-name-node"
-        )
-        return True
-
-    ancestor_selectors = (
-        'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]',
-        (
-            'xpath=ancestor::li['
-            'contains(@class,"msg-conversation-listitem")][1]'
-        ),
-        (
-            'xpath=ancestor::*['
-            'contains(@class,"msg-conversation-card")][1]'
-        ),
-        'xpath=ancestor::*[@role="button"][1]',
-    )
-
-    for selector in ancestor_selectors:
-        try:
-            candidate = name_locator.locator(selector)
-            if candidate.count() <= 0:
-                continue
-            candidate = candidate.first
-            if _is_visible(candidate) and _click_locator(candidate):
-                logger.info(
-                    "CONVERSATION CLICK EVIDENCE | strategy=ancestor | selector=%s",
-                    selector,
-                )
-                return True
-        except Exception:
-            continue
-
-    return _click_locator(name_locator)
-
-
 def open_matched_conversation(
     page: Page, unread_name: str, thread_url: str = "",
 ) -> str:
-    """Open one matched Unread row by exact normalized visible name."""
+    """Click the captured Unread box and verify its conversation opened."""
 
     surface = _find_unread_surface(page)
     if surface is None:
@@ -775,34 +750,46 @@ def open_matched_conversation(
     bottom_passes = 0
 
     for _ in range(45):
-        name_locator = _find_visible_unread_name(surface, unread_name, thread_url)
-        if name_locator is not None:
-            opened_url = thread_url
-            try:
-                anchor = name_locator.locator(
-                    'xpath=ancestor::a[contains(@href,"/messaging/thread/")][1]'
-                )
-                if anchor.count():
-                    opened_url = urljoin(LINKEDIN_HOME_URL, anchor.first.get_attribute("href") or "")
-            except Exception:
-                pass
-            if not _click_conversation_name(name_locator):
-                raise RuntimeError(
-                    f"Conversation row click failed for {unread_name!r}."
-                )
-            page.wait_for_timeout(CONVERSATION_SETTLE_MS)
+        row = _find_visible_unread_row(surface, unread_name, thread_url)
+        name_locator = _find_visible_unread_name(surface, unread_name) if not thread_url else None
+        if row is not None or name_locator is not None:
+            opened_url = thread_url or (_thread_url_for_row(row) if row else "")
+            previous_url = page.url
             logger.info(
-                (
-                    "Opened matched conversation | unread_name=%s | "
-                    "settle_ms=%s | url=%s"
-                ),
-                unread_name,
-                CONVERSATION_SETTLE_MS,
-                page.url,
+                "Opening Unread box | unread_name=%s | thread_url=%s | row_found=%s",
+                unread_name, opened_url, bool(row),
             )
-            if not opened_url and "/messaging/thread/" in page.url:
-                opened_url = page.url.split("?", 1)[0]
-            return opened_url.split("?", 1)[0]
+            click_targets: list[tuple[str, Locator]] = []
+            if row is not None:
+                if "/messaging/thread/" in str(row.get_attribute("href") or ""):
+                    click_targets.append(("row-link", row))
+                else:
+                    link = row.locator('a[href*="/messaging/thread/"]').first
+                    if link.count():
+                        click_targets.append(("row-link", link))
+                click_targets.append(("conversation-box", row))
+            if name_locator is not None:
+                click_targets.append(("participant-name", name_locator))
+
+            for strategy, target in click_targets:
+                if not _click_locator(target):
+                    continue
+                logger.info(
+                    "CONVERSATION CLICK EVIDENCE | strategy=%s | unread_name=%s",
+                    strategy, unread_name,
+                )
+                for _ in range(25):
+                    current_url = page.url.split("?", 1)[0]
+                    if opened_url and current_url.rstrip("/") == opened_url.rstrip("/"):
+                        page.wait_for_timeout(CONVERSATION_SETTLE_MS)
+                        logger.info("Opened Unread conversation | unread_name=%s | url=%s", unread_name, current_url)
+                        return opened_url
+                    if not opened_url and current_url != previous_url.split("?", 1)[0] and "/messaging/thread/" in current_url:
+                        page.wait_for_timeout(CONVERSATION_SETTLE_MS)
+                        logger.info("Opened Unread conversation | unread_name=%s | url=%s", unread_name, current_url)
+                        return current_url
+                    page.wait_for_timeout(160)
+            raise RuntimeError(f"Clicked Unread box but could not verify its thread: {unread_name!r}.")
 
         scroll_state = _scroll_unread_list(surface)
         if bool(scroll_state.get("atBottom")):
