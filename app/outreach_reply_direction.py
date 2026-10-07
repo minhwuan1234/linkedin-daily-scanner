@@ -1,5 +1,7 @@
 """Conservative sender classification for LinkedIn conversation snapshots."""
 
+from __future__ import annotations
+
 import unicodedata
 from urllib.parse import unquote, urlparse
 
