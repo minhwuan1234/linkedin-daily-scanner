@@ -123,6 +123,14 @@ const els = {
     document.querySelector("#connectHistoryCampaignMenu"),
   connectHistoryCampaignValue:
     document.querySelector("#connectHistoryCampaignValue"),
+  connectHistoryDateFilter:
+    document.querySelector("#connectHistoryDateFilter"),
+  connectHistoryDateTrigger:
+    document.querySelector("#connectHistoryDateTrigger"),
+  connectHistoryDateMenu:
+    document.querySelector("#connectHistoryDateMenu"),
+  connectHistoryDateValue:
+    document.querySelector("#connectHistoryDateValue"),
 
   connectHistoryWeeks:
     document.querySelector("#connectHistoryWeeks"),
@@ -1613,6 +1621,15 @@ const connectDropdowns = [
     value: document.querySelector("#campaignPerformanceFilterValue"),
     description: (option) => option.value === "all"
       ? "Show performance for every campaign" : "Show performance for this campaign",
+    icon: () => "▦"
+  },
+  {
+    select: els.connectHistoryDateFilter,
+    trigger: els.connectHistoryDateTrigger,
+    menu: els.connectHistoryDateMenu,
+    value: els.connectHistoryDateValue,
+    description: (option) => option.value
+      ? "Show Connect batches from this day" : "Show every day in this campaign",
     icon: () => "▦"
   }
 ];
@@ -6712,6 +6729,22 @@ function connectWeekStart(value) {
   return localDay;
 }
 
+function connectDayKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(date);
+  const part = (type) => parts.find((item) => item.type === type)?.value || "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function connectDayLabel(key) {
+  const [year, month, day] = key.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 function connectWeekTitle(start) {
   const month = new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC", month: "long"
@@ -6744,9 +6777,24 @@ function renderConnectHistory(jobs) {
     }
   }
   renderConnectDropdown(connectDropdowns[1]);
-  const rows = filter?.value
+  const campaignRows = filter?.value
     ? allRows.filter((job) => String(job.display_name || "").trim() === filter.value)
     : allRows;
+  const dateFilter = els.connectHistoryDateFilter;
+  if (dateFilter) {
+    const days = [...new Set(campaignRows.map((job) => connectDayKey(job.created_at)).filter(Boolean))].sort().reverse();
+    const currentDays = [...dateFilter.options].slice(1).map((option) => option.value);
+    if (days.join("\u0000") !== currentDays.join("\u0000")) {
+      const selected = dateFilter.value;
+      dateFilter.replaceChildren(new Option("All dates", ""));
+      for (const day of days) dateFilter.add(new Option(connectDayLabel(day), day));
+      dateFilter.value = days.includes(selected) ? selected : "";
+    }
+  }
+  renderConnectDropdown(connectDropdowns[4]);
+  const rows = dateFilter?.value
+    ? campaignRows.filter((job) => connectDayKey(job.created_at) === dateFilter.value)
+    : campaignRows;
   if (els.connectHistoryCount) {
     els.connectHistoryCount.textContent = `${rows.length} ${rows.length === 1 ? "run" : "runs"}`;
   }
@@ -6760,17 +6808,26 @@ function renderConnectHistory(jobs) {
     weeks.get(key).jobs.push(job);
   });
   const thisWeekKey = connectWeekStart(new Date())?.toISOString().slice(0, 10);
-  if (thisWeekKey && !weeks.has(thisWeekKey)) {
+  if (!filter?.value && !dateFilter?.value && thisWeekKey && !weeks.has(thisWeekKey)) {
     weeks.set(thisWeekKey, {
       start: connectWeekStart(new Date()), jobs: []
     });
   }
-  if (state.expandedConnectWeekKey === null) {
-    state.expandedConnectWeekKey = thisWeekKey || "unknown";
+  if (state.expandedConnectWeekKey === null ||
+      (state.expandedConnectWeekKey !== "" && !weeks.has(state.expandedConnectWeekKey))) {
+    state.expandedConnectWeekKey = [...weeks.keys()].sort().reverse()[0] || null;
   }
   const shortDate = (date) => new Intl.DateTimeFormat("en-US", {
     timeZone: "UTC", month: "short", day: "numeric"
   }).format(date);
+
+  if (!weeks.size) {
+    const empty = document.createElement("p");
+    empty.className = "connect-history-empty";
+    empty.textContent = "No Connect batches match these filters.";
+    container.append(empty);
+    return;
+  }
 
   Array.from(weeks.entries()).sort(([a], [b]) => b.localeCompare(a)).forEach(([key, { start, jobs: weekJobs }]) => {
     const section = document.createElement("section");
@@ -6817,7 +6874,16 @@ function renderConnectHistory(jobs) {
       empty.textContent = "No Connect runs this week yet.";
       list.append(empty);
     }
-    weekJobs.forEach((job) => {
+    let previousDay = "";
+    weekJobs.sort((left, right) => new Date(right.created_at) - new Date(left.created_at)).forEach((job) => {
+      const day = connectDayKey(job.created_at);
+      if (day !== previousDay) {
+        const dayHeading = document.createElement("p");
+        dayHeading.className = "connect-history-day-heading";
+        dayHeading.textContent = day ? `Batch ${connectDayLabel(day)}` : "Date unknown";
+        list.append(dayHeading);
+        previousDay = day;
+      }
       const button = document.createElement("button");
       button.type = "button";
       button.className = "connect-history-run";
@@ -10182,9 +10248,20 @@ document.addEventListener("keydown", (event) => {
   }
 });
 els.connectHistoryCampaignFilter?.addEventListener("change", () => {
+  if (els.connectHistoryDateFilter) els.connectHistoryDateFilter.value = "";
   const jobs = state.outreachRecentJobs.filter((job) => !els.connectHistoryCampaignFilter.value || job.display_name === els.connectHistoryCampaignFilter.value);
   state.expandedConnectWeekKey = jobs.length
     ? connectWeekStart(jobs[0].created_at)?.toISOString().slice(0, 10) || "unknown"
+    : null;
+  renderConnectHistory(state.outreachRecentJobs);
+});
+els.connectHistoryDateFilter?.addEventListener("change", () => {
+  const date = els.connectHistoryDateFilter.value;
+  const job = state.outreachRecentJobs.find((item) =>
+    (!els.connectHistoryCampaignFilter?.value || item.display_name === els.connectHistoryCampaignFilter.value)
+    && (!date || connectDayKey(item.created_at) === date));
+  state.expandedConnectWeekKey = job
+    ? connectWeekStart(job.created_at)?.toISOString().slice(0, 10) || "unknown"
     : null;
   renderConnectHistory(state.outreachRecentJobs);
 });

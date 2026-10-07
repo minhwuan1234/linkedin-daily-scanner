@@ -17,7 +17,7 @@
   <link rel="stylesheet" href="./outreach-stripe.css?v=20260924-notion-empty-1" />
   <link rel="stylesheet" href="./sidebar.css?v=20260926-usage-guide-demo-1" />
   <link rel="stylesheet" href="./workflow-nav.css?v=20260924-draggable-nav-1" />
-  <link rel="stylesheet" href="./connect-workspace.css?v=20261006-campaign-menu-1" />
+  <link rel="stylesheet" href="./connect-workspace.css?v=20261007-connect-date-1" />
   <link rel="stylesheet" href="./acceptance-workspace.css?v=20261006-acceptance-campaign-summary-1" />
   <link rel="stylesheet" href="./recipients-workspace.css?v=20260924-recipient-checkbox-4" />
   <link rel="stylesheet" href="./messages-workspace.css?v=20260924-messages-grid-2" />
@@ -893,8 +893,10 @@
   </div>
   <aside class="connect-history-panel" aria-labelledby="connectHistoryTitle">
     <div class="connect-history-heading"><div><h2 id="connectHistoryTitle">Connect history</h2><p>Batches grouped by week</p></div><span id="connectHistoryCount">0 runs</span></div>
-    <span id="connectHistoryCampaignLabel" class="connect-history-filter-label">Campaign</span>
-    <div class="connect-custom-select connect-history-filter"><select id="connectHistoryCampaignFilter" hidden><option value="">All campaigns</option></select><button id="connectHistoryCampaignTrigger" class="connect-custom-select-trigger" type="button" aria-labelledby="connectHistoryCampaignLabel connectHistoryCampaignValue" aria-haspopup="menu" aria-expanded="false" aria-controls="connectHistoryCampaignMenu"><span id="connectHistoryCampaignValue">All campaigns</span><span class="connect-custom-select-chevron" aria-hidden="true"></span></button><div id="connectHistoryCampaignMenu" class="connect-custom-select-menu" role="menu" hidden></div></div>
+    <div class="connect-history-filters">
+      <div><span id="connectHistoryCampaignLabel" class="connect-history-filter-label">Campaign</span><div class="connect-custom-select connect-history-filter"><select id="connectHistoryCampaignFilter" hidden><option value="">All campaigns</option></select><button id="connectHistoryCampaignTrigger" class="connect-custom-select-trigger" type="button" aria-labelledby="connectHistoryCampaignLabel connectHistoryCampaignValue" aria-haspopup="menu" aria-expanded="false" aria-controls="connectHistoryCampaignMenu"><span id="connectHistoryCampaignValue">All campaigns</span><span class="connect-custom-select-chevron" aria-hidden="true"></span></button><div id="connectHistoryCampaignMenu" class="connect-custom-select-menu" role="menu" hidden></div></div></div>
+      <div><span id="connectHistoryDateLabel" class="connect-history-filter-label">Date</span><div class="connect-custom-select connect-history-filter"><select id="connectHistoryDateFilter" hidden><option value="">All dates</option></select><button id="connectHistoryDateTrigger" class="connect-custom-select-trigger" type="button" aria-labelledby="connectHistoryDateLabel connectHistoryDateValue" aria-haspopup="menu" aria-expanded="false" aria-controls="connectHistoryDateMenu"><span id="connectHistoryDateValue">All dates</span><span class="connect-custom-select-chevron" aria-hidden="true"></span></button><div id="connectHistoryDateMenu" class="connect-custom-select-menu" role="menu" hidden></div></div></div>
+    </div>
     <div id="connectHistoryWeeks" class="connect-history-weeks"></div>
   </aside>
 </article>
@@ -1893,7 +1895,7 @@
   </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="./config.js"></script>
-  <script src="./app.js?v=20261006-reply-sender-1"></script>
+  <script src="./app.js?v=20261007-connect-date-1"></script>
   <script src="./login.js?v=20260923-entry-3"></script>
   <script src="./usage-guide.js?v=20260926-replies-schedule-1"></script>
 </body>
