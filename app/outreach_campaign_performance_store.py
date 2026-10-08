@@ -9,6 +9,7 @@ from supabase import Client
 
 from app.outreach_campaign_identity import campaign_id_for_name, canonical_campaign_name
 from app.outreach_dashboard_store import get_outreach_client
+from app.outreach_reply_direction import profile_slug_key
 
 
 WINDOW_DAYS = {"1d": 1, "7d": 7, "30d": 30, "all": None}
@@ -19,6 +20,32 @@ IN_CHUNK_SIZE = 100
 
 def _text(value) -> str:
     return str(value or "").strip()
+
+
+def _timestamp(value) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(_text(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo is not None else None
+    except ValueError:
+        return None
+
+
+def _verified_reply(conversation_messages) -> tuple[bool, set[str]]:
+    """Require an incoming bubble after the last verified own bubble."""
+    if not isinstance(conversation_messages, list):
+        return False, set()
+    own_indexes = [index for index, event in enumerate(conversation_messages)
+                   if isinstance(event, dict) and event.get("sender_type") == "own"]
+    if not own_indexes:
+        return False, set()
+    last_own = own_indexes[-1]
+    own_texts = {" ".join(_text(conversation_messages[last_own].get("text")).split())}
+    return any(
+        isinstance(event, dict)
+        and event.get("sender_type") == "incoming"
+        and _text(event.get("text"))
+        for event in conversation_messages[last_own + 1:]
+    ), own_texts
 
 
 def _chunks(values: list[str]):
@@ -102,7 +129,7 @@ def aggregate_campaign_performance(jobs: list[dict], connect_targets: list[dict]
         batch["_added"].add(person_id)
         account_bucket(batch_id, account_id)["_added"].add(person_id)
 
-    sent_by_id: dict[str, tuple[str, str, str]] = {}
+    sent_by_profile: dict[tuple[str, str], list[dict]] = {}
     for target in sent_targets:
         source = connect_by_target.get(_text(target.get("source_target_id")))
         sent_id = _text(target.get("id"))
@@ -110,24 +137,49 @@ def aggregate_campaign_performance(jobs: list[dict], connect_targets: list[dict]
             continue
         batch_id, person_id, connect_account_id = source
         account_id = _text(target.get("assigned_account_id")) or connect_account_id
+        profile_key = profile_slug_key(target.get("linkedin_url"))
         batch_by_id[batch_id]["_messaged"].add(person_id)
         account_bucket(batch_id, account_id)["_messaged"].add(person_id)
-        sent_by_id[sent_id] = (batch_id, person_id, account_id)
+        sent_record = {
+            "id": sent_id, "batch_id": batch_id, "person_id": person_id,
+            "account_id": account_id, "profile_key": profile_key,
+            "message_text": " ".join(_text(target.get("message_text")).split()),
+            "completed_at": _timestamp(target.get("completed_at")),
+        }
+        if profile_key and account_id:
+            sent_by_profile.setdefault((account_id, profile_key), []).append(sent_record)
 
     for reply in replies:
-        try:
-            first_recorded = datetime.fromisoformat(
-                _text(reply.get("created_at")).replace("Z", "+00:00")
-            )
-            if first_recorded.tzinfo is None or first_recorded < REPLY_COUNT_START:
-                continue
-        except ValueError:
+        first_recorded = _timestamp(reply.get("created_at"))
+        if first_recorded is None or first_recorded < REPLY_COUNT_START:
             continue
-        source = sent_by_id.get(_text(reply.get("sent_target_id")))
-        if source:
-            batch_id, person_id, account_id = source
-            batch_by_id[batch_id]["_replied"].add(person_id)
-            account_bucket(batch_id, account_id)["_replied"].add(person_id)
+        verified, own_texts = _verified_reply(reply.get("conversation_messages"))
+        if not verified:
+            continue
+        profile_key = profile_slug_key(reply.get("linkedin_url"))
+        account_id = _text(reply.get("assigned_account_id"))
+        if not profile_key or not account_id:
+            continue
+        candidates = [candidate for candidate in sent_by_profile.get((account_id, profile_key), [])
+                      if candidate["completed_at"] is None or candidate["completed_at"] <= first_recorded]
+        if not candidates:
+            continue
+        exact_text = [candidate for candidate in candidates
+                      if len(candidate["message_text"]) >= 20 and candidate["message_text"] in own_texts]
+        if len(exact_text) == 1:
+            resolved = exact_text[0]
+        elif len(candidates) == 1:
+            resolved = candidates[0]
+        elif len({(candidate["batch_id"], candidate["person_id"]) for candidate in candidates}) == 1:
+            resolved = candidates[0]
+        else:
+            # The worker may have linked the newest sent target by URL alone.
+            # Without matching the last own message, that ID is not proof of batch.
+            continue
+        batch_id = resolved["batch_id"]
+        person_id = resolved["person_id"]
+        batch_by_id[batch_id]["_replied"].add(person_id)
+        account_bucket(batch_id, account_id)["_replied"].add(person_id)
 
     results: list[dict] = []
     for campaign in campaigns.values():
@@ -171,12 +223,16 @@ def get_campaign_performance(window: str = "all", *, client: Client | None = Non
     )
     source_ids = [_text(row.get("id")) for row in connect_targets if _text(row.get("id"))]
     sent_targets = _fetch_related(
-        active_client, "outreach_message_targets", "id,source_target_id,assigned_account_id", "source_target_id", source_ids,
+        active_client, "outreach_message_targets", "id,source_target_id,assigned_account_id,linkedin_url,message_text,completed_at", "source_target_id", source_ids,
         status="sent",
     )
-    sent_ids = [_text(row.get("id")) for row in sent_targets if _text(row.get("id"))]
-    replies = _fetch_related(
-        active_client, "outreach_reply_messages", "id,sent_target_id,created_at", "sent_target_id", sent_ids,
-        created_since=REPLY_COUNT_START.isoformat(),
-    )
+    sent_account_ids = sorted({_text(row.get("assigned_account_id")) for row in sent_targets
+                               if _text(row.get("assigned_account_id"))})
+    replies = _fetch_pages(
+        active_client.table("outreach_reply_messages")
+        .select("id,sent_target_id,assigned_account_id,linkedin_url,conversation_messages,created_at")
+        .gte("created_at", REPLY_COUNT_START.isoformat())
+        .in_("assigned_account_id", sent_account_ids)
+        .order("id")
+    ) if sent_account_ids else []
     return aggregate_campaign_performance(jobs, connect_targets, sent_targets, replies)

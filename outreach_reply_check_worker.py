@@ -1445,6 +1445,12 @@ def process_matched_conversations(
             opened_thread_url = str(match.get("thread_url") or "")
             conversation_events = list(match.get("conversation_events") or [])
             replies = incoming_after_last_own(conversation_events)
+            observed_profile_url = str(match.get("linkedin_url") or "")
+            reply_profile_url = (
+                observed_profile_url
+                if profile_slug_key(observed_profile_url)
+                else str(sent_profile.get("linkedin_url") or observed_profile_url or opened_thread_url)
+            )
 
             if not conversation_events:
                 failed_count += 1
@@ -1466,11 +1472,7 @@ def process_matched_conversations(
                         ),
                         assigned_account_id=account_id,
                         user_name=unread_name,
-                        linkedin_url=str(
-                            sent_profile.get("linkedin_url")
-                            or match.get("linkedin_url")
-                            or opened_thread_url
-                        ),
+                        linkedin_url=reply_profile_url,
                         thread_url=opened_thread_url,
                         message_text=str(latest_reply.get("text") or ""),
                         linkedin_message_time=str(
