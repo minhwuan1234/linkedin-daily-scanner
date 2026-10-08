@@ -34,18 +34,19 @@ class CampaignPerformanceTest(unittest.TestCase):
             {"id": "b3", "job_code": "B-03", "display_name": "Other", "created_at": "2026-10-04T10:00:00Z"},
         ]
         targets = [
-            {"id": "t1", "job_id": "b1", "prospect_id": "p1"},
-            {"id": "t2", "job_id": "b2", "prospect_id": "p2"},
-            {"id": "t3", "job_id": "b3", "prospect_id": "p3"},
+            {"id": "t1", "job_id": "b1", "prospect_id": "p1", "assigned_account_id": "account-1"},
+            {"id": "t2", "job_id": "b2", "prospect_id": "p2", "assigned_account_id": "account-2"},
+            {"id": "t3", "job_id": "b3", "prospect_id": "p3", "assigned_account_id": "account-1"},
         ]
         sent = [
-            {"id": "m1", "source_target_id": "t1"},
-            {"id": "m2", "source_target_id": "t2"},
-            {"id": "m3", "source_target_id": "t3"},
+            {"id": "m1", "source_target_id": "t1", "assigned_account_id": "account-1"},
+            {"id": "m2", "source_target_id": "t2", "assigned_account_id": "account-2"},
+            {"id": "m3", "source_target_id": "t3", "assigned_account_id": "account-1"},
         ]
         replies = [
-            {"sent_target_id": "m1"}, {"sent_target_id": "m1"},
-            {"sent_target_id": "m3"},
+            {"sent_target_id": "m1", "created_at": "2026-10-12T00:00:00+07:00"},
+            {"sent_target_id": "m1", "created_at": "2026-10-13T00:00:00+07:00"},
+            {"sent_target_id": "m3", "created_at": "2026-10-12T00:00:00+07:00"},
         ]
         campaigns = aggregate_campaign_performance(jobs, targets, sent, replies)
         video = next(row for row in campaigns if row["campaign_name"] == "Video Agency")
@@ -53,7 +54,23 @@ class CampaignPerformanceTest(unittest.TestCase):
         self.assertEqual(video["batch_ids"], ["B-01", "B-02"])
         self.assertEqual((video["added"], video["messaged"], video["replies"]), (2, 2, 1))
         self.assertEqual(video["reply_rate"], 50.0)
+        self.assertEqual([(row["account_id"], row["messaged"], row["replies"])
+                          for row in video["accounts"]], [("account-1", 1, 1), ("account-2", 1, 0)])
         self.assertEqual((other["added"], other["messaged"], other["replies"]), (1, 1, 1))
+
+    def test_old_reply_stays_excluded_after_rescan_and_accounts_follow_sender(self):
+        jobs = [{"id": "b1", "job_code": "B-01", "display_name": "Video Agency",
+                 "created_at": "2026-10-06T10:00:00Z"}]
+        targets = [{"id": "t1", "job_id": "b1", "prospect_id": "p1",
+                    "assigned_account_id": "account-1"}]
+        sent = [{"id": "m1", "source_target_id": "t1", "assigned_account_id": "account-2"}]
+        replies = [{"sent_target_id": "m1", "created_at": "2026-10-11T16:59:59Z",
+                    "captured_at": "2026-10-20T10:00:00Z"}]
+        campaign = aggregate_campaign_performance(jobs, targets, sent, replies)[0]
+        self.assertEqual((campaign["added"], campaign["messaged"], campaign["replies"]), (1, 1, 0))
+        accounts = {row["account_id"]: row for row in campaign["accounts"]}
+        self.assertEqual((accounts["account-1"]["added"], accounts["account-1"]["messaged"]), (1, 0))
+        self.assertEqual((accounts["account-2"]["added"], accounts["account-2"]["messaged"]), (0, 1))
 
 
 if __name__ == "__main__":

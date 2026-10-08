@@ -9380,10 +9380,15 @@ function renderCampaignPerformance() {
     const id = String(campaign.campaign_id || "");
     const expanded = id === state.expandedCampaignId;
     const batches = Array.isArray(campaign.batches) ? campaign.batches : [];
+    const accounts = Array.isArray(campaign.accounts) ? campaign.accounts : [];
     const codes = batches.map((batch) => String(batch.batch_code || batch.batch_id || ""));
     const summary = codes.length <= 2 ? codes.join(", ") : `${codes[0]} + ${codes.length - 1} more`;
-    const detail = expanded ? `<div class="campaigns-detail"><h3>Connect batches in this campaign</h3>${batches.map((batch) => `
-      <div class="campaigns-batch-row"><strong>${escapeHtml(batch.batch_code || batch.batch_id)}</strong><span>${escapeHtml(formatDate(batch.created_at))}</span><span>${Number(batch.added || 0)}</span><span>${Number(batch.messaged || 0)}</span><span>${Number(batch.replies || 0)}</span><span>${Number(batch.reply_rate || 0).toFixed(1)}%</span></div>`).join("")}</div>` : "";
+    const detail = expanded ? `<div class="campaigns-detail">
+      <section class="campaigns-detail-section"><h3>By Connect batch</h3><div class="campaigns-detail-head"><span>Batch</span><span>Created</span><span>Added</span><span>Messaged</span><span>Replies</span><span>Reply rate</span></div>${batches.map((batch) => `
+        <div class="campaigns-batch-row"><strong>${escapeHtml(batch.batch_code || batch.batch_id)}</strong><span>${escapeHtml(formatDate(batch.created_at))}</span><span>${Number(batch.added || 0)}</span><span>${Number(batch.messaged || 0)}</span><span>${Number(batch.replies || 0)}</span><span>${Number(batch.reply_rate || 0).toFixed(1)}%</span></div>`).join("")}</section>
+      <section class="campaigns-detail-section"><h3>By account in this campaign</h3><p class="campaigns-detail-hint">Added follows the Connect account; Messaged and Replies follow the sending account. Each row counts unique prospects.</p><div class="campaigns-detail-head"><span>Account</span><span>Account ID</span><span>Added</span><span>Messaged</span><span>Replies</span><span>Reply rate</span></div>${accounts.length ? accounts.map((account) => `
+        <div class="campaigns-batch-row"><strong>${escapeHtml(account.account_id === "unassigned" ? "Unassigned" : getOutreachAccountDisplayName(account.account_id))}</strong><span>${escapeHtml(account.account_id === "unassigned" ? "—" : account.account_id)}</span><span>${Number(account.added || 0)}</span><span>${Number(account.messaged || 0)}</span><span>${Number(account.replies || 0)}</span><span>${Number(account.reply_rate || 0).toFixed(1)}%</span></div>`).join("") : '<p class="campaigns-detail-empty">No account data for these batches.</p>'}</section>
+    </div>` : "";
     return `<button type="button" class="campaigns-row" data-campaign-id="${escapeHtml(id)}" aria-expanded="${expanded}" aria-label="${escapeHtml(campaign.campaign_name)}: ${codes.length} batches, ${campaign.replies} replies. ${expanded ? "Hide" : "Show"} details">
       <strong>${escapeHtml(campaign.campaign_name)}</strong><span class="campaigns-batch-summary" title="${escapeHtml(codes.join("\n"))}">${escapeHtml(summary)}</span><span>${Number(campaign.added || 0)}</span><span>${Number(campaign.messaged || 0)}</span><span>${Number(campaign.replies || 0)}</span><span>${Number(campaign.reply_rate || 0).toFixed(1)}%</span></button>${detail}`;
   }).join("");
