@@ -21,12 +21,11 @@ from app.linkedin_browser import (
 # CONSTANTS
 # =========================================================
 
-PROFILE_TIMEOUT_MS = 15_000
+PROFILE_TIMEOUT_MS = 30_000
 MENU_VERIFY_WINDOW_MS = 1_500
 STATE_POLL_MS = 120
 MORE_MAX_ATTEMPTS = 2
 PROFILE_SETTLE_DELAY_MS = 900
-BEFORE_MENU_OPEN_DELAY_MS = 450
 AFTER_MENU_OPEN_DELAY_MS = 500
 
 
@@ -36,6 +35,8 @@ AcceptanceStatus = Literal[
     "declined_or_unknown",
     "check_failed",
 ]
+
+REMOVE_CONNECTION_LABELS = frozenset({"remove connection", "remove connect"})
 
 
 @dataclass(frozen=True)
@@ -281,7 +282,7 @@ def _has_pending_state(
                 "ACCEPTANCE PENDING: "
                 "<main> not found"
             )
-            return False
+            raise RuntimeError("Profile content was not loaded.")
 
         selectors = (
             "button:has-text('Pending')",
@@ -347,6 +348,7 @@ def _has_pending_state(
             "ACCEPTANCE PENDING error:",
             f"{type(exc).__name__}: {exc}",
         )
+        raise
 
     return False
 
@@ -363,8 +365,9 @@ def _visible_menu_exists(
     """
     Read-only helper.
 
-    Only answers whether at least one visible [role='menu']
-    currently exists.
+    Accept either a visible menu container or an exact visible removal
+    action. LinkedIn sometimes renders the opened action sheet without
+    role='menu'.
     """
     _check_deadline(deadline)
 
@@ -389,6 +392,22 @@ def _visible_menu_exists(
     except Exception:
         pass
 
+    return _visible_removal_action_exists(page, deadline=deadline)
+
+
+def _visible_removal_action_exists(
+    page: Page,
+    *,
+    deadline: float,
+) -> bool:
+    """Read only the two exact connection-removal actions after menu opening."""
+    _check_deadline(deadline)
+    for label in ("Remove connection", "Remove connect"):
+        candidates = page.get_by_text(label, exact=True)
+        for index in range(candidates.count()):
+            if _is_visible_locator(candidates.nth(index), deadline=deadline, maximum_ms=120):
+                print(f"ACCEPTANCE MENU: {label} visible")
+                return True
     return False
 
 
@@ -569,12 +588,6 @@ def _open_acceptance_ellipsis_menu(
                     )
                     return True
 
-                _sleep(
-                    page,
-                    deadline=deadline,
-                    milliseconds=BEFORE_MENU_OPEN_DELAY_MS,
-                )
-
                 if not _click_locator(
                     button,
                     deadline=deadline,
@@ -602,7 +615,7 @@ def _open_acceptance_ellipsis_menu(
 
                     print(
                         "ACCEPTANCE ELLIPSIS: "
-                        "visible role=menu confirmed"
+                        "menu or removal action confirmed"
                     )
                     return True
 
@@ -640,8 +653,7 @@ def _has_remove_connection_in_ellipsis_menu(
     Inspect visible role=menu / role=menuitem nodes after
     the ellipsis path has opened its menu.
 
-    Exact accepted signal:
-        exact visible text == "Remove connection"
+    Accepted signals: exact visible text "Remove connection" or "Remove connect".
 
     NEVER clicks Remove connection.
     """
@@ -699,20 +711,15 @@ def _has_remove_connection_in_ellipsis_menu(
                 repr(text_value),
             )
 
-            if (
-                text_value.lower()
-                == "remove connection"
-            ):
+            if text_value.lower() in REMOVE_CONNECTION_LABELS:
                 print(
                     "ACCEPTANCE ELLIPSIS: "
-                    "Remove connection found"
+                    f"{text_value} found"
                 )
                 return True
 
     if not visible_menu_found:
-        raise RuntimeError(
-            "Ellipsis menu is not visible."
-        )
+        return _visible_removal_action_exists(page, deadline=deadline)
 
     return False
 
@@ -831,6 +838,18 @@ def _open_acceptance_more_menu(
                     button
                 )
 
+            # Some profile layouts give the More button an accessible
+            # label but no exact visible text node.
+            if not buttons:
+                for selector in ("button[aria-label='More']", "button[title='More']"):
+                    candidates = main.locator(selector)
+                    for index in range(candidates.count()):
+                        button = candidates.nth(index)
+                        if _is_visible_locator(button, deadline=deadline, maximum_ms=180):
+                            buttons.append(button)
+                    if buttons:
+                        break
+
             print(
                 "ACCEPTANCE MORE: "
                 "profile candidates inside <main> =",
@@ -882,12 +901,6 @@ def _open_acceptance_more_menu(
                     )
                     return True
 
-                _sleep(
-                    page,
-                    deadline=deadline,
-                    milliseconds=BEFORE_MENU_OPEN_DELAY_MS,
-                )
-
                 if not _click_locator(
                     button,
                     deadline=deadline,
@@ -913,7 +926,7 @@ def _open_acceptance_more_menu(
 
                     print(
                         "ACCEPTANCE MORE: "
-                        "visible role=menu confirmed"
+                        "menu or removal action confirmed"
                     )
                     return True
 
@@ -961,8 +974,7 @@ def _has_remove_connection_in_more_menu(
     DOM confirmed:
         <div role="menuitem"> ... Remove connection ... </div>
 
-    Exact accepted signal:
-        exact visible text == "Remove connection"
+    Accepted signals: exact visible text "Remove connection" or "Remove connect".
 
     NEVER clicks Remove connection.
     """
@@ -1027,20 +1039,15 @@ def _has_remove_connection_in_more_menu(
                 repr(text_value),
             )
 
-            if (
-                text_value.lower()
-                == "remove connection"
-            ):
+            if text_value.lower() in REMOVE_CONNECTION_LABELS:
                 print(
                     "ACCEPTANCE MORE: "
-                    "Remove connection found"
+                    f"{text_value} found"
                 )
                 return True
 
     if not visible_menu_found:
-        raise RuntimeError(
-            "More menu is not visible."
-        )
+        return _visible_removal_action_exists(page, deadline=deadline)
 
     return False
 
@@ -1066,28 +1073,32 @@ def check_profile_acceptance(
     CASE 2
         No Pending
         -> try ellipsis / three-dot menu
-        -> exact "Remove connection"
+        -> exact "Remove connection" or "Remove connect"
         -> accepted
 
     CASE 3
         If ellipsis path does not confirm accepted
         -> try text "More" menu
-        -> exact "Remove connection"
+        -> exact "Remove connection" or "Remove connect"
         -> accepted
 
     FINAL NON-ACCEPTED STATE
         At least one menu path opened successfully
-        but neither path contained "Remove connection"
+        but neither path contained a removal option
         -> declined_or_unknown
 
     TECHNICAL FAILURE
-        Neither menu path can be opened
-        OR navigation/session/browser error
+        Profile unavailable, navigation/session/browser error,
+        or Pending could not be checked
         -> check_failed
+
+    FALLBACK
+        Profile loaded, Pending absent, neither menu verifiable
+        -> accepted
 
     This checker NEVER clicks:
     - Connect
-    - Remove connection
+    - Remove connection / Remove connect
     - Message
     - Follow
     """
@@ -1109,6 +1120,7 @@ def check_profile_acceptance(
 
     deadline = _build_deadline()
     page: Page | None = None
+    pending_absent_confirmed = False
 
     try:
         print("")
@@ -1152,6 +1164,15 @@ def check_profile_acceptance(
                 ),
             )
 
+        main = page.locator("main")
+        if main.count() == 0 or not _is_visible_locator(main, deadline=deadline):
+            return LinkedInAcceptanceResult(
+                linkedin_url=cleaned_url,
+                final_url=page.url,
+                status="check_failed",
+                message="profile_error: Profile content was not loaded.",
+            )
+
         # -------------------------------------------------
         # CASE 1: PENDING
         # -------------------------------------------------
@@ -1172,6 +1193,8 @@ def check_profile_acceptance(
                     "still pending."
                 ),
             )
+
+        pending_absent_confirmed = True
 
         # Track whether we successfully inspected at least one menu.
         inspected_menu = False
@@ -1204,14 +1227,14 @@ def check_profile_acceptance(
                     status="accepted",
                     message=(
                         "Connection accepted: "
-                        "'Remove connection' was found "
+                        "'Remove connection' or 'Remove connect' was found "
                         "in the ellipsis menu."
                     ),
                 )
 
             print(
                 "ACCEPTANCE CASE 2: "
-                "Remove connection not found"
+                "Removal option not found"
             )
 
         else:
@@ -1248,14 +1271,14 @@ def check_profile_acceptance(
                     status="accepted",
                     message=(
                         "Connection accepted: "
-                        "'Remove connection' was found "
+                        "'Remove connection' or 'Remove connect' was found "
                         "in the More menu."
                     ),
                 )
 
             print(
                 "ACCEPTANCE CASE 3: "
-                "Remove connection not found"
+                "Removal option not found"
             )
 
         else:
@@ -1279,23 +1302,20 @@ def check_profile_acceptance(
                 status="declined_or_unknown",
                 message=(
                     "Pending is not visible and "
-                    "'Remove connection' was not found "
+                    "'Remove connection' or 'Remove connect' was not found "
                     "in the available profile menus."
                 ),
             )
 
-        print(
-            "ACCEPTANCE STATE: check_failed"
-        )
+        print("ACCEPTANCE STATE: accepted (Pending absent; menus unavailable)")
 
         return LinkedInAcceptanceResult(
             linkedin_url=cleaned_url,
             final_url=page.url,
-            status="check_failed",
+            status="accepted",
             message=(
-                "menu_error: Could not open either "
-                "the profile ellipsis menu or "
-                "the text More menu."
+                "Pending was absent on the loaded profile; "
+                "neither profile menu could be verified."
             ),
         )
 
@@ -1304,6 +1324,13 @@ def check_profile_acceptance(
         LinkedInBrowserTimeoutError,
         PlaywrightTimeoutError,
     ) as exc:
+        if pending_absent_confirmed and page is not None:
+            return LinkedInAcceptanceResult(
+                linkedin_url=cleaned_url,
+                final_url=page.url,
+                status="accepted",
+                message="Pending was absent on the loaded profile; menu check timed out.",
+            )
         return LinkedInAcceptanceResult(
             linkedin_url=cleaned_url,
             final_url=(
