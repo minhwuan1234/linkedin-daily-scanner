@@ -5036,9 +5036,9 @@ function getMessageWorkspaceRows() {
     if (!eligible.has(String(item.prospect_id)) || !item.connect_batch_id) continue;
     const key = String(item.connect_batch_id);
     if (!groups.has(key)) groups.set(key, {
-      id: `accepted:${key}`, status: "prepared", pending_snapshot: true, batch_code: item.batch_label || item.job_code || key,
+      id: `accepted:${key}`, campaign_id: item.campaign_id, campaign_name: item.campaign_name, status: "prepared", pending_snapshot: true, batch_code: item.batch_label || item.job_code || key,
       created_at: item.job_created_at, connect_created_at: item.job_created_at, target_count: 0, targets: [],
-      source_connect_ids: [{id: key, batch_label: item.batch_label, display_name: item.campaign_name || item.display_name,
+      source_connect_ids: [{id: key, campaign_id: item.campaign_id, batch_label: item.batch_label, display_name: item.campaign_name || item.display_name,
         code: item.job_code, created_at: item.job_created_at}],
     });
     const group = groups.get(key);
@@ -5205,6 +5205,25 @@ function setMessageBatchWeekMenuOpen(open, {restoreFocus = false} = {}) {
 
 
 
+function groupMessageBatchesByCampaign(batches) {
+  const groups = new Map();
+  for (const batch of batches) {
+    const sources = getMessageBatchSourceConnectIds(batch);
+    const ids = new Set(sources.map(source => String(source.campaign_id || "").trim()).filter(Boolean));
+    const campaignId = String(batch.campaign_id || "").trim() || (ids.size === 1 ? [...ids][0] : "");
+    // Unknown or mixed legacy batches must not be combined with unrelated campaigns.
+    const key = campaignId || `batch:${batch.id}`;
+    if (!groups.has(key)) groups.set(key, {
+      key,
+      name: batch.campaign_name || (sources.length && ids.size <= 1 ? sources[0].display_name : "") || "Campaign unavailable",
+      batches: [],
+    });
+    groups.get(key).batches.push(batch);
+  }
+  return [...groups.values()];
+}
+
+
 function renderMessagePreparation() {
   const count = Number(
     state.messagePreparation?.count || 0
@@ -5305,13 +5324,16 @@ function renderMessagePreparation() {
     return;
   }
 
+  const campaignGroups = groupMessageBatchesByCampaign(batches);
+  state.messageCampaignCollapsedIds ||= new Set();
+
   const batchPageSize = Number(
     state.messageBatchPageSize || 8
   );
 
   const batchTotalPages = Math.max(
     1,
-    Math.ceil(batches.length / batchPageSize)
+    Math.ceil(campaignGroups.length / batchPageSize)
   );
 
   state.messageBatchPage = Math.min(
@@ -5322,14 +5344,29 @@ function renderMessagePreparation() {
   const batchStartIndex =
     (state.messageBatchPage - 1) * batchPageSize;
 
-  const visibleBatches = batches.slice(
+  const visibleGroups = campaignGroups.slice(
     batchStartIndex,
     batchStartIndex + batchPageSize
   );
 
   els.messageBatchList.replaceChildren();
 
-  visibleBatches.forEach((batch) => {
+  visibleGroups.forEach((group) => {
+    const section = document.createElement("details");
+    section.className = "message-campaign-group";
+    section.open = !state.messageCampaignCollapsedIds.has(group.key);
+    const summary = document.createElement("summary");
+    const title = document.createElement("strong");
+    title.textContent = group.name;
+    const count = document.createElement("span");
+    count.textContent = `${group.batches.length} batches · ${group.batches.reduce((sum, batch) => sum + Number(batch.target_count || 0), 0)} recipients`;
+    summary.append(title, count);
+    section.append(summary);
+    section.addEventListener("toggle", () => {
+      if (section.open) state.messageCampaignCollapsedIds.delete(group.key);
+      else state.messageCampaignCollapsedIds.add(group.key);
+    });
+    group.batches.forEach((batch) => {
     const batchId = String(
       batch.id || ""
     ).trim();
@@ -5478,9 +5515,9 @@ function renderMessagePreparation() {
       );
     }
 
-    els.messageBatchList.append(
-      fragment
-    );
+    section.append(fragment);
+    });
+    els.messageBatchList.append(section);
   });
 
   updateSimplePagination({
@@ -5490,9 +5527,9 @@ function renderMessagePreparation() {
     next: els.messageBatchNextPage,
     currentPage: state.messageBatchPage,
     totalPages: batchTotalPages,
-    totalItems: batches.length,
+    totalItems: campaignGroups.length,
     startIndex: batchStartIndex,
-    pageLength: visibleBatches.length
+    pageLength: visibleGroups.length
   });
 }
 

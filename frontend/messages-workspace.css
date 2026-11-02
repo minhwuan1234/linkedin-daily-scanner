@@ -479,3 +479,21 @@
     grid-column: auto;
   }
 }
+
+/* Keep every campaign together, including across pagination. */
+.message-campaign-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 14px;
+  cursor: pointer;
+  list-style: none;
+  background: var(--panel-raised, #f7f7f5);
+  border-top: 1px solid var(--border, #e8e8e5);
+  color: var(--text);
+}
+.message-campaign-group > summary::-webkit-details-marker { display: none; }
+.message-campaign-group > summary::before { content: "›"; font-size: 20px; }
+.message-campaign-group[open] > summary::before { transform: rotate(90deg); }
+.message-campaign-group > summary > span { margin-left: auto; color: var(--faint, #77766f); font-size: 12px; }
+.message-campaign-group > summary:focus-visible { outline: 2px solid #0969c3; outline-offset: -2px; }
