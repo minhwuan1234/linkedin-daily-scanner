@@ -29,6 +29,21 @@ except ModuleNotFoundError as exc:
 
 
 class MessagePreparationSourcesTest(unittest.TestCase):
+    def test_batch_list_fetches_past_first_page_and_preserves_explicit_limit(self):
+        rows = [{'id': str(i), 'created_at': '2026-10-01'} for i in range(503)]
+        class Query:
+            def __init__(self): self.start, self.end = 0, 0
+            def select(self, *args): return self
+            def order(self, *args, **kwargs): return self
+            def range(self, start, end):
+                self.start, self.end = start, end
+                return self
+            def execute(self): return SimpleNamespace(data=rows[self.start:self.end + 1])
+        client = SimpleNamespace(table=lambda name: Query())
+        with patch.object(store, '_attach_source_connect_ids_to_batches', side_effect=lambda **kwargs: kwargs['batches']):
+            self.assertEqual(len(store.list_prepared_message_batches(client=client)), 503)
+            self.assertEqual(len(store.list_prepared_message_batches(client=client, limit=51)), 51)
+
     def test_snapshot_companies_follow_prospect_identity_not_query_order(self):
         rows = {
             store.MESSAGE_BATCH_TABLE: [{'id':'message', 'batch_code':'October'}],

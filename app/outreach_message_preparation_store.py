@@ -959,7 +959,7 @@ def _attach_source_connect_ids_to_batches(
 def list_prepared_message_batches(
     *,
     client: Client | None = None,
-    limit: int = 50,
+    limit: int | None = None,
 ) -> list[dict]:
     """
     List recent message-preparation batches.
@@ -973,42 +973,24 @@ def list_prepared_message_batches(
         else get_outreach_supabase_client()
     )
 
-    safe_limit = max(
-        1,
-        min(
-            int(limit),
-            100,
-        ),
-    )
-
-    response = (
-        active_client.table(
-            MESSAGE_BATCH_TABLE
+    safe_limit = max(1, int(limit)) if limit is not None else None
+    batches = []
+    page_size = 500
+    while safe_limit is None or len(batches) < safe_limit:
+        size = min(page_size, safe_limit - len(batches)) if safe_limit is not None else page_size
+        offset = len(batches)
+        response = (
+            active_client.table(MESSAGE_BATCH_TABLE)
+            .select("id,batch_code,status,target_count,created_at,updated_at")
+            .order("created_at", desc=True)
+            .order("id", desc=True)
+            .range(offset, offset + size - 1)
+            .execute()
         )
-        .select(
-            (
-                "id,"
-                "batch_code,"
-                "status,"
-                "target_count,"
-                "created_at,"
-                "updated_at"
-            )
-        )
-        .order(
-            "created_at",
-            desc=True,
-        )
-        .limit(
-            safe_limit
-        )
-        .execute()
-    )
-
-    batches = list(
-        response.data
-        or []
-    )
+        page = list(response.data or [])
+        batches.extend(page)
+        if len(page) < size:
+            break
 
     return (
         _attach_source_connect_ids_to_batches(
