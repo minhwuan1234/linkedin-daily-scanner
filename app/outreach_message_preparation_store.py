@@ -177,8 +177,7 @@ def _load_prepared_prospect_ids(
     client: Client,
 ) -> set[str]:
     """
-    Profiles already snapshot into a currently prepared message
-    batch are excluded from future Prepare All runs.
+    Exclude recipients already prepared, queued, sending or sent.
 
     This prevents:
         Batch #1 -> Prospect A
@@ -186,24 +185,23 @@ def _load_prepared_prospect_ids(
 
     before the messaging phase has even started.
     """
-    response = (
-        client.table(
-            MESSAGE_TARGET_TABLE
+    rows = []
+    page_size = 500
+    offset = 0
+    while True:
+        response = (
+            client.table(MESSAGE_TARGET_TABLE)
+            .select("id,prospect_id,status")
+            .in_("status", ["prepared", "queued", "processing", "sent"])
+            .order("id")
+            .range(offset, offset + page_size - 1)
+            .execute()
         )
-        .select(
-            "prospect_id,status"
-        )
-        .eq(
-            "status",
-            "prepared",
-        )
-        .execute()
-    )
-
-    rows = list(
-        response.data
-        or []
-    )
+        page = list(response.data or [])
+        rows.extend(page)
+        if len(page) < page_size:
+            break
+        offset += len(page)
 
     return {
         _safe_text(
@@ -237,7 +235,7 @@ def get_message_preparation_candidates(
     - prospect_id exists
     - assigned_account_id exists
     - linkedin_url exists
-    - not already in another prepared message batch
+    - not already prepared, queued, processing or sent
 
     This function does NOT create a batch.
     """
