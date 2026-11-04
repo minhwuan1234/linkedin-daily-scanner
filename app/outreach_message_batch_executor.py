@@ -320,6 +320,7 @@ def refresh_batch_counters(
         "processed_count": processed_count,
         "sent_count": sent_count,
         "failed_count": failed_count,
+        "remaining_count": len(rows) - processed_count,
     }
 
 
@@ -340,11 +341,11 @@ def mark_batch_completed(
         )
         .update(
             {
-                "status": "failed" if counters["failed_count"] else "completed",
+                "status": "failed" if counters["remaining_count"] else "completed",
                 "completed_at": _utc_now(),
                 "last_error": (
-                    f"{counters['failed_count']} recipient(s) failed to send."
-                    if counters["failed_count"] else None
+                    f"{counters['remaining_count']} recipient(s) remain unprocessed."
+                    if counters["remaining_count"] else None
                 ),
                 "updated_at": _utc_now(),
             }
@@ -722,13 +723,8 @@ def execute_queued_message_batch(
             client=active_client,
         )
 
-        if any(not result.get("ok") for result in results) and not counters["failed_count"]:
-            mark_batch_failed(batch_id=cleaned_batch_id,
-                              error_message="One or more recipients could not be processed.",
-                              client=active_client)
-
         return {
-            "ok": all(result.get("ok") for result in results),
+            "ok": not counters["remaining_count"],
             "batch_id": cleaned_batch_id,
             "batch_code": _safe_text(
                 batch.get(
