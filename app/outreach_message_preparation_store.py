@@ -177,7 +177,7 @@ def _load_prepared_prospect_ids(
     client: Client,
 ) -> set[str]:
     """
-    Exclude recipients already prepared, queued, sending or sent.
+    Exclude recipients already in a message batch, including failed sends.
 
     This prevents:
         Batch #1 -> Prospect A
@@ -192,7 +192,7 @@ def _load_prepared_prospect_ids(
         response = (
             client.table(MESSAGE_TARGET_TABLE)
             .select("id,prospect_id,status")
-            .in_("status", ["prepared", "queued", "processing", "sent"])
+            .in_("status", ["prepared", "queued", "processing", "sent", "failed"])
             .order("id")
             .range(offset, offset + page_size - 1)
             .execute()
@@ -235,7 +235,7 @@ def get_message_preparation_candidates(
     - prospect_id exists
     - assigned_account_id exists
     - linkedin_url exists
-    - not already prepared, queued, processing or sent
+    - not already present in a message batch
 
     This function does NOT create a batch.
     """

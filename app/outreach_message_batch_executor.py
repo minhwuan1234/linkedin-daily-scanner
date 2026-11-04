@@ -346,9 +346,12 @@ def mark_batch_completed(
         )
         .update(
             {
-                "status": "completed",
+                "status": "failed" if counters["failed_count"] else "completed",
                 "completed_at": _utc_now(),
-                "last_error": None,
+                "last_error": (
+                    f"{counters['failed_count']} recipient(s) failed to send."
+                    if counters["failed_count"] else None
+                ),
                 "updated_at": _utc_now(),
             }
         )

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from playwright.sync_api import (
     Locator,
     Page,
@@ -344,7 +346,15 @@ def _panel_matches_profile_name(
     except Exception:
         return False
 
-    return expected in panel_text
+    # LinkedIn may omit the parenthesized alternate name in the chat header.
+    # Keep the full remaining name, so another person's chat is not selected
+    # merely because their first name or alternate name matches.
+    without_alternate = _normalise_person_name(
+        re.sub(r"\s*\([^()]*\)", " ", expected_profile_name)
+    )
+    return expected in panel_text or (
+        bool(without_alternate) and without_alternate in panel_text
+    )
 
 
 def close_unrelated_message_panels(
