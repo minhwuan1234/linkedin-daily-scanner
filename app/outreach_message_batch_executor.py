@@ -189,12 +189,6 @@ def group_prepared_targets_by_account(
             )
         )
 
-        if not account_id:
-            raise OutreachMessageBatchExecutorError(
-                "Prepared target has no assigned_account_id: "
-                f"{target.get('id')}"
-            )
-
         grouped.setdefault(
             account_id,
             [],
@@ -567,11 +561,6 @@ def execute_queued_message_batch(
         or ""
     )
 
-    if not template.strip():
-        raise OutreachMessageBatchExecutorError(
-            "Queued batch has no message_template."
-        )
-
     targets = list(
         batch.get(
             "prepared_targets"
@@ -579,10 +568,13 @@ def execute_queued_message_batch(
         or []
     )
 
-    if not targets:
-        raise OutreachMessageBatchExecutorError(
-            "Queued message batch has no prepared targets."
-        )
+    if not targets or not template.strip():
+        reason = ("Queued message batch has no prepared targets." if not targets
+                  else "Queued batch has no message_template.")
+        claim_queued_batch(batch_id=cleaned_batch_id, client=active_client)
+        mark_batch_failed(batch_id=cleaned_batch_id, error_message=reason, client=active_client)
+        return {"ok": False, "batch_id": cleaned_batch_id, "sent_count": 0,
+                "failed_count": 0, "error": reason, "results": []}
 
     grouped = group_prepared_targets_by_account(
         targets
@@ -607,11 +599,14 @@ def execute_queued_message_batch(
         ) in enumerate(
             account_items
         ):
-            account = pool.get_account(
-                account_id
-            )
+            try:
+                account = pool.get_account(account_id)
+            except Exception as exc:
+                account = None
+                account_error = f"{type(exc).__name__}: {exc}"
 
-            if not account.enabled:
+            if account is None or not account.enabled:
+                reason = account_error if account is None else "Assigned Outreach account is disabled."
                 for target in account_targets:
                     target_id = _safe_text(
                         target.get(
@@ -628,7 +623,7 @@ def execute_queued_message_batch(
                         mark_message_target_failed(
                             target_id=target_id,
                             error_message=(
-                                "Assigned Outreach account is disabled."
+                                reason
                             ),
                             message_text=None,
                             client=active_client,
@@ -643,7 +638,7 @@ def execute_queued_message_batch(
                             "account_id": account_id,
                             "status": "failed",
                             "error": (
-                                "Assigned Outreach account is disabled."
+                                reason
                             ),
                         }
                     )
@@ -654,20 +649,22 @@ def execute_queued_message_batch(
                 )
                 continue
 
-            browser = account.create_browser_manager()
-
+            browser = None
             try:
+                browser = account.create_browser_manager()
                 browser.start()
 
                 for target_index, target in enumerate(
                     account_targets
                 ):
-                    result = execute_target_with_browser(
-                        target=target,
-                        template=template,
-                        browser=browser,
-                        client=active_client,
-                    )
+                    try:
+                        result = execute_target_with_browser(
+                            target=target, template=template, browser=browser, client=active_client,
+                        )
+                    except Exception as exc:
+                        result = {"ok": False, "target_id": _safe_text(target.get("id")),
+                                  "account_id": account_id, "status": "failed",
+                                  "error": f"{type(exc).__name__}: {exc}"}
 
                     results.append(
                         result
@@ -688,8 +685,27 @@ def execute_queued_message_batch(
                             PROFILE_DELAY_SECONDS
                         )
 
+            except Exception as exc:
+                reason = f"{type(exc).__name__}: {exc}"
+                processed_ids = {item.get("target_id") for item in results}
+                for target in account_targets:
+                    target_id = _safe_text(target.get("id"))
+                    if target_id in processed_ids:
+                        continue
+                    try:
+                        claim_prepared_message_target(target_id, client=active_client)
+                        mark_message_target_failed(target_id=target_id, error_message=reason,
+                                                   message_text=None, client=active_client)
+                    except Exception:
+                        pass
+                    results.append({"ok": False, "target_id": target_id, "account_id": account_id,
+                                    "status": "failed", "error": reason})
             finally:
-                browser.stop()
+                if browser is not None:
+                    try:
+                        browser.stop()
+                    except Exception:
+                        pass
 
             if (
                 account_index
@@ -706,8 +722,13 @@ def execute_queued_message_batch(
             client=active_client,
         )
 
+        if any(not result.get("ok") for result in results) and not counters["failed_count"]:
+            mark_batch_failed(batch_id=cleaned_batch_id,
+                              error_message="One or more recipients could not be processed.",
+                              client=active_client)
+
         return {
-            "ok": True,
+            "ok": all(result.get("ok") for result in results),
             "batch_id": cleaned_batch_id,
             "batch_code": _safe_text(
                 batch.get(

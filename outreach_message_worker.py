@@ -94,8 +94,9 @@ def drain_queued_batches(client) -> int:
         result = execute_queued_message_batch(batch_id=batch_id, client=client)
         processed += 1
         logger.info(
-            "Message batch completed: %s | sent=%s | failed=%s",
-            batch_code, result.get("sent_count"), result.get("failed_count"),
+            "Message batch %s: %s | sent=%s | failed=%s | error=%s",
+            "completed" if result.get("ok") else "failed", batch_code,
+            result.get("sent_count"), result.get("failed_count"), result.get("error") or "-",
         )
 
 
