@@ -703,7 +703,7 @@ def _attach_source_connect_ids_to_batches(
             response = (
                 client
                 .table(MESSAGE_TARGET_TABLE)
-                .select("batch_id,source_target_id")
+                .select("batch_id,source_target_id,status")
                 .in_("batch_id", chunk)
                 .order("id")
                 .range(offset, offset + 999)
@@ -821,6 +821,14 @@ def _attach_source_connect_ids_to_batches(
                     ),
                 }
 
+    target_statuses_by_batch: dict[str, list[str]] = {}
+    for row in target_rows:
+        batch_id = _safe_text(row.get("batch_id"))
+        if batch_id:
+            target_statuses_by_batch.setdefault(batch_id, []).append(
+                _safe_text(row.get("status")).lower()
+            )
+
     source_target_ids_by_batch: dict[
         str,
         list[str],
@@ -860,6 +868,15 @@ def _attach_source_connect_ids_to_batches(
         batch_id = _safe_text(
             batch.get("id")
         )
+        statuses = target_statuses_by_batch.get(batch_id, [])
+        if (
+            _safe_text(batch.get("status")).lower() == "failed"
+            and "sent" in statuses
+            and len(statuses) == int(batch.get("target_count") or 0)
+            and all(status in {"sent", "failed"} for status in statuses)
+        ):
+            # Older workers marked the whole batch failed for one failed recipient.
+            batch["status"] = "completed"
 
         source_connect_ids: list[
             dict

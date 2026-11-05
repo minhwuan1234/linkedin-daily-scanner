@@ -29,6 +29,26 @@ except ModuleNotFoundError as exc:
 
 
 class MessagePreparationSourcesTest(unittest.TestCase):
+    def test_historical_partial_failure_is_shown_completed_only_after_all_processed(self):
+        rows = {
+            store.MESSAGE_TARGET_TABLE: [
+                {'batch_id': 'mixed', 'source_target_id': 't1', 'status': 'sent'},
+                {'batch_id': 'mixed', 'source_target_id': 't2', 'status': 'failed'},
+            ],
+            store.CONNECT_TARGET_TABLE: [{'id': 't1', 'job_id': 'connect'}, {'id': 't2', 'job_id': 'connect'}],
+            store.CONNECT_JOB_TABLE: [{'id': 'connect', 'created_at': '2026-10-23', 'display_name': 'Video'}],
+        }
+        class Query:
+            def __init__(self, name): self.name = name
+            def __getattr__(self, name): return lambda *args, **kwargs: self
+            def execute(self): return SimpleNamespace(data=rows[self.name])
+        client = SimpleNamespace(table=lambda name: Query(name))
+        batches = [{'id': 'mixed', 'status': 'failed', 'target_count': 2},
+                   {'id': 'unfinished', 'status': 'failed', 'target_count': 2}]
+        result = store._attach_source_connect_ids_to_batches(client=client, batches=batches)
+        self.assertEqual(result[0]['status'], 'completed')
+        self.assertEqual(result[1]['status'], 'failed')
+
     def test_batch_list_fetches_past_first_page_and_preserves_explicit_limit(self):
         rows = [{'id': str(i), 'created_at': '2026-10-01'} for i in range(503)]
         class Query:

@@ -341,7 +341,7 @@ def mark_batch_completed(
         )
         .update(
             {
-                "status": "failed" if counters["remaining_count"] else "completed",
+                "status": "completed" if counters["sent_count"] > 0 and not counters["remaining_count"] else "failed",
                 "completed_at": _utc_now(),
                 "last_error": (
                     f"{counters['remaining_count']} recipient(s) remain unprocessed."
@@ -724,7 +724,7 @@ def execute_queued_message_batch(
         )
 
         return {
-            "ok": not counters["remaining_count"],
+            "ok": counters["sent_count"] > 0 and not counters["remaining_count"],
             "batch_id": cleaned_batch_id,
             "batch_code": _safe_text(
                 batch.get(
