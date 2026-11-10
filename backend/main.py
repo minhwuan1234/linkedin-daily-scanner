@@ -1,3 +1,4 @@
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -89,6 +90,8 @@ from app.outreach_reply_send_store import (
     queue_prepared_reply_send,
 )
 from app.outreach_worker_activity import get_outreach_worker_activity
+from app.outreach_dashboard_store import get_outreach_client
+from app.lab_monitoring import build_report as build_lab_report, safe_reason
 
 
 
@@ -170,6 +173,34 @@ def root() -> RedirectResponse:
         url="/dashboard/",
         status_code=307,
     )
+
+
+# =========================================================
+# AI AGENT LAB MONITORING (read-only)
+# =========================================================
+
+@app.get("/internal/monitoring", include_in_schema=False)
+def lab_monitoring(request: Request, days: int = 7):
+    """Report for AI Agent Lab's Performance tab: job names, statuses, times and batch names.
+
+    Disabled (404) unless LAB_MONITORING_TOKEN is set; the Lab sends it as a bearer token.
+    """
+    token = os.getenv("LAB_MONITORING_TOKEN", "").strip()
+    if len(token) < 32:
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    supplied = request.headers.get("authorization", "")
+    if not hmac.compare_digest(supplied.encode(), ("Bearer " + token).encode()):
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    if days < 1 or days > 30:
+        return JSONResponse({"detail": "days must be 1..30"}, status_code=422)
+    client, client_error = None, None
+    try:
+        client = get_outreach_client()
+    except Exception as error:
+        client_error = safe_reason(error)
+        logger.warning("Lab monitoring: Supabase client unavailable: %s", client_error)
+    report = build_lab_report(client, days, worker_activity=get_outreach_worker_activity, client_error=client_error)
+    return JSONResponse(report, headers={"Cache-Control": "private, no-store"})
 
 
 @app.get("/health")

@@ -28,6 +28,37 @@ class OutreachResultStoreError(
     pass
 
 
+# started_at on outreach_job_targets is optional (outreach_connect_target_started_at.sql).
+# AI Agent Lab uses it to time each connect attempt; without the column the worker carries on.
+_TARGET_STARTED_AT_AVAILABLE = True
+
+
+def mark_connect_target_started(
+    client: Client,
+    target_id: str,
+) -> None:
+    """Best-effort start time for one connect attempt; never blocks the connect itself."""
+    global _TARGET_STARTED_AT_AVAILABLE
+
+    if not _TARGET_STARTED_AT_AVAILABLE or not target_id:
+        return
+
+    try:
+        (
+            client.table(TARGET_TABLE)
+            .update({"started_at": _utc_now()})
+            .eq("id", target_id)
+            .execute()
+        )
+    except Exception as exc:
+        _TARGET_STARTED_AT_AVAILABLE = False
+        print(
+            "Connect target started_at not saved "
+            "(apply outreach_connect_target_started_at.sql):",
+            type(exc).__name__,
+        )
+
+
 # =========================================================
 # SUPABASE
 # =========================================================

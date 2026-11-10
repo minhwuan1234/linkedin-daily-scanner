@@ -20,6 +20,7 @@ from app.outreach_job_queue import (
     OutreachJobQueue,
 )
 from app.outreach_result_store import (
+    mark_connect_target_started,
     save_connect_result,
 )
 from app.outreach_scheduler import (
@@ -330,6 +331,11 @@ def process_account_turn(
             # ---------------------------------------------
             # CONNECT
             # ---------------------------------------------
+
+            mark_connect_target_started(
+                client,
+                target.id,
+            )
 
             try:
                 result = connect_profile(
@@ -1356,6 +1362,11 @@ def process_account_turn(
             # ---------------------------------------------
             # CONNECT
             # ---------------------------------------------
+
+            mark_connect_target_started(
+                client,
+                target.id,
+            )
 
             try:
                 result = connect_profile(
