@@ -12,7 +12,9 @@
    on Railway: pull the latest code there and restart the connect worker once. Afterwards,
    if the SQL is applied later, the worker picks the column up within 10 minutes without a
    restart. Only connect attempts made from then on have a start time.
-3. AI Agent Lab → Settings → Monitoring → "+ Kết nối tool": the service URL and the same token.
+3. Supabase → SQL editor: run `outreach_ui_samples.sql` (optional; keeps the browser timings
+   below across redeploys, otherwise they live in memory until the next deploy).
+4. AI Agent Lab → Settings → Monitoring → "+ Kết nối tool": the service URL and the same token.
    Lab detects the Main Job, sub-jobs and targets from the report.
 
 ## What the report contains
@@ -39,3 +41,18 @@ linked back to the batch they came from:
 - No prospect names, profile URLs, message text or account identifiers are sent; sub-job
   tables are read with only ids, statuses and timestamps.
 - Optional targets: `LAB_JOB_TARGETS_MINUTES='{"Connect batch": 240}'` (minutes, per job).
+
+## Tốc độ phản hồi / Độ nhạy thao tác
+
+The dashboard times one action, **Start Connect** (Connect page), in the browser and posts
+`{"metric", "ms"}` to `POST /api/outreach/ui-samples` (rate-limited per IP, metric name and
+duration only):
+
+- `clickLatency` (Độ nhạy thao tác): click → the button shows "Creating job...".
+- `responseTime` (Tốc độ phản hồi): click → the new Connect batch is shown.
+
+Both end at the second animation frame after the change, so the browser had a chance to paint
+it. Hidden tabs are skipped. The report sends exact P95 values (nearest rank) for the selected
+window as `performanceKpis`, and the descriptions as `profile.kpiDescriptions`. Lab compares
+them with 2.5 s / 200 ms unless a target is set in the tool settings. Connect batches are started
+a few times a week, so the 20-sample minimum may take a while; lower it per tool in Lab if needed.
