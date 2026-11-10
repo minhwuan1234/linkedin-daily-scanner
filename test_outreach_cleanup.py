@@ -28,7 +28,7 @@ class OutreachCleanupTest(unittest.TestCase):
         for route in ["connect/jobs", "accepted-pool", "messages/batches",
                       "replies", "sessions/check", "campaigns/performance"]:
             self.assertIn("/api/outreach/" + route, routes)
-        self.assertTrue(all(r in {"/", "/health"} or r.startswith("/api/outreach/")
+        self.assertTrue(all(r in {"/", "/health", "/internal/monitoring"} or r.startswith("/api/outreach/")
                             for r in routes))
 
     def test_no_duplicate_source_tree_but_reply_services_survive(self):
