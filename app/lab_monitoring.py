@@ -185,6 +185,18 @@ def batch_workload(row: dict) -> str:
     return (WORKLOAD_CLASS + " · " + label + (f" ({size} hồ sơ)" if size else ""))[:200]
 
 
+def batch_items(row: dict) -> dict | None:
+    """Profiles processed in a finished batch and how many LinkedIn confirmed.
+
+    success_count only counts connect attempts whose result the worker confirmed on LinkedIn
+    (invitation pending, already pending or already connected), so Lab's success rate reflects
+    the platform's confirmation, not just the batch finishing."""
+    total = _int(row.get("processed_count"))
+    if total <= 0:
+        return None
+    return {"total": total, "succeeded": min(total, _int(row.get("success_count")))}
+
+
 def _run(job: str, run_id: str, status: str, start: datetime | None, end: datetime | None, *,
          workload: str = "", parent_run_id: str | None = None) -> dict:
     run = {"job": job, "runId": run_id, "workload": workload, "status": status,
@@ -271,7 +283,11 @@ def job_runs(steps: dict, current: datetime, truncated: set, limit: int = RUN_LI
         outcome = _outcome(row, ("completed",), ("failed",), "started_at", ("completed_at",))
         if not outcome or not (recent(outcome) or run_id in wanted):
             continue
-        runs.append(_run(MAIN_JOB, run_id, outcome[0], outcome[1], outcome[2], workload=batch_workload(row)))
+        main = _run(MAIN_JOB, run_id, outcome[0], outcome[1], outcome[2], workload=batch_workload(row))
+        items = batch_items(row) if outcome[0] != "running" else None
+        if items:
+            main["items"] = items
+        runs.append(main)
     runs += children
 
     runs.sort(key=lambda r: r["endedAt"] or r["startedAt"] or "", reverse=True)
