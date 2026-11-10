@@ -248,19 +248,35 @@ class ReportTests(unittest.TestCase):
 
 
 class StartedAtTests(unittest.TestCase):
-    def test_marking_start_disables_itself_when_the_column_is_missing(self):
+    def setUp(self):
         from app import outreach_result_store as store
-        store._TARGET_STARTED_AT_AVAILABLE = True
-        client = MagicMock()
-        store.mark_connect_target_started(client, "t1")
-        client.table.return_value.update.assert_called_once()
-        self.assertIn("started_at", client.table.return_value.update.call_args.args[0])
-        client.table.return_value.update.return_value.eq.return_value.execute.side_effect = RuntimeError("no column")
-        store.mark_connect_target_started(client, "t2")
-        self.assertFalse(store._TARGET_STARTED_AT_AVAILABLE)
-        store.mark_connect_target_started(client, "t3")
-        self.assertEqual(client.table.return_value.update.call_count, 2)
-        store._TARGET_STARTED_AT_AVAILABLE = True
+        self.store = store
+        store._started_at_retry_after = 0.0
+        self.addCleanup(setattr, store, "_started_at_retry_after", 0.0)
+        self.now = [1000.0]
+        self.client = MagicMock()
+        self.update = self.client.table.return_value.update
+
+    def mark(self, target_id):
+        self.store.mark_connect_target_started(self.client, target_id, clock=lambda: self.now[0])
+
+    def test_saves_the_start_time(self):
+        self.mark("t1")
+        self.update.assert_called_once()
+        self.assertIn("started_at", self.update.call_args.args[0])
+
+    def test_missing_column_pauses_then_retries_without_restart(self):
+        execute = self.update.return_value.eq.return_value.execute
+        execute.side_effect = RuntimeError("column started_at does not exist")
+        self.mark("t1")
+        self.mark("t2")
+        self.assertEqual(self.update.call_count, 1)
+        # The SQL is applied meanwhile; after the pause the worker saves again.
+        execute.side_effect = None
+        self.now[0] += self.store.STARTED_AT_RETRY_SECONDS + 1
+        self.mark("t3")
+        self.mark("t4")
+        self.assertEqual(self.update.call_count, 3)
 
 
 class RouteTests(unittest.TestCase):

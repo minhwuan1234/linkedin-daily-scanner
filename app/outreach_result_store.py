@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from datetime import datetime, timezone
 
 from supabase import Client, create_client
@@ -29,18 +30,23 @@ class OutreachResultStoreError(
 
 
 # started_at on outreach_job_targets is optional (outreach_connect_target_started_at.sql).
-# AI Agent Lab uses it to time each connect attempt; without the column the worker carries on.
-_TARGET_STARTED_AT_AVAILABLE = True
+# AI Agent Lab uses it to time each connect attempt. When saving fails (column not created
+# yet), the worker skips it for 10 minutes and then tries again, so applying the SQL later takes
+# effect without restarting the worker.
+STARTED_AT_RETRY_SECONDS = 600
+_started_at_retry_after = 0.0
 
 
 def mark_connect_target_started(
     client: Client,
     target_id: str,
+    *,
+    clock=time.monotonic,
 ) -> None:
     """Best-effort start time for one connect attempt; never blocks the connect itself."""
-    global _TARGET_STARTED_AT_AVAILABLE
+    global _started_at_retry_after
 
-    if not _TARGET_STARTED_AT_AVAILABLE or not target_id:
+    if not target_id or clock() < _started_at_retry_after:
         return
 
     try:
@@ -51,10 +57,11 @@ def mark_connect_target_started(
             .execute()
         )
     except Exception as exc:
-        _TARGET_STARTED_AT_AVAILABLE = False
+        _started_at_retry_after = clock() + STARTED_AT_RETRY_SECONDS
         print(
             "Connect target started_at not saved "
-            "(apply outreach_connect_target_started_at.sql):",
+            "(apply outreach_connect_target_started_at.sql); "
+            f"retrying in {STARTED_AT_RETRY_SECONDS // 60} minutes:",
             type(exc).__name__,
         )
 

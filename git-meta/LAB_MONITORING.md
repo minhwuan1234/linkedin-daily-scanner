@@ -8,7 +8,10 @@
 1. Railway → this service → Variables: `LAB_MONITORING_TOKEN` = a random string of at least 32
    characters. Redeploy.
 2. Supabase (outreach project) → SQL editor: run `outreach_connect_target_started_at.sql`
-   (optional; it times each connect attempt).
+   (optional; it times each connect attempt). The connect worker runs on the worker Mac, not
+   on Railway: pull the latest code there and restart the connect worker once. Afterwards,
+   if the SQL is applied later, the worker picks the column up within 10 minutes without a
+   restart. Only connect attempts made from then on have a start time.
 3. AI Agent Lab → Settings → Monitoring → "+ Kết nối tool": the service URL and the same token.
    Lab detects the Main Job, sub-jobs and targets from the report.
 
