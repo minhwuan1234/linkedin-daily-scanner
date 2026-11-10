@@ -154,6 +154,8 @@ class JobRunsTests(unittest.TestCase):
         self.assertEqual(runs["connect:j2"]["status"], "running")
         self.assertIsNone(runs["connect:j2"]["endedAt"])
         self.assertNotIn("connect:j3", runs)
+        self.assertEqual(batch["items"], {"total": 30, "succeeded": 28}, "profiles LinkedIn confirmed")
+        self.assertNotIn("items", runs["connect:j2"], "a running batch has no final count")
 
     def test_every_step_links_back_to_its_connect_batch(self):
         runs = self.by_id()
@@ -367,10 +369,13 @@ class UiSampleTests(unittest.TestCase):
         from app.outreach_ui_samples import p95
         samples = [{"metric": "responseTime", "ms": v} for v in range(1, 21)] + [{"metric": "clickLatency", "ms": 35.5}]
         data = build_report(FakeClient(tables()), 7, now=lambda: NOW, ui_samples=samples)
-        self.assertEqual(data["performanceKpis"]["responseTime"], {"p95Ms": 19, "samples": 20})
-        self.assertEqual(data["performanceKpis"]["clickLatency"], {"p95Ms": 35.5, "samples": 1})
+        self.assertEqual(data["performanceKpis"]["responseTime"], {"p95Ms": 19, "samples": 20, "precision": "exact"})
+        self.assertEqual(data["performanceKpis"]["clickLatency"], {"p95Ms": 35.5, "samples": 1, "precision": "exact"})
         self.assertIn("Start Connect", data["profile"]["kpiDescriptions"]["responseTime"])
-        self.assertEqual(p95([]), {"p95Ms": None, "samples": 0})
+        self.assertIn("Queue & Send", data["profile"]["kpiDescriptions"]["responseTime"])
+        self.assertEqual(data["performanceKpis"]["standard"], "ui-kpi-v2")
+        self.assertEqual(data["performanceKpis"]["responseTime"]["precision"], "exact")
+        self.assertEqual(p95([]), {"p95Ms": None, "samples": 0, "precision": "exact"})
         self.assertEqual(report()["performanceKpis"]["clickLatency"]["samples"], 0)
 
 
@@ -383,3 +388,13 @@ class DashboardTimingTests(unittest.TestCase):
         self.assertIn('sendLabUiSample("clickLatency", labStartedAt)', handler)
         self.assertIn('sendLabUiSample("responseTime", labStartedAt)', handler)
         self.assertLess(handler.index("renderOutreachJob("), handler.index('sendLabUiSample("responseTime"'))
+
+    def test_queue_and_send_sends_both_timings_after_the_server_accepts(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("frontend").joinpath("app.js").read_text(encoding="utf8")
+        queue = source[source.index("async function queueMessageBatchForSending"):]
+        queue = queue[:queue.index("\nasync function ", 10)]
+        self.assertIn('sendLabUiSample("clickLatency", labStartedAt)', queue)
+        self.assertLess(queue.index("closeMessageSendModal();"), queue.index('sendLabUiSample("responseTime", labStartedAt)'))
+        self.assertLess(queue.index("!response.ok"), queue.index('sendLabUiSample("responseTime"'), "only after the server accepted")
+        self.assertIn("labActionStart(event)", source[source.index("els.messageSendConfirmButton.addEventListener"):][:300])

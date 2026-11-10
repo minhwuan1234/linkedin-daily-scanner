@@ -1,8 +1,11 @@
-"""Browser UI timings for AI Agent Lab (Tốc độ phản hồi / Độ nhạy thao tác).
+"""Browser UI timings for AI Agent Lab (Tốc độ phản hồi / Độ nhạy thao tác), standard ui-kpi-v2.
 
-The dashboard measures one action, "Start Connect", and posts two samples:
-  clickLatency  click → the button shows "Creating job..." (second animation frame)
-  responseTime  click → the new Connect batch is shown on the dashboard
+The dashboard times its two send actions, "Start Connect" and "Queue & Send" (message batch):
+  clickLatency  click → the button shows "Creating job..." / "Queueing..." (second animation frame)
+  responseTime  click → the server accepted the work: the new Connect batch is shown / the batch
+                is queued and the dialog closes. This is the UI response only; LinkedIn's
+                confirmation that an invitation or message was sent comes later from the workers
+                (sub-jobs and the confirmed items of each Connect batch).
 
 Only the metric name, the duration and the time are stored: in Supabase table
 outreach_ui_samples (outreach_ui_samples.sql) so samples survive redeploys, and in memory as a
@@ -24,9 +27,11 @@ PER_HOUR = 60
 MEMORY = 5000
 READ_LIMIT = 5000
 
+KPI_STANDARD = "ui-kpi-v2"
 KPI_DESCRIPTIONS = {
-    "responseTime": "Bấm 'Start Connect' → Connect batch mới hiển thị trên dashboard (đo trong trình duyệt)",
-    "clickLatency": "Bấm 'Start Connect' → nút chuyển sang 'Creating job...' (đo trong trình duyệt)",
+    "responseTime": "Bấm 'Start Connect' / 'Queue & Send' → hệ thống nhận việc (batch mới hiện ra / batch tin nhắn vào hàng chờ). "
+                    "Chưa gồm việc LinkedIn xác nhận đã gửi.",
+    "clickLatency": "Bấm 'Start Connect' / 'Queue & Send' → nút đã chuyển sang 'Creating job...' / 'Queueing...'",
 }
 
 
@@ -94,8 +99,8 @@ def p95(values: list) -> dict:
     """Nearest-rank P95 in milliseconds, with the sample count."""
     ordered = sorted(v for v in values if isinstance(v, (int, float)) and v >= 0)
     if not ordered:
-        return {"p95Ms": None, "samples": 0}
-    return {"p95Ms": round(ordered[max(0, -(-95 * len(ordered) // 100) - 1)], 1), "samples": len(ordered)}
+        return {"p95Ms": None, "samples": 0, "precision": "exact"}
+    return {"p95Ms": round(ordered[max(0, -(-95 * len(ordered) // 100) - 1)], 1), "samples": len(ordered), "precision": "exact"}
 
 
 def performance_kpis(samples: list) -> dict:
@@ -109,4 +114,4 @@ def performance_kpis(samples: list) -> dict:
                 continue
         return out
 
-    return {"responseTime": p95(values("responseTime")), "clickLatency": p95(values("clickLatency"))}
+    return {"standard": KPI_STANDARD, "responseTime": p95(values("responseTime")), "clickLatency": p95(values("clickLatency"))}

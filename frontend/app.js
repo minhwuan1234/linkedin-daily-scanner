@@ -5751,7 +5751,8 @@ function closeMessageSendModal() {
 
 async function queueMessageBatchForSending(
   batchId,
-  messageTemplate
+  messageTemplate,
+  labStartedAt = NaN
 ) {
   const cleanedBatchId = String(
     batchId || ""
@@ -5815,6 +5816,8 @@ async function queueMessageBatchForSending(
   refreshMessageTemplateControls();
 
   renderMessagePreparation();
+  // Độ nhạy thao tác: click → the button shows "Queueing...".
+  sendLabUiSample("clickLatency", labStartedAt);
 
   try {
     const response = await fetch(
@@ -5848,6 +5851,9 @@ async function queueMessageBatchForSending(
     }
 
     closeMessageSendModal();
+    // Tốc độ phản hồi: click → the server queued the batch and the dialog closed. LinkedIn's
+    // confirmation that each message was sent comes later from the worker (sub-job Gửi tin nhắn).
+    sendLabUiSample("responseTime", labStartedAt);
 
     await Promise.all([
       loadMessageBatches(),
@@ -9081,7 +9087,8 @@ if (els.messageSendModal) {
 if (els.messageSendConfirmButton) {
   els.messageSendConfirmButton.addEventListener(
     "click",
-    async () => {
+    async (event) => {
+      const labStartedAt = labActionStart(event);
       const batchId =
         state.messageSendSelectedBatchId;
 
@@ -9097,7 +9104,8 @@ if (els.messageSendConfirmButton) {
 
         await queueMessageBatchForSending(
           batchId,
-          template
+          template,
+          labStartedAt
         );
 
       } catch (error) {

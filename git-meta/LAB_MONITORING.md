@@ -42,17 +42,30 @@ linked back to the batch they came from:
   tables are read with only ids, statuses and timestamps.
 - Optional targets: `LAB_JOB_TARGETS_MINUTES='{"Connect batch": 240}'` (minutes, per job).
 
-## Tốc độ phản hồi / Độ nhạy thao tác
+## Tốc độ phản hồi / Độ nhạy thao tác (standard ui-kpi-v2)
 
-The dashboard times one action, **Start Connect** (Connect page), in the browser and posts
-`{"metric", "ms"}` to `POST /api/outreach/ui-samples` (rate-limited per IP, metric name and
-duration only):
+The dashboard times its two send actions in the browser, **Start Connect** (Connect page) and
+**Queue & Send** (message batch dialog), and posts `{"metric", "ms"}` to
+`POST /api/outreach/ui-samples` (rate-limited per IP, metric name and duration only):
 
-- `clickLatency` (Độ nhạy thao tác): click → the button shows "Creating job...".
-- `responseTime` (Tốc độ phản hồi): click → the new Connect batch is shown.
+- `clickLatency` (Độ nhạy thao tác, target 200 ms): click → the button shows "Creating job..." /
+  "Queueing...".
+- `responseTime` (Tốc độ phản hồi, target 2.5 s): click → the server accepted the work (the new
+  Connect batch is shown / the message batch is queued and the dialog closes).
 
-Both end at the second animation frame after the change, so the browser had a chance to paint
-it. Hidden tabs are skipped. The report sends exact P95 values (nearest rank) for the selected
-window as `performanceKpis`, and the descriptions as `profile.kpiDescriptions`. Lab compares
-them with 2.5 s / 200 ms unless a target is set in the tool settings. Connect batches are started
-a few times a week, so the 20-sample minimum may take a while; lower it per tool in Lab if needed.
+Both start at the click event's time and end at the second animation frame after the change, so
+the browser had a chance to paint it. Hidden tabs are skipped. The report sends exact P95 values
+(nearest rank) for the window with `performanceKpis.standard = "ui-kpi-v2"` and
+`precision: "exact"`.
+
+**UI response vs LinkedIn's confirmation.** `responseTime` is only the UI/server response. Whether
+LinkedIn confirmed an invitation or a message is checked later by the workers on LinkedIn itself
+(invitation pending; message visible in the conversation). It appears in Lab as:
+
+- the sub-jobs *Gửi lời mời connect* and *Gửi tin nhắn* (status and time of each attempt);
+- `items: {total, succeeded}` on each finished Connect batch run: profiles processed and
+  profiles LinkedIn confirmed (`processed_count`, `success_count`). Lab's Tỷ lệ thành công counts
+  these confirmed profiles, so a batch that finished with rejected profiles no longer shows 100%.
+
+Connect batches are started a few times a week, so the 20-sample minimum may take a while;
+lower it per tool in Lab if needed.
