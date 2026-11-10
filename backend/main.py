@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from backend.dashboard_pages import router as dashboard_pages_router
 from app.outreach_campaign_cache import campaign_cache
@@ -92,6 +92,8 @@ from app.outreach_reply_send_store import (
 from app.outreach_worker_activity import get_outreach_worker_activity
 from app.outreach_dashboard_store import get_outreach_client
 from app.lab_monitoring import build_report as build_lab_report, safe_reason
+from app.outreach_ui_samples import UiSamples
+from starlette.concurrency import run_in_threadpool
 
 
 
@@ -179,6 +181,27 @@ def root() -> RedirectResponse:
 # AI AGENT LAB MONITORING (read-only)
 # =========================================================
 
+def _optional_outreach_client():
+    try:
+        return get_outreach_client()
+    except Exception:
+        return None
+
+
+UI_SAMPLES = UiSamples(_optional_outreach_client)
+
+
+@app.post("/api/outreach/ui-samples", include_in_schema=False)
+async def record_ui_sample(request: Request):
+    """Browser timing of the 'Start Connect' action for AI Agent Lab: metric name and ms only."""
+    body = await request.body()
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    ip = forwarded or (request.client.host if request.client else "")
+    # Saving to Supabase is a blocking call: keep it off the event loop.
+    status = await run_in_threadpool(UI_SAMPLES.record, body, ip)
+    return Response(status_code=status, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/internal/monitoring", include_in_schema=False)
 def lab_monitoring(request: Request, days: int = 7):
     """Report for AI Agent Lab's Performance tab: job names, statuses, times and batch names.
@@ -199,7 +222,8 @@ def lab_monitoring(request: Request, days: int = 7):
     except Exception as error:
         client_error = safe_reason(error)
         logger.warning("Lab monitoring: Supabase client unavailable: %s", client_error)
-    report = build_lab_report(client, days, worker_activity=get_outreach_worker_activity, client_error=client_error)
+    report = build_lab_report(client, days, worker_activity=get_outreach_worker_activity, client_error=client_error,
+                              ui_samples=UI_SAMPLES.recent(days))
     return JSONResponse(report, headers={"Cache-Control": "private, no-store"})
 
 

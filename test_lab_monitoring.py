@@ -303,6 +303,83 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(response.headers["cache-control"], "private, no-store")
         self.assertEqual(response.json()["profile"]["mainJob"]["job"], MAIN_JOB)
 
+    def test_ui_sample_route_stores_valid_samples_only(self):
+        with patch.object(self.main, "UI_SAMPLES", self.main.UiSamples(None)) as store:
+            ok = self.http.post("/api/outreach/ui-samples", content='{"metric":"clickLatency","ms":48}')
+            bad = self.http.post("/api/outreach/ui-samples", content='{"metric":"x","ms":1}')
+            self.assertEqual((ok.status_code, bad.status_code), (204, 400))
+            self.assertEqual([s["ms"] for s in store.recent(7)], [48.0])
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UiSampleTests(unittest.TestCase):
+    def setUp(self):
+        from app.outreach_ui_samples import UiSamples
+        self.t = [1_794_000_000.0]
+        self.UiSamples = UiSamples
+
+    def store(self, client=None, **kw):
+        return self.UiSamples((lambda: client) if client is not None else None, now=lambda: self.t[0], **kw)
+
+    def test_validates_metric_value_and_size(self):
+        s = self.store()
+        self.assertEqual(s.record('{"metric":"clickLatency","ms":42.26}', "1.1.1.1"), 204)
+        self.assertEqual(s.record('{"metric":"responseTime","ms":1500}', "1.1.1.1"), 204)
+        for body in ('{"metric":"other","ms":1}', '{"metric":"clickLatency","ms":-1}',
+                     '{"metric":"clickLatency","ms":60001}', '{"metric":"clickLatency"}', "nope", "[]",
+                     '{"metric":"clickLatency","ms":NaN}'):
+            with self.subTest(body):
+                self.assertEqual(s.record(body, "1.1.1.1"), 400)
+        self.assertEqual(s.record("x" * 201, "1.1.1.1"), 413)
+        self.assertEqual([x["ms"] for x in s.recent(7)], [42.3, 1500.0])
+
+    def test_rate_limits_per_ip_per_hour(self):
+        s = self.store(per_hour=2)
+        body = '{"metric":"clickLatency","ms":10}'
+        self.assertEqual([s.record(body, "a"), s.record(body, "a"), s.record(body, "a"), s.record(body, "b")], [204, 204, 429, 204])
+        self.t[0] += 3601
+        self.assertEqual(s.record(body, "a"), 204)
+
+    def test_saves_to_supabase_and_reads_it_back(self):
+        client = MagicMock()
+        rows = [{"metric": "responseTime", "ms": 900, "created_at": "2026-11-10T01:00:00+00:00"}]
+        client.table.return_value.select.return_value.gte.return_value.order.return_value.limit.return_value.execute.return_value = SimpleNamespace(data=rows)
+        s = self.store(client)
+        s.record('{"metric":"responseTime","ms":900}', "a")
+        inserted = client.table.return_value.insert.call_args.args[0]
+        self.assertEqual(set(inserted), {"metric", "ms", "created_at"})
+        self.assertEqual(s.recent(7), rows)
+
+    def test_falls_back_to_memory_when_the_table_is_missing(self):
+        client = MagicMock()
+        client.table.return_value.insert.return_value.execute.side_effect = RuntimeError("relation does not exist")
+        client.table.return_value.select.side_effect = RuntimeError("relation does not exist")
+        s = self.store(client)
+        self.assertEqual(s.record('{"metric":"clickLatency","ms":30}', "a"), 204)
+        self.assertEqual([x["ms"] for x in s.recent(7)], [30.0])
+        self.t[0] += 8 * 86400
+        self.assertEqual(s.recent(7), [])
+
+    def test_report_carries_p95_and_descriptions(self):
+        from app.outreach_ui_samples import p95
+        samples = [{"metric": "responseTime", "ms": v} for v in range(1, 21)] + [{"metric": "clickLatency", "ms": 35.5}]
+        data = build_report(FakeClient(tables()), 7, now=lambda: NOW, ui_samples=samples)
+        self.assertEqual(data["performanceKpis"]["responseTime"], {"p95Ms": 19, "samples": 20})
+        self.assertEqual(data["performanceKpis"]["clickLatency"], {"p95Ms": 35.5, "samples": 1})
+        self.assertIn("Start Connect", data["profile"]["kpiDescriptions"]["responseTime"])
+        self.assertEqual(p95([]), {"p95Ms": None, "samples": 0})
+        self.assertEqual(report()["performanceKpis"]["clickLatency"]["samples"], 0)
+
+
+class DashboardTimingTests(unittest.TestCase):
+    def test_start_connect_sends_both_timings(self):
+        from pathlib import Path
+        source = Path(__file__).with_name("frontend").joinpath("app.js").read_text(encoding="utf8")
+        handler = source[source.index("async function createOutreachConnectJob"):]
+        handler = handler[:handler.index("\nasync function ", 10)]
+        self.assertIn('sendLabUiSample("clickLatency", labStartedAt)', handler)
+        self.assertIn('sendLabUiSample("responseTime", labStartedAt)', handler)
+        self.assertLess(handler.index("renderOutreachJob("), handler.index('sendLabUiSample("responseTime"'))

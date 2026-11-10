@@ -6847,6 +6847,37 @@ function startOutreachPolling() {
 
 
 // ---------------------------------------------------------
+// AI AGENT LAB UI TIMINGS
+// ---------------------------------------------------------
+
+// Sends one browser timing for AI Agent Lab, measured from `startedAt` (performance.now()
+// clock) to the frame after the change was painted: the second animation frame runs after the
+// first one had a chance to paint. Hidden tabs are skipped; failures are ignored.
+function sendLabUiSample(metric, startedAt) {
+  if (document.hidden || !Number.isFinite(startedAt)) return;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (document.hidden) return;
+      const ms = performance.now() - startedAt;
+      fetch("/api/outreach/ui-samples", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({metric, ms}),
+        keepalive: true
+      }).catch(() => {});
+    });
+  });
+}
+
+// The submit event's time is the click; fall back to now when a browser reports another clock.
+function labActionStart(event) {
+  const now = performance.now();
+  const stamp = Number(event?.timeStamp);
+  return stamp > 0 && stamp <= now && now - stamp < 10000 ? stamp : now;
+}
+
+
+// ---------------------------------------------------------
 // CREATE CONNECT JOB
 // ---------------------------------------------------------
 
@@ -6855,6 +6886,7 @@ async function createOutreachConnectJob(
   event
 ) {
   event.preventDefault();
+  const labStartedAt = labActionStart(event);
 
   const enteredCampaign = selectedConnectCampaign();
   const campaignName = state.connectCampaigns.find(
@@ -6895,6 +6927,8 @@ async function createOutreachConnectJob(
   state.outreachSubmitting = true;
 
   renderOutreachSubmittingState();
+  // Độ nhạy thao tác: click → the button shows "Creating job...".
+  sendLabUiSample("clickLatency", labStartedAt);
 
 
   if (els.outreachError) {
@@ -6949,6 +6983,8 @@ async function createOutreachConnectJob(
     renderOutreachJob(
       state.outreachCurrentJob
     );
+    // Tốc độ phản hồi: click → the new Connect batch is shown.
+    sendLabUiSample("responseTime", labStartedAt);
 
 
     if (els.outreachUrlInput) {

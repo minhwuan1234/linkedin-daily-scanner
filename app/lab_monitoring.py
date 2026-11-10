@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Iterable
 
 from app.outreach_campaign_identity import connect_batch_label
+from app.outreach_ui_samples import KPI_DESCRIPTIONS, performance_kpis
 
 APP_ID = "outreach"
 ROW_LIMIT = 1000
@@ -396,6 +397,7 @@ def build_profile(sources: dict, sessions: list | None, workers: dict | None, si
         "version": "profile-v1",
         "jobTargets": _job_targets(),
         "inventoryLabels": INVENTORY_LABELS,
+        "kpiDescriptions": dict(KPI_DESCRIPTIONS),
         "mainJob": {
             "title": "Outreach LinkedIn theo Connect batch",
             "job": MAIN_JOB,
@@ -536,7 +538,7 @@ def read_steps(client, sources: dict, current: datetime, errors: dict, truncated
 
 def build_report(client, days: int, *, worker_activity: Callable[[], dict] | None = None,
                  now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
-                 client_error: str | None = None) -> dict:
+                 client_error: str | None = None, ui_samples: list | None = None) -> dict:
     current = now()
     since = datetime(current.year, current.month, current.day, tzinfo=timezone.utc) - timedelta(days=days - 1)
 
@@ -590,6 +592,8 @@ def build_report(client, days: int, *, worker_activity: Callable[[], dict] | Non
             "error": client_error or (next(iter(errors.values())) if errors else None),
         },
         "jobRuns": job_runs(steps, current, step_truncated),
+        # Browser timings of the 'Start Connect' action (app/outreach_ui_samples.py).
+        "performanceKpis": performance_kpis(ui_samples or []),
         "jobHistory": job_history(sources, since, truncated),
         "jobHistoryAllTime": job_history(sources, None, truncated),
         "inventory": inventory,
