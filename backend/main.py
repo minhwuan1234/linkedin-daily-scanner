@@ -397,7 +397,9 @@ async def create_outreach_connect_job(
     batch_name = batch_name.strip()
 
     try:
-        result = create_connect_job(
+        # Supabase calls block; run them off the event loop so other requests keep moving.
+        result = await run_in_threadpool(
+            create_connect_job,
             cleaned_urls,
             display_name=display_name,
             batch_name=batch_name,

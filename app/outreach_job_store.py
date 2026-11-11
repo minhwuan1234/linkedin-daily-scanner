@@ -17,6 +17,8 @@ JOB_TABLE = "outreach_jobs"
 PROSPECT_TABLE = "outreach_prospects"
 TARGET_TABLE = "outreach_job_targets"
 MAX_CONNECT_URLS = 150
+# URLs per lookup query; keeps the GET query string well under proxy limits.
+PROSPECT_LOOKUP_CHUNK = 50
 
 LOCAL_TIMEZONE = ZoneInfo(
     "Asia/Ho_Chi_Minh"
@@ -306,41 +308,24 @@ def _build_job_code(
 # =========================================================
 
 
-def _find_existing_prospect(
+def _find_existing_prospect_urls(
     *,
     client: Client,
-    normalized_url: str,
-) -> dict | None:
-    response = (
-        client.table(
-            PROSPECT_TABLE
+    normalized_urls: list[str],
+) -> set[str]:
+    """Normalized URLs that already have a prospect, in a few queries for the whole input."""
+    found: set[str] = set()
+    for offset in range(0, len(normalized_urls), PROSPECT_LOOKUP_CHUNK):
+        chunk = normalized_urls[offset:offset + PROSPECT_LOOKUP_CHUNK]
+        response = (
+            client.table(PROSPECT_TABLE)
+            .select("normalized_url")
+            .in_("normalized_url", chunk)
+            .execute()
         )
-        .select(
-            "id,normalized_url"
-        )
-        .eq(
-            "normalized_url",
-            normalized_url,
-        )
-        .limit(
-            1
-        )
-        .execute()
-    )
-
-    rows = (
-        response.data
-        if isinstance(
-            response.data,
-            list,
-        )
-        else []
-    )
-
-    if not rows:
-        return None
-
-    return rows[0]
+        rows = response.data if isinstance(response.data, list) else []
+        found.update(str(row.get("normalized_url")) for row in rows)
+    return found
 
 
 # =========================================================
@@ -460,65 +445,42 @@ def create_connect_job(
     )
 
     # -----------------------------------------------------
-    # COUNTERS
+    # PROCESS INPUT
     # -----------------------------------------------------
+    # A few batched writes instead of three round trips per URL: 100 URLs used to take
+    # ~300 sequential Supabase calls (~45 s), which the user waited on after Start Connect.
 
-    target_count = 0
     duplicate_count = 0
     invalid_count = 0
 
     seen_in_input: set[str] = set()
-
-    # -----------------------------------------------------
-    # PROCESS INPUT
-    # -----------------------------------------------------
+    candidates: list[tuple[str, str, str]] = []
 
     for raw_url, company_name in entries:
-        normalized_url = (
-            normalize_linkedin_url(
-                raw_url
-            )
-        )
-
-        # ---------------------------------------------
-        # INVALID
-        # ---------------------------------------------
+        normalized_url = normalize_linkedin_url(raw_url)
 
         if not normalized_url:
             invalid_count += 1
             continue
 
-        # ---------------------------------------------
-        # DUPLICATE INSIDE CURRENT INPUT
-        # ---------------------------------------------
-
         if normalized_url in seen_in_input:
             duplicate_count += 1
             continue
 
-        seen_in_input.add(
-            normalized_url
-        )
+        seen_in_input.add(normalized_url)
+        candidates.append((raw_url, normalized_url, company_name))
 
-        # ---------------------------------------------
-        # DUPLICATE FROM PREVIOUS JOBS
-        # ---------------------------------------------
+    # Duplicates from previous jobs.
+    existing_urls = _find_existing_prospect_urls(
+        client=active_client,
+        normalized_urls=[normalized for _, normalized, _ in candidates],
+    )
+    new_entries = [entry for entry in candidates if entry[1] not in existing_urls]
+    duplicate_count += len(candidates) - len(new_entries)
 
-        existing = (
-            _find_existing_prospect(
-                client=active_client,
-                normalized_url=normalized_url,
-            )
-        )
-
-        if existing is not None:
-            duplicate_count += 1
-            continue
-
-        # ---------------------------------------------
-        # CREATE PROSPECT
-        # ---------------------------------------------
-
+    # Prospects and targets.
+    prospect_rows: list[dict] = []
+    for raw_url, normalized_url, company_name in new_entries:
         prospect_data = {
             "linkedin_url": raw_url,
             "normalized_url": normalized_url,
@@ -527,54 +489,53 @@ def create_connect_job(
         }
         if company_name:
             prospect_data["company_name"] = company_name
+        prospect_rows.append(prospect_data)
 
+    prospect_ids: list[str] = []
+    if prospect_rows:
         prospect_response = (
-            active_client.table(
-                PROSPECT_TABLE
-            )
-            .insert(prospect_data)
+            active_client.table(PROSPECT_TABLE)
+            .insert(prospect_rows)
             .execute()
         )
-
-        prospect_rows = (
-            prospect_response.data
-            if isinstance(
-                prospect_response.data,
-                list,
-            )
-            else []
-        )
-
-        if not prospect_rows:
+        inserted = prospect_response.data if isinstance(prospect_response.data, list) else []
+        ids_by_url = {
+            str(row.get("normalized_url")): str(row["id"])
+            for row in inserted
+            if row.get("id")
+        }
+        missing = [row["normalized_url"] for row in prospect_rows if row["normalized_url"] not in ids_by_url]
+        if missing:
             raise OutreachJobStoreError(
                 "Could not create prospect "
-                f"for {normalized_url}"
+                f"for {missing[0]}"
             )
+        prospect_ids = [ids_by_url[row["normalized_url"]] for row in prospect_rows]
 
-        prospect_id = str(
-            prospect_rows[0]["id"]
-        )
-
-        # ---------------------------------------------
-        # CREATE TARGET
-        # ---------------------------------------------
-
-        (
-            active_client.table(
-                TARGET_TABLE
+        try:
+            (
+                active_client.table(TARGET_TABLE)
+                .insert([
+                    {
+                        "job_id": job_id,
+                        "prospect_id": prospect_id,
+                        "status": "pending",
+                        "retry_count": 0,
+                    }
+                    for prospect_id in prospect_ids
+                ])
+                .execute()
             )
-            .insert(
-                {
-                    "job_id": job_id,
-                    "prospect_id": prospect_id,
-                    "status": "pending",
-                    "retry_count": 0,
-                }
-            )
-            .execute()
-        )
+        except Exception:
+            # Without targets these prospects would block the same URLs as "duplicates"
+            # in every later job, so remove them before reporting the failure.
+            try:
+                active_client.table(PROSPECT_TABLE).delete().in_("id", prospect_ids).execute()
+            except Exception:
+                pass
+            raise
 
-        target_count += 1
+    target_count = len(prospect_ids)
 
     # -----------------------------------------------------
     # VALIDATE COUNTERS
