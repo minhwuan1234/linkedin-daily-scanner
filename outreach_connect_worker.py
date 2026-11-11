@@ -334,7 +334,7 @@ def process_account_turn(
 
             mark_connect_target_started(
                 client,
-                target.id,
+                target.target_id,
             )
 
             try:
@@ -1365,7 +1365,7 @@ def process_account_turn(
 
             mark_connect_target_started(
                 client,
-                target.id,
+                target.target_id,
             )
 
             try:
