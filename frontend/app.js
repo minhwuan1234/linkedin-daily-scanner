@@ -6859,20 +6859,33 @@ function startOutreachPolling() {
 // Sends one browser timing for AI Agent Lab, measured from `startedAt` (performance.now()
 // clock) to the frame after the change was painted: the second animation frame runs after the
 // first one had a chance to paint. Hidden tabs are skipped; failures are ignored.
+// Ends at the second animation frame after the change is shown. A hidden tab paints nothing and
+// pauses animation frames, so when the tab is (or becomes) hidden the sample ends at that moment:
+// the server has already answered, which is what Tốc độ phản hồi measures.
 function sendLabUiSample(metric, startedAt) {
-  if (document.hidden || !Number.isFinite(startedAt)) return;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (document.hidden) return;
-      const ms = performance.now() - startedAt;
-      fetch("/api/outreach/ui-samples", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({metric, ms}),
-        keepalive: true
-      }).catch(() => {});
-    });
-  });
+  if (!Number.isFinite(startedAt)) return;
+  let sent = false;
+  const send = () => {
+    if (sent) return;
+    sent = true;
+    document.removeEventListener("visibilitychange", onHidden);
+    const ms = performance.now() - startedAt;
+    fetch("/api/outreach/ui-samples", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({metric, ms}),
+      keepalive: true
+    }).catch(() => {});
+  };
+  const onHidden = () => {
+    if (document.hidden) send();
+  };
+  if (document.hidden) {
+    send();
+    return;
+  }
+  document.addEventListener("visibilitychange", onHidden);
+  requestAnimationFrame(() => requestAnimationFrame(send));
 }
 
 // The submit event's time is the click; fall back to now when a browser reports another clock.

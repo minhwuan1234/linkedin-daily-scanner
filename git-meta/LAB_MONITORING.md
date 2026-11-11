@@ -54,7 +54,9 @@ The dashboard times its two send actions in the browser, **Start Connect** (Conn
   Connect batch is shown / the message batch is queued and the dialog closes).
 
 Both start at the click event's time and end at the second animation frame after the change, so
-the browser had a chance to paint it. Hidden tabs are skipped. The report sends exact P95 values
+the browser had a chance to paint it. A hidden tab paints nothing and pauses animation frames,
+so when the tab is or becomes hidden (for example the user switched to AI Agent Lab while the batch
+was being created) the sample ends at that moment instead of being dropped. The report sends exact P95 values
 (nearest rank) for the window with `performanceKpis.standard = "ui-kpi-v2"` and
 `precision: "exact"`.
 
