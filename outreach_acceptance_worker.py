@@ -347,6 +347,9 @@ class OutreachAcceptanceWorker:
                         account_id
                     )
                 )
+                if not account.enabled:
+                    print(f"Skipping paused account: {account_id}", flush=True)
+                    continue
 
                 # -----------------------------------------
                 # ACCOUNT SWITCH DELAY

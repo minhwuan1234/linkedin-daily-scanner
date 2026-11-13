@@ -1847,6 +1847,9 @@ def _run_once(account_id: str) -> None:
 
     pool = OutreachAccountPool()
     account = pool.get_account(account_id)
+    if not account.enabled:
+        logger.info("Skipping paused account: %s", account_id)
+        return
     browser = account.create_browser_manager()
     client = get_outreach_supabase_client()
 
@@ -1908,7 +1911,7 @@ def run_all_accounts() -> list[str]:
     """Scan all registered profiles sequentially, continuing after account errors."""
 
     failed_accounts: list[str] = []
-    account_ids = [account.account_id for account in OutreachAccountPool().accounts]
+    account_ids = [account.account_id for account in OutreachAccountPool().accounts if account.enabled]
     for account_id in account_ids:
         logger.info("Reply check starting | account=%s", account_id)
         try:

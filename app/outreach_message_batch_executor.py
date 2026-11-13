@@ -615,6 +615,12 @@ def execute_queued_message_batch(
                         )
                     )
 
+                    if account is not None and not account.enabled:
+                        results.append({"ok": False, "target_id": target_id,
+                                        "account_id": account_id, "status": "prepared",
+                                        "error": "Assigned Outreach account is paused."})
+                        continue
+
                     try:
                         claim_prepared_message_target(
                             target_id,

@@ -347,6 +347,8 @@ async def process_account(
                 "or the shell environment, then restart the worker."
             ) from exc
 
+        if not getattr(account, "enabled", True):
+            raise RuntimeError(f"Outreach account is paused: {account_id}")
         logger.info("Checking LinkedIn session: %s", account_id)
         # Playwright/browser manager in this repo is synchronous.
         # Run it off the asyncio event loop so the Realtime websocket stays

@@ -102,10 +102,17 @@ class OutreachScheduler:
 
         state = self.load_state()
 
-        if state.turn_is_complete:
+        if state.turn_is_complete or not self.account_pool.get_account(state.current_account_id).enabled:
             state = self.move_to_next_account(
                 state=state
             )
+
+        for _ in range(len(self.account_pool.accounts)):
+            if self.account_pool.get_account(state.current_account_id).enabled:
+                break
+            state = self.move_to_next_account(state=state)
+        else:
+            raise RuntimeError("No enabled outreach accounts available")
 
         account = self.account_pool.get_account(
             state.current_account_id

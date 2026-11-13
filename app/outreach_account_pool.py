@@ -206,6 +206,8 @@ class OutreachAccount:
     def create_browser_manager(
         self,
     ) -> LinkedInBrowserManager:
+        if not self.enabled:
+            raise RuntimeError(f"Outreach account is paused: {self.account_id}")
         return LinkedInBrowserManager(
             settings=(
                 self.create_browser_settings()
@@ -322,7 +324,7 @@ class OutreachAccountPool:
                     .profile_root
                     / account_id
                 ).resolve(),
-                enabled=True,
+                enabled=account_id != "outreach_account_02",
             )
             for account_id
             in self.settings.account_ids

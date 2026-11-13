@@ -37,6 +37,9 @@ def run_once(account_id: str, *, quiet_empty: bool = False) -> dict[str, int]:
 
     pool = OutreachAccountPool()
     account = pool.get_account(account_id)
+    if not account.enabled:
+        logger.info("Skipping paused account: %s", account_id)
+        return {"sent": 0, "failed": 0}
     client = get_outreach_supabase_client()
     jobs = load_queued_reply_sends(
         account_id=account.account_id,
