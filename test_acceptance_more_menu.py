@@ -98,6 +98,7 @@ class AcceptanceMoreMenuTests(unittest.TestCase):
         self.checker._click_locator.assert_not_called()
 
     def test_successful_more_check_only_reads_remove_connection(self):
+        self.checker._has_pending_in_open_menu = MagicMock(return_value=False)
         self.checker._is_profile_not_found = MagicMock(return_value=False)
         self.checker._has_pending_state = MagicMock(return_value=False)
         self.checker._open_acceptance_ellipsis_menu = MagicMock(return_value=False)
@@ -152,6 +153,7 @@ class AcceptanceMoreMenuTests(unittest.TestCase):
         self.assertEqual(result.status, 'check_failed')
 
     def test_opened_menu_without_removal_is_not_accepted_by_fallback(self):
+        self.checker._has_pending_in_open_menu = MagicMock(return_value=False)
         self.checker._is_profile_not_found = MagicMock(return_value=False)
         self.checker._has_pending_state = MagicMock(return_value=False)
         self.checker._open_acceptance_ellipsis_menu = MagicMock(return_value=True)
@@ -161,6 +163,18 @@ class AcceptanceMoreMenuTests(unittest.TestCase):
             browser=SimpleNamespace(open_linkedin_url=MagicMock(return_value=self.page)),
             linkedin_url=self.page.url)
         self.assertEqual(result.status, 'declined_or_unknown')
+
+    def test_pending_in_ellipsis_menu_takes_precedence_over_acceptance(self):
+        self.checker._is_profile_not_found = MagicMock(return_value=False)
+        self.checker._has_pending_state = MagicMock(return_value=False)
+        self.checker._open_acceptance_ellipsis_menu = MagicMock(return_value=True)
+        self.checker._has_pending_in_open_menu = MagicMock(return_value=True)
+        self.checker._has_remove_connection_in_ellipsis_menu = MagicMock()
+        result = self.checker.check_profile_acceptance(
+            browser=SimpleNamespace(open_linkedin_url=MagicMock(return_value=self.page)),
+            linkedin_url=self.page.url)
+        self.assertEqual(result.status, 'pending')
+        self.checker._has_remove_connection_in_ellipsis_menu.assert_not_called()
 
     def test_both_menu_paths_accept_only_exact_removal_labels(self):
         menus = MagicMock()

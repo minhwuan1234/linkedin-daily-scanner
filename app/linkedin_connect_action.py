@@ -750,6 +750,7 @@ def _click_ellipsis_button(
     page: Page,
     *,
     deadline: float,
+    profile_only: bool = False,
 ) -> bool:
     """
     Restore the existing three-dot / overflow action path.
@@ -784,7 +785,8 @@ def _click_ellipsis_button(
         _check_deadline(deadline)
 
         try:
-            candidates = page.locator(selector)
+            candidates = (page.locator("main").locator(selector)
+                          if profile_only else page.locator(selector))
 
             for index in range(candidates.count()):
                 _check_deadline(deadline)
@@ -2062,6 +2064,7 @@ def _confirm_after_connect_click(
     )
 
     send_attempted = False
+    menu_checked = False
 
     while (
         time.monotonic()
@@ -2121,6 +2124,12 @@ def _confirm_after_connect_click(
                 "Send without note was NOT clicked"
             )
 
+        if not menu_checked:
+            menu_checked = True
+            if _pending_via_profile_ellipsis(page, deadline=deadline):
+                print("CONNECT CONFIRMED: Pending in profile menu")
+                return "invitation_sent"
+
         _sleep(
             page,
             deadline=deadline,
@@ -2144,12 +2153,37 @@ def _confirm_after_connect_click(
 
         return "invitation_sent"
 
+    if deadline - time.monotonic() > 0.5 and _pending_via_profile_ellipsis(page, deadline=deadline):
+        print("CONNECT CONFIRMED: Pending in profile menu on final check")
+        return "invitation_sent"
+
     print(
         "CONNECT NOT CONFIRMED: "
         "Pending state was not detected"
     )
 
     return None
+
+
+def _pending_via_profile_ellipsis(page: Page, *, deadline: float) -> bool:
+    """Open the profile's overflow menu and read its Pending item."""
+    if not _click_ellipsis_button(page, deadline=deadline, profile_only=True):
+        return False
+    try:
+        for selector in ("main", "[role='menu']"):
+            scopes = page.locator(selector)
+            for i in range(scopes.count()):
+                items = scopes.nth(i).get_by_text("Pending", exact=True)
+                for j in range(items.count()):
+                    if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
+                        print("PENDING CHECK: Pending in profile menu")
+                        return True
+        return False
+    finally:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
 
 
 # =========================================================
@@ -2209,6 +2243,12 @@ def connect_profile(
                 final_url=page.url,
                 status="pending",
                 message="Connection invitation was already sent.",
+            )
+
+        if _pending_via_profile_ellipsis(page, deadline=deadline):
+            return LinkedInConnectResult(
+                linkedin_url=cleaned_url, final_url=page.url, status="pending",
+                message="Connection invitation is pending in the profile menu.",
             )
 
         if _has_first_degree_state(page, deadline=deadline):

@@ -392,7 +392,22 @@ def _visible_menu_exists(
     except Exception:
         pass
 
-    return _visible_removal_action_exists(page, deadline=deadline)
+    return (_visible_removal_action_exists(page, deadline=deadline)
+            or _has_pending_in_open_menu(page, deadline=deadline))
+
+
+def _has_pending_in_open_menu(page: Page, *, deadline: float) -> bool:
+    """Read an exact Pending item in the profile action menu, without clicking it."""
+    _check_deadline(deadline)
+    for selector in ("main", "[role='menu']"):
+        scopes = page.locator(selector)
+        for i in range(scopes.count()):
+            items = scopes.nth(i).get_by_text("Pending", exact=True)
+            for j in range(items.count()):
+                if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
+                    print("ACCEPTANCE STATE: pending in profile menu")
+                    return True
+    return False
 
 
 def _visible_removal_action_exists(
@@ -1217,6 +1232,10 @@ def check_profile_acceptance(
         if ellipsis_opened:
             inspected_menu = True
 
+            if _has_pending_in_open_menu(page, deadline=deadline):
+                return LinkedInAcceptanceResult(linkedin_url=cleaned_url, final_url=page.url,
+                    status="pending", message="Connection invitation is pending in the profile menu.")
+
             if _has_remove_connection_in_ellipsis_menu(
                 page,
                 deadline=deadline,
@@ -1260,6 +1279,10 @@ def check_profile_acceptance(
 
         if more_opened:
             inspected_menu = True
+
+            if _has_pending_in_open_menu(page, deadline=deadline):
+                return LinkedInAcceptanceResult(linkedin_url=cleaned_url, final_url=page.url,
+                    status="pending", message="Connection invitation is pending in the profile menu.")
 
             if _has_remove_connection_in_more_menu(
                 page,
