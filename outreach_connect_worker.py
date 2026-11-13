@@ -31,6 +31,7 @@ from app.settings import (
     Settings,
     load_settings,
 )
+from app.telemetry import LinkedInOutreachTelemetry
 
 
 TARGET_TABLE = "outreach_job_targets"
@@ -283,6 +284,9 @@ def process_account_turn(
 
     processed = 0
     quota_exhausted = False
+    turn_telemetry = LinkedInOutreachTelemetry(
+        workload=f"{len(batch)} profiles ({getattr(account, 'display_name', account.account_id)})"
+    )
 
     try:
         browser.start()
@@ -481,6 +485,23 @@ def process_account_turn(
                     f"{exc}"
                 ),
                 file=sys.stderr,
+            )
+
+        # F.Learning Dashboard Telemetry
+        if processed > 0:
+            turn_telemetry.record_stage(
+                code="connect_send",
+                name="Gửi lời mời connect",
+                name_en="Send Connect Invitation",
+                duration_ms=int((time.monotonic() - turn_telemetry.t0) * 1000),
+                status="SUCCESS",
+            )
+            turn_telemetry.finish(
+                status="SUCCESS",
+                funnel_snapshot={
+                    "processed": processed,
+                    "invitationSent": processed,
+                },
             )
 
     return AccountTurnResult(
@@ -1307,6 +1328,9 @@ def process_account_turn(
 
     processed = 0
     quota_exhausted = False
+    turn_telemetry = LinkedInOutreachTelemetry(
+        workload=f"{len(batch)} profiles ({getattr(account, 'display_name', account.account_id)})"
+    )
 
     try:
         browser.start()
@@ -1518,6 +1542,23 @@ def process_account_turn(
                     f"{exc}"
                 ),
                 file=sys.stderr,
+            )
+
+        # F.Learning Dashboard Telemetry
+        if processed > 0:
+            turn_telemetry.record_stage(
+                code="connect_send",
+                name="Gửi lời mời connect",
+                name_en="Send Connect Invitation",
+                duration_ms=int((time.monotonic() - turn_telemetry.t0) * 1000),
+                status="SUCCESS",
+            )
+            turn_telemetry.finish(
+                status="SUCCESS",
+                funnel_snapshot={
+                    "processed": processed,
+                    "invitationSent": processed,
+                },
             )
 
     return AccountTurnResult(
