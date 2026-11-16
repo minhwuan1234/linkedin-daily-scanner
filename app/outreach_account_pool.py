@@ -324,7 +324,7 @@ class OutreachAccountPool:
                     .profile_root
                     / account_id
                 ).resolve(),
-                enabled=account_id != "outreach_account_02",
+                enabled=True,
             )
             for account_id
             in self.settings.account_ids
