@@ -6,6 +6,7 @@ from app.telemetry import LinkedInOutreachTelemetry
 class TestLinkedInTelemetry(unittest.TestCase):
     def setUp(self):
         os.environ["FLEARNING_TELEMETRY_DISABLED"] = "false"
+        os.environ["FLEARNING_TELEMETRY_SYNC"] = "true"
 
     def test_record_stage(self):
         tracker = LinkedInOutreachTelemetry(run_id="test_run_1", workload="10 profiles")
@@ -29,6 +30,15 @@ class TestLinkedInTelemetry(unittest.TestCase):
         ok = tracker.finish("SUCCESS")
         self.assertTrue(ok)
         mock_urlopen.assert_called_once()
+        req = mock_urlopen.call_args[0][0]
+        import json
+        payload = json.loads(req.data.decode("utf-8"))
+        self.assertEqual(payload["schemaVersion"], "2.2")
+        self.assertNotIn("responseTimeMs", payload)
+        self.assertNotIn("clickLatencyMs", payload)
+        self.assertEqual(payload["stages"][0]["stepType"], "NON_AI")
+        self.assertTrue(len(payload["stages"][0]["description"]) > 0)
+        self.assertTrue(len(payload["stages"][0]["summary"]) > 0)
 
     @patch("urllib.request.urlopen")
     def test_zero_crash_on_network_error(self, mock_urlopen):
