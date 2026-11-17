@@ -18,11 +18,8 @@ load_dotenv(
 
 @dataclass(frozen=True)
 class Settings:
-    supabase_url: str
-    supabase_secret_key: str
-
-    outreach_supabase_url: str
-    outreach_supabase_secret_key: str
+    """Application settings; database credentials stay in the environment."""
+    pass
 
 
 def get_required_env(name: str) -> str:
@@ -40,21 +37,4 @@ def get_required_env(name: str) -> str:
 
 
 def load_settings() -> Settings:
-    return Settings(
-        supabase_url=get_required_env(
-            "SUPABASE_URL"
-        ),
-
-        supabase_secret_key=get_required_env(
-            "SUPABASE_SECRET_KEY"
-        ),
-
-        outreach_supabase_url=get_required_env(
-            "OUTREACH_SUPABASE_URL"
-        ),
-
-        outreach_supabase_secret_key=get_required_env(
-            "OUTREACH_SUPABASE_SECRET_KEY"
-        ),
-
-    )
+    return Settings()

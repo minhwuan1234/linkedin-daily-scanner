@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.linkedin_connect_action import (
     LinkedInConnectResult,
@@ -72,22 +72,7 @@ def mark_connect_target_started(
 
 
 def get_outreach_supabase_client() -> Client:
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachResultStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachResultStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================
@@ -503,22 +488,7 @@ def save_connect_result(
 
 
 def get_outreach_supabase_client() -> Client:
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachJobStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachJobStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

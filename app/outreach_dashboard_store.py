@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.outreach_campaign_identity import campaign_id_for_name, connect_batch_label, connect_batch_name
 from app.outreach_account_pool import DEFAULT_OUTREACH_ACCOUNT_IDS
@@ -44,32 +44,7 @@ class OutreachDashboardStoreError(
 def get_outreach_client(
     settings: Settings | None = None,
 ) -> Client:
-    active_settings = (
-        settings
-        if settings is not None
-        else load_settings()
-    )
-
-    if not (
-        active_settings
-        .outreach_supabase_url
-    ):
-        raise OutreachDashboardStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not (
-        active_settings
-        .outreach_supabase_secret_key
-    ):
-        raise OutreachDashboardStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        active_settings.outreach_supabase_url,
-        active_settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

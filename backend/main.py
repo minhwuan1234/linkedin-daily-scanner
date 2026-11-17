@@ -115,15 +115,6 @@ logger = logging.getLogger(
 # ENVIRONMENT VARIABLES
 # =========================================================
 
-SUPABASE_URL = os.getenv(
-    "SUPABASE_URL",
-    "",
-).strip()
-
-SUPABASE_SECRET_KEY = os.getenv(
-    "SUPABASE_SECRET_KEY",
-    "",
-).strip()
 
 
 # =========================================================
@@ -221,7 +212,7 @@ def lab_monitoring(request: Request, days: int = 7):
         client = get_outreach_client()
     except Exception as error:
         client_error = safe_reason(error)
-        logger.warning("Lab monitoring: Supabase client unavailable: %s", client_error)
+        logger.warning("Lab monitoring: PostgreSQL client unavailable: %s", client_error)
     report = build_lab_report(client, days, worker_activity=get_outreach_worker_activity, client_error=client_error,
                               ui_samples=UI_SAMPLES.recent(days))
     return JSONResponse(report, headers={"Cache-Control": "private, no-store"})
@@ -244,12 +235,7 @@ def health_check() -> dict[str, Any]:
             .isoformat()
         ),
         "config": {
-            "supabase_url": bool(
-                SUPABASE_URL
-            ),
-            "supabase_secret_key": bool(
-                SUPABASE_SECRET_KEY
-            ),
+            "database_url": bool(os.getenv("OUTREACH_DATABASE_URL") or os.getenv("DATABASE_URL")),
         },
     }
 

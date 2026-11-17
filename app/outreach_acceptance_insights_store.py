@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import load_settings
 
@@ -173,28 +173,7 @@ def _format_week_label(
 
 
 def get_outreach_supabase_client() -> Client:
-    """
-    Railway-safe Outreach Supabase client.
-
-    This module does not import Playwright, LinkedIn browser
-    code, or Mac worker code.
-    """
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachAcceptanceInsightsStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachAcceptanceInsightsStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 def _load_all_target_rows(

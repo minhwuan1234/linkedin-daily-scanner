@@ -6,7 +6,7 @@ from typing import Iterable
 from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.outreach_campaign_identity import canonical_campaign_name
 from app.outreach_connect_input import prepare_connect_entries
@@ -49,22 +49,7 @@ class OutreachJobCreateResult:
 
 
 def get_outreach_supabase_client() -> Client:
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachJobStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachJobStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # @layer database

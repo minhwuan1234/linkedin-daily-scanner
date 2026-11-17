@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import (
     Settings,
@@ -171,29 +171,9 @@ class OutreachJobQueue:
             self.client = client
             return
 
-        if not (
-            self.settings
-            .outreach_supabase_url
-        ):
-            raise OutreachJobQueueError(
-                "Missing OUTREACH_SUPABASE_URL."
-            )
 
-        if not (
-            self.settings
-            .outreach_supabase_secret_key
-        ):
-            raise OutreachJobQueueError(
-                "Missing "
-                "OUTREACH_SUPABASE_SECRET_KEY."
-            )
 
-        self.client = create_client(
-            self.settings
-            .outreach_supabase_url,
-            self.settings
-            .outreach_supabase_secret_key,
-        )
+        self.client = create_client()
 
     # =====================================================
     # CLAIM

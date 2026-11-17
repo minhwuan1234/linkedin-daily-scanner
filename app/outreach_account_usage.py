@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import Settings
 
@@ -105,10 +105,7 @@ class OutreachAccountUsageStore:
         self.client = (
             client
             if client is not None
-            else create_client(
-                settings.outreach_supabase_url,
-                settings.outreach_supabase_secret_key,
-            )
+            else create_client()
         )
 
     def _load_row(

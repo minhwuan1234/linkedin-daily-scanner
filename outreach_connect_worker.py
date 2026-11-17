@@ -6,7 +6,7 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.linkedin_connect_action import (
     LinkedInConnectResult,
@@ -73,10 +73,7 @@ def get_client(
     *,
     settings: Settings,
 ) -> Client:
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================
@@ -1110,10 +1107,7 @@ def get_client(
     *,
     settings: Settings,
 ) -> Client:
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from supabase import AsyncClient, acreate_client
+from app.postgres_client import AsyncClient, acreate_client
 
 from app.linkedin_session_checker import (
     check_outreach_account_session,
@@ -49,42 +49,11 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
-def _payload_record(payload: Any) -> dict[str, Any]:
-    if not isinstance(payload, dict):
-        return {}
-
-    for key in ("new", "record"):
-        value = payload.get(key)
-        if isinstance(value, dict):
-            return dict(value)
-
-    data = payload.get("data")
-    if isinstance(data, dict):
-        for key in ("record", "new"):
-            value = data.get(key)
-            if isinstance(value, dict):
-                return dict(value)
-
-    return {}
 
 
 async def get_async_supabase_client() -> AsyncClient:
-    settings = load_settings()
+    return await acreate_client()
 
-    if not settings.outreach_supabase_url:
-        raise RuntimeError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise RuntimeError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return await acreate_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
 
 
 def _enqueue_account(
@@ -121,70 +90,8 @@ def _enqueue_recovery() -> None:
     )
 
 
-def _handle_realtime_change(
-    payload: Any,
-) -> None:
-    """
-    Called by Supabase Realtime whenever the session table changes.
-
-    Only rows moved to pending are queued.
-    """
-
-    row = _payload_record(
-        payload
-    )
-
-    if (
-        _clean(
-            row.get("status")
-        ).lower()
-        != "pending"
-    ):
-        return
-
-    _enqueue_account(
-        _clean(
-            row.get("account_id")
-        )
-    )
 
 
-def _build_subscribe_callback():
-    """
-    The subscribe callback itself must stay synchronous.
-
-    On SUBSCRIBED / re-SUBSCRIBED, queue one reconciliation read so a request
-    created while the Mac was offline is not lost. There is still no timer.
-    """
-
-    def on_subscribe(
-        status: Any,
-        error: Any = None,
-    ) -> None:
-        status_text = _clean(
-            getattr(
-                status,
-                "value",
-                status,
-            )
-        ).lower()
-
-        if "subscribed" in status_text:
-            logger.info(
-                "Supabase Realtime connected."
-            )
-
-            _enqueue_recovery()
-            return
-
-        if error:
-            logger.warning(
-                "Supabase Realtime status=%s error=%s",
-                status,
-                error,
-            )
-
-    return on_subscribe
 
 
 async def recover_pending_requests(
@@ -385,117 +292,41 @@ async def process_account(
         )
 
 
-async def worker_loop(
-    client: AsyncClient,
-    pool: OutreachAccountPool,
-) -> None:
+async def worker_loop(client: AsyncClient, pool: OutreachAccountPool) -> None:
+    queue = _get_work_queue()
     while True:
-        queue = _get_work_queue()
-        item = await queue.get()
-
+        try:
+            item = await asyncio.wait_for(queue.get(), timeout=5)
+        except asyncio.TimeoutError:
+            try:
+                await recover_pending_requests(client)
+            except Exception:
+                logger.exception("Session worker could not load pending requests")
+            continue
         try:
             if item == _RECOVER_PENDING:
-                await recover_pending_requests(
-                    client
-                )
-                continue
-
-            await process_account(
-                client,
-                pool,
-                item,
-            )
-
+                await recover_pending_requests(client)
+            else:
+                await process_account(client, pool, item)
         except Exception:
             logger.exception("Session worker request failed | account=%s", item)
-
         finally:
             if item != _RECOVER_PENDING:
-                _finish_account(
-                    item
-                )
-
+                _finish_account(item)
             queue.task_done()
+
 
 
 async def run_forever() -> None:
     global _work_queue
-
-    # IMPORTANT: create asyncio primitives only after asyncio.run() has
-    # created the active loop. This avoids cross-loop Future errors on
-    # Python 3.9.
     _work_queue = asyncio.Queue()
-
-    logging.basicConfig(
-        level=logging.INFO,
-        format=(
-            "%(asctime)s | "
-            "%(levelname)s | "
-            "%(message)s"
-        ),
-    )
-
-    logging.getLogger(
-        "httpx"
-    ).setLevel(
-        logging.WARNING
-    )
-
-    logging.getLogger(
-        "httpcore"
-    ).setLevel(
-        logging.WARNING
-    )
-
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     client = await get_async_supabase_client()
     pool = OutreachAccountPool()
+    logger.info("Outreach Session Worker started — PostgreSQL polling every 5 seconds")
+    _enqueue_recovery()
+    await worker_loop(client, pool)
 
-    logger.info(
-        "Outreach Session Worker started — "
-        "Async Realtime mode, no polling."
-    )
-    logger.info(
-        "Configured Outreach accounts (%s): %s",
-        len(pool.accounts),
-        ", ".join(account.account_id for account in pool.accounts),
-    )
-
-    channel = (
-        client
-        .channel(
-            "outreach-session-worker"
-        )
-        .on_postgres_changes(
-            "*",
-            schema="public",
-            table=SESSION_TABLE,
-            callback=(
-                _handle_realtime_change
-            ),
-        )
-    )
-
-    try:
-        await channel.subscribe(
-            _build_subscribe_callback()
-        )
-
-        # Startup safety read. Queue de-duplication makes it harmless if the
-        # SUBSCRIBED callback has already queued the same recovery.
-        _enqueue_recovery()
-
-        await worker_loop(
-            client,
-            pool,
-        )
-
-    finally:
-        try:
-            await client.remove_channel(
-                channel
-            )
-        except Exception:
-            pass
 
 
 def main() -> None:

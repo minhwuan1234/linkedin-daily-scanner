@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Iterable
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import load_settings
 
@@ -55,29 +55,7 @@ def _utc_now() -> str:
 # =========================================================
 
 def get_outreach_supabase_client() -> Client:
-    """
-    Backend-safe Outreach Supabase client.
-
-    Important:
-    this module must NOT import LinkedIn browser/action modules
-    at runtime because Railway only queues/reads DB work.
-    """
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachAcceptanceStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachAcceptanceStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

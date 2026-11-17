@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.outreach_account_pool import (
     OUTREACH_ACCOUNT_DISPLAY_NAMES,
@@ -40,22 +40,7 @@ def _safe_text(value: Any) -> str:
 
 
 def get_outreach_supabase_client() -> Client:
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachSessionStatusError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachSessionStatusError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 def _account_rows_from_pool() -> list[dict[str, Any]]:

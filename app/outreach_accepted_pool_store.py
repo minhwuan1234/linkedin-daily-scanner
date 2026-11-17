@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import OrderedDict
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.outreach_campaign_identity import (
     campaign_id_for_name, connect_batch_label, connect_batch_name,
@@ -21,27 +21,7 @@ class OutreachAcceptedPoolStoreError(
 
 
 def get_outreach_supabase_client() -> Client:
-    """
-    Backend-safe Outreach Supabase client.
-
-    Keep Railway independent from LinkedIn browser/action imports.
-    """
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachAcceptedPoolStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachAcceptedPoolStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 def _safe_text(

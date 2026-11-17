@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.outreach_accepted_pool_store import (
     get_accepted_pool,
@@ -62,28 +62,7 @@ def _safe_text(
 # =========================================================
 
 def get_outreach_supabase_client() -> Client:
-    """
-    Backend-safe client.
-
-    This preparation layer only reads/writes Supabase.
-    It does NOT import or run LinkedIn browser code.
-    """
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachMessagePreparationStoreError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachMessagePreparationStoreError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

@@ -4,7 +4,7 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timezone
 
-from supabase import Client
+from app.postgres_client import Client
 
 from app.linkedin_message_sender import (
     send_message_once,

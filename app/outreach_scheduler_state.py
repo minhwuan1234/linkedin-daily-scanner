@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import Settings
 
@@ -26,17 +26,7 @@ def _utc_now_iso() -> str:
 def create_outreach_supabase_client(
     settings: Settings,
 ) -> Client:
-    """
-    Tạo Supabase client dành riêng
-    cho Outreach database.
-
-    Không dùng Supabase scanner hiện tại.
-    """
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 @dataclass(frozen=True)

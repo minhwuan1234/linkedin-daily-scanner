@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from supabase import Client
+from app.postgres_client import Client
 
 from app.outreach_dashboard_store import get_outreach_client
 

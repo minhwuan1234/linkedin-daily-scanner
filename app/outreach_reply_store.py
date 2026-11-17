@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timezone
 
-from supabase import Client
+from app.postgres_client import Client
 
 from app.outreach_account_pool import (
     DEFAULT_OUTREACH_ACCOUNT_IDS,

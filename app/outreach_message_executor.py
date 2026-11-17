@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.linkedin_message_sender import (
     send_message_once,
@@ -52,26 +52,7 @@ def _safe_text(
 
 
 def get_outreach_supabase_client() -> Client:
-    """
-    Supabase client for the Mac-side message executor.
-    """
-
-    settings = load_settings()
-
-    if not settings.outreach_supabase_url:
-        raise OutreachMessageExecutorError(
-            "Missing OUTREACH_SUPABASE_URL."
-        )
-
-    if not settings.outreach_supabase_secret_key:
-        raise OutreachMessageExecutorError(
-            "Missing OUTREACH_SUPABASE_SECRET_KEY."
-        )
-
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 # =========================================================

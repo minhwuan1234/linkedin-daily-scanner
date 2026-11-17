@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from supabase import Client
+from app.postgres_client import Client
 
 from app.outreach_campaign_identity import (
     campaign_id_for_name, canonical_campaign_name, connect_batch_label,

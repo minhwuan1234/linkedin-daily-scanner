@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from supabase import Client, create_client
+from app.postgres_client import Client, create_client
 
 from app.settings import load_settings
 
@@ -20,10 +20,7 @@ def _utc_now() -> str:
 def get_client() -> Client:
     settings = load_settings()
 
-    return create_client(
-        settings.outreach_supabase_url,
-        settings.outreach_supabase_secret_key,
-    )
+    return create_client()
 
 
 def repair_sent_message_states() -> dict:

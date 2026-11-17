@@ -1,4 +1,3 @@
-const config = window.APP_CONFIG || {};
 
 const els = {
   sidebarCollapseButton:
@@ -580,8 +579,6 @@ const state = {
   workerActivityLoading: false,
   sessionStatuses: [],
   sessionStatusLoading: false,
-  sessionStatusRealtimeChannel: null,
-  sessionStatusRealtimeReady: false,
   outreachSubmitting: false,
   outreachCurrentJob: null,
   outreachScheduler: null,
@@ -672,29 +669,6 @@ const state = {
   outreachReplyLastScanInitialized: false,
   outreachReplyLastScanId: null
 };
-
-function assertConfig() {
-  const validUrl =
-    typeof config.supabaseUrl === "string" &&
-    config.supabaseUrl.startsWith("https://");
-
-  const validKey =
-    typeof config.supabasePublishableKey === "string" &&
-    !config.supabasePublishableKey.includes("YOUR_");
-
-  if (!validUrl || !validKey) {
-    throw new Error(
-      "Missing the Supabase URL or publishable/anon key in config.js."
-    );
-  }
-}
-
-assertConfig();
-
-const client = window.supabase.createClient(
-  config.supabaseUrl,
-  config.supabasePublishableKey
-);
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -8298,56 +8272,22 @@ function applySessionRealtimeRow(row) {
   renderSessionStatuses();
 }
 
-function setupSessionStatusRealtime() {
-  stopSessionStatusRealtime();
+let sessionStatusPollTimer = null;
 
-  state.sessionStatusRealtimeReady = false;
-
-  state.sessionStatusRealtimeChannel = client
-    .channel("outreach-session-status-modal")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "outreach_account_sessions"
-      },
-      (payload) => {
-        const row = getSessionRealtimeRow(payload);
-
-        if (row) {
-          applySessionRealtimeRow(row);
-        }
-      }
-    )
-    .subscribe((status) => {
-      state.sessionStatusRealtimeReady = status === "SUBSCRIBED";
-
-      if (status === "SUBSCRIBED" && !els.sessionStatusModal?.hidden) {
-        // Reconcile once after connecting so missed worker updates do not
-        // leave the UI stuck on Queued. No background polling is needed.
-        void loadSessionStatuses();
-      }
-
-      if (status === "CHANNEL_ERROR") {
-        console.warn(
-          "LinkedIn session Realtime channel error. " +
-          "Use Check all accounts again after reconnecting."
-        );
-      }
-    });
+function startSessionStatusPolling() {
+  stopSessionStatusPolling();
+  sessionStatusPollTimer = window.setInterval(() => {
+    if (!els.sessionStatusModal?.hidden && !state.sessionStatusLoading && !document.hidden) {
+      void loadSessionStatuses();
+    }
+  }, 5000);
 }
 
-function stopSessionStatusRealtime() {
-  if (state.sessionStatusRealtimeChannel) {
-    client.removeChannel(
-      state.sessionStatusRealtimeChannel
-    );
-
-    state.sessionStatusRealtimeChannel = null;
+function stopSessionStatusPolling() {
+  if (sessionStatusPollTimer !== null) {
+    window.clearInterval(sessionStatusPollTimer);
+    sessionStatusPollTimer = null;
   }
-
-  state.sessionStatusRealtimeReady = false;
 }
 
 async function loadSessionStatuses() {
@@ -8443,9 +8383,7 @@ function openSessionStatusModal() {
   els.sessionStatusModal.hidden = false;
   document.body.classList.add("has-modal-open");
 
-  // Subscribe only while the popup is open.
-  // No timer and no repeated GET requests.
-  setupSessionStatusRealtime();
+  startSessionStatusPolling();
   void loadSessionStatuses();
 }
 
@@ -8456,7 +8394,7 @@ function closeSessionStatusModal() {
 
   els.sessionStatusModal.hidden = true;
   document.body.classList.remove("has-modal-open");
-  stopSessionStatusRealtime();
+  stopSessionStatusPolling();
 }
 
 
