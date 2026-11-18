@@ -17,7 +17,7 @@ from app.linkedin_browser import (
 )
 
 
-PROFILE_TIMEOUT_MS = 15_000
+PROFILE_TIMEOUT_MS = 20_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
 FINAL_STATE_VERIFY_WINDOW_MS = 5_000
@@ -883,11 +883,11 @@ def _click_ellipsis_button(
 
                 # Do not over-gate the old working path:
                 # a successful click is enough to continue to PATH 2/3.
-                # Give LinkedIn a very short moment to render the menu.
+                # Give the menu time to render before looking for Connect.
                 _sleep(
                     page,
                     deadline=deadline,
-                    milliseconds=120,
+                    milliseconds=500,
                 )
 
                 print(
@@ -1539,7 +1539,7 @@ def _click_connect_in_ellipsis_menu(
 
     wait_deadline = min(
         deadline,
-        time.monotonic() + 1.5,
+        time.monotonic() + 3.0,
     )
 
     while time.monotonic() < wait_deadline:
@@ -1629,7 +1629,7 @@ def _click_connect_in_ellipsis_menu(
         _sleep(
             page,
             deadline=deadline,
-            milliseconds=80,
+            milliseconds=150,
         )
 
     print(
@@ -2166,18 +2166,22 @@ def _confirm_after_connect_click(
 
 
 def _pending_via_profile_ellipsis(page: Page, *, deadline: float) -> bool:
-    """Open the profile's overflow menu and read its Pending item."""
+    """Open the profile overflow menu and wait for a visible Pending item."""
     if not _click_ellipsis_button(page, deadline=deadline, profile_only=True):
         return False
     try:
-        for selector in ("main", "[role='menu']"):
-            scopes = page.locator(selector)
-            for i in range(scopes.count()):
-                items = scopes.nth(i).get_by_text("Pending", exact=True)
-                for j in range(items.count()):
-                    if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
-                        print("PENDING CHECK: Pending in profile menu")
-                        return True
+        wait_deadline = min(deadline, time.monotonic() + 2.0)
+        while time.monotonic() < wait_deadline:
+            for selector in ("main", "[role='menu']"):
+                scopes = page.locator(selector)
+                for i in range(scopes.count()):
+                    items = scopes.nth(i).get_by_text("Pending", exact=True)
+                    for j in range(items.count()):
+                        if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
+                            print("PENDING CHECK: Pending in profile menu")
+                            return True
+            _sleep(page, deadline=deadline, milliseconds=150)
+        print("PENDING CHECK: Pending not visible in profile menu")
         return False
     finally:
         try:
@@ -2351,7 +2355,7 @@ def connect_profile(
             final_url=page.url if page is not None else "",
             status="failed",
             message=(
-                "timeout: profile exceeded the 10 second processing limit. "
+                f"timeout: profile exceeded the {PROFILE_TIMEOUT_MS / 1000:g} second processing limit. "
                 f"{exc}"
             ),
         )
