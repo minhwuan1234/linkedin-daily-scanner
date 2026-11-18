@@ -17,10 +17,10 @@ from app.linkedin_browser import (
 )
 
 
-PROFILE_TIMEOUT_MS = 20_000
+PROFILE_TIMEOUT_MS = 25_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
-FINAL_STATE_VERIFY_WINDOW_MS = 5_000
+FINAL_STATE_VERIFY_WINDOW_MS = 8_000
 FINAL_STATE_POLL_MS = 180
 
 ConnectStatus = Literal[
@@ -914,6 +914,7 @@ def _click_more_button(
     page: Page,
     *,
     deadline: float,
+    allow_unconfirmed_click: bool = False,
 ) -> bool:
     """
     Click More của profile chính.
@@ -929,7 +930,7 @@ def _click_more_button(
     1. Scope vào <main>
     2. Tìm exact text "More"
     3. Leo lên ancestor <button> gần nhất
-    4. Chỉ nhận button có aria-expanded
+    4. Ưu tiên button có aria-expanded; cho phép thiếu thuộc tính khi kiểm tra Pending
     5. Click button đó
     6. Verify aria-expanded=true hoặc exact custom-invite
        của profile hiện tại xuất hiện.
@@ -971,7 +972,7 @@ def _click_more_button(
                     continue
 
                 button = node.locator(
-                    "xpath=ancestor::button[1]"
+                    "xpath=ancestor-or-self::button[1]"
                 )
 
                 if button.count() == 0:
@@ -993,7 +994,7 @@ def _click_more_button(
                 except Exception:
                     aria_expanded = None
 
-                if aria_expanded is None:
+                if aria_expanded is None and not allow_unconfirmed_click:
                     continue
 
                 # DOM identity dedupe; no coordinates.
@@ -1125,6 +1126,10 @@ def _click_more_button(
                 print(
                     "MORE: click completed but menu was not confirmed"
                 )
+                # Pending checks inspect the opened menu directly. Avoid a
+                # second click that could close a menu lacking aria-expanded.
+                if allow_unconfirmed_click:
+                    return True
 
         except LinkedInProfileActionTimeout:
             raise
@@ -2129,6 +2134,9 @@ def _confirm_after_connect_click(
             if _pending_via_profile_ellipsis(page, deadline=deadline):
                 print("CONNECT CONFIRMED: Pending in profile menu")
                 return "invitation_sent"
+            if _pending_via_profile_more(page, deadline=deadline):
+                print("CONNECT CONFIRMED: Pending in More menu")
+                return "invitation_sent"
 
         _sleep(
             page,
@@ -2157,6 +2165,10 @@ def _confirm_after_connect_click(
         print("CONNECT CONFIRMED: Pending in profile menu on final check")
         return "invitation_sent"
 
+    if deadline - time.monotonic() > 0.5 and _pending_via_profile_more(page, deadline=deadline):
+        print("CONNECT CONFIRMED: Pending in More menu on final check")
+        return "invitation_sent"
+
     print(
         "CONNECT NOT CONFIRMED: "
         "Pending state was not detected"
@@ -2165,24 +2177,42 @@ def _confirm_after_connect_click(
     return None
 
 
+def _read_pending_in_open_profile_menu(page: Page, *, deadline: float) -> bool:
+    wait_deadline = min(deadline, time.monotonic() + 2.0)
+    while time.monotonic() < wait_deadline:
+        for selector in ("main", "[role='menu']"):
+            scopes = page.locator(selector)
+            for i in range(scopes.count()):
+                items = scopes.nth(i).get_by_text("Pending", exact=True)
+                for j in range(items.count()):
+                    if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
+                        print("PENDING CHECK: Pending in profile menu")
+                        return True
+        _sleep(page, deadline=deadline, milliseconds=150)
+    print("PENDING CHECK: Pending not visible in profile menu")
+    return False
+
+
 def _pending_via_profile_ellipsis(page: Page, *, deadline: float) -> bool:
-    """Open the profile overflow menu and wait for a visible Pending item."""
+    """Check Pending in the icon-only profile overflow menu."""
     if not _click_ellipsis_button(page, deadline=deadline, profile_only=True):
         return False
     try:
-        wait_deadline = min(deadline, time.monotonic() + 2.0)
-        while time.monotonic() < wait_deadline:
-            for selector in ("main", "[role='menu']"):
-                scopes = page.locator(selector)
-                for i in range(scopes.count()):
-                    items = scopes.nth(i).get_by_text("Pending", exact=True)
-                    for j in range(items.count()):
-                        if _is_visible_locator(items.nth(j), deadline=deadline, maximum_ms=120):
-                            print("PENDING CHECK: Pending in profile menu")
-                            return True
-            _sleep(page, deadline=deadline, milliseconds=150)
-        print("PENDING CHECK: Pending not visible in profile menu")
+        return _read_pending_in_open_profile_menu(page, deadline=deadline)
+    finally:
+        try:
+            page.keyboard.press("Escape")
+        except Exception:
+            pass
+
+
+def _pending_via_profile_more(page: Page, *, deadline: float) -> bool:
+    """Check Pending in the visible More menu without clicking Pending."""
+    print("PENDING CHECK: opening profile More menu")
+    if not _click_more_button(page, deadline=deadline, allow_unconfirmed_click=True):
         return False
+    try:
+        return _read_pending_in_open_profile_menu(page, deadline=deadline)
     finally:
         try:
             page.keyboard.press("Escape")
@@ -2253,6 +2283,12 @@ def connect_profile(
             return LinkedInConnectResult(
                 linkedin_url=cleaned_url, final_url=page.url, status="pending",
                 message="Connection invitation is pending in the profile menu.",
+            )
+
+        if _pending_via_profile_more(page, deadline=deadline):
+            return LinkedInConnectResult(
+                linkedin_url=cleaned_url, final_url=page.url, status="pending",
+                message="Connection invitation is pending in the More menu.",
             )
 
         if _has_first_degree_state(page, deadline=deadline):
