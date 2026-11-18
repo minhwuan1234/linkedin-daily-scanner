@@ -299,6 +299,8 @@ class OutreachAccountPool:
             OutreachAccountPoolSettings
             | None
         ) = None,
+        *,
+        disabled_account_ids: frozenset[str] = frozenset(),
     ) -> None:
         self.settings = (
             settings
@@ -324,7 +326,7 @@ class OutreachAccountPool:
                     .profile_root
                     / account_id
                 ).resolve(),
-                enabled=True,
+                enabled=account_id not in disabled_account_ids,
             )
             for account_id
             in self.settings.account_ids
