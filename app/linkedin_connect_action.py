@@ -17,10 +17,10 @@ from app.linkedin_browser import (
 )
 
 
-PROFILE_TIMEOUT_MS = 25_000
+PROFILE_TIMEOUT_MS = 35_000
 MORE_MAX_ATTEMPTS = 2
 MORE_VERIFY_WINDOW_MS = 900
-FINAL_STATE_VERIFY_WINDOW_MS = 8_000
+FINAL_STATE_VERIFY_WINDOW_MS = 12_000
 FINAL_STATE_POLL_MS = 180
 
 ConnectStatus = Literal[
@@ -1025,9 +1025,10 @@ def _click_more_button(
             )
 
             if not buttons:
-                print(
-                    "MORE: no button[aria-expanded] with exact text More inside <main>"
-                )
+                print("MORE: no visible profile More button yet")
+                if attempt < MORE_MAX_ATTEMPTS:
+                    _sleep(page, deadline=deadline, milliseconds=300)
+                    continue
                 return False
 
             for candidate_index, button in enumerate(
@@ -1063,6 +1064,7 @@ def _click_more_button(
                     )
                     continue
 
+                print("MORE: clicked profile More button")
                 verify_deadline = min(
                     deadline,
                     time.monotonic()
@@ -2123,6 +2125,9 @@ def _confirm_after_connect_click(
                     milliseconds=500,
                 )
 
+                # The invitation can appear after an earlier menu check.
+                # Re-open More after the actual send before falling back.
+                menu_checked = False
                 continue
 
             print(
@@ -2131,11 +2136,11 @@ def _confirm_after_connect_click(
 
         if not menu_checked:
             menu_checked = True
-            if _pending_via_profile_ellipsis(page, deadline=deadline):
-                print("CONNECT CONFIRMED: Pending in profile menu")
-                return "invitation_sent"
             if _pending_via_profile_more(page, deadline=deadline):
                 print("CONNECT CONFIRMED: Pending in More menu")
+                return "invitation_sent"
+            if _pending_via_profile_ellipsis(page, deadline=deadline):
+                print("CONNECT CONFIRMED: Pending in profile menu")
                 return "invitation_sent"
 
         _sleep(
@@ -2161,12 +2166,12 @@ def _confirm_after_connect_click(
 
         return "invitation_sent"
 
-    if deadline - time.monotonic() > 0.5 and _pending_via_profile_ellipsis(page, deadline=deadline):
-        print("CONNECT CONFIRMED: Pending in profile menu on final check")
-        return "invitation_sent"
-
     if deadline - time.monotonic() > 0.5 and _pending_via_profile_more(page, deadline=deadline):
         print("CONNECT CONFIRMED: Pending in More menu on final check")
+        return "invitation_sent"
+
+    if deadline - time.monotonic() > 0.5 and _pending_via_profile_ellipsis(page, deadline=deadline):
+        print("CONNECT CONFIRMED: Pending in profile menu on final check")
         return "invitation_sent"
 
     print(
