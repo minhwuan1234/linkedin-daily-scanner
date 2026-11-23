@@ -1522,6 +1522,43 @@ def _click_connect_via_menu_text(
 
 
 
+def _click_connect_in_visible_profile_popup(page: Page, *, deadline: float) -> bool:
+    """Click a Connect action inside an open popup, including non-menuitem DOMs."""
+    selectors = (
+        "[role='menu'] button, [role='menu'] a, [role='menu'] [role='button'], "
+        ".artdeco-dropdown__content--is-open button, "
+        ".artdeco-dropdown__content--is-open a, "
+        ".artdeco-dropdown__content--is-open [role='button'], "
+        "[role='menu'] [role='menuitem'], "
+        ".artdeco-dropdown__content--is-open [role='menuitem']"
+    )
+    vanity = _get_profile_vanity_name(page)
+    candidates = page.locator(selectors)
+    for index in range(candidates.count()):
+        candidate = candidates.nth(index)
+        if not _is_visible_locator(candidate, deadline=deadline, maximum_ms=120):
+            continue
+        try:
+            label = " ".join((candidate.inner_text() or "").split()).strip().lower()
+            aria = " ".join((candidate.get_attribute("aria-label") or "").split()).strip().lower()
+            href = candidate.get_attribute("href") or ""
+        except Exception:
+            continue
+        # Do not confuse remove/withdraw/disconnect actions with Connect.
+        is_connect = (label == "connect" or label.startswith("connect with ")
+                      or aria == "connect" or aria.startswith("connect with ")
+                      or (aria.startswith("invite ") and aria.endswith(" to connect")))
+        if not is_connect:
+            continue
+        if "custom-invite" in href and (not vanity or f"vanityName={vanity}" not in href):
+            continue
+        print("ELLIPSIS CONNECT: clicking visible popup action", repr(label or aria))
+        if _click_locator(candidate, deadline=deadline, maximum_ms=800):
+            print("ELLIPSIS CONNECT clicked ONCE")
+            return True
+    return False
+
+
 def _click_connect_in_ellipsis_menu(
     page: Page,
     *,
@@ -1537,10 +1574,10 @@ def _click_connect_in_ellipsis_menu(
 
     Therefore:
     1. Do not depend on profile name.
-    2. Only inspect visible role=menuitem elements.
-    3. Require exact visible text "Connect".
-    4. Click exactly one matching menu item.
-    5. Do not scan broad Connect controls outside the popup/menu items.
+    2. Prefer visible role=menuitem elements.
+    3. Also inspect buttons and links inside a visible open popup.
+    4. Click exactly one matching Connect action.
+    5. Do not scan broad Connect controls outside popup/menu items.
     """
     _check_deadline(deadline)
 
@@ -1616,6 +1653,9 @@ def _click_connect_in_ellipsis_menu(
                     "ELLIPSIS CONNECT click failed"
                 )
                 return False
+
+            if _click_connect_in_visible_profile_popup(page, deadline=deadline):
+                return True
 
             if visible_menuitems:
                 print(
@@ -1770,6 +1810,9 @@ def _click_connect_in_more_menu(
                         "MORE CONNECT click failed"
                     )
                     return False
+
+            if _click_connect_in_visible_profile_popup(page, deadline=deadline):
+                return True
 
             if visible_menu_count:
                 print(

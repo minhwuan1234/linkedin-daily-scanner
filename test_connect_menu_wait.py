@@ -66,3 +66,40 @@ class PendingAfterSendTests(unittest.TestCase):
         send.assert_called_once()
         self.assertEqual(more.call_count, 2)
         self.assertEqual(dots.call_count, 1)
+
+class FlexibleConnectPopupTests(unittest.TestCase):
+    def make_page(self, label, aria='', href=''):
+        item = MagicMock()
+        item.inner_text.return_value = label
+        item.get_attribute.side_effect = lambda name: {'aria-label': aria, 'href': href}.get(name)
+        candidates = MagicMock()
+        candidates.count.return_value = 1
+        candidates.nth.return_value = item
+        page = MagicMock()
+        page.locator.return_value = candidates
+        return page, item
+
+    def test_connect_button_without_menuitem_role_is_clicked(self):
+        page, item = self.make_page('Connect')
+        with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
+             patch.object(action, '_is_visible_locator', return_value=True), \
+             patch.object(action, '_click_locator', return_value=True) as click:
+            self.assertTrue(action._click_connect_in_visible_profile_popup(page, deadline=100))
+        self.assertIs(click.call_args.args[0], item)
+        click.assert_called_once()
+
+    def test_remove_connection_is_not_clicked(self):
+        page, _ = self.make_page('Remove connection')
+        with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
+             patch.object(action, '_is_visible_locator', return_value=True), \
+             patch.object(action, '_click_locator') as click:
+            self.assertFalse(action._click_connect_in_visible_profile_popup(page, deadline=100))
+        click.assert_not_called()
+
+    def test_custom_invite_for_other_profile_is_not_clicked(self):
+        page, _ = self.make_page('Connect', href='/preload/custom-invite/?vanityName=bob')
+        with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
+             patch.object(action, '_is_visible_locator', return_value=True), \
+             patch.object(action, '_click_locator') as click:
+            self.assertFalse(action._click_connect_in_visible_profile_popup(page, deadline=100))
+        click.assert_not_called()
