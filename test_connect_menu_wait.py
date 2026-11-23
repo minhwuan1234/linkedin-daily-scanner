@@ -121,10 +121,12 @@ class SendWithoutNoteTests(unittest.TestCase):
              patch.object(action, '_has_pending_state', side_effect=[False, False, True]), \
              patch.object(action, '_has_invite_modal', return_value=True), \
              patch.object(action, '_click_send_without_note', side_effect=[False, True]) as send, \
-             patch.object(action, '_pending_via_profile_more') as more:
+             patch.object(action, '_pending_via_profile_more', return_value=False) as more, \
+             patch.object(action, '_pending_via_profile_ellipsis', return_value=False) as dots:
             self.assertEqual(action._confirm_after_connect_click(page, deadline=30), 'invitation_sent')
         self.assertEqual(send.call_count, 2)
-        more.assert_not_called()
+        more.assert_called_once()
+        dots.assert_called_once()
 
     def test_finds_visible_send_button_after_hidden_match(self):
         page = MagicMock()
@@ -153,4 +155,29 @@ class DirectConnectPriorityTests(unittest.TestCase):
         self.assertEqual(result.status, 'invitation_sent')
         direct.assert_called_once()
         more.assert_not_called()
+        ellipsis.assert_not_called()
+
+
+class PendingMenuPriorityTests(unittest.TestCase):
+    def test_menu_is_checked_even_if_pending_visible_after_send(self):
+        clock = [0.0]
+        page = MagicMock()
+        events = []
+        def advance(_page, *, deadline, milliseconds):
+            clock[0] += milliseconds / 1000
+        def send(*args, **kwargs):
+            events.append('send')
+            return True
+        def more(*args, **kwargs):
+            events.append('more')
+            return True
+        with patch.object(action.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(action, '_sleep', side_effect=advance), \
+             patch.object(action, '_has_invite_modal', return_value=True), \
+             patch.object(action, '_click_send_without_note', side_effect=send), \
+             patch.object(action, '_has_pending_state', return_value=True), \
+             patch.object(action, '_pending_via_profile_more', side_effect=more), \
+             patch.object(action, '_pending_via_profile_ellipsis') as ellipsis:
+            self.assertEqual(action._confirm_after_connect_click(page, deadline=30), 'invitation_sent')
+        self.assertEqual(events, ['send', 'more'])
         ellipsis.assert_not_called()

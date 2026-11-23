@@ -2077,98 +2077,24 @@ def _invite_modal_is_visible(
 # FINAL STATE CONFIRMATION
 # =========================================================
 
-def _confirm_after_connect_click(
-    page: Page,
-    *,
-    deadline: float,
-) -> ConnectStatus | None:
-    """
-    STRICT post-Connect confirmation.
-
-    Rule:
-        ONLY a visible Pending state on the CURRENT profile
-        can produce "invitation_sent".
-
-    We explicitly DO NOT treat these as success anymore:
-    - Connect button was clicked
-    - Send without note was clicked
-    - invite modal disappeared
-    - Connect control disappeared
-    - generic UI transition
-
-    Those are only action attempts, not proof that LinkedIn
-    accepted the invitation.
-    """
-    verify_deadline = min(
-        deadline,
-        time.monotonic()
-        + (
-            FINAL_STATE_VERIFY_WINDOW_MS
-            / 1000
-        ),
-    )
-
+def _confirm_after_connect_click(page: Page, *, deadline: float) -> ConnectStatus | None:
+    """Send the invite when required, then check Pending in profile menus."""
+    verify_deadline = min(deadline, time.monotonic() + FINAL_STATE_VERIFY_WINDOW_MS / 1000)
+    dialog_wait_deadline = min(verify_deadline, time.monotonic() + 2.0)
     send_attempted = False
     menu_checked = False
-    # Give LinkedIn time to render its invite dialog before opening menus.
-    dialog_wait_deadline = min(verify_deadline, time.monotonic() + 2.0)
 
-    while (
-        time.monotonic()
-        < verify_deadline
-    ):
+    while time.monotonic() < verify_deadline:
         _check_deadline(deadline)
-
-        # -------------------------------------------------
-        # THE ONLY SUCCESS CONDITION
-        # -------------------------------------------------
-
-        if _has_pending_state(
-            page,
-            deadline=deadline,
-        ):
-            print(
-                "CONNECT CONFIRMED: Pending"
-            )
-
-            return "invitation_sent"
-
-        # -------------------------------------------------
-        # INVITE MODAL
-        # -------------------------------------------------
-
-        if (
-            not send_attempted
-            and _has_invite_modal(
-                page,
-                deadline=deadline,
-            )
-        ):
-            print(
-                "Invite modal detected"
-            )
-
-            if _click_send_without_note(
-                page,
-                deadline=deadline,
-            ):
+        # A visible invite dialog takes precedence over all state checks.
+        if not send_attempted and _has_invite_modal(page, deadline=deadline):
+            print("Invite modal detected")
+            if _click_send_without_note(page, deadline=deadline):
                 send_attempted = True
-                print(
-                    "Send without note clicked; "
-                    "waiting for Pending confirmation..."
-                )
-
-                _sleep(
-                    page,
-                    deadline=deadline,
-                    milliseconds=500,
-                )
-
-                # The invitation can appear after an earlier menu check.
-                # Re-open More after the actual send before falling back.
                 menu_checked = False
+                print("Send without note clicked; checking Pending in profile menu...")
+                _sleep(page, deadline=deadline, milliseconds=500)
                 continue
-
             print("Send without note was NOT clicked; retrying")
             _sleep(page, deadline=deadline, milliseconds=250)
             continue
@@ -2177,51 +2103,34 @@ def _confirm_after_connect_click(
             _sleep(page, deadline=deadline, milliseconds=150)
             continue
 
+        # Always try the profile menu after Connect/send, even if Pending is
+        # also visible elsewhere on the page. Never click Pending itself.
         if not menu_checked:
             menu_checked = True
+            print("CONNECT: checking Pending in More or ellipsis menu")
             if _pending_via_profile_more(page, deadline=deadline):
                 print("CONNECT CONFIRMED: Pending in More menu")
                 return "invitation_sent"
             if _pending_via_profile_ellipsis(page, deadline=deadline):
-                print("CONNECT CONFIRMED: Pending in profile menu")
+                print("CONNECT CONFIRMED: Pending in ellipsis menu")
                 return "invitation_sent"
 
-        _sleep(
-            page,
-            deadline=deadline,
-            milliseconds=(
-                FINAL_STATE_POLL_MS
-            ),
-        )
+        if _has_pending_state(page, deadline=deadline):
+            print("CONNECT CONFIRMED: visible Pending on profile")
+            return "invitation_sent"
 
-    # -----------------------------------------------------
-    # ONE FINAL STRICT CHECK
-    # -----------------------------------------------------
-
-    if _has_pending_state(
-        page,
-        deadline=deadline,
-    ):
-        print(
-            "CONNECT CONFIRMED: Pending "
-            "on final check"
-        )
-
-        return "invitation_sent"
+        _sleep(page, deadline=deadline, milliseconds=FINAL_STATE_POLL_MS)
 
     if deadline - time.monotonic() > 0.5 and _pending_via_profile_more(page, deadline=deadline):
         print("CONNECT CONFIRMED: Pending in More menu on final check")
         return "invitation_sent"
-
     if deadline - time.monotonic() > 0.5 and _pending_via_profile_ellipsis(page, deadline=deadline):
-        print("CONNECT CONFIRMED: Pending in profile menu on final check")
+        print("CONNECT CONFIRMED: Pending in ellipsis menu on final check")
         return "invitation_sent"
-
-    print(
-        "CONNECT NOT CONFIRMED: "
-        "Pending state was not detected"
-    )
-
+    if _has_pending_state(page, deadline=deadline):
+        print("CONNECT CONFIRMED: visible Pending on final check")
+        return "invitation_sent"
+    print("CONNECT NOT CONFIRMED: Pending state was not detected")
     return None
 
 
