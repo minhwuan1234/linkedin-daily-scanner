@@ -23,7 +23,6 @@ from app.outreach_result_store import (
     mark_connect_target_started,
     save_connect_result,
 )
-from app.outreach_account_pool import OutreachAccountPool
 from app.outreach_scheduler import (
     OutreachAccountTurn,
     OutreachScheduler,
@@ -548,9 +547,6 @@ class OutreachConnectWorker:
 
         self.scheduler = OutreachScheduler(
             settings=settings,
-            account_pool=OutreachAccountPool(
-                disabled_account_ids=frozenset({"outreach_account_02"}),
-            ),
         )
 
         self.usage_store = (
@@ -1606,9 +1602,6 @@ class OutreachConnectWorker:
 
         self.scheduler = OutreachScheduler(
             settings=settings,
-            account_pool=OutreachAccountPool(
-                disabled_account_ids=frozenset({"outreach_account_02"}),
-            ),
         )
 
         self.usage_store = (
