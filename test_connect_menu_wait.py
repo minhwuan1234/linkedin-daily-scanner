@@ -181,3 +181,34 @@ class PendingMenuPriorityTests(unittest.TestCase):
             self.assertEqual(action._confirm_after_connect_click(page, deadline=30), 'invitation_sent')
         self.assertEqual(events, ['send', 'more'])
         ellipsis.assert_not_called()
+
+class PendingMoreNativeClickTests(unittest.TestCase):
+    def test_pending_more_uses_native_click_and_reads_menu(self):
+        page = MagicMock()
+        main = page.locator.return_value
+        main.count.return_value = 1
+        more = main.get_by_role.return_value
+        more.count.return_value = 1
+        button = more.nth.return_value
+        button.get_attribute.return_value = 'false'
+        pending = main.nth.return_value.get_by_text.return_value
+        pending.count.return_value = 1
+        with patch.object(action, '_is_visible_locator', return_value=True), \
+             patch.object(action, '_sleep'), \
+             patch.object(action, '_remaining_ms', return_value=1200):
+            self.assertTrue(action._pending_via_profile_more(page, deadline=action.time.monotonic()+10))
+        button.click.assert_called_once_with(timeout=1200)
+        pending.nth.return_value.click.assert_not_called()
+        page.keyboard.press.assert_called_once_with('Escape')
+
+    def test_already_open_more_is_not_clicked_again(self):
+        page = MagicMock()
+        main = page.locator.return_value
+        main.count.return_value = 1
+        more = main.get_by_role.return_value
+        more.count.return_value = 1
+        button = more.nth.return_value
+        button.get_attribute.return_value = 'true'
+        with patch.object(action, '_is_visible_locator', return_value=True):
+            self.assertTrue(action._open_more_for_pending(page, deadline=action.time.monotonic()+10))
+        button.click.assert_not_called()

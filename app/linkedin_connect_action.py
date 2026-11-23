@@ -2163,10 +2163,47 @@ def _pending_via_profile_ellipsis(page: Page, *, deadline: float) -> bool:
             pass
 
 
+def _open_more_for_pending(page: Page, *, deadline: float) -> bool:
+    """Open the current profile's More action with a normal browser click."""
+    for attempt in range(1, 4):
+        _check_deadline(deadline)
+        main = page.locator("main")
+        if main.count():
+            groups = (
+                main.get_by_role("button", name="More", exact=True),
+                main.locator("button[aria-label='More'], [role='button'][aria-label='More']"),
+                main.get_by_role("button", name="More actions", exact=True),
+            )
+            for candidates in groups:
+                for index in range(candidates.count()):
+                    button = candidates.nth(index)
+                    if not _is_visible_locator(button, deadline=deadline, maximum_ms=180):
+                        continue
+                    try:
+                        if (button.get_attribute("aria-expanded") or "").lower() == "true":
+                            print("PENDING MORE: profile menu already open")
+                            return True
+                        button.click(timeout=_remaining_ms(deadline, maximum_ms=1200))
+                        print("PENDING MORE: clicked profile More button")
+                        _sleep(page, deadline=deadline, milliseconds=500)
+                        return True
+                    except LinkedInProfileActionTimeout:
+                        raise
+                    except Exception as exc:
+                        print("PENDING MORE: click failed", type(exc).__name__)
+            print(f"PENDING MORE: no usable More button, attempt {attempt}/3")
+        else:
+            print(f"PENDING MORE: profile main not ready, attempt {attempt}/3")
+        if attempt < 3:
+            _sleep(page, deadline=deadline, milliseconds=350)
+    # Preserve the existing exact-text path for layouts without button roles.
+    return _click_more_button(page, deadline=deadline, allow_unconfirmed_click=True)
+
+
 def _pending_via_profile_more(page: Page, *, deadline: float) -> bool:
     """Check Pending in the visible More menu without clicking Pending."""
     print("PENDING CHECK: opening profile More menu")
-    if not _click_more_button(page, deadline=deadline, allow_unconfirmed_click=True):
+    if not _open_more_for_pending(page, deadline=deadline):
         return False
     try:
         return _read_pending_in_open_profile_menu(page, deadline=deadline)

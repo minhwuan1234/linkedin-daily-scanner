@@ -14,7 +14,7 @@ def load_helper():
     module = ast.Module(body=[ast.ImportFrom(module='__future__',
         names=[ast.alias(name='annotations')], level=0), *fns], type_ignores=[])
     env = {'_click_ellipsis_button': MagicMock(return_value=True),
-           '_click_more_button': MagicMock(return_value=True),
+           '_open_more_for_pending': MagicMock(return_value=True),
            '_is_visible_locator': MagicMock(return_value=True),
            '_sleep': MagicMock(), 'time': time}
     exec(compile(ast.fix_missing_locations(module), '<pending-test>', 'exec'), env)
@@ -43,8 +43,7 @@ class PendingMenuTest(unittest.TestCase):
         items.count.return_value = 1
         deadline = time.monotonic() + 0.01
         self.assertTrue(env['_pending_via_profile_more'](page, deadline=deadline))
-        env['_click_more_button'].assert_called_once_with(
-            page, deadline=deadline, allow_unconfirmed_click=True)
+        env['_open_more_for_pending'].assert_called_once_with(page, deadline=deadline)
         items.nth.return_value.click.assert_not_called()
         page.keyboard.press.assert_called_once_with('Escape')
 
