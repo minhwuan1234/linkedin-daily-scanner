@@ -40,6 +40,7 @@ class ConnectMenuWaitTests(unittest.TestCase):
         with patch.object(action.time, 'monotonic', side_effect=lambda: clock[0]), \
              patch.object(action, '_sleep', side_effect=advance), \
              patch.object(action, '_is_visible_locator', return_value=True), \
+             patch.object(action, '_click_connect_in_visible_profile_popup', return_value=False), \
              patch.object(action, '_click_locator') as click:
             self.assertFalse(action._click_connect_in_ellipsis_menu(page, deadline=10))
         click.assert_not_called()
@@ -68,19 +69,23 @@ class PendingAfterSendTests(unittest.TestCase):
         self.assertEqual(dots.call_count, 1)
 
 class FlexibleConnectPopupTests(unittest.TestCase):
-    def make_page(self, label, aria='', href=''):
-        item = MagicMock()
-        item.inner_text.return_value = label
-        item.get_attribute.side_effect = lambda name: {'aria-label': aria, 'href': href}.get(name)
-        candidates = MagicMock()
-        candidates.count.return_value = 1
-        candidates.nth.return_value = item
+    def make_page(self, *, found=True, href=None):
+        node = MagicMock()
+        link = node.locator.return_value
+        link.count.return_value = int(href is not None)
+        link.first.get_attribute.return_value = href
+        popup = MagicMock()
+        texts = popup.get_by_text.return_value
+        texts.count.return_value = int(found)
+        texts.nth.return_value = node
+        popup.get_by_role.return_value.count.return_value = 0
         page = MagicMock()
-        page.locator.return_value = candidates
-        return page, item
+        page.locator.return_value.count.return_value = 1
+        page.locator.return_value.nth.return_value = popup
+        return page, node
 
-    def test_connect_button_without_menuitem_role_is_clicked(self):
-        page, item = self.make_page('Connect')
+    def test_connect_text_without_menuitem_role_is_clicked(self):
+        page, item = self.make_page()
         with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
              patch.object(action, '_is_visible_locator', return_value=True), \
              patch.object(action, '_click_locator', return_value=True) as click:
@@ -88,8 +93,8 @@ class FlexibleConnectPopupTests(unittest.TestCase):
         self.assertIs(click.call_args.args[0], item)
         click.assert_called_once()
 
-    def test_remove_connection_is_not_clicked(self):
-        page, _ = self.make_page('Remove connection')
+    def test_missing_connect_is_not_clicked(self):
+        page, _ = self.make_page(found=False)
         with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
              patch.object(action, '_is_visible_locator', return_value=True), \
              patch.object(action, '_click_locator') as click:
@@ -97,9 +102,55 @@ class FlexibleConnectPopupTests(unittest.TestCase):
         click.assert_not_called()
 
     def test_custom_invite_for_other_profile_is_not_clicked(self):
-        page, _ = self.make_page('Connect', href='/preload/custom-invite/?vanityName=bob')
+        page, _ = self.make_page(href='/preload/custom-invite/?vanityName=bob')
         with patch.object(action, '_get_profile_vanity_name', return_value='alice'), \
              patch.object(action, '_is_visible_locator', return_value=True), \
              patch.object(action, '_click_locator') as click:
             self.assertFalse(action._click_connect_in_visible_profile_popup(page, deadline=100))
         click.assert_not_called()
+
+
+class SendWithoutNoteTests(unittest.TestCase):
+    def test_retries_send_until_click_succeeds_before_checking_pending(self):
+        clock = [0.0]
+        page = MagicMock()
+        def advance(_page, *, deadline, milliseconds):
+            clock[0] += milliseconds / 1000
+        with patch.object(action.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(action, '_sleep', side_effect=advance), \
+             patch.object(action, '_has_pending_state', side_effect=[False, False, True]), \
+             patch.object(action, '_has_invite_modal', return_value=True), \
+             patch.object(action, '_click_send_without_note', side_effect=[False, True]) as send, \
+             patch.object(action, '_pending_via_profile_more') as more:
+            self.assertEqual(action._confirm_after_connect_click(page, deadline=30), 'invitation_sent')
+        self.assertEqual(send.call_count, 2)
+        more.assert_not_called()
+
+    def test_finds_visible_send_button_after_hidden_match(self):
+        page = MagicMock()
+        candidates = page.locator.return_value
+        candidates.count.return_value = 2
+        first, second = MagicMock(), MagicMock()
+        candidates.nth.side_effect = [first, second]
+        with patch.object(action, '_is_visible_locator', side_effect=[False, True]):
+            self.assertTrue(action._has_invite_modal(page, deadline=30))
+
+
+class DirectConnectPriorityTests(unittest.TestCase):
+    def test_direct_connect_does_not_open_menu_before_action(self):
+        page = MagicMock()
+        page.url = 'https://www.linkedin.com/in/alice'
+        browser = MagicMock()
+        browser.open_linkedin_url.return_value = page
+        with patch.object(action, '_is_profile_not_found', return_value=False), \
+             patch.object(action, '_has_pending_state', return_value=False), \
+             patch.object(action, '_has_first_degree_state', return_value=False), \
+             patch.object(action, '_click_direct_connect', return_value=True) as direct, \
+             patch.object(action, '_pending_via_profile_more') as more, \
+             patch.object(action, '_pending_via_profile_ellipsis') as ellipsis, \
+             patch.object(action, '_confirm_after_connect_click', return_value='invitation_sent'):
+            result = action.connect_profile(browser=browser, linkedin_url=page.url)
+        self.assertEqual(result.status, 'invitation_sent')
+        direct.assert_called_once()
+        more.assert_not_called()
+        ellipsis.assert_not_called()

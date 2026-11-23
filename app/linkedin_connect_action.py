@@ -316,22 +316,24 @@ def _has_first_degree_state(page: Page, *, deadline: float) -> bool:
     return False
 
 
+SEND_WITHOUT_NOTE_SELECTORS = (
+    "[role='dialog'] button:has-text('Send without a note')",
+    "[role='dialog'] button:has-text('Send without note')",
+    "[role='dialog'] [role='button']:has-text('Send without a note')",
+    "[role='dialog'] [role='button']:has-text('Send without note')",
+    "button:has-text('Send without a note')",
+    "button:has-text('Send without note')",
+    "button[aria-label*='Send without']",
+)
+
+
 def _has_invite_modal(page: Page, *, deadline: float) -> bool:
-    selectors = (
-        "[role='dialog'] button:has-text('Send without a note')",
-        "[role='dialog'] button:has-text('Send without note')",
-        "button:has-text('Send without a note')",
-        "button:has-text('Send without note')",
-    )
-    return any(
-        _is_visible(
-            page,
-            selector,
-            deadline=deadline,
-            maximum_ms=160,
-        )
-        for selector in selectors
-    )
+    for selector in SEND_WITHOUT_NOTE_SELECTORS:
+        candidates = page.locator(selector)
+        for index in range(candidates.count()):
+            if _is_visible_locator(candidates.nth(index), deadline=deadline, maximum_ms=160):
+                return True
+    return False
 
 
 def _get_profile_vanity_name(
@@ -1523,39 +1525,40 @@ def _click_connect_via_menu_text(
 
 
 def _click_connect_in_visible_profile_popup(page: Page, *, deadline: float) -> bool:
-    """Click a Connect action inside an open popup, including non-menuitem DOMs."""
-    selectors = (
-        "[role='menu'] button, [role='menu'] a, [role='menu'] [role='button'], "
-        ".artdeco-dropdown__content--is-open button, "
-        ".artdeco-dropdown__content--is-open a, "
-        ".artdeco-dropdown__content--is-open [role='button'], "
-        "[role='menu'] [role='menuitem'], "
-        ".artdeco-dropdown__content--is-open [role='menuitem']"
+    """Click Connect inside a visible dropdown, including text-only actions."""
+    popups = page.locator(
+        "[role='menu'], [role='listbox'], "
+        ".artdeco-dropdown__content, [data-test-dropdown-content], "
+        "[data-view-name*='dropdown']"
     )
     vanity = _get_profile_vanity_name(page)
-    candidates = page.locator(selectors)
-    for index in range(candidates.count()):
-        candidate = candidates.nth(index)
-        if not _is_visible_locator(candidate, deadline=deadline, maximum_ms=120):
+    for popup_index in range(popups.count()):
+        popup = popups.nth(popup_index)
+        if not _is_visible_locator(popup, deadline=deadline, maximum_ms=120):
             continue
-        try:
-            label = " ".join((candidate.inner_text() or "").split()).strip().lower()
-            aria = " ".join((candidate.get_attribute("aria-label") or "").split()).strip().lower()
-            href = candidate.get_attribute("href") or ""
-        except Exception:
-            continue
-        # Do not confuse remove/withdraw/disconnect actions with Connect.
-        is_connect = (label == "connect" or label.startswith("connect with ")
-                      or aria == "connect" or aria.startswith("connect with ")
-                      or (aria.startswith("invite ") and aria.endswith(" to connect")))
-        if not is_connect:
-            continue
-        if "custom-invite" in href and (not vanity or f"vanityName={vanity}" not in href):
-            continue
-        print("ELLIPSIS CONNECT: clicking visible popup action", repr(label or aria))
-        if _click_locator(candidate, deadline=deadline, maximum_ms=800):
-            print("ELLIPSIS CONNECT clicked ONCE")
-            return True
+        texts = popup.get_by_text("Connect", exact=True)
+        for index in range(texts.count()):
+            node = texts.nth(index)
+            if not _is_visible_locator(node, deadline=deadline, maximum_ms=120):
+                continue
+            # Inspect a containing link when available to avoid another profile.
+            link = node.locator("xpath=ancestor-or-self::a[1]")
+            if link.count():
+                href = link.first.get_attribute("href") or ""
+                if "custom-invite" in href and (not vanity or f"vanityName={vanity}" not in href):
+                    continue
+            print("ELLIPSIS CONNECT: clicking visible Connect text in popup")
+            if _click_locator(node, deadline=deadline, maximum_ms=800):
+                print("ELLIPSIS CONNECT clicked ONCE")
+                return True
+        # Some layouts expose the action via an accessible button name only.
+        buttons = popup.get_by_role("button", name="Connect", exact=True)
+        for index in range(buttons.count()):
+            button = buttons.nth(index)
+            if (_is_visible_locator(button, deadline=deadline, maximum_ms=120)
+                    and _click_locator(button, deadline=deadline, maximum_ms=800)):
+                print("ELLIPSIS CONNECT clicked ONCE via accessible name")
+                return True
     return False
 
 
@@ -1958,16 +1961,8 @@ def _click_connect(
 # =========================================================
 
 def _click_send_without_note(page: Page, *, deadline: float) -> bool:
-    selectors = (
-        "button:has-text('Send without a note')",
-        "button:has-text('Send without note')",
-        "button[aria-label*='Send without']",
-    )
     return _click_first_visible(
-        page,
-        selectors,
-        deadline=deadline,
-        maximum_ms=420,
+        page, SEND_WITHOUT_NOTE_SELECTORS, deadline=deadline, maximum_ms=800,
     )
 
 
@@ -2115,6 +2110,8 @@ def _confirm_after_connect_click(
 
     send_attempted = False
     menu_checked = False
+    # Give LinkedIn time to render its invite dialog before opening menus.
+    dialog_wait_deadline = min(verify_deadline, time.monotonic() + 2.0)
 
     while (
         time.monotonic()
@@ -2151,12 +2148,11 @@ def _confirm_after_connect_click(
                 "Invite modal detected"
             )
 
-            send_attempted = True
-
             if _click_send_without_note(
                 page,
                 deadline=deadline,
             ):
+                send_attempted = True
                 print(
                     "Send without note clicked; "
                     "waiting for Pending confirmation..."
@@ -2173,9 +2169,13 @@ def _confirm_after_connect_click(
                 menu_checked = False
                 continue
 
-            print(
-                "Send without note was NOT clicked"
-            )
+            print("Send without note was NOT clicked; retrying")
+            _sleep(page, deadline=deadline, milliseconds=250)
+            continue
+
+        if not send_attempted and time.monotonic() < dialog_wait_deadline:
+            _sleep(page, deadline=deadline, milliseconds=150)
+            continue
 
         if not menu_checked:
             menu_checked = True
@@ -2327,18 +2327,6 @@ def connect_profile(
                 message="Connection invitation was already sent.",
             )
 
-        if _pending_via_profile_ellipsis(page, deadline=deadline):
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url, final_url=page.url, status="pending",
-                message="Connection invitation is pending in the profile menu.",
-            )
-
-        if _pending_via_profile_more(page, deadline=deadline):
-            return LinkedInConnectResult(
-                linkedin_url=cleaned_url, final_url=page.url, status="pending",
-                message="Connection invitation is pending in the More menu.",
-            )
-
         if _has_first_degree_state(page, deadline=deadline):
             return LinkedInConnectResult(
                 linkedin_url=cleaned_url,
@@ -2347,7 +2335,20 @@ def connect_profile(
                 message="Profile is already a 1st-degree connection.",
             )
 
-        connect_clicked = _click_connect(page, deadline=deadline)
+        # Prefer the direct profile action; only open the menu if it is absent.
+        connect_clicked = _click_direct_connect(page, deadline=deadline)
+        if not connect_clicked:
+            if _pending_via_profile_ellipsis(page, deadline=deadline):
+                return LinkedInConnectResult(
+                    linkedin_url=cleaned_url, final_url=page.url, status="pending",
+                    message="Connection invitation is pending in the profile menu.",
+                )
+            if _pending_via_profile_more(page, deadline=deadline):
+                return LinkedInConnectResult(
+                    linkedin_url=cleaned_url, final_url=page.url, status="pending",
+                    message="Connection invitation is pending in the More menu.",
+                )
+            connect_clicked = _click_connect(page, deadline=deadline)
 
         if not connect_clicked:
             # Check state again before declaring unavailable.
